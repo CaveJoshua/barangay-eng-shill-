@@ -14,7 +14,7 @@ import AccountManagementPage from './Account_Management';
 import ArchivePage from './Archive';
 
 import DashboardHome, { type DashboardData } from './Dashboard_Home';
-import AdministratorNotification from './Administrator_Notification'; 
+import AdministratorNotification from './Administrator_notification'; 
 import NotificationSystem from './Notification_system'; 
 
 import './styles/frame.css';
