@@ -1,10 +1,10 @@
 /**
- * api.ts - THE MASTERMIND (V6.0 - ZERO TRUST ARCHITECTURE)
+ * api.ts - THE MASTERMIND (V6.2 - SIGNATURE BUG FIXED)
  * ────────────────────────────────────────────────────────
  * Features:
  * - Bearer Token Header Injection (Bypasses 3rd-Party Cookie Blocks)
  * - Safe JSON Parsing (Prevents HTML 404 crashes)
- * - Direct-Link Handshake for Notifications
+ * - Direct-Link Handshake for Notifications (/alerts/live)
  * - Silent Token Rotation & Anti-CSRF Injection
  * - Automatic 401 Session Cleanup
  */
@@ -36,16 +36,21 @@ export const ANALYTICS_API = `${API_BASE_URL}/analytics/raw`;
 export const AUDIT_API = `${API_BASE_URL}/audit`;
 export const STATS_API = `${API_BASE_URL}/stats`;
 
-// --- 🔔 NOTIFICATIONS ---
-export const NOTIFICATION_API   = `${API_BASE_URL}/notifications`; // Updated for proper backend sync
+// --- 🔔 RECTO NOTIFICATIONS (Synced with backend) ---
+export const NOTIFICATION_API   = `${API_BASE_URL}/notifications`;
 export const NOTIF_LIVE_API     = `${API_BASE_URL}/alerts/live`;
 export const NOTIF_MARKER_API   = `${API_BASE_URL}/alerts/latest-marker`;
 export const NOTIF_COUNT_API    = `${API_BASE_URL}/alerts/count`;
 
 // --- Authentication & OTP ---
-export const AUTH_REQUEST_OTP = `${API_BASE_URL}/auth/request-reset`;
-export const AUTH_VERIFY_OTP = `${API_BASE_URL}/auth/verify-otp`;
+export const AUTH_REQUEST_OTP = `${API_BASE_URL}/accounts/request-otp`;
+export const AUTH_VERIFY_OTP = `${API_BASE_URL}/accounts/verify-otp`;
+
+// (RESTORED) Original route for Community Authentication
 export const AUTH_PASSWORD_UPDATE = `${API_BASE_URL}/auth/reset-password`;
+
+// (NEW) Route for Public OTP Password Reset
+export const AUTH_PUBLIC_RESET = `${API_BASE_URL}/accounts/public-reset`;
 
 
 /**
@@ -65,13 +70,11 @@ export const getAuthHeaders = (isFormData = false, method = 'GET') => {
     if (!isFormData) headers['Content-Type'] = 'application/json';
 
     // 🛡️ THE BULLETPROOF FIX: Attach Token directly to Headers
-    // This entirely bypasses Chrome's strict third-party cookie blocking.
     const token = localStorage.getItem('access_token');
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
     }
 
-    // Zero Trust: Attach CSRF token for state-changing requests
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase())) {
         const csrfToken = getCsrfToken();
         if (csrfToken) headers['X-XSRF-TOKEN'] = csrfToken; 
@@ -92,7 +95,6 @@ const handleAuthFailure = () => {
 
     console.error("[AUTH] 401 Unauthorized. Session expired. Cleaning up...");
     
-    // 🛡️ Ensure everything, including the Bearer token, is wiped
     localStorage.removeItem('access_token');
     localStorage.removeItem('account_id');
     localStorage.removeItem('profile_id');
@@ -103,7 +105,6 @@ const handleAuthFailure = () => {
     window.location.href = '/login'; 
 };
 
-// --- SILENT REFRESH LOCK ---
 let isRefreshing = false;
 let refreshPromise: Promise<boolean> | null = null;
 
@@ -117,7 +118,6 @@ const attemptSilentRefresh = async (): Promise<boolean> => {
         headers: { 'Content-Type': 'application/json' }
     }).then(async (res) => {
         isRefreshing = false;
-        // If refresh gives a new token, update it in localStorage
         if (res.ok) {
             const contentType = res.headers.get("content-type");
             if (contentType && contentType.includes("application/json")) {
@@ -141,26 +141,20 @@ const attemptSilentRefresh = async (): Promise<boolean> => {
  * ==========================================
  */
 
-// VALVE: For GET requests
 const valveFetch = async (url: string, signal?: AbortSignal, isRetry = false): Promise<any> => {
     try {
         const response = await fetch(url, {
             method: 'GET',
             headers: getAuthHeaders(false, 'GET'),
-            credentials: 'include', // Keep as fallback for Safari/Firefox
+            credentials: 'include', 
             signal: signal
         });
 
         if (response.status === 401 && !isRetry) {
-            console.warn(`[ZERO TRUST] Access token expired for ${url}. Attempting silent refresh...`);
             const refreshed = await attemptSilentRefresh();
-            
-            if (refreshed) {
-                return valveFetch(url, signal, true);
-            } else {
-                handleAuthFailure();
-                return null;
-            }
+            if (refreshed) return valveFetch(url, signal, true);
+            handleAuthFailure();
+            return null;
         }
 
         if (response.status === 401 && isRetry) {
@@ -168,32 +162,20 @@ const valveFetch = async (url: string, signal?: AbortSignal, isRetry = false): P
             return null;
         }
 
-        if (response.status === 403) {
-            console.warn(`[RBAC] Access Denied for route: ${url}`);
-            return null; 
-        }
-
-        if (!response.ok) {
-            console.error(`[VALVE API ERROR] ${response.status} at ${url}`);
-            return null;
-        }
+        if (response.status === 403) return null; 
+        if (!response.ok) return null;
         
-        // 🛡️ SAFE PARSING: Prevent HTML crash if the server returns a 404 page
         const contentType = response.headers.get("content-type");
         if (contentType && contentType.includes("application/json")) {
             return await response.json();
-        } else {
-            console.error(`[VALVE] Expected JSON, got HTML from ${url}`);
-            return null;
         }
+        return null;
     } catch (err: any) {
         if (err.name === 'AbortError') return null;
-        console.error("[VALVE ERROR]", err.message);
         return null; 
     }
 };
 
-// TRIGGER: For PATCH, POST, DELETE, PUT
 const triggerAction = async (url: string, method: 'POST' | 'PATCH' | 'PUT' | 'DELETE', body?: any, isRetry = false): Promise<any> => {
     try {
         const isFormData = body instanceof FormData;
@@ -206,40 +188,33 @@ const triggerAction = async (url: string, method: 'POST' | 'PATCH' | 'PUT' | 'DE
         });
 
         if (response.status === 401 && !isRetry) {
-            console.warn(`[ZERO TRUST] Access token expired for mutation. Attempting silent refresh...`);
             const refreshed = await attemptSilentRefresh();
-            
-            if (refreshed) {
-                return triggerAction(url, method, body, true);
-            } else {
-                handleAuthFailure();
-                return { success: false, error: "Session securely terminated. Please log in again." };
-            }
+            if (refreshed) return triggerAction(url, method, body, true);
+            handleAuthFailure();
+            return { success: false, error: "Session securely terminated." };
         }
 
         if (response.status === 401 && isRetry) {
             handleAuthFailure();
-            return { success: false, error: "Session securely terminated. Please log in again." };
+            return { success: false, error: "Session securely terminated." };
         }
 
         if (response.status === 403) {
-            return { success: false, error: "Security Policy Violation: You do not have permission for this action." };
+            return { success: false, error: "Security Policy Violation: No permission." };
         }
 
-        // 🛡️ SAFE PARSING: Prevent HTML crash on backend errors
         const contentType = response.headers.get("content-type");
         let data;
         if (contentType && contentType.includes("application/json")) {
             data = await response.json();
         } else {
-            return { success: false, error: `System Error (${response.status}): Endpoint not found or returned HTML.` };
+            return { success: false, error: `System Error (${response.status}).` };
         }
 
         if (!response.ok) return { success: false, error: data.error || `Action failed: ${response.status}` };
         
         return { success: true, data };
     } catch (err: any) {
-        console.error(`[TRIGGER ERROR - ${method}]`, err.message);
         return { success: false, error: err.message };
     }
 };
@@ -254,7 +229,14 @@ export const ApiService = {
     // --- GMAIL OTP AUTHENTICATION METHODS ---
     requestPasswordResetOTP: (email: string) => triggerAction(AUTH_REQUEST_OTP, 'POST', { email }),
     verifyOTP: (email: string, otp: string) => triggerAction(AUTH_VERIFY_OTP, 'POST', { email, otp }),
-    updatePassword: (residentId: string, newPassword: string) => triggerAction(AUTH_PASSWORD_UPDATE, 'PUT', { residentId, newPassword }),
+    
+    // 🛡️ RESTORED FIX: 2 arguments so Community_Authentication.tsx stops crashing!
+    updatePassword: (residentId: string, newPassword: string) => 
+        triggerAction(AUTH_PASSWORD_UPDATE, 'PUT', { residentId, newPassword }),
+        
+    // 🛡️ NEW FIX: The 3 argument version specifically for the public OTP page
+    publicResetPassword: (email: string, otp: string, newPassword: string) => 
+        triggerAction(AUTH_PUBLIC_RESET, 'POST', { email, otp, newPassword }),
 
     // --- Identity & Profiles ---
     getProfile: (id: string, signal?: AbortSignal) => valveFetch(`${PROFILE_API}/${id}`, signal),
@@ -270,8 +252,7 @@ export const ApiService = {
     getResidents: (signal?: AbortSignal) => valveFetch(RESIDENTS_API, signal),
     saveResident: (id: string | undefined, payload: any) => {
         const url = id ? `${RESIDENTS_API}/${id}` : RESIDENTS_API;
-        const method = id ? 'PUT' : 'POST';
-        return triggerAction(url, method, payload);
+        return triggerAction(url, id ? 'PUT' : 'POST', payload);
     },
     deleteResident: (id: string) => triggerAction(`${RESIDENTS_API}/${id}`, 'DELETE'),
 
@@ -279,8 +260,7 @@ export const ApiService = {
     getHouseholds: (signal?: AbortSignal) => valveFetch(HOUSEHOLDS_API, signal),
     saveHousehold: (id: string | undefined, payload: any) => {
         const url = id ? `${HOUSEHOLDS_API}/${id}` : HOUSEHOLDS_API;
-        const method = id ? 'PUT' : 'POST';
-        return triggerAction(url, method, payload);
+        return triggerAction(url, id ? 'PUT' : 'POST', payload);
     },
     deleteHousehold: (id: string) => triggerAction(`${HOUSEHOLDS_API}/${id}`, 'DELETE'),
 
@@ -288,8 +268,7 @@ export const ApiService = {
     getOfficials: (signal?: AbortSignal) => valveFetch(OFFICIALS_API, signal),
     saveOfficial: (id: string | undefined, payload: any) => {
         const url = id ? `${OFFICIALS_API}/${id}` : OFFICIALS_API;
-        const method = id ? 'PUT' : 'POST';
-        return triggerAction(url, method, payload);
+        return triggerAction(url, id ? 'PUT' : 'POST', payload);
     },
     deleteOfficial: (id: string) => triggerAction(`${OFFICIALS_API}/${id}`, 'DELETE'),
 
@@ -297,8 +276,7 @@ export const ApiService = {
     getAnnouncements: (signal?: AbortSignal) => valveFetch(ANNOUNCEMENT_API, signal),
     saveAnnouncement: (id: string | null, payload: any) => {
         const url = id ? `${ANNOUNCEMENT_API}/${id}` : ANNOUNCEMENT_API;
-        const method = id ? 'PUT' : 'POST';
-        return triggerAction(url, method, payload);
+        return triggerAction(url, id ? 'PUT' : 'POST', payload);
     },
     deleteAnnouncement: (id: string) => triggerAction(`${ANNOUNCEMENT_API}/${id}`, 'DELETE'),
 
@@ -308,8 +286,7 @@ export const ApiService = {
     updateDocumentStatus: (id: string, status: string) => triggerAction(`${DOCUMENTS_API}/${id}/status`, 'PATCH', { status }),
     saveDocumentRecord: (payload: any) => {
         const url = payload.id ? `${DOCUMENTS_API}/${payload.id}` : `${DOCUMENTS_API}/save`;
-        const method = payload.id ? 'PUT' : 'POST';
-        return triggerAction(url, method, payload);
+        return triggerAction(url, payload.id ? 'PUT' : 'POST', payload);
     },
     deleteDocument: (id: string) => triggerAction(`${DOCUMENTS_API}/${id}`, 'DELETE'),
 
@@ -317,8 +294,7 @@ export const ApiService = {
     getBlotters: (signal?: AbortSignal) => valveFetch(BLOTTER_API, signal),
     saveBlotter: (id: string | null, payload: any) => {
         const url = id ? `${BLOTTER_API}/${id}` : BLOTTER_API;
-        const method = id ? 'PUT' : 'POST';
-        return triggerAction(url, method, payload);
+        return triggerAction(url, id ? 'PUT' : 'POST', payload);
     },
     deleteBlotter: (id: string) => triggerAction(`${BLOTTER_API}/${id}`, 'DELETE'),
 
@@ -328,12 +304,9 @@ export const ApiService = {
     getAnalytics: (signal?: AbortSignal) => valveFetch(ANALYTICS_API, signal),
 
     // --- 🔔 RECTO NOTIFICATIONS MODULE ---
-    // Added the missing notification actions for your UI
-    getNotifications: (signal?: AbortSignal) => valveFetch(NOTIFICATION_API, signal),
+    getNotifications: (signal?: AbortSignal) => valveFetch(NOTIF_LIVE_API, signal),
     markNotificationRead: (id: string) => triggerAction(`${NOTIFICATION_API}/${id}/read`, 'PUT'),
     markAllNotificationsRead: () => triggerAction(`${NOTIFICATION_API}/read-all`, 'PUT'),
-    
-    // (Legacy direct-link alerts preserved for compatibility)
     getNotificationMarker: () => valveFetch(NOTIF_MARKER_API),
     getNotificationCount: () => valveFetch(NOTIF_COUNT_API),
 };
