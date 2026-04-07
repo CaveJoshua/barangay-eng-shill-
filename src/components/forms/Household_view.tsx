@@ -59,7 +59,7 @@ export default function Household_view({ householdId, onClose }: HouseholdViewPr
               household_number: targetHousehold.household_number,
               head_name: targetHousehold.head,
               zone: targetHousehold.zone,
-              address_raw: targetHousehold.address || "Tenure: N/A | Water: N/A | Toilet: N/A",
+              address_raw: targetHousehold.address || "Tenure: N/A",
             });
           }
         }
@@ -81,25 +81,22 @@ export default function Household_view({ householdId, onClose }: HouseholdViewPr
 
     if (householdId) fetchHouseholdData();
 
-    // CLEANUP: Close the valve and unmount safely
     return () => {
       isMounted.current = false;
       valve.abort();
     };
   }, [householdId]);
 
-  // --- PARSING LOGIC ---
-  const parseAddressData = (rawString: string) => {
-    if (!rawString) return { tenure: 'N/A', water: 'N/A', toilet: 'N/A' };
+  // --- PARSING LOGIC (Simplified to Tenure Only) ---
+  const parseTenureData = (rawString: string) => {
+    if (!rawString) return 'N/A';
     const parts = rawString.split('|').map(s => s.trim());
-    const getData = (key: string) => {
-      const found = parts.find(p => p.toLowerCase().includes(key.toLowerCase()));
-      return found ? found.split(':')[1]?.trim() || 'N/A' : 'N/A';
-    };
-    return { tenure: getData('Tenure'), water: getData('Water'), toilet: getData('Toilet') };
+    const found = parts.find(p => p.toLowerCase().includes('tenure'));
+    return found ? found.split(':')[1]?.trim() || 'N/A' : 'N/A';
   };
 
-  const socioData = household ? parseAddressData(household.address_raw) : { tenure: '', water: '', toilet: '' };
+  const tenure = household ? parseTenureData(household.address_raw) : 'N/A';
+  
   const is4Ps = members.some(m => m.is_4ps);
   const isIndigent = members.some(m => {
       const incomeStr = String(m.monthly_income || '0').replace(/\D/g, '');
@@ -141,10 +138,9 @@ export default function Household_view({ householdId, onClose }: HouseholdViewPr
                 <div className="HP_VIEW_INFO_BLOCK HP_SOCIO_DETAILS">
                   <div className="HP_SOCIO_ITEM">
                     <span className="HP_FIELD_LABEL">Tenure:</span>
-                    <span className="HP_FIELD_VALUE" style={{fontWeight: 700, color: '#3b82f6'}}>{socioData.tenure}</span>
+                    <span className="HP_FIELD_VALUE" style={{fontWeight: 700, color: '#3b82f6'}}>{tenure}</span>
                   </div>
-                  <div className="HP_SOCIO_ITEM"><span className="HP_FIELD_LABEL">Water:</span><span className="HP_FIELD_VALUE">{socioData.water}</span></div>
-                  <div className="HP_SOCIO_ITEM"><span className="HP_FIELD_LABEL">Toilet:</span><span className="HP_FIELD_VALUE">{socioData.toilet}</span></div>
+                  {/* Water and Toilet items removed */}
                 </div>
               </div>
 

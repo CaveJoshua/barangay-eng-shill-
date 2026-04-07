@@ -36,7 +36,8 @@ export const ANALYTICS_API = `${API_BASE_URL}/analytics/raw`;
 export const AUDIT_API = `${API_BASE_URL}/audit`;
 export const STATS_API = `${API_BASE_URL}/stats`;
 
-// --- 🔔 RECTO NOTIFICATIONS ---
+// --- 🔔 NOTIFICATIONS ---
+export const NOTIFICATION_API   = `${API_BASE_URL}/notifications`; // Updated for proper backend sync
 export const NOTIF_LIVE_API     = `${API_BASE_URL}/alerts/live`;
 export const NOTIF_MARKER_API   = `${API_BASE_URL}/alerts/latest-marker`;
 export const NOTIF_COUNT_API    = `${API_BASE_URL}/alerts/count`;
@@ -327,7 +328,12 @@ export const ApiService = {
     getAnalytics: (signal?: AbortSignal) => valveFetch(ANALYTICS_API, signal),
 
     // --- 🔔 RECTO NOTIFICATIONS MODULE ---
-    getNotifications: (signal?: AbortSignal) => valveFetch(NOTIF_LIVE_API, signal),
+    // Added the missing notification actions for your UI
+    getNotifications: (signal?: AbortSignal) => valveFetch(NOTIFICATION_API, signal),
+    markNotificationRead: (id: string) => triggerAction(`${NOTIFICATION_API}/${id}/read`, 'PUT'),
+    markAllNotificationsRead: () => triggerAction(`${NOTIFICATION_API}/read-all`, 'PUT'),
+    
+    // (Legacy direct-link alerts preserved for compatibility)
     getNotificationMarker: () => valveFetch(NOTIF_MARKER_API),
     getNotificationCount: () => valveFetch(NOTIF_COUNT_API),
 };

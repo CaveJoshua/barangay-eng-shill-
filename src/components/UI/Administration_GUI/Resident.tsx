@@ -76,27 +76,34 @@ export default function ResidentsPage() {
     };
   }, [fetchResidents]);
 
-  /**
-   * REFACTORED ARCHIVE: Uses Universal Trigger Handshake
-   */
-  const handleArchive = async (id: string | undefined) => {
+const handleArchive = async (id: string | undefined) => {
     if (!id) return;
     if (!window.confirm('Archive this resident identity? This action is logged.')) return;
 
+    // Cache the previous state in case the API call fails
+    const previousResidents = [...residents];
+
     try {
-      // Optimistic UI Update
+      // 1. Optimistic UI Update: Hide the resident immediately to make the app feel fast
       setResidents(prev => prev.filter(r => r.id !== id));
       
-      // Assume deleteResident is added to ApiService in api.ts
-      // If not, this uses the internal triggerAction handshake
-      const response = await ApiService.saveBlotter(id, { activityStatus: 'Archived' }); 
+      // 2. THE FIX: Call the correct API endpoint for Residents, NOT Blotter
+      // We assume your ApiService has a `saveResident` or `updateResident` method.
+      // If it's a generic save method, it should look something like this:
+      const response = await ApiService.saveResident(id, { activityStatus: 'Archived' }); 
       
-      if (!response.success) throw new Error('Archive failed');
+      if (!response.success) {
+          throw new Error(response.error || 'Server rejected archive request');
+      }
       
+      // 3. Sync the exact final state from the database
       fetchResidents(true); 
-    } catch (err) {
-      alert('Archive failed. Check connection.');
-      fetchResidents(true);
+
+    } catch (err: any) {
+      console.error("[ARCHIVE ERROR]:", err.message);
+      alert(`Archive failed: ${err.message}. Check connection.`);
+      // Rollback the optimistic UI update if the server failed
+      setResidents(previousResidents);
     }
   };
 
