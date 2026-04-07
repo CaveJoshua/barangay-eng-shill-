@@ -12,32 +12,15 @@ const PORT = 8000;
 
 // 1. GLOBAL CORS (ZERO TRUST EDITION)
 app.use(cors({
-  origin: (origin, callback) => {
-    // 1. Allow local development
-    const allowedOrigins = [
-      'http://localhost:5173',
-      'http://127.0.0.1:5173',
-    ];
-
-    // 2. Allow if it's a Cloudflare Pages preview or your main production domain
-    const isCloudflare = origin && origin.endsWith('.barangay-eng-shill.pages.dev');
-
-    if (!origin || allowedOrigins.includes(origin) || isCloudflare) {
-      callback(null, true);
-    } else {
-      console.error(`[CORS BLOCKED]: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: [
+    'http://localhost:5173', 
+    'http://127.0.0.1:5173',
+    'https://e52450f8.barangay-eng-shill.pages.dev',
+    'https://f155fa1b.barangay-eng-shill.pages.dev'
+  ], 
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: [
-    'Content-Type', 
-    'Authorization', 
-    'x-user-role', 
-    'x-resident-id', 
-    'X-XSRF-TOKEN'
-  ],
-  credentials: true, // 🛡️ CRITICAL: Allows secure cookies/sessions
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-role', 'x-resident-id', 'X-XSRF-TOKEN'], 
+  credentials: true, // <-- CRITICAL: Tells Express to accept the secure cookies
   optionsSuccessStatus: 200
 }));
 
