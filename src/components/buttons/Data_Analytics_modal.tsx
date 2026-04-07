@@ -90,15 +90,28 @@ const Section = ({ label }: { label: string }) => (
   </div>
 );
 
+// UPDATED: Added `meaning` prop to render an explanation below the chart
 const ChartBlock = ({
-  title, sub, height = 230, children,
+  title, sub, height = 230, meaning, children,
 }: {
-  title: string; sub?: string; height?: number; children: React.ReactNode;
+  title: string; sub?: string; height?: number; meaning?: string; children: React.ReactNode;
 }) => (
-  <div className="da-block">
+  <div className="da-block" style={{ display: 'flex', flexDirection: 'column' }}>
     <div className="da-chart-title">{title}</div>
     {sub && <div className="da-chart-sub">{sub}</div>}
     <div style={{ height }}>{children}</div>
+    {meaning && (
+      <div style={{
+        marginTop: 'auto',
+        paddingTop: '12px',
+        borderTop: '1px dashed #cbd5e1',
+        fontSize: '0.8rem',
+        color: '#475569',
+        lineHeight: 1.5,
+      }}>
+        <strong style={{ color: '#0f172a' }}>Meaning:</strong> {meaning}
+      </div>
+    )}
   </div>
 );
 
@@ -353,7 +366,7 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
             <div className="da-grid-2">
                 <div className="da-block da-block--insight">
                     <div className="da-chart-title">Recommended Actions</div>
-                    <div className="da-chart-sub">AI-Generated suggestions based on live data</div>
+                    <div className="da-chart-sub">Data-Driven recommendations based on live system patterns</div>
                     <div className="da-suggestion-list">
                         {E.suggestions && E.suggestions.length > 0 ? (
                             E.suggestions.map((s: any, i: number) => (
@@ -367,7 +380,7 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
                             ))
                         ) : (
                             <div className="da-suggestion-card">
-                                <p>System status is stable. No immediate strategic changes required.</p>
+                                <p>System status is stable. No immediate strategic changes required based on current data volume.</p>
                             </div>
                         )}
                     </div>
@@ -401,6 +414,7 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
                 title="Monthly Volume + Forecast"
                 sub={`Holt's DES · trend=${mUp ? '+' : ''}${Number(E.mTrend || 0).toFixed(2)} Δ/mo · ${(E.mKeys || []).length} months data`}
                 height={230}
+                meaning="Tracks the total number of document requests month over month. The dashed green line projects the expected volume for the next two months based on historical momentum."
               >
                 <Line data={{
                   labels: [...(E.mKeys || []).map(fmtMonth), 'Mo+1', 'Mo+2'],
@@ -439,6 +453,7 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
                 title="Daily Requests (14d) + Tomorrow"
                 sub={`Holt's DES · predicted_tomorrow=~${E.tomorrowP || 0}`}
                 height={230}
+                meaning="Shows the daily volume of requests over the last two weeks. The final dashed point represents the statistically expected number of requests for tomorrow."
               >
                 <Line data={{
                   labels: [...(E.dKeys || []).map(fmtDay), 'Tomorrow'],
@@ -482,6 +497,7 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
                 title="Purok Demand"
                 sub="doc → resident_id → purok"
                 height={190}
+                meaning="Compares the total volume of requests originating from each Purok. Useful for identifying which local areas require the most administrative attention."
               >
                 <Bar data={{
                   labels: Object.keys(E.purokCounts || {}),
@@ -500,6 +516,7 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
                 title="Document Types"
                 sub="all records mapped"
                 height={190}
+                meaning="Displays the proportion of each document type requested. Helps identify the most frequently processed clearances or certificates."
               >
                 <Doughnut data={{
                   labels: typeKeys,
@@ -517,6 +534,7 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
                 title="Sex Distribution"
                 sub="residents_records.sex"
                 height={190}
+                meaning="Shows the demographic breakdown of residents by sex, based on the total registered population in the system."
               >
                 <Doughnut data={{
                   labels: ['Male', 'Female', 'Other'],
@@ -539,6 +557,7 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
                 title="Age Group Spread"
                 sub="residents_records.dob → computed_age"
                 height={160}
+                meaning="Categorizes the registered population into specific age brackets to help visualize the demographic makeup of the barangay."
               >
                 <Bar data={{
                   labels: Object.keys(E.ages || {}),
@@ -552,10 +571,10 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
                 }} options={chartOpts()} />
               </ChartBlock>
 
-              <div className="da-block">
+              <div className="da-block" style={{ display: 'flex', flexDirection: 'column' }}>
                 <div className="da-chart-title">Special Categories</div>
                 <div className="da-chart-sub">residents_records → boolean flags</div>
-                <div className="da-cat-list">
+                <div className="da-cat-list" style={{ flexGrow: 1 }}>
                   {Object.entries(E.specials || {}).map(([label, count]) => {
                     const c = count as number;
                     const pct = E.totalResidents > 0
@@ -575,6 +594,16 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
                       </div>
                     );
                   })}
+                </div>
+                <div style={{
+                  marginTop: '16px',
+                  paddingTop: '12px',
+                  borderTop: '1px dashed #cbd5e1',
+                  fontSize: '0.8rem',
+                  color: '#475569',
+                  lineHeight: 1.5,
+                }}>
+                  <strong style={{ color: '#0f172a' }}>Meaning:</strong> Highlights vulnerable or specialized groups (e.g., Senior Citizens, PWDs) within the population to guide targeted community programs.
                 </div>
               </div>
             </div>
