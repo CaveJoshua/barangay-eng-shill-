@@ -19,7 +19,7 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
   
   // --- Forgot Password State ---
   const [recoveryIdentifier, setRecoveryIdentifier] = useState('');
-  const [otpCode, setOtpCode] = useState('');         
+  const [otpCode, setOtpCode] = useState('');        
   const [newPassword, setNewPassword] = useState(''); 
   const [recoverySuccessMsg, setRecoverySuccessMsg] = useState('');
 
@@ -67,7 +67,7 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
       const res = await fetch(LOGIN_URL, { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', 
+        credentials: 'include', // 🛡️ CRITICAL: Accepts the HttpOnly cookie from backend
         body: JSON.stringify({ 
           username: username.trim().toLowerCase(), 
           password: password.trim(), 
@@ -90,9 +90,11 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
       const needsReset = data.requires_reset || data.user?.requires_reset || data.profile?.is_first_login;
       const sessionData = { ...data, requires_reset: needsReset };
 
+      // 🛡️ ZERO TRUST UPDATE: 
+      // We ONLY store non-sensitive UI state here. 
+      // The actual JWT is now locked inside the browser's HttpOnly cookie vault.
       localStorage.setItem('user_role', 'resident');
       localStorage.setItem('resident_session', JSON.stringify(sessionData));
-      if (data.token) localStorage.setItem('auth_token', data.token);
 
       onLoginSuccess(sessionData); 
       onClose();
@@ -114,6 +116,7 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
       const res = await fetch(FORGOT_PW_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // Send fingerprint cookie for rate limiting
         body: JSON.stringify({ email: recoveryIdentifier.trim().toLowerCase() })
       });
 
@@ -140,6 +143,7 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
       const res = await fetch(RESET_PW_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           email: recoveryIdentifier.trim().toLowerCase(),
           otp: otpCode.trim(),

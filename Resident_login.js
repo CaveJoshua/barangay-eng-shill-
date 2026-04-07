@@ -17,16 +17,9 @@ export const ResidentsLoginRouter = (router, supabase) => {
                 .from('residents_account')
                 .select('*')
                 .eq('username', cleanUsername)
-                .single();
+                .maybeSingle(); // Prevent crash if empty
 
-            if (accountError) {
-                if (accountError.code !== 'PGRST116') {
-                    console.error("❌ [DB FETCH ERROR - ACCOUNT]:", accountError.message);
-                }
-                return res.status(401).json({ error: 'Resident account not found.' });
-            }
-
-            if (!accountData) {
+            if (accountError || !accountData) {
                 return res.status(401).json({ error: 'Resident account not found.' });
             }
 
@@ -39,7 +32,7 @@ export const ResidentsLoginRouter = (router, supabase) => {
                 .from('residents_records')
                 .select('first_name, last_name, email')
                 .eq('record_id', accountData.resident_id)
-                .single();
+                .maybeSingle(); // Prevent crash if empty
 
             if (profileError) {
                 console.warn("⚠️ [DB WARNING - PROFILE]: Profile metadata missing, but allowing login.", profileError.message);
@@ -71,11 +64,11 @@ export const ResidentsLoginRouter = (router, supabase) => {
 
             const token = jwt.sign(tokenPayload, JWT_SECRET);
 
-            // 5. Inject Secure Cookie
+            // 5. 🔥 THE FIX: Inject Secure Cross-Origin Cookie
             res.cookie('auth_token', token, {
                 httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: 'lax',
+                secure: true,       // MUST be true for cross-domain
+                sameSite: 'none',   // CHANGED FROM 'lax' TO 'none'
                 maxAge: 24 * 60 * 60 * 1000
             });
 
