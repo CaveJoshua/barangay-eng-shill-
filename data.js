@@ -113,18 +113,35 @@ export const authenticateToken = (req, res, next) => {
 // ==========================================
 // 2. GLOBAL MIDDLEWARE & SECURITY HEADERS
 // ==========================================
-router.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }, 
-  contentSecurityPolicy: false, 
-}));
+app.use(cors({
+  origin: (origin, callback) => {
+    // 1. Allow local development
+    const allowedOrigins = [
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+    ];
 
-const corsOptions = {
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'https://e52450f8.barangay-eng-shill.pages.dev','https://0c2ee9f6.barangay-eng-shill.pages.dev'], 
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-role','x-resident-id','X-XSRF-TOKEN'],
-  credentials: true,
+    // 2. Allow if it's a Cloudflare Pages preview or your main production domain
+    const isCloudflare = origin && origin.endsWith('.barangay-eng-shill.pages.dev');
+
+    if (!origin || allowedOrigins.includes(origin) || isCloudflare) {
+      callback(null, true);
+    } else {
+      console.error(`[CORS BLOCKED]: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'x-user-role', 
+    'x-resident-id', 
+    'X-XSRF-TOKEN'
+  ],
+  credentials: true, // 🛡️ CRITICAL: Allows secure cookies/sessions
   optionsSuccessStatus: 200
-};
+}));
 
 router.use(cors(corsOptions)); 
 router.use(express.json({ limit: '30mb' }));
