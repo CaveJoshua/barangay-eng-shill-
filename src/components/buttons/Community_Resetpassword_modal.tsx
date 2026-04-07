@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './styles/Community_Resetpassword_modal.css'; 
-import { API_BASE_URL, getAuthHeaders, ApiService } from '../UI/api'; 
+import { API_BASE_URL, ApiService } from '../UI/api'; 
 
 interface ResetProps {
   isOpen: boolean;
@@ -154,16 +154,12 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
     setLoading(true);
 
     try {
-      // 🚨 THE FIX FOR THE 401 ERROR IS HERE 🚨
-      const token = localStorage.getItem('auth_token') || '';
-
+      // 🛡️ ZERO TRUST FIX: The browser automatically attaches the HttpOnly cookie because of `credentials: 'include'`.
       const res = await fetch(`${API_BASE_URL}/accounts/reset/${accountId}`, {
         method: 'PATCH',
         credentials: 'include', // Crucial for secure cookies
         headers: {
-          ...getAuthHeaders(), 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`, // Manually injecting the token
           'x-user-role': resident?.role || localStorage.getItem('user_role') || 'resident' 
         },
         body: JSON.stringify({ 
@@ -211,7 +207,7 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
           <button 
             onClick={onClose} 
             className="CM_RESET_CLOSE_BTN"
-            style={{ position: 'absolute', top: '15px', right: '20px', background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--c--p--text-secondary)' }}
+            style={{ position: 'absolute', top: '15px', right: '20px', background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--cm-text-muted)' }}
             aria-label="Close Security Modal"
           >
             <i className="fas fa-times"></i>
@@ -221,7 +217,7 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
         {/* ── UI: OTP REQUEST ── */}
         {step === 'REQUEST_OTP' && (
           <div className="CM_RESET_HEADER" style={{ textAlign: 'center', paddingTop: '20px' }}>
-            <div className="CM_RESET_ICON" style={{ fontSize: '3rem', color: 'var(--c--p--brand-blue)', marginBottom: '15px' }}>
+            <div className="CM_RESET_ICON" style={{ fontSize: '3rem', color: 'var(--cm-primary)', marginBottom: '15px' }}>
               <i className="fas fa-shield-alt"></i>
             </div>
             <h2>Verify Authorization</h2>
@@ -243,7 +239,7 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
         {/* ── UI: OTP VERIFY ── */}
         {step === 'VERIFY_OTP' && (
           <div className="CM_RESET_HEADER" style={{ textAlign: 'center', paddingTop: '20px' }}>
-            <div className="CM_RESET_ICON" style={{ fontSize: '3rem', color: 'var(--c--p--brand-blue)', marginBottom: '15px' }}>
+            <div className="CM_RESET_ICON" style={{ fontSize: '3rem', color: 'var(--cm-primary)', marginBottom: '15px' }}>
               <i className="fas fa-fingerprint"></i>
             </div>
             <h2>Input Security Token</h2>
@@ -256,7 +252,7 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
               value={otp}
               onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))} 
               placeholder="••••••"
-              style={{ width: '100%', padding: '15px', fontSize: '2rem', textAlign: 'center', letterSpacing: '0.5em', borderRadius: '10px', border: '1px solid #ccc', marginBottom: '15px', fontFamily: 'monospace' }}
+              style={{ width: '100%', padding: '15px', fontSize: '2rem', textAlign: 'center', letterSpacing: '0.5em', borderRadius: '10px', border: '1px solid var(--cm-border)', marginBottom: '15px', fontFamily: 'monospace' }}
             />
             {error && <div className="CM_RESET_ERROR"><i className="fas fa-exclamation-triangle"></i> {error}</div>}
             
@@ -267,7 +263,7 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
             {countdown === 0 && (
               <button 
                 onClick={handleRequestOTP} 
-                style={{ marginTop: '15px', background: 'none', border: 'none', color: 'var(--c--p--brand-blue)', cursor: 'pointer', fontWeight: 'bold' }}
+                style={{ marginTop: '15px', background: 'none', border: 'none', color: 'var(--cm-primary)', cursor: 'pointer', fontWeight: 'bold' }}
               >
                 Resend Code
               </button>

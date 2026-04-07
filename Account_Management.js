@@ -10,7 +10,7 @@ const hashPassword = (plain) => {
     return bcrypt.hashSync(plain, 10);
 };
 
-// 🛡️ SECURITY HELPER 2: Generate Alphanumeric Code (No confusing characters)
+// 🛡️ SECURITY HELPER 2: Generate Alphanumeric Code 
 const generateSecureCode = (length = 6) => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
     let result = '';
@@ -54,7 +54,7 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
     };
 
     // =========================================================
-    // 1. GENERATE & SEND SECURE OTP (With Anti-Spam Cooldown)
+    // 1. GENERATE & SEND SECURE OTP 
     // =========================================================
     router.post('/accounts/request-otp', async (req, res) => {
         try {
@@ -69,17 +69,14 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
 
             const targetEmail = userData.email.toLowerCase();
 
-            // 🛡️ ANTI-SPAM: Check if they requested a code too recently (60-second cooldown)
             const existingCode = otpStore.get(targetEmail);
             if (existingCode && Date.now() < existingCode.cooldownLimit) {
                 console.log(`⏳ [ANTI-SPAM] Blocked rapid request from ${targetEmail}`);
                 return res.status(429).json({ error: 'Please wait 60 seconds before requesting another code.' });
             }
 
-            // Generate Unique Secure Code
             const otpCode = generateSecureCode(6);
             
-            // Save to memory with 5-min expiration, 3 attempts, and a 60-sec cooldown
             otpStore.set(targetEmail, { 
                 code: otpCode, 
                 expires: Date.now() + 300000,
@@ -112,7 +109,7 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
     });
 
     // =========================================================
-    // 2. VERIFY OTP (Standard - with Anti-Brute Force)
+    // 2. VERIFY OTP 
     // =========================================================
     router.post('/accounts/verify-otp', async (req, res) => {
         try {
@@ -131,12 +128,10 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
                 return res.status(400).json({ error: 'Code has expired. Please request a new one.' });
             }
 
-            // 🛡️ ANTI-BRUTE FORCE: Check attempts
             if (stored.code !== otp.trim()) {
                 stored.attempts += 1;
                 if (stored.attempts >= 3) {
-                    otpStore.delete(targetEmail); // BURN TOKEN
-                    console.log(`🚨 [SECURITY] Brute force stopped for ${targetEmail}`);
+                    otpStore.delete(targetEmail); 
                     return res.status(429).json({ error: 'Too many failed attempts. Code destroyed. Request a new one.' });
                 }
                 return res.status(400).json({ error: `Invalid code. ${3 - stored.attempts} attempts remaining.` });
@@ -150,16 +145,20 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
     });
 
     // =========================================================
-    // 3. CORE: PASSWORD RESET (For Logged-in Users / Admins)
+    // 3. CORE: PASSWORD RESET (For Logged-in Users / Forced Resets)
     // =========================================================
     router.patch('/accounts/reset/:accountId', authenticateToken, async (req, res) => {
         try {
             const { password } = req.body;
             const { accountId } = req.params;
 
+            // 🛡️ THE FIX: Update password AND clear the reset flags
             const { data, error } = await supabase
                 .from('residents_account')
-                .update({ password: hashPassword(password) })
+                .update({ 
+                    password: hashPassword(password),
+                    requires_reset: false // Releases them from the login lock
+                })
                 .or(`account_id.eq.${accountId},resident_id.eq.${accountId}`)
                 .select();
 
@@ -168,7 +167,10 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
             if (!data || data.length === 0) {
                 const { data: offData, error: offError } = await supabase
                     .from('officials_accounts')
-                    .update({ password: hashPassword(password) })
+                    .update({ 
+                        password: hashPassword(password),
+                        requires_reset: false
+                    })
                     .eq('account_id', accountId)
                     .select();
                 
@@ -183,7 +185,7 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
     });
 
     // =========================================================
-    // 4. PUBLIC: RESET PASSWORD VIA OTP (With Anti-Brute Force)
+    // 4. PUBLIC: RESET PASSWORD VIA OTP 
     // =========================================================
     router.post('/accounts/public-reset', async (req, res) => {
         try {
@@ -202,21 +204,22 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
                 return res.status(400).json({ error: 'Code has expired. Please request a new one.' });
             }
 
-            // 🛡️ ANTI-BRUTE FORCE: Check attempts
             if (stored.code !== otp.trim()) {
                 stored.attempts += 1;
                 if (stored.attempts >= 3) {
-                    otpStore.delete(targetEmail); // BURN TOKEN
-                    console.log(`🚨 [SECURITY] Brute force stopped on Public Reset for ${targetEmail}`);
+                    otpStore.delete(targetEmail); 
                     return res.status(429).json({ error: 'Too many failed attempts. Code destroyed. Request a new one.' });
                 }
                 return res.status(400).json({ error: `Invalid code. ${3 - stored.attempts} attempts remaining.` });
             }
 
-            // OTP is valid, Update Password
+            // 🛡️ THE FIX: Update password AND clear the reset flags
             const { error: updateError } = await supabase
                 .from('residents_account')
-                .update({ password: hashPassword(newPassword) })
+                .update({ 
+                    password: hashPassword(newPassword),
+                    requires_reset: false // Releases them from the login lock
+                })
                 .eq('resident_id', userData.accountId);
 
             if (updateError) throw updateError;
@@ -231,5 +234,4 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
             res.status(500).json({ error: 'Database synchronization failed.' });
         }
     });
-
 };
