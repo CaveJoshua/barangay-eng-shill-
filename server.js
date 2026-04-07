@@ -15,7 +15,7 @@ app.use(cors({
   origin: [
     'http://localhost:5173', 
     'http://127.0.0.1:5173',
-    'https://d704ed85.barangay-eng-shill.pages.dev'
+    'https://0f1c6862.barangay-eng-shill.pages.dev'
   ], 
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-user-role', 'x-resident-id', 'X-XSRF-TOKEN'], 
