@@ -1,10 +1,11 @@
 /**
- * api.ts - THE MASTERMIND (V5.2 - ZERO TRUST ARCHITECTURE)
+ * api.ts - THE MASTERMIND (V6.0 - ZERO TRUST ARCHITECTURE)
  * ────────────────────────────────────────────────────────
  * Features:
- * - Direct-Link Handshake for Notifications (NEW)
+ * - Bearer Token Header Injection (Bypasses 3rd-Party Cookie Blocks)
+ * - Safe JSON Parsing (Prevents HTML 404 crashes)
+ * - Direct-Link Handshake for Notifications
  * - Silent Token Rotation & Anti-CSRF Injection
- * - Strict Cookie Transmission (credentials: 'include')
  * - Automatic 401 Session Cleanup
  */
 
@@ -35,7 +36,7 @@ export const ANALYTICS_API = `${API_BASE_URL}/analytics/raw`;
 export const AUDIT_API = `${API_BASE_URL}/audit`;
 export const STATS_API = `${API_BASE_URL}/stats`;
 
-// --- 🔔 RECTO NOTIFICATIONS (UPDATED FOR DIRECT LINK & ADBLOCK EVASION) ---
+// --- 🔔 RECTO NOTIFICATIONS ---
 export const NOTIF_LIVE_API     = `${API_BASE_URL}/alerts/live`;
 export const NOTIF_MARKER_API   = `${API_BASE_URL}/alerts/latest-marker`;
 export const NOTIF_COUNT_API    = `${API_BASE_URL}/alerts/count`;
@@ -62,6 +63,13 @@ export const getAuthHeaders = (isFormData = false, method = 'GET') => {
 
     if (!isFormData) headers['Content-Type'] = 'application/json';
 
+    // 🛡️ THE BULLETPROOF FIX: Attach Token directly to Headers
+    // This entirely bypasses Chrome's strict third-party cookie blocking.
+    const token = localStorage.getItem('access_token');
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
     // Zero Trust: Attach CSRF token for state-changing requests
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase())) {
         const csrfToken = getCsrfToken();
@@ -83,16 +91,15 @@ const handleAuthFailure = () => {
 
     console.error("[AUTH] 401 Unauthorized. Session expired. Cleaning up...");
     
-    const session = localStorage.getItem('admin_session') || localStorage.getItem('resident_session');
-    if (session) {
-        localStorage.removeItem('account_id');
-        localStorage.removeItem('profile_id');
-        localStorage.removeItem('admin_session'); 
-        localStorage.removeItem('resident_session'); 
-        localStorage.removeItem('user_role');
-        
-        window.location.href = '/login'; 
-    }
+    // 🛡️ Ensure everything, including the Bearer token, is wiped
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('account_id');
+    localStorage.removeItem('profile_id');
+    localStorage.removeItem('admin_session'); 
+    localStorage.removeItem('resident_session'); 
+    localStorage.removeItem('user_role');
+    
+    window.location.href = '/login'; 
 };
 
 // --- SILENT REFRESH LOCK ---
@@ -107,8 +114,16 @@ const attemptSilentRefresh = async (): Promise<boolean> => {
         method: 'POST',
         credentials: 'include', 
         headers: { 'Content-Type': 'application/json' }
-    }).then(res => {
+    }).then(async (res) => {
         isRefreshing = false;
+        // If refresh gives a new token, update it in localStorage
+        if (res.ok) {
+            const contentType = res.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+                const data = await res.json();
+                if (data.token) localStorage.setItem('access_token', data.token);
+            }
+        }
         return res.ok;
     }).catch(() => {
         isRefreshing = false;
@@ -131,7 +146,7 @@ const valveFetch = async (url: string, signal?: AbortSignal, isRetry = false): P
         const response = await fetch(url, {
             method: 'GET',
             headers: getAuthHeaders(false, 'GET'),
-            credentials: 'include',
+            credentials: 'include', // Keep as fallback for Safari/Firefox
             signal: signal
         });
 
@@ -162,7 +177,14 @@ const valveFetch = async (url: string, signal?: AbortSignal, isRetry = false): P
             return null;
         }
         
-        return await response.json();
+        // 🛡️ SAFE PARSING: Prevent HTML crash if the server returns a 404 page
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+            return await response.json();
+        } else {
+            console.error(`[VALVE] Expected JSON, got HTML from ${url}`);
+            return null;
+        }
     } catch (err: any) {
         if (err.name === 'AbortError') return null;
         console.error("[VALVE ERROR]", err.message);
@@ -203,7 +225,15 @@ const triggerAction = async (url: string, method: 'POST' | 'PATCH' | 'PUT' | 'DE
             return { success: false, error: "Security Policy Violation: You do not have permission for this action." };
         }
 
-        const data = await response.json();
+        // 🛡️ SAFE PARSING: Prevent HTML crash on backend errors
+        const contentType = response.headers.get("content-type");
+        let data;
+        if (contentType && contentType.includes("application/json")) {
+            data = await response.json();
+        } else {
+            return { success: false, error: `System Error (${response.status}): Endpoint not found or returned HTML.` };
+        }
+
         if (!response.ok) return { success: false, error: data.error || `Action failed: ${response.status}` };
         
         return { success: true, data };
@@ -296,18 +326,8 @@ export const ApiService = {
     getAuditLogs: (signal?: AbortSignal) => valveFetch(AUDIT_API, signal),
     getAnalytics: (signal?: AbortSignal) => valveFetch(ANALYTICS_API, signal),
 
-    // --- 🔔 RECTO NOTIFICATIONS MODULE (UPDATED) ---
-    /** Fetches the unified live notification feed (Docs + Blotter) */
+    // --- 🔔 RECTO NOTIFICATIONS MODULE ---
     getNotifications: (signal?: AbortSignal) => valveFetch(NOTIF_LIVE_API, signal),
-    
-    /** Fetches absolute latest IDs to detect new entries instantly */
     getNotificationMarker: () => valveFetch(NOTIF_MARKER_API),
-    
-    /** Fetches raw count of all Pending items for the badge icon */
     getNotificationCount: () => valveFetch(NOTIF_COUNT_API),
-    
-    /* NOTE: markNotificationRead, markAllNotificationsRead, and deleteNotification 
-      were removed because the new Direct-Link logic handles "Read" status 
-      securely in the Admin's localStorage. No database mutation is needed!
-    */
 };
