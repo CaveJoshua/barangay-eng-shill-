@@ -11,7 +11,6 @@ import jwt from 'jsonwebtoken';
 
 // --- NEW: Validation Libraries ---
 import { z } from 'zod';
-import Joi from 'joi';
 
 import { uploadImage } from './cloud.js';
 
@@ -26,9 +25,8 @@ import { HouseholdRouter } from './Household.js';
 import { OfficialsLoginRouter } from './Officials_login.js';
 import { BlotterRouter } from './Blotter.js'; 
 import { ProfileRouter } from './Profile.js';
-import { checkRole } from './Rbac_acc.js';
 import { ResidentsLoginRouter } from './Resident_login.js';
-import { NotificationRouter } from './notification.js'; // NEW: Import Notification Engine
+import { NotificationRouter } from './notification.js'; 
 
 dotenv.config();
 
@@ -38,22 +36,12 @@ const JWT_SECRET = process.env.SUPABASE_JWT_SECRET || process.env.JWT_SECRET || 
 
 /**
  * ==========================================
- * VALIDATION SCHEMAS (ZOD & JOI)
+ * VALIDATION SCHEMAS (ZOD)
  * ==========================================
  */
-
 const loginSchemaZod = z.object({
   username: z.string().min(1, "Username is required."),
   password: z.string().min(1, "Password is required.")
-});
-
-const announcementSchemaZod = z.object({
-  title: z.string().min(1, "Title is required."),
-  content: z.string().min(1, "Content is required."),
-  category: z.string().optional().nullable(),
-  priority: z.string().optional().nullable(),
-  expires_at: z.string().optional().nullable(),
-  image_url: z.string().optional().nullable()
 });
 
 /**
@@ -85,7 +73,7 @@ if (sslCert) {
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY, supabaseOptions);
 
 // ==========================================
-// 1. JWT AUTHENTICATION MIDDLEWARE (ZERO TRUST)
+// 1. JWT AUTHENTICATION MIDDLEWARE
 // ==========================================
 export const authenticateToken = (req, res, next) => {
   let token = req.cookies?.auth_token;
@@ -104,7 +92,6 @@ export const authenticateToken = (req, res, next) => {
         console.error("[AUTH BOUNCER] Token Verification Failed:", err.message);
         return res.status(403).json({ error: 'Invalid or expired token.' });
     }
-    
     req.user = user;
     next();
   });
@@ -121,13 +108,7 @@ router.use(helmet({
 // 🛡️ DYNAMIC CORS REPLACEMENT 🛡️
 const corsOptions = {
   origin: (origin, callback) => {
-    // 1. Allow local development
-    const allowedLocal = [
-      'http://localhost:5173', 
-      'http://127.0.0.1:5173'
-    ];
-
-    // 2. Allow ANY Cloudflare Pages preview link automatically
+    const allowedLocal = ['http://localhost:5173', 'http://127.0.0.1:5173'];
     const isCloudflare = origin && origin.endsWith('.barangay-eng-shill.pages.dev');
 
     if (!origin || allowedLocal.includes(origin) || isCloudflare) {
@@ -144,8 +125,10 @@ const corsOptions = {
 };
 
 router.use(cors(corsOptions)); 
-router.use(express.json({ limit: '30mb' }));
-router.use(express.urlencoded({ extended: true, limit: '30mb' }));
+
+// 🚨 CRITICAL FIX: Increased limit to 50mb to stop the 500 error when uploading Base64 images
+router.use(express.json({ limit: '50mb' }));
+router.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // ==========================================
 // 3. SECURITY HELPERS
@@ -174,11 +157,9 @@ router.post('/login', async (req, res) => {
       .from('residents_account')
       .select('*') 
       .ilike('username', cleanUsername) 
-      .single();
+      .maybeSingle();
 
-    if (accountError || !accountData) {
-      return res.status(401).json({ error: 'Account not found.' });
-    }
+    if (accountError || !accountData) return res.status(401).json({ error: 'Account not found.' });
 
     const isValid = verifyPassword(password, accountData.password);
     if (!isValid) return res.status(401).json({ error: 'Invalid password.' });
@@ -189,7 +170,7 @@ router.post('/login', async (req, res) => {
       .from('residents_records')
       .select('record_id, first_name, last_name, purok')
       .eq('record_id', targetResidentId)
-      .single();
+      .maybeSingle();
 
     const fName = profileData?.first_name || '';
     const lName = profileData?.last_name || '';
@@ -220,7 +201,7 @@ router.post('/login', async (req, res) => {
 // ==========================================
 // 5. INITIALIZE PROTECTED MODULES
 // ==========================================
-NotificationRouter(router, supabase, authenticateToken); // <--- MOUNTED DIRECT NOTIFICATION ENGINE
+NotificationRouter(router, supabase, authenticateToken); 
 HouseholdRouter(router, supabase, authenticateToken);
 ResidentsLoginRouter(router, supabase);
 documentRouter(router, supabase, authenticateToken); 
@@ -235,8 +216,10 @@ ProfileRouter(router, supabase, authenticateToken);
 
 
 // ==========================================
-// 6. ANNOUNCEMENTS
+// 6. ANNOUNCEMENTS (FULL CRUD CAPABILITIES ADDED)
 // ==========================================
+
+// GET ALL
 router.get('/announcements', async (req, res) => {
     try {
         const { data, error } = await supabase
@@ -248,6 +231,102 @@ router.get('/announcements', async (req, res) => {
         res.status(200).json(data);
     } catch (err) {
         res.status(500).json({ error: "Failed to fetch announcements." });
+    }
+});
+
+// POST NEW (Fixes the 404 Error)
+router.post('/announcements', authenticateToken, async (req, res) => {
+    try {
+        const { title, content, category, priority, expires_at, image_url, status } = req.body;
+
+        if (!title || !content || !expires_at) {
+            return res.status(400).json({ error: "Headline, details, and expiry date are required." });
+        }
+
+        let secureImageUrl = null;
+        
+        // Handle Base64 Image Upload to Cloudinary
+        if (image_url && image_url.startsWith('data:image')) {
+            console.log("Uploading new image to Cloudinary...");
+            try {
+                secureImageUrl = await uploadImage(image_url, 'barangay_announcements');
+            } catch (uploadErr) {
+                console.error("Cloudinary Upload Failed:", uploadErr.message);
+                return res.status(500).json({ error: "Failed to upload image to cloud." });
+            }
+        }
+
+        const { data, error } = await supabase
+            .from('announcements')
+            .insert([{
+                title,
+                content,
+                category: category || 'Public Advisory',
+                priority: priority || 'Low',
+                expires_at,
+                image_url: secureImageUrl || image_url, 
+                status: status || 'Active'
+            }])
+            .select()
+            .single();
+
+        if (error) throw error;
+        
+        await logActivity(supabase, req.user?.username, 'CREATE_ANNOUNCEMENT', `Created: ${title}`);
+        res.status(201).json(data);
+    } catch (err) {
+        console.error("Post Error:", err.message);
+        res.status(500).json({ error: "Failed to save announcement." });
+    }
+});
+
+// PUT (UPDATE) EXISTING (Fixes 404 Error when editing)
+router.put('/announcements/:id', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const updates = { ...req.body };
+
+        delete updates.id; 
+        delete updates.created_at;
+
+        // Check if image is new base64 string
+        if (updates.image_url && updates.image_url.startsWith('data:image')) {
+            console.log("Updating image on Cloudinary...");
+            updates.image_url = await uploadImage(updates.image_url, 'barangay_announcements');
+        }
+
+        const { data, error } = await supabase
+            .from('announcements')
+            .update(updates)
+            .eq('id', id)
+            .select()
+            .maybeSingle();
+
+        if (error) throw error;
+        if (!data) return res.status(404).json({ error: "Post not found." });
+
+        await logActivity(supabase, req.user?.username, 'UPDATE_ANNOUNCEMENT', `Updated: ${updates.title || id}`);
+        res.status(200).json(data);
+    } catch (err) {
+        res.status(500).json({ error: "Failed to update announcement." });
+    }
+});
+
+// DELETE
+router.delete('/announcements/:id', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { error } = await supabase
+            .from('announcements')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+        
+        await logActivity(supabase, req.user?.username, 'DELETE_ANNOUNCEMENT', `Deleted ID: ${id}`);
+        res.status(200).json({ message: "Announcement removed." });
+    } catch (err) {
+        res.status(500).json({ error: "Failed to delete announcement." });
     }
 });
 
@@ -279,12 +358,8 @@ router.get('/stats', authenticateToken, async (req, res) => {
 // ==========================================
 // 8. DIRECT-LINK NOTIFICATION SYSTEM
 // ==========================================
-// This section bypasses the dedicated notification table and 
-// queries operational tables directly for "Pending" items.
-
 router.get('/notifications/summary', authenticateToken, async (req, res) => {
     try {
-        // Fetch pending documents directly from the table
         const { data: docs, error: docErr } = await supabase
             .from('document_requests')
             .select('id, resident_name, type, date_requested')
@@ -294,7 +369,6 @@ router.get('/notifications/summary', authenticateToken, async (req, res) => {
 
         if (docErr) throw docErr;
 
-        // Fetch pending blotter cases
         const { data: blotters, error: bltErr } = await supabase
             .from('blotter_cases')
             .select('id, complainant_name, incident_type, created_at')
@@ -302,7 +376,6 @@ router.get('/notifications/summary', authenticateToken, async (req, res) => {
             .order('created_at', { ascending: false })
             .limit(10);
 
-        // Merge into a virtual notification feed
         const feed = [
             ...docs.map(d => ({
                 id: `DOC-${d.id}`,
@@ -327,7 +400,6 @@ router.get('/notifications/summary', authenticateToken, async (req, res) => {
     }
 });
 
-// Endpoint for the Badge Count
 router.get('/notifications/badge-count', authenticateToken, async (req, res) => {
     try {
         const { count: docCount } = await supabase
