@@ -10,13 +10,25 @@ dotenv.config();
 const app = express();
 const PORT = 8000;
 
-// 1. GLOBAL CORS (ZERO TRUST EDITION)
+// 1. GLOBAL CORS (ZERO TRUST EDITION - DYNAMIC CLOUDFLARE)
 app.use(cors({
-  origin: [
-    'http://localhost:5173', 
-    'http://127.0.0.1:5173',
-    'https://238ccb1d.barangay-eng-shill.pages.dev'
-  ], 
+  origin: (origin, callback) => {
+    // Allow local development
+    const allowedLocal = [
+      'http://localhost:5173', 
+      'http://127.0.0.1:5173'
+    ];
+
+    // DYNAMIC WILDCARD: Allows ANY URL ending in your domain
+    const isCloudflare = origin && origin.endsWith('.barangay-eng-shill.pages.dev');
+
+    if (!origin || allowedLocal.includes(origin) || isCloudflare) {
+      callback(null, true); // Approved
+    } else {
+      console.error(`[CORS BLOCKED]: ${origin}`);
+      callback(new Error('Blocked by CORS Policy')); // Rejected
+    }
+  }, 
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-user-role', 'x-resident-id', 'X-XSRF-TOKEN'], 
   credentials: true, // <-- CRITICAL: Tells Express to accept the secure cookies
