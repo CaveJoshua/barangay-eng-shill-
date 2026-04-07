@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LOGIN_API } from '../UI/api'; 
+import { LOGIN_API, API_BASE_URL } from '../UI/api'; 
 import './styles/Login_modal.css';
 
-// --- ENDPOINT CONSTANTS ---
-const ROOT_REQUEST_API = '/api/auth/root-request'; 
+const ROOT_REQUEST_API = `${API_BASE_URL}/auth/root-request`; 
 const ROOT_USERNAME = 'SYSTEM_ROOT_ADMIN';
 
 interface LoginModalProps {
@@ -23,7 +22,6 @@ type ModalView =
 const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
   const [view, setView] = useState<ModalView>('LOGIN');
 
-  // --- DATA INPUTS ---
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [email, setEmail] = useState('');
@@ -31,7 +29,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
   const [otp, setOtp] = useState('');
   const [traceId, setTraceId] = useState(''); 
 
-  // UI State
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -57,9 +54,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
     else if (view === 'RECOVER_OTP') setView('RECOVER_PHONE');
   };
 
-  // ==========================================
-  // 🛡️ ACTION: GHOST HANDSHAKE (ROOT REQUEST)
-  // ==========================================
   const handleRootHandshake = async () => {
     setLoading(true);
     setError('');
@@ -69,6 +63,12 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: ROOT_USERNAME })
       });
+      
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+          throw new Error(`Server returned HTML (${response.status}). Check API URL.`);
+      }
+
       const data = await response.json();
 
       if (response.ok) {
@@ -84,9 +84,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
     }
   };
 
-  // ==========================================
-  // 🔑 ACTION: SIGN IN (Standard & Root Verify)
-  // ==========================================
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -117,7 +114,15 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
         signal: controllerRef.current.signal
       });
 
-      const data = await response.json();
+      // 🛡️ SAFE PARSING: Check if JSON before calling .json()
+      const contentType = response.headers.get("content-type");
+      let data;
+      if (contentType && contentType.includes("application/json")) {
+          data = await response.json();
+      } else {
+          throw new Error(`Server Misconfiguration: Endpoint returned HTML (${response.status}). Is '/api' missing from your BASE_URL?`);
+      }
+
       if (!isMounted.current) return;
 
       if (response.ok) {
@@ -160,13 +165,9 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
     }
   };
 
-  // ==========================================
-  // 🛠️ RECOVERY HANDLERS (Clears TS "Unused" Errors)
-  // ==========================================
   const handleEmailRecovery = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Logic for email recovery using {email}
     setTimeout(() => {
       if (isMounted.current) { setView('RECOVER_SUCCESS'); setLoading(false); }
     }, 1000);
@@ -175,7 +176,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
   const startPhoneRecovery = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Logic for phone recovery using {phone}
     setTimeout(() => {
       if (isMounted.current) { setView('RECOVER_OTP'); setLoading(false); }
     }, 1000);
@@ -184,7 +184,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
   const verifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Logic for OTP verification using {otp}
     setTimeout(() => {
       if (isMounted.current) { setView('RECOVER_SUCCESS'); setLoading(false); }
     }, 1000);
@@ -204,7 +203,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
           <i className="fas fa-times"></i>
         </button>
 
-        {/* --- VIEW: LOGIN --- */}
         {view === 'LOGIN' && (
           <>
             <div className="LM_HEADER">
@@ -260,7 +258,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
           </>
         )}
 
-        {/* --- VIEW: GHOST ADMIN OTP --- */}
         {view === 'ROOT_OTP' && (
           <form className="LM_FORM" onSubmit={handleSignIn}>
             <div className="LM_HEADER">
@@ -287,7 +284,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
           </form>
         )}
 
-        {/* --- VIEW: RECOVER SELECT --- */}
         {view === 'RECOVER_SELECT' && (
           <>
             <div className="LM_HEADER">
@@ -306,7 +302,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
           </>
         )}
 
-        {/* --- VIEW: RECOVER EMAIL --- */}
         {view === 'RECOVER_EMAIL' && (
           <form className="LM_FORM" onSubmit={handleEmailRecovery}>
             <div className="LM_HEADER"><h2>Email Recovery</h2></div>
@@ -317,7 +312,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
           </form>
         )}
 
-        {/* --- VIEW: RECOVER PHONE --- */}
         {view === 'RECOVER_PHONE' && (
           <form className="LM_FORM" onSubmit={startPhoneRecovery}>
             <div className="LM_HEADER"><h2>Phone Recovery</h2></div>
@@ -328,7 +322,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
           </form>
         )}
 
-        {/* --- VIEW: RECOVER OTP (For Phone) --- */}
         {view === 'RECOVER_OTP' && (
           <form className="LM_FORM" onSubmit={verifyOtp}>
             <div className="LM_HEADER"><h2>Enter OTP</h2></div>
@@ -337,7 +330,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
           </form>
         )}
 
-        {/* --- VIEW: RECOVER SUCCESS --- */}
         {view === 'RECOVER_SUCCESS' && (
           <div className="LM_SUCCESS_AREA">
             <i className="fas fa-check-circle"></i>
