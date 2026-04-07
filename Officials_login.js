@@ -67,11 +67,11 @@ export const OfficialsLoginRouter = (router, supabase) => {
             logActivity(supabase, accountData.username, 'LOGIN', `${realName} (${userRole}) logged in.`)
                 .catch(err => console.error("[LOG ERROR]", err.message));
 
-            // Inject Secure Cookie
+            // 🛡️ UPDATED: Cross-Site Cookie Injection
             res.cookie('auth_token', token, {
                 httpOnly: true,  
-                secure: process.env.NODE_ENV === 'production', 
-                sameSite: 'lax', 
+                secure: true,       // MUST BE TRUE for sameSite 'none'
+                sameSite: 'none',   // ALLOWS Cloudflare to talk to Render
                 maxAge: 24 * 60 * 60 * 1000 
             });
 
@@ -97,11 +97,11 @@ export const OfficialsLoginRouter = (router, supabase) => {
     // 2. THE KILL SWITCH (LOGOUT)
     // ==========================================
     router.post('/admin/logout', (req, res) => {
-        // Instructs the browser to immediately destroy the cookie
+        // 🛡️ UPDATED: Cross-Site Cookie Destruction
         res.clearCookie('auth_token', {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax'
+            secure: true,
+            sameSite: 'none'
         });
         
         console.log("[AUTH] Session terminated and cookie cleared.");
@@ -136,11 +136,11 @@ export const OfficialsLoginRouter = (router, supabase) => {
                 // Mint a fresh 24-hour token
                 const newToken = jwt.sign(newPayload, JWT_SECRET, { expiresIn: '24h' });
 
-                // Inject the new cookie
+                // 🛡️ UPDATED: Cross-Site Cookie Injection
                 res.cookie('auth_token', newToken, {
                     httpOnly: true,
-                    secure: process.env.NODE_ENV === 'production',
-                    sameSite: 'lax',
+                    secure: true,
+                    sameSite: 'none',
                     maxAge: 24 * 60 * 60 * 1000
                 });
 
