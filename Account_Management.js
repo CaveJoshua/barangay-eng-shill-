@@ -26,7 +26,6 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
     // 🧠 SMART LOOKUP HELPER
     // =========================================================
     const findUserEmail = async (identifier) => {
-        // 1. Try finding by username in accounts table
         const { data: account } = await supabase
             .from('residents_account')
             .select('resident_id, username')
@@ -42,7 +41,6 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
             return record ? { email: record.email, firstName: record.first_name, accountId: account.resident_id } : null;
         }
 
-        // 2. Try finding by email directly in records table
         const { data: recordByEmail } = await supabase
             .from('residents_records')
             .select('record_id, email, first_name')
@@ -67,13 +65,11 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
 
             const userData = await findUserEmail(identifier);
             if (!userData || !userData.email) {
-                // Silently succeed to prevent email enumeration attacks
                 return res.status(200).json({ success: true, message: 'If account exists, code sent.' });
             }
 
             const targetEmail = userData.email.toLowerCase();
 
-            // 🛡️ ANTI-SPAM COOLDOWN
             const existingCode = otpStore.get(targetEmail);
             if (existingCode && Date.now() < existingCode.cooldownLimit) {
                 console.log(`⏳ [ANTI-SPAM] Blocked rapid request from ${targetEmail}`);
@@ -142,8 +138,6 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
                 return res.status(400).json({ error: `Invalid code. ${3 - stored.attempts} attempts remaining.` });
             }
 
-            // DO NOT delete OTP here yet, we need it to be active for the actual reset step.
-            // We just verify it's correct so the UI can proceed to the password input screen.
             res.status(200).json({ success: true, message: 'Identity verified.' });
         } catch (err) {
             res.status(500).json({ error: 'Verification failed.' });
@@ -159,7 +153,6 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
             const { accountId } = req.params;
             const securePass = hashPassword(password);
 
-            // 🛡️ STEP 1: Attempt to update a Resident Account
             const { data: resData, error: resErr } = await supabase
                 .from('residents_account')
                 .update({ password: securePass }) 
@@ -167,15 +160,16 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
                 .select();
 
             if (resData && resData.length > 0) {
-                // Silently attempt to clear the requires_reset flag.
-                await supabase.from('residents_account')
-                    .update({ requires_reset: false })
-                    .eq('account_id', resData[0].account_id);
+                // 🛡️ THE FIX: Wrapped in try/catch to prevent 500 crash
+                try {
+                    await supabase.from('residents_account')
+                        .update({ requires_reset: false })
+                        .eq('account_id', resData[0].account_id);
+                } catch (ignoreErr) { console.warn("Reset flag ignore"); }
                     
                 return res.json({ success: true, message: 'Resident password updated successfully.' });
             }
 
-            // 🛡️ STEP 2: If not a resident, attempt to update an Official Account
             const { data: offData, error: offErr } = await supabase
                 .from('officials_accounts')
                 .update({ password: securePass })
@@ -186,7 +180,6 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
                 return res.json({ success: true, message: 'Official password updated successfully.' });
             }
 
-            // 🛡️ STEP 3: If neither worked
             return res.status(404).json({ error: 'Account not found in any directory.' });
 
         } catch (err) {
@@ -224,7 +217,6 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
                 return res.status(400).json({ error: `Invalid code. ${3 - stored.attempts} attempts remaining.` });
             }
 
-            // 🛡️ THE FIX: Update password AND clear the reset flags safely
             const { error: updateError } = await supabase
                 .from('residents_account')
                 .update({ password: hashPassword(newPassword) })
@@ -232,10 +224,12 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
 
             if (updateError) throw updateError;
 
-            // Silently attempt to clear the requires_reset flag
-            await supabase.from('residents_account')
-                .update({ requires_reset: false })
-                .eq('resident_id', userData.accountId);
+            // 🛡️ THE FIX: Wrapped in try/catch to prevent 500 crash
+            try {
+                await supabase.from('residents_account')
+                    .update({ requires_reset: false })
+                    .eq('resident_id', userData.accountId);
+            } catch(ignoreErr) { console.warn("Reset flag ignore"); }
 
             otpStore.delete(targetEmail);
             console.log(`✅ [PUBLIC RESET] Password successfully updated for ${targetEmail}`);
