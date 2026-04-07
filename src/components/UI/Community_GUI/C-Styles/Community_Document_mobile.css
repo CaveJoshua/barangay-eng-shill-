@@ -1,0 +1,124 @@
+/* =========================================================
+   COMMUNITY DOCUMENT VIEW — Legacy Mobile Overrides
+   Targets: Screens 768px and below
+   ========================================================= */
+
+@media (max-width: 768px) {
+    /* 🛡️ LOCK CONTAINER: Prevents the whole phone screen from bouncing */
+    .DOC_VIEW_CONTAINER {
+        height: calc(100vh - 120px); /* Adjust based on your top nav height */
+        gap: 1rem;
+        padding: 0 10px;
+    }
+
+    /* ── 1. HEADER (STACKED) ── */
+    .DOC_HEADER_CARD {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 1.5rem;
+        gap: 1.25rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .HEADER_TEXT h1 {
+        font-size: 1.5rem;
+        letter-spacing: -0.02em;
+    }
+
+    .HEADER_TEXT p {
+        font-size: 0.9rem;
+    }
+
+    .BTN_REQUEST_NEW {
+        width: 100%;
+        justify-content: center;
+        padding: 0.85rem;
+        font-size: 0.9rem;
+    }
+
+    /* ── 2. TOOLBAR (SWIPEABLE) ── */
+    .DOC_TOOLBAR {
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    /* Allows users to swipe tabs left/right if they don't fit */
+    .DOC_TABS_WRAPPER {
+        width: 100%;
+        overflow-x: auto;
+        display: flex;
+        gap: 0.5rem;
+        padding-bottom: 5px;
+        -webkit-overflow-scrolling: touch; /* Smooth swipe on iOS */
+    }
+
+    .DOC_TABS_WRAPPER::-webkit-scrollbar {
+        display: none; /* Hide scrollbar for cleaner look */
+    }
+
+    .DOC_TAB_ITEM {
+        white-space: nowrap;
+        padding: 0.6rem 1rem;
+        flex-shrink: 0;
+    }
+
+    .DOC_SEARCH_BOX {
+        width: 100%;
+    }
+
+    /* ── 3. THE SCROLL STAGE ── */
+    .DOC_LIST_STAGE {
+        padding-right: 0; /* Use full width on mobile */
+        gap: 1.25rem;
+        /* Ensures the scroll feels native to mobile */
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* ── 4. THE CARD (LEGACY PRESERVED) ── */
+    .DOC_CARD {
+        flex-direction: column; /* Stack elements for better mobile fit */
+        padding: 1.5rem;
+        gap: 1rem;
+        border-radius: 20px; /* Legacy rounded look */
+    }
+
+    .DOC_CARD_ICON {
+        width: 48px;
+        height: 48px;
+        font-size: 1.25rem;
+    }
+
+    .DOC_CARD_TOP {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .STATUS_TAG {
+        align-self: flex-start;
+    }
+
+    .DOC_CARD_INFO h3 {
+        font-size: 1.15rem;
+    }
+
+    .DOC_CARD_FOOTER {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1.25rem;
+        padding-top: 1rem;
+    }
+
+    .FOOT_LEFT {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .BTN_VIEW_DETAILS {
+        width: 100%; /* Giant touch target for mobile */
+        height: 46px;
+        background: var(--c--p--bg-switcher);
+    }
+}

@@ -1,0 +1,430 @@
+
+/* =========================================
+   0. CORE THEME VARIABLES
+   ========================================= */
+:root {
+  --doc-bg-app: #f8fafc;
+  --doc-bg-card: #ffffff;
+  --doc-bg-accent: #f1f5f9;
+  --doc-bg-hover: #f8fafc;
+  --doc-bg-hover-blue: #e0f2fe;
+
+  --doc-border: #e2e8f0;
+  --doc-border-input: #cbd5e1;
+
+  --doc-text-main: #0f172a;
+  --doc-text-sub: #64748b;
+  --doc-text-muted: #94a3b8;
+  --doc-text-badge: #475569;
+
+  /* Status Colors (Light) */
+  --stat-pending-bg: #fee2e2;
+  --stat-pending-txt: #991b1b;
+  --stat-process-bg: #fef3c7;
+  --stat-process-txt: #92400e;
+  --stat-ready-bg: #dcfce7;
+  --stat-ready-txt: #166534;
+}
+
+/* ── EXACT NAVY DARK MODE (MATCHING YOUR IMAGE) ── */
+[data-theme="dark"] {
+  --doc-bg-app: #1c2536;        /* The exact color from your image */
+  --doc-bg-card: #242f42;       /* Elevated layer: slightly lighter navy */
+  --doc-bg-accent: #111827;     /* Deeper inset color */
+  --doc-bg-hover: #2d3748;      
+  --doc-bg-hover-blue: #1e293b;
+
+  --doc-border: #334155;        /* Slate-700 for subtle borders */
+  --doc-border-input: #475569;
+
+  --doc-text-main: #f8fafc;     /* Clean off-white */
+  --doc-text-sub: #94a3b8;      /* Muted slate blue */
+  --doc-text-muted: #64748b;
+  --doc-text-badge: #cbd5e1;
+
+  /* Transparent glows for Navy backgrounds */
+  --stat-pending-bg: rgba(239, 68, 68, 0.2);
+  --stat-pending-txt: #fca5a5;
+  --stat-process-bg: rgba(245, 158, 11, 0.2);
+  --stat-process-txt: #fcd34d;
+  --stat-ready-bg: rgba(34, 197, 94, 0.2);
+  --stat-ready-txt: #86efac;
+}
+
+/* =========================================
+   1. CORE PAGE ARCHITECTURE
+   ========================================= */
+.DOC_PAGE_LAYOUT {
+  padding: 2.5rem;
+  background-color: var(--doc-bg-app);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  font-family: 'Inter', system-ui, sans-serif;
+  box-sizing: border-box;
+  transition: background-color 0.3s ease;
+}
+
+/* =========================================
+   2. TOP BAR (HEADER & CREATE BUTTON)
+   ========================================= */
+.DOC_TOP_BAR {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: 2rem;
+}
+
+.DOC_TITLE_GROUP {
+  flex: 1;
+}
+
+.DOC_TITLE_GROUP h1 { 
+  margin: 0; 
+  font-size: 1.85rem; 
+  font-weight: 800; 
+  color: var(--doc-text-main); 
+  letter-spacing: -0.025em;
+}
+
+.DOC_TITLE_GROUP p { 
+  margin: 4px 0 0 0; 
+  color: var(--doc-text-sub); 
+  font-size: 0.95rem; 
+}
+
+.DOC_MANUAL_CREATE_BTN {
+  background: #3b82f6;
+  color: #ffffff;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.DOC_MANUAL_CREATE_BTN:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 15px rgba(59, 130, 246, 0.3);
+}
+
+/* =========================================
+   3. KPI STATS GRID
+   ========================================= */
+.DOC_STATS_GRID {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.25rem;
+}
+
+.DOC_STAT_CARD {
+  background: var(--doc-bg-card);
+  padding: 1.25rem;
+  border-radius: 12px;
+  border: 1px solid var(--doc-border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center; 
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  transition: all 0.2s ease;
+}
+
+.DOC_STAT_CARD[style*="cursor: pointer"]:hover {
+  transform: translateY(-2px);
+  background: var(--doc-bg-hover-blue) !important;
+  border-color: #3b82f6;
+}
+
+.DOC_STAT_VAL { 
+  font-size: 1.6rem; 
+  font-weight: 800; 
+  color: var(--doc-text-main); 
+}
+
+.DOC_STAT_LABEL { 
+  font-size: 0.65rem; 
+  font-weight: 700; 
+  color: var(--doc-text-muted); 
+  margin-top: 6px; 
+  text-transform: uppercase; 
+  letter-spacing: 0.08em; 
+}
+
+/* =========================================
+   4. CONTROLS BAR (TABS & SEARCH)
+   ========================================= */
+.DOC_CONTROLS_BAR {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--doc-bg-card);
+  padding: 12px 1.5rem;
+  border-radius: 14px;
+  border: 1px solid var(--doc-border);
+  gap: 2rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.DOC_TAB_GROUP {
+  display: flex;
+  background: var(--doc-bg-accent);
+  padding: 4px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  gap: 4px;
+}
+
+.DOC_TAB_ITEM {
+  padding: 8px 18px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--doc-text-sub);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.DOC_TAB_ITEM:hover:not(.ACTIVE) {
+  color: var(--doc-text-main);
+}
+
+.DOC_TAB_ITEM.ACTIVE {
+  background: var(--doc-bg-card);
+  color: var(--doc-text-main);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+}
+
+[data-theme="dark"] .DOC_TAB_ITEM.ACTIVE {
+  border: 1px solid #ffffff;
+}
+
+.DOC_SEARCH_FIELD {
+  position: relative;
+  width: 100%;
+  max-width: 350px;
+  display: flex;
+  align-items: center;
+}
+
+.DOC_SEARCH_FIELD i {
+  position: absolute;
+  left: 14px;
+  color: var(--doc-text-muted);
+  font-size: 0.9rem;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.DOC_SEARCH_FIELD input {
+  width: 100%;
+  height: 44px;
+  padding: 0 16px 0 40px; 
+  border: 1px solid var(--doc-border-input);
+  background: var(--doc-bg-app);
+  color: var(--doc-text-main);
+  border-radius: 10px;
+  font-size: 0.9rem;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.DOC_SEARCH_FIELD input:focus {
+  border-color: #3b82f6;
+  background: var(--doc-bg-card);
+}
+
+/* =========================================
+   5. TABLE & SCROLL SYSTEM
+   ========================================= */
+.DOC_TABLE_CONTAINER {
+  background: var(--doc-bg-card);
+  border-radius: 16px;
+  border: 1px solid var(--doc-border);
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+}
+
+.DOC_TABLE_SCROLL_WRAP {
+  max-height: 600px; 
+  overflow-y: auto;
+  position: relative;
+}
+
+.DOC_TABLE_CORE { 
+  width: 100%; 
+  border-collapse: collapse; 
+}
+
+.DOC_TABLE_CORE thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--doc-bg-app);
+  padding: 1.25rem 1.5rem;
+  color: var(--doc-text-sub);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  text-align: left;
+  box-shadow: inset 0 -1px 0 var(--doc-border);
+}
+
+.DOC_TABLE_CORE td {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--doc-bg-accent);
+  color: var(--doc-text-main);
+  font-size: 0.95rem;
+}
+
+.DOC_ROW_CLICK:hover { 
+  background: var(--doc-bg-hover); 
+  cursor: pointer; 
+}
+
+.MSG_ROW {
+  text-align: center;
+  padding: 4rem !important;
+  color: var(--doc-text-muted);
+}
+
+/* =========================================
+   6. PAGINATION FOOTER
+   ========================================= */
+.DOC_PAGINATION_BAR {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  background: var(--doc-bg-card);
+  border-top: 1px solid var(--doc-border);
+}
+
+.DOC_PAGINATION_INFO {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--doc-text-sub);
+}
+
+.DOC_NAV_GROUP { 
+  display: flex; 
+  gap: 8px; 
+}
+
+.DOC_NAV_BTN {
+  padding: 8px 16px;
+  background: var(--doc-bg-card);
+  border: 1px solid var(--doc-border);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--doc-text-badge);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.DOC_NAV_BTN:hover:not(:disabled) {
+  background: var(--doc-bg-accent);
+  border-color: var(--doc-border-input);
+  color: var(--doc-text-main);
+}
+
+.DOC_NAV_BTN:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: var(--doc-bg-hover);
+}
+
+/* =========================================
+   7. UTILITIES (BADGES & TOASTS)
+   ========================================= */
+.DOC_REF_BADGE {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  color: var(--doc-text-badge);
+  background: var(--doc-bg-accent);
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--doc-border);
+  font-size: 0.8rem;
+}
+
+.DOC_STATUS_PILL {
+  padding: 4px 10px;
+  border-radius: 50px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* Status colors dynamically pulled from variables */
+.DOC_STATUS_PILL.Pending { background: var(--stat-pending-bg); color: var(--stat-pending-txt); }
+.DOC_STATUS_PILL.Processing { background: var(--stat-process-bg); color: var(--stat-process-txt); }
+.DOC_STATUS_PILL.Ready { background: var(--stat-ready-bg); color: var(--stat-ready-txt); }
+.DOC_STATUS_PILL.Completed { background: var(--doc-bg-accent); color: var(--doc-text-sub); }
+.DOC_STATUS_PILL.Rejected { background: var(--stat-pending-bg); color: var(--stat-pending-txt); }
+
+.DOC_ALARM_TOAST {
+  position: fixed; 
+  top: 24px; 
+  left: 50%; 
+  transform: translateX(-50%);
+  background: #3b82f6; 
+  color: #fff; 
+  padding: 12px 24px; 
+  border-radius: 50px;
+  box-shadow: 0 10px 25px rgba(59, 130, 246, 0.4); 
+  z-index: 10000;
+  font-weight: 700; 
+  animation: toastSlide 0.4s ease-out;
+}
+
+@keyframes toastSlide { 
+  from { top: -50px; opacity: 0; } 
+  to { top: 24px; opacity: 1; } 
+}
+
+/* =========================================
+   8. MOBILE RESPONSIVE
+   ========================================= */
+@media (max-width: 1024px) {
+  .DOC_STATS_GRID { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 900px) {
+  .DOC_CONTROLS_BAR { flex-direction: column; align-items: flex-start; gap: 1.25rem; }
+  .DOC_SEARCH_FIELD { max-width: 100%; }
+  .DOC_TOP_BAR { flex-direction: column; align-items: flex-start; }
+}
+
+@media (max-width: 600px) {
+  .DOC_STATS_GRID { grid-template-columns: 1fr; }
+}
+
+@keyframes hintPulse {
+  0% { background-color: transparent; }
+  20% { background-color: rgba(255, 204, 0, 0.25); } /* Yellow Highlight */
+  80% { background-color: rgba(255, 204, 0, 0.25); }
+  100% { background-color: transparent; }
+}
+
+.HINT_HIGHLIGHT {
+  animation: hintPulse 2.5s ease-in-out forwards;
+  border-left: 4px solid #ffcc00 !important; /* Yellow side bar for extra visibility */
+}

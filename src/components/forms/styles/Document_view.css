@@ -1,0 +1,304 @@
+/* =========================================
+   1. CORE VARIABLES & OVERLAY
+   ========================================= */
+:root {
+  --admin-blue: #3b82f6;
+  --admin-amber: #f59e0b;
+  --admin-emerald: #10b981;
+  --admin-purple: #a855f7;
+  --admin-slate: #64748b;
+  --admin-dark: #0f172a;
+  --admin-bg: #ffffff;
+  --admin-border: #e2e8f0;
+  --admin-radius: 16px; /* Slightly rounder for a modern feel */
+  --admin-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.3);
+}
+
+.DOC_VIEW_OVERLAY {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: rgba(15, 23, 42, 0.65); /* Elegant dark backdrop */
+  backdrop-filter: blur(6px); /* Stronger glass effect */
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  animation: docViewFadeIn 0.25s ease-out;
+}
+
+/* =========================================
+   2. MODAL CONTAINER
+   ========================================= */
+.DOC_VIEW_MODAL {
+  background: var(--admin-bg);
+  width: 100%;
+  max-width: 580px; /* Gave it a little more breathing room */
+  border-radius: var(--admin-radius);
+  box-shadow: var(--admin-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  animation: docViewSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* =========================================
+   3. HEADER STYLING
+   ========================================= */
+.DOC_VIEW_HEADER {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1.5rem 1.75rem 0.5rem 1.75rem;
+}
+
+.DOC_VIEW_REF {
+  font-family: 'JetBrains Mono', 'Menlo', monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--admin-blue);
+  background: #eff6ff; /* Soft blue tint */
+  padding: 6px 12px;
+  border-radius: 6px;
+  display: inline-block;
+  letter-spacing: 0.5px;
+}
+
+.DOC_VIEW_HEADER h3 {
+  margin: 10px 0 0 0;
+  color: var(--admin-dark);
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.DOC_VIEW_CLOSE {
+  background: #f8fafc;
+  border: 1px solid var(--admin-border);
+  font-size: 1.25rem;
+  color: #94a3b8;
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.DOC_VIEW_CLOSE:hover { 
+  background: #fee2e2; 
+  color: #ef4444; 
+  border-color: #fecaca;
+  transform: rotate(90deg); /* Sleek interaction */
+}
+
+/* =========================================
+   4. STATUS INDICATOR BAR
+   ========================================= */
+.DOC_VIEW_STATUS_BAR {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f8fafc;
+  padding: 14px 20px;
+  margin: 1rem 1.75rem 1.5rem 1.75rem;
+  border-radius: 10px;
+  border-left: 6px solid #ccc; /* Dynamic color applied via TSX */
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+
+.DOC_VIEW_STATUS_BAR span {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  opacity: 0.8;
+}
+
+.DOC_VIEW_STATUS_BAR strong {
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+/* =========================================
+   5. FORM GRID (CLEAN & READABLE)
+   ========================================= */
+.DOC_VIEW_BODY {
+  padding: 0 1.75rem 1.5rem 1.75rem;
+}
+
+.DOC_VIEW_GRID {
+  display: grid;
+  grid-template-columns: 1fr 1fr; 
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.DOC_VIEW_FIELD {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.DOC_VIEW_FIELD label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--admin-slate);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Crisp Input Appearance */
+.DOC_VIEW_FIELD input, 
+.DOC_VIEW_FIELD textarea {
+  width: 100%;
+  padding: 12px 14px;
+  background: #f8fafc; /* Gentle gray for read-only feel */
+  border: 1px solid var(--admin-border);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  color: #334155;
+  font-weight: 500;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.DOC_VIEW_FIELD input:read-only, 
+.DOC_VIEW_FIELD textarea:read-only {
+  cursor: default;
+}
+
+.DOC_VIEW_FIELD input:focus, 
+.DOC_VIEW_FIELD textarea:focus {
+  border-color: var(--admin-blue);
+  background: #ffffff;
+}
+
+.PRICE_INPUT {
+  font-size: 1.05rem !important;
+  letter-spacing: 0.5px;
+}
+
+/* =========================================
+   6. ACTION FOOTER & BUTTONS
+   ========================================= */
+.DOC_VIEW_FOOTER {
+  padding: 1.5rem 1.75rem;
+  border-top: 1px solid var(--admin-border);
+  background: #f8fafc; /* Subtle separation from body */
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.BTN_ACT {
+  padding: 0 20px;
+  height: 48px;
+  border: none;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.BTN_ACT:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px -2px rgba(0,0,0,0.15);
+}
+
+.BTN_ACT:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* Specific Button Styles */
+.BTN_ACT.REJECT {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #ef4444;
+}
+.BTN_ACT.REJECT:hover { 
+  background: #fef2f2; 
+  border-color: #fca5a5; 
+}
+
+.BTN_ACT.APPROVE { background: var(--admin-blue); color: white; flex: 1; justify-content: center; }
+.BTN_ACT.COMPLETE { background: var(--admin-blue); color: white; width: 100%; justify-content: center; }
+.BTN_ACT.GENERATE { background: var(--admin-dark); color: white; }
+.BTN_ACT.DOWNLOAD { background: var(--admin-emerald); color: white; }
+
+.BTN_ACT:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.DOC_VIEW_ARCHIVED {
+  background: #f1f5f9;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px dashed #cbd5e1;
+}
+
+/* =========================================
+   7. MOBILE RESPONSIVE ADAPTATION
+   ========================================= */
+@media (max-width: 600px) {
+  .DOC_VIEW_OVERLAY {
+    padding: 0;
+    align-items: flex-end; /* Anchors to bottom on mobile */
+  }
+
+  .DOC_VIEW_MODAL {
+    border-radius: 24px 24px 0 0;
+    max-height: 90vh;
+  }
+
+  .DOC_VIEW_HEADER {
+    padding: 1.5rem 1.5rem 0.5rem 1.5rem;
+  }
+
+  .DOC_VIEW_STATUS_BAR {
+    margin: 1rem 1.5rem 1.5rem 1.5rem;
+  }
+
+  .DOC_VIEW_GRID {
+    grid-template-columns: 1fr; /* Stack inputs vertically */
+    gap: 15px;
+  }
+
+  .DOC_VIEW_BODY {
+    padding: 0 1.5rem 1.5rem 1.5rem;
+    overflow-y: auto; /* Allow scrolling on small screens */
+  }
+
+  .DOC_VIEW_FOOTER {
+    flex-direction: column;
+    padding: 1.5rem;
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom)); /* iOS safe area */
+  }
+
+  .BTN_ACT {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .DOC_VIEW_FOOTER > div {
+    flex-direction: column; /* Stacks the Generate and Download buttons on mobile */
+  }
+}
+
+/* ANIMATIONS */
+@keyframes docViewFadeIn { from { opacity: 0; backdrop-filter: blur(0px); } to { opacity: 1; backdrop-filter: blur(6px); } }
+@keyframes docViewSlideUp { from { transform: translateY(30px) scale(0.98); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }

@@ -1,0 +1,301 @@
+/* =========================================================
+   COMMUNITY DASHBOARD — Community_Dashboard.css
+   Theme: Engineer's Hill Premium Portal (Scoped v2.6 --c--p--)
+   ========================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800&family=JetBrains+Mono:wght@500&display=swap');
+
+:root {
+    /* 🎨 BRAND CONSTANTS */
+    --c--p--brand-blue: #2563eb;
+    --c--p--brand-dark: #0f172a;
+    --c--p--brand-success: #10b981;
+    --c--p--brand-danger: #e11d48;
+    --c--p--nav-h: 72px;
+    --c--p--mob-nav-h: 68px;
+
+    /* ☁️ LIGHT THEME DEFAULTS */
+    --c--p--bg-main: #f8fafc;
+    --c--p--bg-card: #ffffff;
+    --c--p--bg-switcher: #f1f5f9;
+    --c--p--border-subtle: #e2e8f0;
+    --c--p--text-primary: #1e293b;
+    --c--p--text-secondary: #64748b;
+    --c--p--shadow-ui: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    --c--p--transition-fast: all 0.2s ease;
+}
+
+/* ── 🌑 DARK THEME OVERRIDES (FIXED ROOT INDICATOR) ── */
+:root[data-resident-theme='dark'] {
+    --c--p--bg-main: #0f172a;
+    --c--p--bg-card: #1e293b;
+    --c--p--bg-switcher: #334155;
+    --c--p--border-subtle: #334155;
+    --c--p--text-primary: #f8fafc;
+    --c--p--text-secondary: #94a3b8;
+    --c--p--shadow-ui: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+}
+
+.CM_PAGE_WRAPPER {
+    display: flex;
+    flex-direction: column;
+    /* 🚨 LAYOUT FIX: Changed to min-height and 100% to ensure it never cuts off early */
+    min-height: 100vh;
+    width: 100%;
+    background-color: var(--c--p--bg-main) !important; /* Force override global leaks */
+    color: var(--c--p--text-primary);
+    font-family: 'Inter', sans-serif;
+    overflow-x: hidden;
+    transition: background-color 0.3s ease;
+}
+
+/* ── 1. TOP NAVIGATION ── */
+.CM_NAV_MAIN {
+    height: var(--c--p--nav-h);
+    flex-shrink: 0; /* 🚨 LAYOUT FIX: Prevents nav from getting squished */
+    background: var(--c--p--bg-card);
+    border-bottom: 1px solid var(--c--p--border-subtle);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 2rem;
+    z-index: 1000;
+    box-shadow: var(--c--p--shadow-ui);
+}
+
+.CM_NAV_LEFT {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.CM_LOGO_SHIELD {
+    font-size: 1.6rem;
+    color: var(--c--p--brand-blue);
+}
+
+.CM_BRAND_INFO strong {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    display: block;
+}
+
+.CM_BRAND_INFO span {
+    font-size: 0.90rem;
+    font-weight: 700;
+    color: var(--c--p--text-secondary);
+    letter-spacing: 0.1em;
+}
+
+/* ── 2. VIEW SWITCHER (Tabs) ── */
+.VIEW_SWITCHER {
+    display: flex;
+    background: var(--c--p--bg-switcher);
+    padding: 4px;
+    border-radius: 12px;
+    margin-left: 2rem;
+}
+
+.CM_FILTER_TAB {
+    padding: 0.6rem 1.25rem;
+    border: none;
+    background: transparent;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--c--p--text-secondary);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: var(--c--p--transition-fast);
+}
+
+.CM_FILTER_TAB.ACTIVE {
+    background: var(--c--p--bg-card);
+    color: var(--c--p--brand-blue);
+    box-shadow: var(--c--p--shadow-ui);
+}
+
+.CM_FILTER_TAB:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+/* ── 3. NAV RIGHT & BADGES ── */
+.CM_NAV_RIGHT {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.CM_ONLINE_BADGE {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    background: var(--c--p--bg-main);
+    padding: 6px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--c--p--border-subtle);
+}
+
+.CM_DOT {
+    width: 8px;
+    height: 8px;
+    background: #cbd5e1;
+    border-radius: 50%;
+}
+
+.ONLINE .CM_DOT {
+    background: var(--c--p--brand-success);
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+}
+
+/* 🛡️ SECURITY ALERT */
+.CM_SECURITY_ALERT {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(225, 29, 72, 0.1);
+    color: var(--c--p--brand-danger);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    border: 1px solid var(--c--p--brand-danger);
+    animation: pulse-alert 2s infinite;
+}
+
+@keyframes pulse-alert {
+    0% { box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.2); }
+    70% { box-shadow: 0 0 0 6px rgba(225, 29, 72, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(225, 29, 72, 0); }
+}
+
+/* ── 4. USER DISPLAY ── */
+.CM_USER_DISPLAY_SIMPLE {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 12px 4px 4px;
+    background: var(--c--p--bg-card);
+    border: 1px solid var(--c--p--border-subtle);
+    border-radius: 30px;
+    transition: var(--c--p--transition-fast);
+}
+
+.CM_USER_DISPLAY_SIMPLE:not([style*="not-allowed"]):hover {
+    border-color: var(--c--p--brand-blue);
+    background: var(--c--p--bg-switcher);
+}
+
+.AVATAR_CIRCLE_SMALL {
+    width: 32px;
+    height: 32px;
+    background: var(--c--p--brand-blue);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 0.8rem;
+}
+
+.CM_LOGOUT_BTN {
+    background: transparent;
+    border: 1px solid var(--c--p--border-subtle);
+    color: var(--c--p--text-secondary);
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: var(--c--p--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.CM_LOGOUT_BTN:hover {
+    color: var(--c--p--brand-danger);
+    border-color: var(--c--p--brand-danger);
+    background: rgba(225, 29, 72, 0.05);
+}
+
+/* ── 5. MAIN STAGE ── */
+.CM_PAGE_STAGE {
+    flex: 1 1 auto; /* 🚨 LAYOUT FIX: Actively forces the stage to stretch down */
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    padding: 2.5rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.DASH_LOADER {
+    flex: 1; /* Pushes loader to true center of available space */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 50vh;
+    gap: 1rem;
+    color: var(--c--p--text-secondary);
+}
+
+/* ── 6. MOBILE NAVIGATION ── */
+.MOBILE_BOTTOM_NAV {
+    display: none;
+    background: var(--c--p--bg-card);
+    border-top: 1px solid var(--c--p--border-subtle);
+    height: var(--c--p--mob-nav-h);
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    justify-content: space-around;
+    align-items: center;
+    z-index: 1000;
+}
+
+.MOBILE_BOTTOM_NAV button {
+    background: transparent;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    color: var(--c--p--text-secondary);
+    font-size: 1.2rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.MOBILE_BOTTOM_NAV button.ACTIVE {
+    color: var(--c--p--brand-blue);
+}
+
+/* ── 7. UTILS ── */
+.SPINNER {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--c--p--border-subtle);
+    border-top: 3px solid var(--c--p--brand-blue);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── RESPONSIVENESS ── */
+@media (max-width: 768px) {
+    .DESKTOP_ONLY { display: none !important; }
+    .MOBILE_ONLY { display: flex !important; }
+    .CM_NAV_MAIN { padding: 0 1rem; }
+    .CM_PAGE_STAGE { padding: 1rem; padding-bottom: calc(var(--c--p--mob-nav-h) + 20px); }
+    .CM_BRAND_INFO strong { font-size: 0.9rem; }
+    .MOBILE_BOTTOM_NAV { display: flex !important; }
+}

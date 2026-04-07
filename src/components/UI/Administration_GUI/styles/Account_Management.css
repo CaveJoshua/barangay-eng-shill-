@@ -1,0 +1,419 @@
+/* =========================================================
+   ACCOUNT MANAGEMENT — VERSION 15.0 "MIDNIGHT ENTERPRISE"
+   ─────────────────────────────────────────────────────────
+   Design System: High-Density SaaS Dashboard
+   Features: Full Dark Sync, Anti-Distortion Cards, 
+             Pagination Clusters, and Micro-Animations.
+   Code Weight: 400+ Lines
+   ========================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+
+/* ── 1. SYSTEM TOKENS ────────────────────────────────── */
+:root {
+    /* Fluid Sizing Scale */
+    --ACC-radius-xl: 20px;
+    --ACC-radius-lg: 12px;
+    --ACC-radius-md: 8px;
+    --ACC-radius-sm: 4px;
+
+    /* Transition Dynamics */
+    --ACC-timing: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    
+    /* Light Mode Palette */
+    --ACC-bg-page: #f4f7fa;
+    --ACC-bg-card: #ffffff;
+    --ACC-bg-side: #f8fafc;
+    --ACC-bg-hover: #f1f5f9;
+    --ACC-bg-active: #eff6ff;
+
+    --ACC-border: #e2e8f0;
+    --ACC-border-hard: #cbd5e1;
+    --ACC-border-primary: #3b82f6;
+
+    --ACC-text-main: #0f172a;
+    --ACC-text-body: #334155;
+    --ACC-text-sub: #64748b;
+    --ACC-text-ghost: #94a3b8;
+
+    /* Semantic Accents */
+    --ACC-clr-primary: #2563eb;
+    --ACC-clr-danger: #ef4444;
+    --ACC-clr-success: #10b981;
+    --ACC-clr-warning: #f59e0b;
+
+    /* Soft Accent Overlays */
+    --ACC-glass-blue: rgba(37, 99, 235, 0.08);
+    --ACC-glass-red: rgba(239, 68, 68, 0.08);
+    --ACC-glass-green: rgba(16, 185, 129, 0.08);
+    --ACC-glass-yellow: rgba(245, 158, 11, 0.08);
+
+    /* Shadows */
+    --ACC-shd-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --ACC-shd-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    --ACC-shd-modal: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+/* ── 2. DARK MODE CORE ────────────────────────────────── */
+[data-theme="dark"] {
+    --ACC-bg-page: #0b1120;
+    --ACC-bg-card: #151c2c;
+    --ACC-bg-side: #0f172a;
+    --ACC-bg-hover: #1e293b;
+    --ACC-bg-active: #1e293b;
+
+    --ACC-border: #2d3748;
+    --ACC-border-hard: #334155;
+    --ACC-border-primary: #60a5fa;
+
+    --ACC-text-main: #f8fafc;
+    --ACC-text-body: #cbd5e1;
+    --ACC-text-sub: #94a3b8;
+    --ACC-text-ghost: #64748b;
+
+    --ACC-clr-primary: #60a5fa;
+    --ACC-glass-blue: rgba(96, 165, 250, 0.15);
+    --ACC-glass-red: rgba(239, 68, 68, 0.15);
+    
+    --ACC-shd-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+}
+
+/* ── 3. BASE ARCHITECTURE ───────────────────────────── */
+.ACC_PAGE_WRAP {
+    width: 100%;
+    min-height: 100vh;
+    background-color: var(--ACC-bg-page);
+    padding: 2rem;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    color: var(--ACC-text-body);
+    transition: background 0.3s ease;
+}
+
+.ACC_MAIN_CONTAINER {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* ── 4. STATS PANEL (Anti-Distortion Tech) ──────────── */
+.ACC_STATS_PANEL {
+    display: grid;
+    grid-template-columns: 1fr 2fr 1fr;
+    gap: 1.25rem;
+}
+
+.ACC_STAT_COL {
+    background: var(--ACC-bg-card);
+    padding: 1.25rem 1.5rem;
+    border-radius: var(--ACC-radius-lg);
+    border: 1px solid var(--ACC-border);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 110px;
+    transition: var(--ACC-timing);
+    box-shadow: var(--ACC-shd-sm);
+}
+
+.ACC_STAT_COL:hover {
+    transform: translateY(-3px);
+    border-color: var(--ACC-border-hard);
+    box-shadow: var(--ACC-shd-lg);
+}
+
+.ACC_TOTAL_COL {
+    background: var(--ACC-text-main);
+    color: var(--ACC-bg-card);
+    padding: 1.25rem;
+    border-radius: var(--ACC-radius-lg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.ACC_STAT_TITLE {
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: var(--ACC-text-sub);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+}
+
+.ACC_TOTAL_COL .ACC_STAT_TITLE { color: var(--ACC-text-ghost); opacity: 0.8; }
+
+.ACC_STAT_SUB {
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--ACC-text-sub);
+}
+
+.ACC_STAT_HIGHLIGHT {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--ACC-clr-primary);
+}
+
+.ACC_BIG_NUMBER {
+    font-size: 2.75rem;
+    font-weight: 900;
+    line-height: 1;
+    margin-bottom: 4px;
+}
+
+/* ── 5. TOOLBAR (Search & Tabs) ─────────────────────── */
+.ACC_SEARCH_ROW {
+    background: var(--ACC-bg-card);
+    padding: 0.75rem 1.5rem;
+    border-radius: var(--ACC-radius-md);
+    border: 1px solid var(--ACC-border);
+    box-shadow: var(--ACC-shd-sm);
+}
+
+.ACC_SEARCH_INPUT {
+    width: 100%;
+    height: 42px;
+    background: var(--ACC-bg-page);
+    border: 1.5px solid var(--ACC-border);
+    border-radius: 10px;
+    color: var(--ACC-text-main);
+    font-weight: 600;
+    outline: none;
+    transition: var(--ACC-timing);
+}
+
+.ACC_SEARCH_INPUT:focus {
+    border-color: var(--ACC-clr-primary);
+    background: var(--ACC-bg-card);
+    box-shadow: 0 0 0 4px var(--ACC-glass-blue);
+}
+
+.ACC_TABS_CONTAINER {
+    display: flex;
+    gap: 8px;
+    margin-top: 0.5rem;
+}
+
+.ACC_TAB_BTN {
+    padding: 10px 24px;
+    border: 1px solid var(--ACC-border);
+    background: var(--ACC-bg-card);
+    color: var(--ACC-text-sub);
+    font-weight: 700;
+    font-size: 0.85rem;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: var(--ACC-timing);
+}
+
+.ACC_TAB_BTN:hover { background: var(--ACC-bg-hover); color: var(--ACC-text-main); }
+
+.ACC_TAB_BTN.ACTIVE {
+    background: var(--ACC-text-main);
+    color: var(--ACC-bg-card);
+    border-color: var(--ACC-text-main);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+/* ── 6. DATA TABLE ──────────────────────────────────── */
+.ACC_TABLE_CARD {
+    background: var(--ACC-bg-card);
+    border-radius: var(--ACC-radius-xl);
+    border: 1px solid var(--ACC-border);
+    overflow: hidden;
+    box-shadow: var(--ACC-shd-sm);
+}
+
+.ACC_TABLE_WRAP { max-height: 580px; overflow-y: auto; }
+.ACC_TABLE_MAIN { width: 100%; border-collapse: collapse; text-align: left; }
+
+.ACC_TABLE_MAIN thead th {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--ACC-bg-side);
+    padding: 1rem 1.5rem;
+    color: var(--ACC-text-sub);
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--ACC-border);
+}
+
+.ACC_TABLE_MAIN td {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--ACC-bg-page);
+    vertical-align: middle;
+}
+
+.ACC_TABLE_MAIN tr:hover { background: var(--ACC-bg-hover); }
+
+/* User Profiles */
+.ACC_PROF_FLEX { display: flex; align-items: center; gap: 1rem; }
+
+.ACC_AVATAR {
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    background: var(--ACC-bg-page);
+    color: var(--ACC-text-main);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 1rem;
+    border: 2px solid var(--ACC-border);
+}
+
+.ACC_AVATAR.ADMIN { border-color: var(--ACC-clr-primary); color: var(--ACC-clr-primary); background: var(--ACC-glass-blue); }
+
+.ACC_PROF_NAME { display: flex; flex-direction: column; font-weight: 700; color: var(--ACC-text-main); }
+.ACC_PROF_NAME span { font-size: 0.75rem; color: var(--ACC-text-ghost); font-family: 'JetBrains Mono', monospace; }
+
+/* Status Badges */
+.ACC_BADGE {
+    padding: 4px 10px;
+    border-radius: 5px;
+    font-size: 0.65rem;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.ACC_BADGE_ADMIN { background: var(--ACC-glass-blue); color: var(--ACC-clr-primary); }
+.ACC_BADGE_RESIDENT { background: var(--ACC-bg-page); color: var(--ACC-text-sub); border: 1px solid var(--ACC-border); }
+
+/* Actions */
+.ACC_ACTION_ICON {
+    background: transparent; border: 1px solid transparent;
+    padding: 8px; cursor: pointer; color: var(--ACC-text-sub);
+    transition: var(--ACC-timing); border-radius: 8px;
+}
+
+.ACC_ACTION_ICON:hover {
+    background: var(--ACC-bg-card);
+    border-color: var(--ACC-border-hard);
+    color: var(--ACC-text-main);
+    box-shadow: var(--ACC-shd-sm);
+}
+
+/* ── 7. PAGINATION BAR ──────────────────────────────── */
+.ACC_PAGINATION_BAR {
+    padding: 1.25rem 1.5rem;
+    background: var(--ACC-bg-card);
+    border-top: 1px solid var(--ACC-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.ACC_PAG_INFO { font-size: 0.85rem; font-weight: 700; color: var(--ACC-text-sub); }
+
+.ACC_PAG_NAV { display: flex; align-items: center; gap: 15px; }
+
+.ACC_NAV_BTN {
+    padding: 8px 16px;
+    background: var(--ACC-bg-card);
+    border: 1.5px solid var(--ACC-border);
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--ACC-text-main);
+    cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+}
+
+.ACC_NAV_BTN:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.ACC_NAV_BTN:hover:not(:disabled) {
+    border-color: var(--ACC-clr-primary);
+    color: var(--ACC-clr-primary);
+    background: var(--ACC-glass-blue);
+}
+
+.ACC_PAGE_INDICATOR {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--ACC-text-main);
+    padding: 5px 12px;
+    background: var(--ACC-bg-page);
+    border-radius: 6px;
+}
+
+/* ── 8. MODAL ECOSYSTEM ─────────────────────────────── */
+.ACC_MODAL_OVERLAY {
+    position: fixed; inset: 0;
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(10px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 5000;
+}
+
+.ACC_MODAL_BOX {
+    background: var(--ACC-bg-card);
+    border-radius: var(--ACC-radius-xl);
+    width: 90%; max-width: 440px;
+    padding: 2.5rem;
+    border: 1px solid var(--ACC-border-hard);
+    box-shadow: var(--ACC-shd-modal);
+    animation: acc_slideUp 0.3s ease-out;
+}
+
+@keyframes acc_slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.ACC_MODAL_BOX h2 { font-size: 1.5rem; font-weight: 800; color: var(--ACC-text-main); margin: 0 0 1rem 0; }
+.ACC_MODAL_BOX p { font-size: 0.9rem; color: var(--ACC-text-sub); margin-bottom: 2rem; }
+
+.ACC_FORM_INPUT {
+    width: 100%;
+    padding: 12px 16px;
+    background: var(--ACC-bg-page);
+    border: 2px solid var(--ACC-border);
+    border-radius: 12px;
+    color: var(--ACC-text-main);
+    font-weight: 600;
+    font-family: inherit;
+    margin-bottom: 1.5rem;
+    outline: none;
+}
+
+.ACC_FORM_INPUT:focus { border-color: var(--ACC-clr-primary); background: var(--ACC-bg-card); }
+
+.ACC_MODAL_ACTIONS { display: flex; justify-content: flex-end; gap: 12px; }
+
+.ACC_BTN_CANCEL {
+    padding: 10px 20px;
+    border: none; background: transparent;
+    color: var(--ACC-text-sub);
+    font-weight: 700; cursor: pointer;
+}
+
+.ACC_BTN_SAVE {
+    padding: 10px 24px;
+    background: var(--ACC-clr-primary);
+    color: #fff;
+    border: none; border-radius: 10px;
+    font-weight: 800; cursor: pointer;
+    box-shadow: 0 4px 12px var(--ACC-glass-blue);
+}
+
+/* ── 9. UTILITIES & SCROLLBAR ───────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: var(--ACC-border-hard); border-radius: 10px; }
+
+.ACC_EMPTY_STATE { text-align: center; padding: 6rem 0; color: var(--ACC-text-ghost); font-style: italic; }
+.ACC_TEXT_MUTED { color: var(--ACC-text-ghost); font-weight: 500; }
+
+@media (max-width: 1100px) {
+    .ACC_STATS_PANEL { grid-template-columns: repeat(2, 1fr); }
+    .ACC_TOTAL_COL { grid-column: span 2; }
+}
+
+@media (max-width: 768px) {
+    .ACC_PAGE_WRAP { padding: 1.5rem 1rem; }
+    .ACC_STATS_PANEL { grid-template-columns: 1fr; }
+    .ACC_TOTAL_COL { grid-column: auto; }
+    .ACC_TABS_CONTAINER { flex-direction: column; }
+    .ACC_PAGINATION_BAR { flex-direction: column; gap: 1rem; }
+}

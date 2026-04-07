@@ -1,0 +1,304 @@
+/* =========================================================
+   COMMUNITY PROFILE — Community_Profile.css
+   Style: Native App / Card-Based Identity View
+   ========================================================= */
+
+.CM_PROFILE_ROOT {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background-color: #f8fafc; /* Subtle slate background */
+  animation: slideInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── HEADER / APP BAR ── */
+.CM_PROFILE_HEADER {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.5rem;
+  background: white;
+  border-bottom: 1px solid #e2e8f0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  min-height: 64px;
+  box-sizing: border-box;
+}
+
+.CM_BACK_BTN {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-left: -12px; /* Pull back to align icon with content margin */
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.CM_BACK_BTN:hover {
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.CM_BACK_BTN i {
+  font-size: 1.1rem;
+}
+
+.CM_PROFILE_TITLE {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.CM_HEADER_SPACER {
+  width: 80px; /* Balanced for the back button width */
+}
+
+/* ── SCROLL AREA ── */
+.CM_PROFILE_SCROLL_AREA {
+  flex: 1;
+  overflow-y: auto;
+  padding: 2rem 1.5rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.CM_PROFILE_CONTENT {
+  max-width: 680px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* ── REUSABLE CARDS ── */
+.CM_PROFILE_CARD {
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 10px 15px -5px rgba(0,0,0,0.05);
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+}
+
+/* ── HERO CARD ── */
+.CM_HERO_CARD {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 2.5rem 1rem;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.CM_AVATAR_LARGE {
+  width: 90px;
+  height: 90px;
+  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+  color: white;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 2.8rem;
+  font-weight: 800;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+  border: 4px solid white;
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.2);
+}
+
+.CM_HERO_TEXT h3 {
+  margin: 0 0 0.5rem 0;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.CM_VERIFIED_BADGE {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #059669;
+  background: #ecfdf5;
+  padding: 6px 14px;
+  border-radius: 99px;
+  border: 1px solid #d1fae5;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ── SECTIONS ── */
+.CM_SECTION_TITLE {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin: 0 0 0.85rem 0.75rem;
+}
+
+.CM_DATA_LIST {
+  display: flex;
+  flex-direction: column;
+}
+
+.CM_DATA_ROW {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.15rem 1.5rem;
+  border-bottom: 1px solid #f1f5f9;
+  gap: 1.5rem;
+}
+
+.CM_DATA_ROW:last-child {
+  border-bottom: none;
+}
+
+.CM_DATA_LABEL {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #64748b;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.CM_DATA_LABEL i {
+  width: 20px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 1rem;
+}
+
+.CM_DATA_VALUE {
+  font-weight: 700;
+  color: #0f172a;
+  font-size: 0.9rem;
+  text-align: right;
+  word-break: break-word;
+}
+
+/* ── ACTION BUTTONS ── */
+.CM_ACTION_CONTAINER {
+  padding: 1.25rem 1.5rem;
+  background: #fcfdfe;
+  border-top: 1px solid #f1f5f9;
+}
+
+.CM_ACTION_BTN {
+  width: 100%;
+  padding: 0.9rem;
+  border-radius: 12px;
+  border: none;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.CM_PWD_BTN {
+  background-color: white;
+  color: #1e293b;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.CM_PWD_BTN:hover {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+}
+
+/* ── FOOTER ── */
+.CM_PROFILE_FOOTER {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 1rem 0.5rem;
+  color: #94a3b8;
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.CM_PROFILE_FOOTER i {
+  margin-top: 2px;
+  color: #cbd5e1;
+  font-size: 1.1rem;
+}
+
+.CM_PROFILE_FOOTER p {
+  margin: 0;
+}
+
+/* =========================================================
+   MOBILE RESPONSIVENESS
+   ========================================================= */
+@media (max-width: 768px) {
+  .CM_PROFILE_SCROLL_AREA {
+    padding: 1rem;
+    padding-bottom: 100px; /* Safe space for mobile bottom nav */
+  }
+
+  .CM_PROFILE_HEADER {
+    padding: 0 1rem;
+  }
+  
+  .CM_PROFILE_TITLE {
+    font-size: 1rem;
+  }
+
+  .CM_DATA_ROW {
+    padding: 1rem 1.25rem;
+  }
+
+  .CM_DATA_LABEL {
+    font-size: 0.8rem;
+  }
+
+  .CM_DATA_VALUE {
+    font-size: 0.85rem;
+    flex: 1;
+  }
+
+  .CM_HERO_TEXT h3 {
+    font-size: 1.4rem;
+  }
+
+  .CM_AVATAR_LARGE {
+    width: 80px;
+    height: 80px;
+    font-size: 2.4rem;
+  }
+}

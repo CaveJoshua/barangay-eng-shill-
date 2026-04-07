@@ -1,0 +1,279 @@
+/* =========================================================
+   COMMUNITY BLOTTER — Community_blotter.css
+   Theme: Engineer's Hill Premium (v5.8 Final)
+   Design: Grid List + Right Slide Detail Drawer + Dark Mode
+   ========================================================= */
+
+.DOC_VIEW_CONTAINER {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: calc(100vh - 160px); /* Strictly bounds the UI */
+  gap: 1.5rem;
+  overflow: hidden; /* Keeps Header/Toolbar fixed at the top */
+  animation: blotterFadeIn 0.4s ease-out;
+}
+
+/* ── 1. FIXED TOP ELEMENTS ── */
+.DOC_HEADER_CARD,
+.DOC_TOOLBAR {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 1.25rem 2rem;
+  flex-shrink: 0; /* Prevents squishing */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+.HEADER_TEXT h1 {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+/* ── 2. MAIN LAYOUT (Scroll Container) ── */
+.BLOTTER_MAIN_LAYOUT {
+  flex: 1;
+  min-height: 0; /* Critical for inner scrolling */
+  display: flex;
+}
+
+.DOC_LIST_STAGE {
+  flex: 1;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 1.25rem;
+  padding-right: 8px;
+  padding-bottom: 2rem;
+}
+
+/* Scrollbar Style */
+.DOC_LIST_STAGE::-webkit-scrollbar { width: 6px; }
+.DOC_LIST_STAGE::-webkit-scrollbar-thumb { 
+  background: #cbd5e1; 
+  border-radius: 10px; 
+}
+
+/* ── 3. CARD ITEMS ── */
+.DOC_CARD_ITEM {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: default;
+}
+
+.DOC_CARD_ITEM:hover {
+  border-color: #3b82f6;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 20px -10px rgba(0, 0, 0, 0.08);
+}
+
+.DOC_HEADER {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.DOC_ID_GROUP strong { display: block; font-size: 1.05rem; color: #1e293b; }
+.DOC_REF { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: #64748b; }
+
+.DOC_BODY {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.DOC_ICON_BOX {
+  width: 48px;
+  height: 48px;
+  background: #f8fafc;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #3b82f6;
+  font-size: 1.2rem;
+}
+
+.DOC_INFO h4 { margin: 0; font-size: 1rem; color: #1e293b; }
+.DOC_DESC { margin: 4px 0; font-size: 0.85rem; color: #64748b; }
+.DOC_DATE { font-size: 0.8rem; font-weight: 600; color: #94a3b8; }
+
+.BTN_VIEW_DETAILS {
+  margin-left: auto;
+  background: #eff6ff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 10px;
+  color: #2563eb;
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.BTN_VIEW_DETAILS:hover { background: #2563eb; color: #fff; }
+
+/* ── 4. SLIDE DRAWER ENGINE ── */
+.SLIDE_DRAWER {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 500px;
+  height: 100%;
+  background: #ffffff;
+  z-index: 3000;
+  box-shadow: -10px 0 50px rgba(15, 23, 42, 0.15);
+  transform: translateX(100%);
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+.SLIDE_DRAWER.OPEN { transform: translateX(0); }
+
+.DRAWER_OVERLAY {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 2999;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+}
+
+.DRAWER_OVERLAY.SHOW { opacity: 1; visibility: visible; }
+
+.DRAWER_CONTENT {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 2.5rem;
+  overflow-y: auto;
+}
+
+.DRAWER_HEADER {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.CLOSE_DRAWER {
+  background: #f1f5f9;
+  border: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  cursor: pointer;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.CLOSE_DRAWER:hover { background: #fee2e2; color: #ef4444; }
+
+.DRAWER_TITLE { font-size: 1.75rem; font-weight: 800; color: #0f172a; margin-bottom: 1.5rem; }
+
+.INFO_GROUP { margin-bottom: 1.5rem; }
+.INFO_GROUP label { display: block; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: #94a3b8; margin-bottom: 6px; letter-spacing: 0.05em; }
+.INFO_GROUP p { font-size: 1rem; color: #1e293b; font-weight: 500; }
+
+.SUMMARY_BOX {
+  background: #f8fafc;
+  padding: 1.25rem;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  line-height: 1.6;
+}
+
+/* ── 5. STATUS TAGS ── */
+.DOC_STATUS, .SIDEBAR_STATUS {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.65rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.DOC_STATUS.ACTIVE { background: #dcfce7; color: #15803d; }
+.DOC_STATUS.HEARING { background: #fef9c3; color: #a16207; }
+.DOC_STATUS.SETTLED { background: #d1fae5; color: #059669; }
+.DOC_STATUS.DISMISSED { background: #fee2e2; color: #b91c1c; }
+
+/* ── 6. DARK MODE OVERRIDES ── */
+[data-theme='dark'] .DOC_HEADER_CARD,
+[data-theme='dark'] .DOC_TOOLBAR,
+[data-theme='dark'] .DOC_CARD_ITEM,
+[data-theme='dark'] .SLIDE_DRAWER,
+[data-theme='dark'] .DRAWER_CONTENT,
+.dark-mode .DOC_HEADER_CARD,
+.dark-mode .DOC_TOOLBAR,
+.dark-mode .DOC_CARD_ITEM,
+.dark-mode .SLIDE_DRAWER,
+.dark-mode .DRAWER_CONTENT {
+  background-color: #111827;
+  border-color: #374151;
+  color: #f3f4f6;
+}
+
+[data-theme='dark'] .HEADER_TEXT h1,
+[data-theme='dark'] .DOC_ID_GROUP strong,
+[data-theme='dark'] .DRAWER_TITLE,
+[data-theme='dark'] .INFO_GROUP p,
+.dark-mode .HEADER_TEXT h1,
+.dark-mode .DOC_ID_GROUP strong,
+.dark-mode .DRAWER_TITLE,
+.dark-mode .INFO_GROUP p {
+  color: #ffffff;
+}
+
+[data-theme='dark'] .DOC_ICON_BOX,
+[data-theme='dark'] .BTN_VIEW_DETAILS,
+.dark-mode .DOC_ICON_BOX,
+.dark-mode .BTN_VIEW_DETAILS {
+  background-color: #1f2937;
+  color: #60a5fa;
+}
+
+[data-theme='dark'] .SUMMARY_BOX,
+[data-theme='dark'] .CLOSE_DRAWER,
+.dark-mode .SUMMARY_BOX,
+.dark-mode .CLOSE_DRAWER {
+  background-color: #1f2937;
+  border-color: #374151;
+}
+
+/* ── 7. RESPONSIVE ── */
+@media (max-width: 1024px) {
+  .DOC_LIST_STAGE { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 600px) {
+  .SLIDE_DRAWER { width: 100%; }
+  .DOC_HEADER_CARD { padding: 1.5rem; flex-direction: column; align-items: flex-start; gap: 1rem; }
+  .DRAWER_CONTENT { padding: 1.5rem; }
+}
+
+@keyframes blotterFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}

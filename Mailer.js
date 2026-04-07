@@ -1,0 +1,49 @@
+import nodemailer from 'nodemailer';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+// 🧪 DEBUG: This will print to your terminal once to verify your .env is loading
+console.log("[MAILER DEBUG] Target User:", process.env.SMTP_USER ? "FOUND" : "NOT FOUND");
+
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: parseInt(process.env.SMTP_PORT || '465'),
+  secure: true, 
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS, // ✅ Fixed: This must be 'pass'
+  },
+});
+
+// Verification check
+transporter.verify((error, success) => {
+  if (error) {
+    console.error("❌ [MAILER CHECK] Connection Failed:", error.message);
+  } else {
+    console.log("✅ [MAILER CHECK] Connection Successful! Ready to send emails.");
+  }
+});
+
+export const sendAutoMail = async (to, subject, title, message) => {
+  try {
+    await transporter.sendMail({
+      from: `"Smart Barangay" <${process.env.SMTP_USER}>`,
+      to,
+      subject: `[NOTICE] ${subject}`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px;">
+          <h2 style="color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px;">${title}</h2>
+          <p style="font-size: 16px; color: #34495e; line-height: 1.6;">${message}</p>
+          <div style="background: #f9f9f9; padding: 10px; text-align: center; font-weight: bold; color: #2980b9; margin-top: 20px;">
+            Engineer's Hill Digital Governance
+          </div>
+        </div>
+      `,
+    });
+    return true;
+  } catch (error) {
+    console.error("[MAILER ERROR]", error.message);
+    return false;
+  }
+};

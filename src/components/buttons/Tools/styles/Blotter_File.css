@@ -1,0 +1,297 @@
+/* =========================================
+   BLOTTER FILE EDITOR (Professional Theme)
+   Scoped Prefix: BLOT_
+   ========================================= */
+
+/* --- 1. MAIN WINDOW OVERLAY --- */
+.BLOT_FILE_OVERLAY {
+  position: fixed;
+  top: 0; 
+  left: 0;
+  width: 100vw; 
+  height: 100vh;
+  background-color: #f1f5f9; /* Slate-100: Professional UI Gray */
+  z-index: 5000;
+  display: flex;
+  flex-direction: column;
+  animation: blotFileFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1); /* Smooth Apple-like easing */
+  overflow: hidden;
+}
+
+/* --- 2. TOP TOOLBAR --- */
+.BLOT_FILE_TOOLBAR {
+  height: 64px;
+  background-color: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 2rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  flex-shrink: 0;
+  z-index: 50;
+}
+
+/* Toolbar Buttons */
+.BLOT_TOOL_GROUP {
+  display: flex;
+  gap: 8px;
+}
+
+.BLOT_TOOL_GROUP button {
+  height: 36px;
+  min-width: 36px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  background: white;
+  border-radius: 6px;
+  font-weight: 700;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.BLOT_TOOL_GROUP button:hover {
+  background-color: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.BLOT_TOOL_ACTIONS {
+  display: flex;
+  gap: 12px;
+}
+
+/* --- 3. LAYOUT CONTAINER --- */
+.BLOT_FILE_BODY {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.BLOT_FILE_CONTENT {
+  flex: 1;
+  display: flex;
+  flex-direction: row; /* Sidebar Left | Preview Right */
+  height: 100%;
+  overflow: hidden;
+}
+
+/* --- 4. SIDEBAR (Form Controls) --- */
+.BLOT_SIDE_PANEL {
+  width: 380px;
+  min-width: 380px;
+  max-width: 380px;
+  background-color: #ffffff;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  padding: 2rem;
+  gap: 1.5rem;
+  overflow-y: auto; /* Scroll ONLY the form */
+  z-index: 20;
+}
+
+.BLOT_PANEL_HEADER {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #1e293b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #f1f5f9;
+  margin-bottom: 0.5rem;
+}
+
+/* Form Inputs */
+.BLOT_INPUT_GROUP {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.BLOT_INPUT_GROUP label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.BLOT_INPUT_GROUP input,
+.BLOT_INPUT_GROUP select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: #1e293b;
+  background-color: #f8fafc;
+  outline: none;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.BLOT_INPUT_GROUP input:focus,
+.BLOT_INPUT_GROUP select:focus {
+  border-color: #2563eb;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Search Dropdown */
+.BLOT_DROPDOWN {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 100;
+  margin-top: 6px;
+  padding: 0;
+  list-style: none;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.BLOT_DROPDOWN li {
+  padding: 10px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+}
+
+.BLOT_DROPDOWN li:hover { background-color: #eff6ff; }
+.BLOT_DROPDOWN .RES_NAME { font-weight: 600; color: #1e293b; font-size: 0.9rem; }
+.BLOT_DROPDOWN .RES_ID { font-size: 0.75rem; color: #64748b; }
+
+/* --- 5. PREVIEW AREA (The "Desk") --- */
+.BLOT_PREVIEW_AREA {
+  flex: 1;
+  background-color: #94a3b8; /* Contrast Gray */
+  display: flex;
+  justify-content: center;
+  padding: 3rem 2rem;
+  overflow-y: auto; /* Scroll ONLY the paper */
+  scroll-behavior: smooth;
+}
+
+/* --- 6. A4 PAPER SHEET --- */
+.BLOT_A4_PAGE {
+  width: 210mm;
+  min-height: 297mm; /* Exact A4 Height */
+  background-color: #ffffff;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+  padding: 25mm;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 4rem; /* Bottom spacing */
+  position: relative;
+}
+
+/* Document Typography */
+.BLOT_A4_HEADER { text-align: center; margin-bottom: 15px; }
+.BLOT_HEADER_TEXT p { margin: 2px 0; font-family: 'Times New Roman', serif; font-size: 11pt; }
+.BLOT_HEADER_TEXT h4 { margin: 10px 0; font-size: 14pt; font-weight: 900; font-family: 'Arial', sans-serif; }
+.OFFICE { font-weight: bold; font-size: 10pt; letter-spacing: 0.5px; }
+
+.BLOT_A4_LINE { border-top: 2px solid black; margin: 10px 0 30px 0; }
+
+.BLOT_DOC_TITLE {
+  text-align: center;
+  font-size: 18pt;
+  font-weight: 900;
+  text-decoration: underline;
+  text-transform: uppercase;
+  font-family: 'Arial', sans-serif;
+  margin-bottom: 40px;
+}
+
+.BLOT_A4_CONTENT {
+  flex: 1; /* Pushes footer down */
+  font-family: 'Times New Roman', serif;
+  font-size: 12pt;
+  line-height: 1.6;
+  color: #000;
+}
+
+.BLOT_EDITABLE_CONTENT {
+  margin-top: 15px;
+  outline: none;
+  min-height: 400px;
+  white-space: pre-wrap;
+  cursor: text;
+}
+
+/* --- 7. SIGNATURE ALIGNMENT (The Fix) --- */
+.BLOT_A4_FOOTER {
+  margin-top: auto; /* Pushes signature to absolute bottom of printable area */
+  padding-top: 50px;
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.BLOT_SIG_BLOCK {
+  width: 240px;
+  text-align: center;
+}
+
+.BLOT_SIG_NAME {
+  font-weight: 700;
+  text-transform: uppercase;
+  margin: 0;
+  font-size: 11pt;
+  font-family: 'Arial', sans-serif;
+  border-bottom: 1.5px solid #000;
+  padding-bottom: 4px;
+}
+
+.BLOT_SIG_ROLE {
+  margin-top: 5px;
+  font-size: 10pt;
+  font-style: italic;
+  font-family: 'Times New Roman', serif;
+}
+
+/* --- 8. ACTION BUTTONS --- */
+.BLOT_BTN_CANCEL {
+  background: transparent;
+  border: 1px solid #cbd5e1;
+  color: #64748b;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.BLOT_BTN_CANCEL:hover { background-color: #f8fafc; color: #0f172a; }
+
+.BLOT_BTN_SAVE {
+  background-color: #dc2626; /* Blotter Red */
+  color: white;
+  padding: 8px 18px;
+  border-radius: 6px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);
+  transition: background-color 0.2s;
+}
+.BLOT_BTN_SAVE:hover { background-color: #b91c1c; }
+.BLOT_BTN_SAVE:disabled { background-color: #fca5a5; cursor: not-allowed; }
+
+/* Animation */
+@keyframes blotFileFadeIn {
+  from { opacity: 0; transform: scale(0.99); }
+  to { opacity: 1; transform: scale(1); }
+}

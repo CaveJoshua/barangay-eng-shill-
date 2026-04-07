@@ -1,0 +1,412 @@
+/* =========================================================
+   HOUSEHOLD PROFILE SYSTEM — VERSION 13.0 "HIGH-VISIBILITY"
+   ─────────────────────────────────────────────────────────
+   Design System: SaaS Compact / Enterprise Density
+   Target: Anti-Distortion, High Contrast, Dark Sync
+   Code Weight: 400+ Lines (Full Implementation)
+   ========================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+
+/* ── 1. GLOBAL DESIGN TOKENS ──────────────────────────── */
+:root {
+    /* Layout Constants */
+    --HP-radius-xl: 18px;
+    --HP-radius-lg: 12px;
+    --HP-radius-md: 8px;
+    --HP-radius-sm: 5px;
+
+    /* Light Mode Color Space (High Contrast) */
+    --HP-bg-body: #f1f5f9;      /* Deeper gray for background contrast */
+    --HP-bg-card: #ffffff;      /* Pure white cards */
+    --HP-bg-accent: #f8fafc;
+    --HP-surface-hover: #f1f5f9;
+    
+    --HP-border-subtle: #e2e8f0;
+    --HP-border-hard: #cbd5e1;  /* Visible, hard borders */
+    --HP-border-primary: #2563eb;
+
+    --HP-text-primary: #0f172a; /* Near black heading */
+    --HP-text-secondary: #334155; /* Dark body text */
+    --HP-text-muted: #64748b;
+
+    /* Branding & Semantics */
+    --HP-primary: #2563eb;
+    --HP-primary-hover: #1d4ed8;
+    --HP-danger: #ef4444;
+    --HP-danger-hover: #fee2e2;
+    --HP-success: #10b981;
+    
+    /* Shadows (Defined for visibility) */
+    --HP-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --HP-shadow-lg: 0 15px 30px -5px rgba(15, 23, 42, 0.15);
+    --HP-shadow-focus: 0 0 0 4px rgba(37, 99, 235, 0.1);
+}
+
+/* ── 2. DARK MODE CORE ENGINE ─────────────────────────── */
+[data-theme='dark'] {
+    --HP-bg-body: #0b1120;
+    --HP-bg-card: #151c2c;
+    --HP-bg-accent: #0f172a;
+    --HP-surface-hover: #1e293b;
+    
+    --HP-border-subtle: #2d3748;
+    --HP-border-hard: #334155;
+    --HP-border-primary: #60a5fa;
+
+    --HP-text-primary: #f8fafc;
+    --HP-text-secondary: #cbd5e1;
+    --HP-text-muted: #94a3b8;
+
+    --HP-primary: #60a5fa;
+    --HP-shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* ── 3. BASE WRAPPERS ────────────────────────────────── */
+.HP_PAGE_WRAPPER {
+    height: 100%;
+    width: 100%;
+    background-color: var(--HP-bg-body);
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    color: var(--HP-text-secondary);
+    transition: background 0.3s ease;
+    box-sizing: border-box;
+}
+
+.HP_MAIN_CONTAINER {
+    max-width: 1300px;
+    margin: 0 auto;
+    padding: 1.5rem; /* Reduced padding for appropriate sizing */
+}
+
+/* ── 4. MODAL ARCHITECTURE (Fix for image_011e1c) ─────── */
+@keyframes hp_overlayFade {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+}
+
+@keyframes hp_cardPop {
+    0% { transform: scale(0.96) translateY(10px); opacity: 0; }
+    100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.HP_MODAL_OVERLAY {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.75); /* Darker overlay for focus */
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 5000;
+    animation: hp_overlayFade 0.2s ease-out forwards;
+}
+
+.HP_MODAL_CARD {
+    background: var(--HP-bg-card);
+    width: 92%;
+    max-width: 880px; /* Refined width for enterprise density */
+    max-height: 88vh;
+    border-radius: var(--HP-radius-xl);
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--HP-shadow-lg);
+    border: 1px solid var(--HP-border-hard);
+    animation: hp_cardPop 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    overflow: hidden;
+}
+
+.HP_MODAL_HEADER {
+    padding: 1.25rem 1.75rem;
+    border-bottom: 1px solid var(--HP-border-subtle);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--HP-bg-card);
+}
+
+.HP_MODAL_TITLE { 
+    font-size: 1.25rem; 
+    font-weight: 800; 
+    color: var(--HP-text-primary); 
+    margin: 0; 
+    letter-spacing: -0.02em;
+}
+
+.HP_MODAL_CLOSE_X {
+    background: var(--HP-surface-hover);
+    border: 1px solid var(--HP-border-subtle);
+    height: 32px;
+    width: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    color: var(--HP-text-muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.HP_MODAL_CLOSE_X:hover {
+    background: var(--HP-danger-hover);
+    color: var(--HP-danger);
+    transform: rotate(90deg);
+}
+
+.HP_MODAL_SCROLL_BODY { 
+    padding: 1.75rem; 
+    overflow-y: auto; 
+    background-color: var(--HP-bg-card);
+}
+
+/* ── 5. FORM ELEMENTS (Compact Visibility) ───────────── */
+.HP_SECTION_INDICATOR {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--HP-primary);
+    font-weight: 800;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.HP_SECTION_INDICATOR::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--HP-border-subtle);
+}
+
+.HP_FORM_GRID { 
+    display: grid; 
+    grid-template-columns: 1fr 1fr; 
+    gap: 1.25rem; 
+    margin-bottom: 2rem; 
+}
+
+.HP_GRID_FULL { grid-column: span 2; }
+
+.HP_FORM_LABEL { 
+    font-size: 0.75rem; 
+    font-weight: 700; 
+    color: var(--HP-text-muted); 
+    margin-bottom: 6px; 
+    display: block; 
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+/* High Contrast Inputs */
+.HP_FORM_INPUT, .HP_FORM_SELECT, .HP_MEMBER_FIELD {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1.5px solid var(--HP-border-subtle);
+    border-radius: 10px;
+    background: var(--HP-bg-accent);
+    color: var(--HP-text-primary);
+    font-size: 0.9rem;
+    font-weight: 600;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.HP_FORM_INPUT:hover, .HP_MEMBER_FIELD:hover {
+    border-color: var(--HP-border-hard);
+}
+
+.HP_FORM_INPUT:focus, .HP_FORM_SELECT:focus { 
+    background: var(--HP-bg-card);
+    border-color: var(--HP-primary); 
+    box-shadow: var(--HP-shadow-focus); 
+}
+
+.HP_STATIC_FIELD {
+    padding: 0.75rem 1rem;
+    background: var(--HP-surface-hover);
+    border-radius: 10px;
+    color: var(--HP-text-secondary);
+    font-weight: 700;
+    border: 1px dashed var(--HP-border-hard);
+    font-size: 0.875rem;
+}
+
+/* ── 6. SEARCH & COMBOBOX (High Density) ────────────── */
+.HP_COMBOBOX_WRAP { position: relative; }
+
+.HP_INPUT_AGE_BADGE {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--HP-bg-card);
+    border: 1px solid var(--HP-border-hard);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: var(--HP-primary);
+    pointer-events: none;
+}
+
+.HP_DROP_RESULTS {
+    position: absolute;
+    top: calc(100% + 5px);
+    width: 100%;
+    background: var(--HP-bg-card);
+    border: 1px solid var(--HP-border-hard);
+    border-radius: 12px;
+    z-index: 6000;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 5px;
+}
+
+.HP_DROP_ITEM { 
+    padding: 10px 12px; 
+    cursor: pointer; 
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    transition: background 0.1s ease;
+}
+
+.HP_DROP_ITEM:hover { background: var(--HP-surface-hover); }
+
+.HP_DROP_NAME { font-weight: 700; font-size: 0.875rem; color: var(--HP-text-primary); }
+.HP_DROP_SUB { font-size: 0.75rem; color: var(--HP-text-muted); font-weight: 600; }
+
+/* ── 7. MEMBERS TABLE (Surgical Anti-Distortion) ────── */
+.HP_MEMBERS_TABLE { 
+    width: 100%; 
+    border-collapse: separate; 
+    border-spacing: 0 8px;
+}
+
+.HP_TABLE_ROW td {
+    background: var(--HP-bg-card);
+    padding: 6px 4px;
+    vertical-align: middle;
+}
+
+.HP_RELATIVE_CELL { width: 48%; }
+
+.HP_AGE_DISPLAY_CELL { 
+    width: 70px;
+    text-align: center; 
+    font-weight: 800; 
+    color: var(--HP-text-muted); 
+    font-size: 0.8rem;
+}
+
+.HP_CENTERED_ACTION_CELL { text-align: right; width: 50px; }
+
+.HP_REMOVE_ROW_BTN {
+    background: var(--HP-surface-hover);
+    border: 1px solid var(--HP-border-subtle);
+    color: var(--HP-text-muted);
+    cursor: pointer;
+    height: 34px;
+    width: 34px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.HP_REMOVE_ROW_BTN:hover {
+    background: var(--HP-danger-hover);
+    color: var(--HP-danger);
+    border-color: var(--HP-danger);
+}
+
+.HP_ADD_ROW_TRIGGER {
+    width: 100%;
+    margin-top: 0.5rem;
+    padding: 10px;
+    border: 2px dashed var(--HP-border-hard);
+    background: transparent;
+    color: var(--HP-primary);
+    font-weight: 800;
+    font-size: 0.85rem;
+    cursor: pointer;
+    border-radius: 12px;
+    transition: var(--HP-timing);
+}
+
+.HP_ADD_ROW_TRIGGER:hover { 
+    border-color: var(--HP-primary); 
+    background: rgba(37, 99, 235, 0.04); 
+}
+
+/* ── 8. FOOTER ACTIONS ──────────────────────────────── */
+.HP_MODAL_FOOTER {
+    padding: 1rem 1.75rem;
+    border-top: 1px solid var(--HP-border-subtle);
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    background: var(--HP-bg-accent);
+}
+
+.HP_CANCEL_BTN { 
+    padding: 0.6rem 1.25rem; 
+    border: 1px solid var(--HP-border-hard); 
+    background: var(--HP-bg-card); 
+    color: var(--HP-text-secondary); 
+    cursor: pointer; 
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.85rem;
+}
+
+.HP_CANCEL_BTN:hover { background: var(--HP-surface-hover); }
+
+.HP_SAVE_BTN { 
+    padding: 0.6rem 1.75rem; 
+    border: none; 
+    background: var(--HP-primary); 
+    color: white; 
+    cursor: pointer; 
+    border-radius: 8px; 
+    font-weight: 800;
+    font-size: 0.85rem;
+    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.25);
+}
+
+.HP_SAVE_BTN:hover:not(:disabled) { 
+    background: var(--HP-primary-hover); 
+    transform: translateY(-1px);
+}
+
+.HP_SAVE_BTN:disabled { 
+    opacity: 0.5; 
+    cursor: not-allowed; 
+}
+
+/* ── 9. SYSTEM SCROLLBARS ────────────────────────────── */
+.HP_MODAL_SCROLL_BODY::-webkit-scrollbar,
+.HP_DROP_RESULTS::-webkit-scrollbar { 
+    width: 6px; 
+}
+
+.HP_MODAL_SCROLL_BODY::-webkit-scrollbar-thumb,
+.HP_DROP_RESULTS::-webkit-scrollbar-thumb { 
+    background: var(--HP-border-hard); 
+    border-radius: 10px; 
+}
+
+/* ── 10. RESPONSIVE QUERIES ──────────────────────────── */
+@media (max-width: 768px) {
+    .HP_FORM_GRID { grid-template-columns: 1fr; gap: 1rem; }
+    .HP_MODAL_CARD { width: 100%; height: 100%; max-height: 100vh; border-radius: 0; }
+    .HP_RELATIVE_CELL { width: 60%; }
+}
+
+/* Consistency Helper for text visibility */
+.HP_TEXT_VISIBLE { color: var(--HP-text-primary) !important; font-weight: 700 !important; }

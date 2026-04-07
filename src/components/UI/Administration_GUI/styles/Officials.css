@@ -1,0 +1,232 @@
+/* Officials.css */
+
+.OFFIC_PAGE_WRAP {
+  padding: 1.5rem;
+  background-color: #f8fafc;
+  min-height: 100vh;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.OFFIC_MAIN_CONTAINER {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* HEADER SECTION */
+.OFFIC_HEADER_FLEX {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 2rem;
+}
+
+.OFFIC_PAGE_TITLE {
+  font-size: 1.875rem;
+  font-weight: 800;
+  color: #1e293b;
+  margin: 0;
+}
+
+.OFFIC_PAGE_SUB {
+  color: #64748b;
+  margin: 0.25rem 0 0 0;
+  font-size: 0.95rem;
+}
+
+.OFFIC_ADD_BTN {
+  background-color: #3b82f6;
+  color: white;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.OFFIC_ADD_BTN:hover {
+  background-color: #2563eb;
+  transform: translateY(-1px);
+}
+
+/* SEARCH & TABLE CONTAINER */
+.OFFIC_TABLE_CONTAINER {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+}
+
+.OFFIC_SEARCH_ROW {
+  padding: 1.25rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.OFFIC_SEARCH_INPUT_WRAP {
+  position: relative;
+  max-width: 350px;
+}
+
+.OFFIC_SEARCH_ICON {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.OFFIC_SEARCH_INPUT {
+  width: 100%;
+  padding: 0.65rem 1rem 0.65rem 2.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  outline: none;
+  font-size: 0.9rem;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.OFFIC_SEARCH_INPUT:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* TABLE STYLING */
+.OFFIC_TABLE_WRAP {
+  overflow-x: auto;
+}
+
+.OFFIC_TABLE_MAIN {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.OFFIC_TABLE_MAIN th {
+  padding: 1rem 1.5rem;
+  background: #f8fafc;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.OFFIC_TABLE_MAIN td {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+  font-size: 0.95rem;
+  vertical-align: middle;
+}
+
+.OFFIC_TABLE_MAIN tr:last-child td {
+  border-bottom: none;
+}
+
+.OFFIC_TABLE_MAIN tr:hover {
+  background-color: #fcfdfe;
+}
+
+/* AVATAR & NAME CELL */
+.OFFIC_AVATAR_FLEX {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 600;
+}
+
+.OFFIC_AVATAR_CIRCLE {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.OFFIC_AVATAR_CIRCLE.CAPTAIN { background-color: #ef4444; }
+.OFFIC_AVATAR_CIRCLE.STAFF { background-color: #3b82f6; }
+
+/* STATUS BADGES */
+.OFFIC_STATUS_BADGE {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.OFFIC_STATUS_BADGE.ACTIVE {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.OFFIC_STATUS_BADGE.INACTIVE {
+  background-color: #f1f5f9;
+  color: #475569;
+}
+
+/* ACTION BUTTONS */
+.OFFIC_ACTIONS_CELL {
+  text-align: right;
+}
+
+.OFFIC_ACTION_ICON {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: white;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #64748b;
+}
+
+.OFFIC_ACTION_ICON:hover {
+  background-color: #f8fafc;
+  transform: translateY(-1px);
+}
+
+.OFFIC_ACTION_ICON.EDIT:hover {
+  color: #3b82f6;
+  border-color: #3b82f6;
+}
+
+/* EMPTY & LOADING STATES */
+.OFFIC_TABLE_LOAD, .OFFIC_TABLE_EMPTY {
+  text-align: center;
+  padding: 4rem !important;
+  color: #64748b;
+  font-style: italic;
+}
+
+.OFFIC_TEXT_RIGHT {
+  text-align: right !important;
+}
+
+@media (max-width: 768px) {
+  .OFFIC_HEADER_FLEX {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  .OFFIC_ADD_BTN {
+    width: 100%;
+    justify-content: center;
+  }
+}

@@ -1,0 +1,175 @@
+/* ─── NOTIFICATION SYSTEM PAGE STYLES ─── */
+
+.NS_SECTION_BOX {
+  margin-top: 20px;
+}
+
+.NS_HEADER_CONTROLS {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.NS_FILTER_GROUP {
+  display: flex;
+  gap: 10px;
+}
+
+.NS_FILTER_BTN {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.2s ease;
+}
+
+.NS_FILTER_BTN--active {
+  background: #0d6efd;
+  color: #fff;
+}
+
+.NS_FILTER_BTN--inactive {
+  background: #e9ecef;
+  color: #495057;
+}
+
+.NS_FILTER_BTN--inactive:hover {
+  background: #dde2e6;
+}
+
+.NS_MARKALL_BTN {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid #ced4da;
+  background: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.2s ease;
+}
+
+.NS_MARKALL_BTN:hover {
+  background: #f8f9fa;
+}
+
+.NS_MARKALL_ICON {
+  color: #198754;
+}
+
+.NS_BODY {
+  padding: 20px;
+}
+
+.NS_STATE_MESSAGE {
+  text-align: center;
+  padding: 40px;
+  color: #6c757d;
+}
+
+.NS_STATE_MESSAGE i {
+  margin-bottom: 15px;
+  opacity: 0.5;
+}
+
+.NS_STATE_MESSAGE h3 {
+  margin-bottom: 5px;
+  color: #495057;
+}
+
+.NS_LIST {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.NS_ITEM {
+  padding: 15px 20px;
+  border-radius: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  transition: all 0.2s ease;
+}
+
+.NS_ITEM--unread {
+  border: 1px solid #cfe2ff;
+  background: #f8faff;
+}
+
+.NS_ITEM--read {
+  border: 1px solid #e9ecef;
+  background: #fff;
+}
+
+.NS_ITEM:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0,0,0,0.04);
+}
+
+.NS_ITEM_ICON {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.NS_ITEM_ICON--unread {
+  background: #cfe2ff;
+  color: #0d6efd;
+}
+
+.NS_ITEM_ICON--read {
+  background: #e9ecef;
+  color: #6c757d;
+}
+
+.NS_ITEM_CONTENT {
+  flex-grow: 1;
+}
+
+.NS_ITEM_HEADER {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+
+.NS_ITEM_TITLE {
+  font-size: 1.1rem;
+  color: #212529;
+  font-weight: bold;
+}
+
+.NS_ITEM_DATE {
+  font-size: 0.85rem;
+  color: #6c757d;
+}
+
+.NS_ITEM_TEXT {
+  margin: 0;
+  color: #495057;
+  line-height: 1.5;
+}
+
+.NS_MARKREAD_BTN {
+  background: none;
+  border: none;
+  color: #0d6efd;
+  cursor: pointer;
+  padding: 5px;
+  display: flex;
+  align-items: center;
+  transition: transform 0.2s ease;
+}
+
+.NS_MARKREAD_BTN:hover {
+  transform: scale(1.2);
+}

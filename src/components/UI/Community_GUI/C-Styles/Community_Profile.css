@@ -1,0 +1,268 @@
+/* =========================================================
+   COMMUNITY PROFILE — Community_Profile.css
+   Theme: Engineer's Hill Premium (v6.0)
+   Design: Glass-Elevation & High-Contrast Theming
+   ========================================================= */
+
+:root {
+    --cp-primary: #2563eb;
+    --cp-bg: #f8fafc;
+    --cp-card: #ffffff;
+    --cp-text: #0f172a;
+    --cp-text-sub: #64748b;
+    --cp-border: #e2e8f0;
+    --cp-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+}
+
+/* 🌙 DARK MODE OVERRIDES */
+[data-resident-theme='dark'] {
+    --cp-bg: #0f172a;
+    --cp-card: #1e293b;
+    --cp-text: #f8fafc;
+    --cp-text-sub: #94a3b8;
+    --cp-border: #334155;
+    --cp-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.4);
+}
+
+.C_P_PROFILE_ROOT {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background-color: var(--cp-bg);
+    color: var(--cp-text);
+    transition: background-color 0.3s ease;
+}
+
+/* ── 1. HEADER ── */
+.C_P_PROFILE_HEADER {
+    display: flex;
+    align-items: center;
+    padding: 1.5rem 2.5rem;
+    background: var(--cp-card);
+    border-bottom: 1px solid var(--cp-border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.C_P_BACK_BTN {
+    background: var(--cp-bg);
+    border: 1px solid var(--cp-border);
+    padding: 0.6rem 1.2rem;
+    border-radius: 12px;
+    color: var(--cp-text);
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.2s;
+}
+
+.C_P_BACK_BTN:hover {
+    background: var(--cp-primary);
+    color: white;
+    border-color: var(--cp-primary);
+}
+
+.C_P_PROFILE_TITLE {
+    flex: 1;
+    text-align: center;
+    font-size: 1.25rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+.C_P_HEADER_SPACER { width: 100px; }
+
+/* ── 2. SCROLL AREA ── */
+.C_P_PROFILE_SCROLL_AREA {
+    flex: 1;
+    overflow-y: auto;
+    padding: 2rem;
+}
+
+.C_P_PROFILE_CONTENT {
+    max-width: 700px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+/* ── 3. HERO CARD & AVATAR ── */
+.C_P_HERO_CARD {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    padding: 3rem !important;
+    background: linear-gradient(135deg, var(--cp-card) 0%, var(--cp-bg) 100%);
+    border: 2px solid var(--cp-primary);
+}
+
+.C_P_AVATAR_LARGE {
+    width: 100px;
+    height: 100px;
+    background: var(--cp-primary);
+    color: white;
+    border-radius: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    font-weight: 800;
+    box-shadow: 0 10px 20px rgba(37, 99, 235, 0.3);
+}
+
+.C_P_HERO_TEXT h3 {
+    font-size: 1.8rem;
+    margin: 0 0 0.5rem 0;
+}
+
+.C_P_VERIFIED_BADGE {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #10b981;
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+/* ── 4. PROFILE CARDS & DATA ── */
+.C_P_PROFILE_CARD {
+    background: var(--cp-card);
+    border: 1px solid var(--cp-border);
+    border-radius: 24px;
+    padding: 1.5rem;
+    box-shadow: var(--cp-shadow);
+}
+
+.C_P_SECTION_TITLE {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--cp-text-sub);
+    margin-bottom: 0.75rem;
+    padding-left: 1rem;
+    font-weight: 800;
+}
+
+.C_P_DATA_LIST {
+    display: flex;
+    flex-direction: column;
+}
+
+.C_P_DATA_ROW {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 0;
+    border-bottom: 1px solid var(--cp-border);
+}
+
+.C_P_DATA_ROW:last-child { border-bottom: none; }
+
+.C_P_DATA_LABEL {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--cp-text-sub);
+    font-weight: 600;
+}
+
+.C_P_DATA_LABEL i {
+    width: 20px;
+    color: var(--cp-primary);
+}
+
+.C_P_DATA_VALUE {
+    font-weight: 700;
+    color: var(--cp-text);
+}
+
+/* ── 5. THEME TOGGLE SWITCH ── */
+.C_P_THEME_TOGGLE {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+}
+
+.TOGGLE_SLIDER {
+    width: 50px;
+    height: 26px;
+    background: #cbd5e1;
+    border-radius: 50px;
+    position: relative;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.TOGGLE_KNOB {
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: 50%;
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    transition: transform 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.TOGGLE_SLIDER.DARK { background: var(--cp-primary); }
+.TOGGLE_SLIDER.DARK .TOGGLE_KNOB { transform: translateX(24px); }
+
+/* ── 6. ACTIONS ── */
+.C_P_ACTION_CONTAINER {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 2px dashed var(--cp-border);
+}
+
+.C_P_ACTION_BTN {
+    width: 100%;
+    padding: 1rem;
+    border-radius: 14px;
+    border: none;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: all 0.2s;
+}
+
+.C_P_PWD_BTN {
+    background: #fee2e2;
+    color: #ef4444;
+}
+
+.C_P_PWD_BTN:hover {
+    background: #ef4444;
+    color: white;
+}
+
+[data-resident-theme='dark'] .C_P_PWD_BTN {
+    background: rgba(239, 68, 68, 0.15);
+}
+
+/* ── 7. FOOTER ── */
+.C_P_PROFILE_FOOTER {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 2rem;
+    color: var(--cp-text-sub);
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+/* ── 8. RESPONSIVE ── */
+@media (max-width: 600px) {
+    .C_P_PROFILE_HEADER { padding: 1rem; }
+    .C_P_HEADER_SPACER { display: none; }
+    .C_P_HERO_CARD { flex-direction: column; text-align: center; padding: 2rem !important; }
+    .DESKTOP_ONLY { display: none; }
+}

@@ -1,0 +1,202 @@
+/* =========================================================
+   COMMUNITY BULLETIN VIEW — Community_Bulletin_view.css
+   Theme: Engineer's Hill Premium (Scoped v4.2 --c--p--)
+   ========================================================= */
+
+.BULLETIN_CONTAINER {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    animation: fadeIn 0.5s ease-out;
+}
+
+/* ── 1. HEADER CARD ── */
+.BULLETIN_HEADER_SECTION {
+    background-color: var(--c--p--bg-card);
+    border: 1px solid var(--c--p--border-subtle);
+    border-radius: 20px;
+    padding: 2.5rem;
+    box-shadow: var(--c--p--shadow-ui);
+    transition: var(--c--p--transition);
+}
+
+.BULLETIN_HEADER_SECTION h3 {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--c--p--text-primary);
+    margin: 0 0 0.5rem 0;
+    letter-spacing: -0.03em;
+}
+
+.BULLETIN_HEADER_SECTION p {
+    color: var(--c--p--text-secondary);
+    font-size: 1.1rem;
+    margin: 0;
+}
+
+/* ── 2. GRID ── */
+.BULLETIN_GRID {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 2rem;
+}
+
+/* ── 3. NEWS CARD (VISIBLE DARK MODE FIX) ── */
+.NEWS_CARD {
+    background-color: var(--c--p--bg-card);
+    border: 1px solid var(--c--p--border-subtle);
+    border-radius: 24px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+}
+
+/* Highlight border on hover for better visibility */
+.NEWS_CARD:hover {
+    transform: translateY(-8px);
+    border-color: var(--c--p--brand-blue);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* ── 4. IMAGE SECTION ── */
+.NEWS_IMAGE {
+    width: 100%;
+    height: 200px;
+    position: relative;
+    background-color: var(--c--p--bg-switcher);
+    overflow: hidden;
+}
+
+.NEWS_IMAGE img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.5s ease;
+}
+
+.NEWS_CARD:hover .NEWS_IMAGE img {
+    transform: scale(1.1);
+}
+
+.NEWS_IMAGE_PLACEHOLDER {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 4rem;
+    color: var(--c--p--text-secondary);
+    opacity: 0.3;
+}
+
+/* Category Tag Fix */
+.NEWS_CAT_TAG {
+    position: absolute;
+    top: 1.25rem;
+    right: 1.25rem;
+    background: var(--c--p--brand-blue);
+    color: #ffffff;
+    padding: 6px 14px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+    z-index: 2;
+}
+
+/* ── 5. CARD CONTENT ── */
+.NEWS_BODY {
+    padding: 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    flex: 1;
+}
+
+.NEWS_DATE {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--c--p--brand-blue); /* Blue date for visibility */
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 0.25rem;
+}
+
+.NEWS_BODY h4 {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--c--p--text-primary);
+    margin: 0;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.NEWS_BODY p {
+    font-size: 0.95rem;
+    color: var(--c--p--text-secondary);
+    line-height: 1.6;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* ── 6. LINK / BUTTON ── */
+.BTN_READ_MORE {
+    margin-top: auto;
+    padding-top: 1.5rem;
+    background: transparent;
+    border: none;
+    color: var(--c--p--brand-blue);
+    font-size: 0.9rem;
+    font-weight: 800;
+    text-align: left;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: gap 0.2s ease;
+    width: fit-content;
+}
+
+.BTN_READ_MORE:hover {
+    gap: 12px;
+    text-decoration: underline;
+}
+
+/* ── 7. EMPTY STATE ── */
+.BULLETIN_EMPTY {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+    background: var(--c--p--bg-card);
+    border: 2px dashed var(--c--p--border-subtle);
+    border-radius: 24px;
+    color: var(--c--p--text-secondary);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Mobile Tweak */
+@media (max-width: 768px) {
+    .BULLETIN_GRID {
+        grid-template-columns: 1fr;
+    }
+}

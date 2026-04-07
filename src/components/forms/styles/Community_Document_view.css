@@ -1,0 +1,219 @@
+/* =========================================================
+   COMMUNITY DOCUMENT VIEW — Community_Document_view.css
+   Theme: Engineer's Hill Premium (v4.2 Final)
+   Update: Dark Mode Integration & "To be assessed" Styling
+   ========================================================= */
+
+/* ── 🛡️ THE SCROLL WRAPPER ── */
+.DOC_VIEW_CONTENT_WRAPPER {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 300px); 
+    overflow: hidden;
+}
+
+.DOC_LIST_SCROLL_AREA {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 8px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Premium Scrollbar */
+.DOC_LIST_SCROLL_AREA::-webkit-scrollbar { width: 5px; }
+.DOC_LIST_SCROLL_AREA::-webkit-scrollbar-thumb { 
+    background: var(--c--p--border-subtle); 
+    border-radius: 10px; 
+}
+.DOC_LIST_SCROLL_AREA::-webkit-scrollbar-thumb:hover { background: var(--c--p--brand-blue); }
+
+/* ── 1. LABELS ── */
+.DOC_SECTION_LABEL {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--c--p--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin: 0.5rem 0 1.5rem 0;
+  padding-left: 12px;
+  border-left: 4px solid var(--c--p--brand-blue);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* ── 2. CARDS ── */
+.DOC_CARD_ITEM {
+  background: var(--c--p--bg-card);
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-bottom: 1.25rem;
+  box-shadow: var(--c--p--shadow-ui);
+  border: 1px solid var(--c--p--border-subtle);
+  cursor: pointer;
+  transition: var(--c--p--transition-fast);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.DOC_CARD_ITEM:hover {
+  transform: translateY(-3px);
+  border-color: var(--c--p--brand-blue);
+  background: var(--c--p--bg-switcher);
+}
+
+/* ── HEADER ── */
+.DOC_HEADER {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--c--p--border-subtle);
+}
+
+.DOC_ID_GROUP strong {
+  display: block;
+  font-size: 1.1rem;
+  color: var(--c--p--text-primary);
+  font-weight: 800;
+}
+
+.DOC_REF {
+  font-size: 0.75rem;
+  color: var(--c--p--text-secondary);
+  font-family: 'JetBrains Mono', monospace;
+  opacity: 0.8;
+  font-weight: 600;
+}
+
+/* Status Badges (Themed) */
+.DOC_STATUS {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 5px 12px;
+  border-radius: 99px;
+  text-transform: uppercase;
+}
+
+.DOC_STATUS.PENDING { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+.DOC_STATUS.READY { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+.DOC_STATUS.RELEASED, .DOC_STATUS.COMPLETED { 
+    background: var(--c--p--bg-switcher); 
+    color: var(--c--p--text-secondary); 
+    border: 1px solid var(--c--p--border-subtle);
+}
+
+/* ── BODY ── */
+.DOC_BODY {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 1.25rem;
+}
+
+.DOC_ICON_BOX {
+  width: 48px;
+  height: 48px;
+  background: var(--c--p--bg-switcher);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--c--p--brand-blue);
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+
+.DOC_INFO h4 { font-size: 1rem; color: var(--c--p--text-primary); margin: 0 0 4px 0; }
+.DOC_DESC { font-size: 0.9rem; color: var(--c--p--text-secondary); line-height: 1.5; }
+.DOC_DATE { font-size: 0.8rem; color: var(--c--p--text-secondary); margin-top: 8px; font-weight: 700; }
+
+/* ── 🎯 PRICE & ASSESSMENT STYLING ── */
+.DOC_PRICE_CONTAINER {
+    display: flex;
+    flex-direction: column;
+}
+
+.PRICE_LBL {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--c--p--text-secondary);
+    text-transform: uppercase;
+    margin-bottom: 2px;
+}
+
+.PRICE_VAL {
+    font-weight: 800;
+    font-size: 1.1rem;
+}
+
+.PRICE_VAL.SET { color: var(--c--p--brand-success); }
+.PRICE_VAL.PENDING { color: #f59e0b; font-style: italic; font-size: 0.95rem; }
+
+/* ── FOOTER ── */
+.DOC_FOOTER {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 1rem;
+  border-top: 1px solid var(--c--p--border-subtle);
+}
+
+.DOC_BTN_VIEW {
+  background: var(--c--p--bg-switcher);
+  border: 1px solid var(--c--p--border-subtle);
+  padding: 0.6rem 1.2rem;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--c--p--text-primary);
+  cursor: pointer;
+  transition: var(--c--p--transition-fast);
+}
+
+.DOC_BTN_VIEW:hover { background: var(--c--p--brand-blue); color: #ffffff; border-color: var(--c--p--brand-blue); }
+
+/* =========================================================
+   🌙 DARK MODE OVERRIDES
+   ========================================================= */
+[data-theme='dark'] .DOC_CARD_ITEM,
+.dark-mode .DOC_CARD_ITEM {
+    background: #1e293b; /* Deep Navy Card */
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    border-color: #334155;
+}
+
+[data-theme='dark'] .DOC_CARD_ITEM:hover,
+.dark-mode .DOC_CARD_ITEM:hover {
+    background: #243042;
+    border-color: var(--c--p--brand-blue);
+}
+
+[data-theme='dark'] .DOC_HEADER,
+[data-theme='dark'] .DOC_FOOTER,
+.dark-mode .DOC_HEADER,
+.dark-mode .DOC_FOOTER {
+    border-color: #334155;
+}
+
+[data-theme='dark'] .DOC_ICON_BOX,
+[data-theme='dark'] .DOC_BTN_VIEW,
+.dark-mode .DOC_ICON_BOX,
+.dark-mode .DOC_BTN_VIEW {
+    background: #0f172a;
+    border-color: #334155;
+    color: #60a5fa;
+}
+
+[data-theme='dark'] .DOC_STATUS.RELEASED,
+.dark-mode .DOC_STATUS.RELEASED {
+    background: #0f172a;
+    color: #94a3b8;
+}
+
+[data-theme='dark'] .DOC_REF,
+.dark-mode .DOC_REF {
+    color: #94a3b8;
+}

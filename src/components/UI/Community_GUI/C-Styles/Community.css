@@ -1,0 +1,234 @@
+/* --- 1. NUCLEAR SCROLL & LAYOUT RESET --- */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  height: auto !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  scroll-behavior: smooth;
+}
+
+body {
+  width: 100%;
+  height: auto !important;
+  min-height: 100vh !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  background-color: #f8fafc;
+  -webkit-font-smoothing: antialiased;
+  -webkit-overflow-scrolling: touch;
+}
+
+#root, .App {
+  height: auto !important;
+  min-height: 100vh !important;
+  display: block !important;
+}
+
+/* --- 2. WRAPPERS --- */
+.C_PAGE_WRAPPER {
+  width: 100%;
+  min-height: 100vh;
+  height: auto !important;
+  display: flex;
+  flex-direction: column;
+  background-color: #f8fafc;
+  font-family: 'Inter', -apple-system, sans-serif;
+  position: relative;
+}
+
+.C_PAGE_STAGE {
+  width: 100%;
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  height: auto !important;
+}
+
+/* --- 3. CATEGORY INDICATORS (STRICT MAPPING) --- */
+.C_CATEGORY_INDICATOR {
+  width: 100%;
+  height: 6px;
+  flex-shrink: 0;
+}
+
+.color-blue { background-color: #3b82f6 !important; }
+.color-purple { background-color: #8b5cf6 !important; }
+.color-green { background-color: #10b981 !important; }
+.color-orange { background-color: #f59e0b !important; }
+.color-teal { background-color: #14b8a6 !important; }
+.color-default { background-color: #cbd5e1 !important; }
+
+.text-blue { color: #1d4ed8 !important; border: 1px solid #1d4ed8 !important; }
+.text-purple { color: #6d28d9 !important; border: 1px solid #6d28d9 !important; }
+.text-green { color: #047857 !important; border: 1px solid #047857 !important; }
+.text-orange { color: #b45309 !important; border: 1px solid #b45309 !important; }
+.text-teal { color: #0f766e !important; border: 1px solid #0f766e !important; }
+
+/* --- 4. NAVBAR --- */
+.C_NAV_MAIN {
+  background: #ffffff;
+  padding: 0 5%;
+  height: 3.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 2000;
+  border-bottom: 1px solid #e2e8f0;
+  backdrop-filter: blur(10px);
+}
+
+.C_NAV_LEFT { display: flex; align-items: center; gap: 10px; }
+.C_LOGO_SHIELD { font-size: 1.2rem; color: #3b5998; }
+.C_BRAND_INFO strong { display: block; color: #0f172a; font-size: 0.85rem; line-height: 1; }
+.C_BRAND_INFO span { font-size: 0.65rem; color: #64748b; font-weight: 600; }
+
+.C_EXIT_LINK { 
+  background: #eff6ff; 
+  border: 1px solid #dbeafe;
+  cursor: pointer; 
+  color: #3b5998;
+  font-weight: 700; 
+  font-size: 0.7rem; 
+  display: flex; 
+  align-items: center; 
+  gap: 6px;
+  padding: 0.4rem 0.8rem; 
+  border-radius: 6px; 
+}
+
+/* --- 5. SECTIONS --- */
+.C_HERO_HERO {
+  width: 100%;
+  padding: 2rem 1rem; 
+  text-align: center;
+  background: linear-gradient(180deg, #f0f7ff 0%, #f8fafc 100%);
+}
+
+.C_HERO_HERO h1 { font-size: 2.2rem; font-weight: 800; color: #0f172a; margin-bottom: 0.5rem; }
+.C_HERO_HERO p { color: #64748b; max-width: 600px; margin: 0 auto; }
+
+.C_SIGNIN_SECTION {
+  width: 100%;
+  background: #ffffff;
+  border-block: 1px solid #e2e8f0;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  color: black;
+}
+
+.C_LOGIN_TRIGGER_BTN {
+  background-color: #3b5998;
+  color: white;
+  margin-top: 20px;
+  padding: 1rem 4.5rem;
+  border-radius: 10px;
+  font-weight: 800;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(59, 89, 152, 0.2);
+}
+
+/* --- 6. ANNOUNCEMENT SYSTEM --- */
+.C_ANNOUNCEMENT_SECTION { 
+  padding: 4rem 5%;
+  max-width: 1440px;
+  margin: 0 auto;
+  width: 100%;
+  height: auto !important;
+}
+
+.C_FILTER_BAR { 
+  display: flex; 
+  gap: 0.75rem; 
+  overflow-x: auto; 
+  padding-bottom: 1rem; 
+  margin: 1.5rem 0;
+  scrollbar-width: none; 
+}
+
+.C_FILTER_TAB {
+  white-space: nowrap;
+  background: #ffffff; 
+  border: 1px solid #e2e8f0; 
+  padding: 0.6rem 1.4rem;
+  border-radius: 50px; 
+  font-weight: 700; 
+  font-size: 0.8rem; 
+  color: #64748b;
+  cursor: pointer;
+}
+
+.C_FILTER_TAB.ACTIVE { background: #3b5998; color: #ffffff; border-color: #3b5998; }
+
+.C_ANNOUNCEMENT_GRID { 
+  display: grid; 
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); 
+  gap: 2rem; 
+  padding-bottom: 5rem;
+}
+
+.C_NEWS_ITEM {
+  background: #ffffff; 
+  border: 1px solid #e2e8f0; 
+  border-radius: 20px;
+  overflow: hidden; 
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.C_NEWS_ITEM:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.08);
+}
+
+.C_NEWS_PREVIEW_IMG { height: 200px; background-color: #f1f5f9; overflow: hidden; }
+.C_NEWS_PREVIEW_IMG img { width: 100%; height: 100%; object-fit: cover; }
+.C_NEWS_PLACEHOLDER { display: flex; align-items: center; justify-content: center; height: 100%; font-size: 2rem; color: #cbd5e1; }
+
+.C_NEWS_BODY { padding: 1.75rem; display: flex; flex-direction: column; flex-grow: 1; }
+.C_NEWS_META { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.C_NEWS_DATE { font-size: 0.75rem; font-weight: 700; color: #3b5998; }
+
+.C_NEWS_CAT { 
+  font-size: 0.65rem; 
+  text-transform: uppercase; 
+  font-weight: 800; 
+  padding: 3px 10px;
+  border-radius: 6px;
+}
+
+.C_NEWS_BODY h4 { font-size: 1.2rem; font-weight: 800; margin-bottom: 0.75rem; color: #0f172a; line-height: 1.4; }
+.C_SNIPPET { font-size: 0.9rem; color: #64748b; line-height: 1.6; margin-bottom: 1.5rem; }
+
+.C_NEWS_LINK { 
+  margin-top: auto;
+  background: #f8fafc; 
+  border: 1px solid #e2e8f0;
+  color: #0f172a; 
+  font-weight: 700; 
+  padding: 0.75rem; 
+  border-radius: 10px; 
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+.C_ANNOUNCEMENT_HEADER
+{
+  color: black;
+}
+
+/* --- 7. RESPONSIVE --- */
+@media (max-width: 768px) {
+  .C_ANNOUNCEMENT_GRID { grid-template-columns: 1fr; }
+  .C_NAV_MAIN { padding: 0 3%; }
+  .C_HERO_HERO h1 { font-size: 1.8rem; }
+}

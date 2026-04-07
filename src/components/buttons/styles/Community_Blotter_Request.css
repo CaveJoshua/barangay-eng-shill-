@@ -1,0 +1,370 @@
+/* =========================================
+   1. CORE VARIABLES & OVERLAY
+   ========================================= */
+:root {
+  --cbr-primary: #f59e0b;       /* Amber-500 */
+  --cbr-primary-hover: #d97706; /* Amber-600 */
+  --cbr-bg: #ffffff;
+  --cbr-border: #e2e8f0;        /* Slate-200 */
+  --cbr-text-main: #0f172a;     /* Slate-900 */
+  --cbr-text-sub: #64748b;      /* Slate-500 */
+  --cbr-input-bg: #ffffff;
+  --cbr-focus-ring: rgba(245, 158, 11, 0.2);
+  --cbr-radius: 12px;
+}
+
+.CBR_OVERLAY {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: rgba(15, 23, 42, 0.75); /* Deep slate overlay */
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: cbrFadeIn 0.2s ease-out;
+  padding: 1rem; /* Safety padding for small screens */
+}
+
+/* =========================================
+   2. MODAL CONTAINER
+   ========================================= */
+.CBR_MODAL {
+  background: var(--cbr-bg);
+  width: 100%;
+  max-width: 650px; /* Wider for better form layout */
+  border-radius: var(--cbr-radius);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh; /* Prevent overflow */
+  position: relative;
+  overflow: hidden;
+}
+
+/* =========================================
+   3. HEADER & PROGRESS
+   ========================================= */
+.CBR_HEADER {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--cbr-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.CBR_HEADER_TEXT h3 {
+  margin: 0;
+  color: var(--cbr-text-main);
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.CBR_HEADER_TEXT p {
+  margin: 4px 0 0 0;
+  color: var(--cbr-text-sub);
+  font-size: 0.85rem;
+}
+
+.CBR_CLOSE_BTN {
+  background: transparent;
+  border: none;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 1.2rem;
+}
+.CBR_CLOSE_BTN:hover { background: #f1f5f9; color: #ef4444; }
+
+/* Progress Line */
+.CBR_PROGRESS {
+  height: 4px;
+  background: #f1f5f9;
+  width: 100%;
+  flex-shrink: 0;
+}
+.CBR_FILL {
+  height: 100%;
+  background: var(--cbr-primary);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.CBR_FILL.STEP_1 { width: 33.33%; }
+.CBR_FILL.STEP_2 { width: 66.66%; }
+.CBR_FILL.STEP_3 { width: 100%; }
+
+/* =========================================
+   4. FORM BODY & LAYOUT (GRID SYSTEM)
+   ========================================= */
+.CBR_BODY {
+  padding: 2rem 1.5rem;
+  overflow-y: auto;
+  flex: 1; /* Takes remaining height */
+}
+
+.CBR_STEP_CONTENT {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem; /* Consistent vertical spacing */
+}
+
+/* The Grid Fix: Prevents distortion */
+.CBR_ROW {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* 50% 50% split */
+  gap: 20px;
+  width: 100%;
+}
+
+.CBR_FORM_GROUP {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.CBR_FORM_GROUP label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  color: var(--cbr-text-sub);
+}
+
+/* =========================================
+   5. INPUT STYLING (PROFESSIONAL)
+   ========================================= */
+.CBR_INPUT, 
+.CBR_SELECT {
+  width: 100%;
+  height: 48px; /* Standard height for touch targets */
+  padding: 0 16px;
+  border: 1px solid var(--cbr-border);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  color: var(--cbr-text-main);
+  background: var(--cbr-input-bg);
+  outline: none;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  box-sizing: border-box; /* Crucial for sizing */
+}
+
+.CBR_TEXTAREA {
+  width: 100%;
+  padding: 16px;
+  border: 1px solid var(--cbr-border);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  color: var(--cbr-text-main);
+  outline: none;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 120px;
+  box-sizing: border-box;
+}
+
+.CBR_INPUT:focus, 
+.CBR_SELECT:focus, 
+.CBR_TEXTAREA:focus {
+  border-color: var(--cbr-primary);
+  box-shadow: 0 0 0 4px var(--cbr-focus-ring);
+}
+
+/* Read-only User Badge */
+.CBR_READONLY_FIELD {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  background: #f8fafc;
+  border: 1px solid var(--cbr-border);
+  border-radius: 8px;
+  color: #475569;
+  font-weight: 500;
+  user-select: none;
+}
+.CBR_READONLY_FIELD i { color: #94a3b8; font-size: 1.2rem; }
+
+.CBR_HINT {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* =========================================
+   6. REVIEW SECTION STYLING
+   ========================================= */
+.CBR_REVIEW_CARD {
+  border: 1px solid var(--cbr-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.CBR_REVIEW_HEADER {
+  background: #f8fafc;
+  padding: 12px 16px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748b;
+  border-bottom: 1px solid var(--cbr-border);
+}
+
+.CBR_REVIEW_BODY {
+  padding: 16px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.CBR_REVIEW_ITEM {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  color: var(--cbr-text-main);
+}
+
+.CBR_REVIEW_ITEM span:first-child {
+  color: var(--cbr-text-sub);
+}
+
+.CBR_REVIEW_DIVIDER {
+  height: 1px;
+  background: var(--cbr-border);
+  margin: 4px 0;
+}
+
+.CBR_REVIEW_ITEM.VERTICAL {
+  flex-direction: column;
+  gap: 8px;
+}
+.CBR_REVIEW_ITEM.VERTICAL p {
+  margin: 0;
+  padding: 12px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  font-style: italic;
+  color: #451a03;
+  line-height: 1.5;
+}
+
+.CBR_DISCLAIMER {
+  background: #f1f5f9;
+  padding: 12px;
+  border-radius: 8px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  font-size: 0.8rem;
+  color: #475569;
+  line-height: 1.4;
+}
+
+/* =========================================
+   7. FOOTER & BUTTONS
+   ========================================= */
+.CBR_FOOTER {
+  padding: 1.25rem 1.5rem;
+  border-top: 1px solid var(--cbr-border);
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.CBR_BTN_PRIMARY {
+  background: var(--cbr-primary);
+  color: #fff;
+  border: none;
+  height: 48px;
+  padding: 0 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1; /* Take available space */
+  transition: background 0.2s;
+}
+.CBR_BTN_PRIMARY:hover { background: var(--cbr-primary-hover); }
+.CBR_BTN_PRIMARY:disabled { background: #cbd5e1; cursor: not-allowed; }
+
+.CBR_BTN_SECONDARY {
+  background: transparent;
+  color: var(--cbr-text-sub);
+  border: 1px solid var(--cbr-border);
+  height: 48px;
+  padding: 0 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.CBR_BTN_SECONDARY:hover {
+  background: #f8fafc;
+  color: var(--cbr-text-main);
+  border-color: #cbd5e1;
+}
+
+/* =========================================
+   8. MOBILE ADAPTABILITY (The Fix)
+   ========================================= */
+@media (max-width: 640px) {
+  .CBR_OVERLAY {
+    align-items: flex-end; /* Bottom sheet style */
+    padding: 0;
+  }
+
+  .CBR_MODAL {
+    max-width: 100%;
+    border-radius: 20px 20px 0 0; /* Rounded top only */
+    max-height: 95vh; /* Almost full height */
+    animation: cbrSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .CBR_ROW {
+    grid-template-columns: 1fr; /* Stack inputs vertically */
+    gap: 1.5rem;
+  }
+
+  .CBR_BODY {
+    padding: 1.5rem 1.25rem; /* Slightly less padding on sides */
+  }
+
+  .CBR_FOOTER {
+    padding-bottom: 2rem; /* Safe area for iOS home bar */
+  }
+
+  /* Make buttons easier to tap */
+  .CBR_BTN_PRIMARY, .CBR_BTN_SECONDARY {
+    font-size: 1rem; 
+  }
+}
+
+/* Animation Keyframes */
+@keyframes cbrFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes cbrSlideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}

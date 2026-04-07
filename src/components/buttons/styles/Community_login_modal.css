@@ -1,0 +1,306 @@
+/* ==========================================
+   1. CORE OVERLAY & BOX MODEL
+   ========================================== */
+.CM_LOGIN_OVERLAY {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  background-color: rgba(15, 23, 42, 0.75); /* Slate-900 with transparency */
+  backdrop-filter: blur(8px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+  opacity: 1;
+  padding: 1rem;
+  animation: cmFadeIn 0.3s ease-out;
+}
+
+@keyframes cmFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ==========================================
+   2. LOGIN CARD CONTAINER
+   ========================================== */
+.CM_LOGIN_CARD {
+  background: #ffffff;
+  width: 100%;
+  max-width: 420px;
+  padding: 3rem 2.5rem;
+  border-radius: 24px;
+  position: relative;
+  box-shadow: 
+    0 20px 25px -5px rgba(0, 0, 0, 0.2), 
+    0 10px 10px -5px rgba(0, 0, 0, 0.1);
+  animation: cmSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@keyframes cmSlideUp {
+  from { transform: translateY(25px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* ==========================================
+   3. HEADER & BRANDING
+   ========================================== */
+.CM_LOGIN_HEADER {
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+
+.CM_LOGIN_ICON {
+  width: 64px;
+  height: 64px;
+  background: #f0f7ff;
+  color: #2563eb;
+  border-radius: 18px; /* Squircle style */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  margin: 0 auto 1.25rem auto;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.1);
+}
+
+.CM_LOGIN_HEADER h2 {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 0.5rem 0;
+  letter-spacing: -0.025em;
+}
+
+.CM_LOGIN_HEADER p {
+  font-size: 0.95rem;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ==========================================
+   4. FORM ELEMENTS & INPUTS
+   ========================================== */
+.CM_LOGIN_FORM {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.CM_INPUT_GROUP {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.CM_INPUT_GROUP label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.CM_INPUT_WRAPPER {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.CM_INPUT_WRAPPER i {
+  position: absolute;
+  left: 1.15rem;
+  color: #94a3b8;
+  font-size: 1.1rem;
+  pointer-events: none;
+  transition: color 0.2s;
+}
+
+.CM_INPUT_WRAPPER input {
+  width: 100%;
+  padding: 0.9rem 1.25rem 0.9rem 3.25rem;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  font-size: 1rem;
+  color: #1e293b;
+  background-color: #f8fafc;
+  transition: all 0.25s ease;
+}
+
+.CM_INPUT_WRAPPER input:focus {
+  outline: none;
+  border-color: #2563eb;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+}
+
+.CM_INPUT_WRAPPER input:focus + i {
+  color: #2563eb;
+}
+
+.CM_INPUT_WRAPPER input::placeholder {
+  color: #cbd5e1;
+}
+
+/* ==========================================
+   5. ACTION BUTTONS
+   ========================================== */
+.CM_LOGIN_SUBMIT {
+  margin-top: 0.75rem;
+  width: 100%;
+  padding: 1rem;
+  background-color: #0f172a;
+  color: #ffffff;
+  border: none;
+  border-radius: 14px;
+  font-weight: 700;
+  font-size: 1.05rem;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.CM_LOGIN_SUBMIT:hover:not(:disabled) {
+  background-color: #1e293b;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.CM_LOGIN_SUBMIT:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.CM_LOGIN_SUBMIT:disabled {
+  background-color: #94a3b8;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.CM_LOGIN_CLOSE {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.25rem;
+  background: #f1f5f9;
+  border: none;
+  font-size: 1.25rem;
+  color: #64748b;
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.CM_LOGIN_CLOSE:hover {
+  background-color: #e2e8f0;
+  color: #0f172a;
+  transform: rotate(90deg);
+}
+
+/* ==========================================
+   6. ERROR STATES & FEEDBACK
+   ========================================== */
+.CM_ERROR_MSG {
+  background-color: #fff1f2;
+  color: #e11d48;
+  padding: 1rem;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: left;
+  border: 1px solid #ffe4e6;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  animation: cmShake 0.4s ease-in-out;
+}
+
+@keyframes cmShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+/* ==========================================
+   7. FOOTER & DISCLOSURE
+   ========================================== */
+.CM_LOGIN_FOOTER {
+  margin-top: 2.5rem;
+  text-align: center;
+  padding-top: 1.5rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.CM_LOGIN_FOOTER p {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* ==========================================
+   8. MEDIA QUERIES (MOBILE & TABLET)
+   ========================================== */
+@media (max-width: 640px) {
+  .CM_LOGIN_OVERLAY {
+    padding: 0;
+    align-items: flex-end; /* Modern mobile slide-up feel */
+  }
+
+  .CM_LOGIN_CARD {
+    border-radius: 32px 32px 0 0; /* Rounded top only */
+    padding: 2.5rem 1.5rem;
+    max-height: 94vh;
+    overflow-y: auto;
+    animation: cmMobileSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes cmMobileSlideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
+  .CM_LOGIN_HEADER h2 {
+    font-size: 1.5rem;
+  }
+
+  /* CRITICAL: Safari font-size fix to prevent auto-zoom */
+  .CM_INPUT_WRAPPER input {
+    font-size: 16px; 
+    padding: 1rem 1.25rem 1rem 3rem;
+  }
+
+  .CM_INPUT_WRAPPER i {
+    left: 1rem;
+  }
+
+  .CM_LOGIN_SUBMIT {
+    padding: 1.15rem;
+    font-size: 1.1rem;
+  }
+}
+
+/* Support for very short screens (Landscape mode) */
+@media (max-height: 500px) {
+  .CM_LOGIN_CARD {
+    padding: 1.5rem;
+  }
+  .CM_LOGIN_HEADER {
+    margin-bottom: 1rem;
+  }
+  .CM_LOGIN_ICON {
+    display: none;
+  }
+}

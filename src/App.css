@@ -1,0 +1,94 @@
+/* --- 1. GLOBAL ROOT RESET --- */
+/* Ensures no hidden gaps or unwanted margins at the edges of the screen */
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: var(--CONTENT-bg); /* Theme-aware background */
+  color: var(--TEXT-main);
+  font-family: 'Inter', -apple-system, sans-serif;
+  overflow: hidden; /* Only internal areas should scroll */
+  transition: background-color 0.3s ease;
+}
+
+/* --- 2. MASTER LAYOUT CONTAINER --- */
+.APP_ROOT {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- 3. THEME VARIABLES (Engineers Hill Standard) --- */
+/* These variables control every text and background color in the app */
+:root {
+  --L-bg: #ffffff;
+  --L-border: #e2e8f0;
+  --CONTENT-bg: #f8fafc;
+  --TEXT-main: #1e293b;
+  --TEXT-sub: #64748b;
+  --color-brand: #3b82f6;
+}
+
+[data-theme='dark'] {
+  --L-bg: #1e293b;
+  --L-border: #334155;
+  --CONTENT-bg: #0f172a;
+  --TEXT-main: #f8fafc;
+  --TEXT-sub: #94a3b8;
+}
+
+/* --- 4. THE GAP FIX (CRITICAL) --- */
+/* Forces every portal to take up 100% of the horizontal space */
+.LG_PAGE_WRAPPER, 
+.FRAME_WRAPPER, 
+.CM_PAGE_WRAPPER {
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+  height: 100% !important;
+  box-sizing: border-box;
+}
+
+/* --- 5. PREMIUM SCROLLBARS --- */
+/* Custom thin scrollbars for a clean, modern look */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--CONTENT-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--L-border);
+  border-radius: 0px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--TEXT-sub);
+}
+
+/* --- 6. UTILITY REPAIRS --- */
+/* Fixes the text clumping bug in the Topbar */
+.FRAME_USER_TEXT {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Prevents icons and avatars from shrinking inside flex containers */
+i, img, .PF_AVATAR_WRAPPER {
+  flex-shrink: 0;
+}
+
+/* Smooth fade-in when switching between Portals */
+@keyframes portalFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.APP_ROOT > div {
+  animation: portalFade 0.3s ease-in-out;
+}

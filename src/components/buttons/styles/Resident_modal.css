@@ -1,0 +1,283 @@
+/* Resident_modal.css - Professional Government Registry System */
+
+.RMS_OVERLAY * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', sans-serif;
+}
+
+.RMS_OVERLAY {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(15, 23, 42, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 20px;
+    backdrop-filter: blur(5px);
+}
+
+.RMS_CARD {
+    background: #ffffff;
+    width: 100%;
+    max-width: 900px;
+    max-height: 90vh;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+}
+
+/* HEADER SECTION */
+.RMS_HEADER {
+    padding: 1.25rem 2rem;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #fff;
+    flex-shrink: 0;
+}
+
+.RMS_HEADER h2 {
+    font-size: 1.1rem;
+    font-weight: 900;
+    color: #0f172a;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.RMS_CLOSE_X {
+    background: #f1f5f9;
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-size: 1rem;
+    color: #64748b;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: 0.2s;
+}
+
+.RMS_CLOSE_X:hover {
+    background: #fee2e2;
+    color: #ef4444;
+}
+
+/* FORM BODY */
+.RMS_FORM {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.RMS_BODY {
+    padding: 1.5rem 2rem;
+    overflow-y: auto;
+    flex: 1;
+    scrollbar-width: thin;
+    display: flex; /* Helps with layout stability */
+    flex-direction: column;
+}
+
+.RMS_SECTION {
+    margin-bottom: 2rem;
+    padding-bottom: 5px; /* Tiny buffer for the absolute dropdowns */
+}
+
+.RMS_SEC_TITLE {
+    font-size: 0.75rem;
+    font-weight: 900;
+    color: #2563eb;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 1rem;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #f1f5f9;
+}
+
+/* GRID LAYOUT */
+.RMS_GRID {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem 2rem;
+}
+
+.RMS_GROUP {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: relative;
+}
+
+.RMS_SPAN2 {
+    grid-column: span 2;
+}
+
+.RMS_LABEL {
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: #64748b;
+    text-transform: uppercase;
+}
+
+.RMS_INPUT {
+    width: 100%;
+    padding: 0.65rem 0.9rem;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 8px;
+    background: #f8fafc;
+    color: #0f172a;
+    font-size: 0.85rem;
+    font-weight: 600;
+    outline: none;
+    transition: 0.2s;
+}
+
+.RMS_INPUT:focus {
+    border-color: #2563eb;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* DATE PICKER FLEX */
+.RMS_DATE_FLEX {
+    display: grid;
+    grid-template-columns: 70px 1fr 90px;
+    gap: 8px;
+}
+
+/* SEARCHABLE DROPDOWN LISTS */
+.RMS_SEARCH_SELECT_WRAP {
+    position: relative;
+    width: 100%;
+}
+
+.RMS_SEARCH_RESULTS {
+    position: absolute;
+    top: calc(100% + 5px);
+    left: 0;
+    right: 0;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 10000;
+    list-style: none;
+    padding: 4px;
+}
+
+.RMS_SEARCH_RESULTS li {
+    padding: 10px 12px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 700;
+    border-radius: 6px;
+    text-transform: uppercase;
+    color: #1e293b;
+}
+
+.RMS_SEARCH_RESULTS li:hover {
+    background: #2563eb;
+    color: #fff;
+}
+
+/* CHECKBOX CATEGORIES */
+.RMS_CHECK_GRID {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    background: #f8fafc;
+    padding: 1.25rem;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+}
+
+.RMS_CHECK_ITEM {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.RMS_CHECK_ITEM input {
+    width: 18px;
+    height: 18px;
+    accent-color: #2563eb;
+}
+
+/* CONDITIONAL ID SECTION */
+.RMS_ID_CONTAINER {
+    margin-top: 1rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+    padding: 1.25rem;
+    background: #eff6ff;
+    border-left: 4px solid #2563eb;
+    border-radius: 8px;
+}
+
+/* FOOTER */
+.RMS_FOOTER {
+    padding: 1.25rem 2rem;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    background: #fcfcfd;
+    flex-shrink: 0;
+}
+
+.RMS_BTN_CANCEL {
+    padding: 0.75rem 1.5rem;
+    background: #fff;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 8px;
+    color: #64748b;
+    font-weight: 800;
+    font-size: 0.8rem;
+    cursor: pointer;
+    text-transform: uppercase;
+}
+
+.RMS_BTN_SUBMIT {
+    padding: 0.75rem 2rem;
+    background: #0f172a;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-weight: 800;
+    font-size: 0.8rem;
+    cursor: pointer;
+    text-transform: uppercase;
+}
+
+.RMS_ERROR_TXT {
+    color: #ef4444;
+    font-size: 0.65rem;
+    font-weight: 700;
+    margin-top: 2px;
+}
+
+.ERR_BORDER {
+    border-color: #ef4444 !important;
+}
+
+@media (max-width: 768px) {
+    .RMS_GRID { grid-template-columns: 1fr; }
+    .RMS_DATE_FLEX { grid-template-columns: 60px 1fr 80px; }
+}
