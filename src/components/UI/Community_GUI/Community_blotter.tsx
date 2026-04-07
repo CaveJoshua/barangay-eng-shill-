@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import "./C-styles/Community_blotter.css";
+import "./C-Styles/Community_blotter.css";
 import Community_Blotter_Request from '../../buttons/Community_Blotter_Request'; 
 
 interface BlotterProps {
