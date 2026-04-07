@@ -119,7 +119,7 @@ router.use(helmet({
 }));
 
 const corsOptions = {
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'https://e52450f8.barangay-eng-shill.pages.dev'], 
+  origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'https://e52450f8.barangay-eng-shill.pages.dev','https://f155fa1b.barangay-eng-shill.pages.dev'], 
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-user-role','x-resident-id','X-XSRF-TOKEN'],
   credentials: true,
