@@ -10,13 +10,13 @@ import { type IResident } from '../../Resident_modal';
 export const handleResidentSubmit = async (formData: IResident) => {
   try {
     // A. STRICT DATABASE MAPPING (Snake_Case Alignment)
-    // We map frontend CamelCase to your specific SQL Schema for precision.
+    // Mapping frontend CamelCase to SQL Schema. 
+    // NOTE: genderIdentity has been removed per your instructions, boss.
     const dbPayload: Record<string, any> = {
       first_name: formData.firstName,
       last_name: formData.lastName,
       middle_name: formData.middleName,
       sex: formData.sex,
-      gender_identity: formData.genderIdentity,
       dob: formData.dob,
       birth_place: formData.birthPlace,
       nationality: formData.nationality,
@@ -25,7 +25,7 @@ export const handleResidentSubmit = async (formData: IResident) => {
       email: formData.email,
       current_address: formData.currentAddress,
       purok: formData.purok,
-      civilStatus: formData.civilStatus, // Case-sensitive column in your SQL
+      civil_status: formData.civilStatus, // Normalized to snake_case for DB consistency
       education: formData.education,
       employment: formData.employment,
       employment_status: formData.employmentStatus, 
@@ -37,6 +37,7 @@ export const handleResidentSubmit = async (formData: IResident) => {
       is_solo_parent: formData.isSoloParent,
       is_senior_citizen: formData.isSeniorCitizen,
       is_ip: formData.isIP,
+      voter_id_number: formData.voterIdNumber,
       pwd_id_number: formData.pwdIdNumber,
       solo_parent_id_number: formData.soloParentIdNumber,
       senior_id_number: formData.seniorIdNumber,
@@ -55,7 +56,7 @@ export const handleResidentSubmit = async (formData: IResident) => {
     // C. THE FETCH HANDSHAKE
     const res = await fetch(url, {
       method,
-      headers: getAuthHeaders(), // Using centralized headers
+      headers: getAuthHeaders(), 
       body: JSON.stringify(dbPayload)
     });
 
@@ -64,7 +65,7 @@ export const handleResidentSubmit = async (formData: IResident) => {
     if (!contentType || !contentType.includes("application/json")) {
       const text = await res.text();
       console.error("Server Error Response:", text);
-      throw new Error("Server configuration mismatch. The engine is knocking on the wrong door (/api prefix).");
+      throw new Error("Server configuration mismatch. The engine is knocking on the wrong door (Non-JSON response).");
     }
 
     const result = await res.json();
