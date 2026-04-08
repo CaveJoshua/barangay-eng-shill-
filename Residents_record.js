@@ -1,16 +1,46 @@
 import bcrypt from 'bcryptjs';
+import { z } from 'zod';
 import { logActivity } from './Auditlog.js'; 
 
-/**
- * ZERO TRUST RBAC MIDDLEWARE
- * Pulls the role from the decrypted JWT (req.user) instead of the untrusted headers.
- */
+// =========================================================
+// 🛡️ 1. ZOD SCHEMA VALIDATION
+// Ensures incoming payloads are strictly typed and safe
+// =========================================================
+const residentSchema = z.object({
+    FIRST_NAME: z.string().min(2, "First name must be at least 2 characters"),
+    LAST_NAME: z.string().min(2, "Last name must be at least 2 characters"),
+    MIDDLE_NAME: z.string().optional().nullable(),
+    EMAIL: z.string().email("Invalid email format").optional().nullable(),
+    // Standardizes phone numbers to only contain digits
+    CONTACT_NUMBER: z.string().transform(val => val.replace(/\D/g, '')).optional().nullable(),
+    SEX: z.enum(['Male', 'Female', 'Other']).optional(),
+    DOB: z.string().refine((date) => !isNaN(Date.parse(date)), { message: "Invalid date format" }),
+    // Add other expected fields here as z.string().optional()
+}).passthrough(); // passthrough allows fields not explicitly defined above to still pass
+
+// Middleware to enforce Zod validation
+const validatePayload = (schema) => (req, res, next) => {
+    try {
+        // We overwrite req.body with the sanitized/validated Zod output
+        req.body = schema.parse(req.body);
+        next();
+    } catch (error) {
+        return res.status(400).json({
+            error: "Validation Failed",
+            details: error.errors.map(e => `${e.path.join('.')}: ${e.message}`)
+        });
+    }
+};
+
+// =========================================================
+// 🛡️ 2. ZERO TRUST RBAC MIDDLEWARE
+// =========================================================
 const checkSessionRole = (allowedRoles) => {
     return (req, res, next) => {
         const userRole = req.user?.user_role || req.user?.role;
         
         if (!userRole || !allowedRoles.includes(userRole.toLowerCase())) {
-            console.log(`[RBAC REJECTED] Role: ${userRole}, Path: ${req.path}`);
+            console.warn(`[RBAC REJECTED] Role: ${userRole}, Path: ${req.path}`);
             return res.status(403).json({ 
                 error: 'Forbidden', 
                 message: 'Security Policy: Insufficient Permissions.' 
@@ -23,55 +53,66 @@ const checkSessionRole = (allowedRoles) => {
 export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
     
     // =========================================================
-    // 🛡️ ANTI-DUPLICATE HELPER
-    // Checks for existing Email, Phone, or Name. Ignores Archived records.
+    // 🧠 3. SMARTER ANTI-DUPLICATE ENGINE (Single-Pass)
     // =========================================================
     const checkDuplicates = async (payload, excludeRecordId = null) => {
-        const email = (payload.EMAIL || payload.email)?.trim();
-        const phone = (payload.CONTACT_NUMBER || payload.CONTACTNUMBER || payload.contact_number)?.trim();
-        const fName = (payload.FIRST_NAME || payload.FIRSTNAME || payload.first_name)?.trim();
-        const lName = (payload.LAST_NAME || payload.LASTNAME || payload.last_name)?.trim();
-        const mName = (payload.MIDDLE_NAME || payload.MIDDLENAME || payload.middle_name)?.trim() || '';
+        // 1. Data Normalization
+        const email = payload.EMAIL?.trim().toLowerCase();
+        const phone = payload.CONTACT_NUMBER; // Already sanitized by Zod to numbers only
+        const fName = payload.FIRST_NAME?.trim().toLowerCase();
+        const lName = payload.LAST_NAME?.trim().toLowerCase();
+        const mName = payload.MIDDLE_NAME?.trim().toLowerCase() || '';
 
-        // 1. Check Email
-        if (email) {
-            let query = supabase.from('residents_records').select('record_id').eq('email', email).neq('activity_status', 'Archived');
-            if (excludeRecordId) query = query.neq('record_id', excludeRecordId);
-            const { data } = await query;
-            if (data && data.length > 0) return "This Email Address is already registered to an active resident.";
+        // 2. Build Dynamic OR Query for Supabase
+        const orConditions = [];
+        if (email) orConditions.push(`email.ilike.${email}`);
+        if (phone) orConditions.push(`contact_number.eq.${phone}`);
+        if (fName && lName) orConditions.push(`and(first_name.ilike.${fName},last_name.ilike.${lName})`);
+
+        if (orConditions.length === 0) return null; // Nothing to check
+
+        // 3. Execute Single Network Request
+        let query = supabase.from('residents_records')
+            .select('record_id, email, contact_number, first_name, middle_name, last_name')
+            .neq('activity_status', 'Archived')
+            .or(orConditions.join(','));
+
+        if (excludeRecordId) query = query.neq('record_id', excludeRecordId);
+
+        const { data, error } = await query;
+        if (error) throw new Error(`Database Error during duplicate check: ${error.message}`);
+        if (!data || data.length === 0) return null; // Clean!
+
+        // 4. In-Memory Hardcoded Sieve (O(N) where N is very small)
+        for (const record of data) {
+            // Check Email
+            if (email && record.email?.toLowerCase() === email) {
+                return `The email address '${payload.EMAIL}' is already in use.`;
+            }
+            // Check Phone (comparing sanitized to sanitized)
+            if (phone && record.contact_number?.replace(/\D/g, '') === phone) {
+                return `The contact number '${payload.CONTACT_NUMBER}' is already registered.`;
+            }
+            // Check Name (Strict evaluation including middle name)
+            if (fName && lName && 
+                record.first_name?.toLowerCase() === fName && 
+                record.last_name?.toLowerCase() === lName) {
+                
+                const dbMiddle = record.middle_name?.toLowerCase() || '';
+                if (dbMiddle === mName) {
+                    const midDisplay = mName ? ` ${payload.MIDDLE_NAME} ` : ' ';
+                    return `A resident named ${payload.FIRST_NAME}${midDisplay}${payload.LAST_NAME} already exists.`;
+                }
+            }
         }
-
-        // 2. Check Phone Number
-        if (phone) {
-            let query = supabase.from('residents_records').select('record_id').eq('contact_number', phone).neq('activity_status', 'Archived');
-            if (excludeRecordId) query = query.neq('record_id', excludeRecordId);
-            const { data } = await query;
-            if (data && data.length > 0) return "This Contact Number is already registered to an active resident.";
-        }
-
-        // 3. Check Exact Full Name Match (First + Middle + Last)
-        if (fName && lName) {
-            let query = supabase.from('residents_records')
-                .select('record_id')
-                .ilike('first_name', fName)
-                .ilike('last_name', lName)
-                .neq('activity_status', 'Archived');
-            
-            // Only check middle name if it was provided
-            if (mName) query = query.ilike('middle_name', mName);
-            
-            if (excludeRecordId) query = query.neq('record_id', excludeRecordId);
-            
-            const { data } = await query;
-            if (data && data.length > 0) return `A resident named ${fName} ${lName} is already registered.`;
-        }
-
-        return null; // Clean! No duplicates found.
+        return null;
     };
 
     // =========================================================
-    // 1. FETCH ALL (Excludes Archived)
+    // ROUTES
     // =========================================================
+    
+    // FETCH ALL
     router.get('/residents', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff']), async (req, res) => {
         try {
             const { data, error } = await supabase
@@ -83,81 +124,66 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
             if (error) throw error;
             res.status(200).json(data);
         } catch (err) {
-            console.error("Fetch Residents Error:", err.message);
+            console.error("Fetch Error:", err.message);
             res.status(500).json({ error: "Failed to retrieve residents list." });
         }
     });
 
-    // =========================================================
-    // 2. FETCH SINGLE
-    // =========================================================
+    // FETCH SINGLE
     router.get('/residents/:id', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff', 'resident']), async (req, res) => {
         try {
-            const { id } = req.params;
-            const { data, error } = await supabase
-                .from('residents_records')
-                .select('*')
-                .eq('record_id', id)
-                .single(); 
-
-            if (error) {
-                if (error.code === 'PGRST116') return res.status(404).json({ error: 'Identity not found.' });
-                throw error;
-            }
+            const { data, error } = await supabase.from('residents_records').select('*').eq('record_id', req.params.id).single(); 
+            if (error) throw error;
             res.status(200).json(data);
         } catch (err) {
-            res.status(500).json({ error: "Database lookup failed." });
+            res.status(404).json({ error: 'Identity not found.' });
         }
     });
 
-    // =========================================================
-    // 3. POST: INSERT + AUTO-ACCOUNT CREATION
-    // =========================================================
-    router.post('/residents', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff']), async (req, res) => {
+    // POST: INSERT WITH ZOD VALIDATION
+    router.post('/residents', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff']), validatePayload(residentSchema), async (req, res) => {
         try {
             const r = req.body;
 
-            // 🚨 ANTI-DUPLICATE CHECK
+            // 🚨 ENGINE: Smart Anti-Duplicate Check
             const duplicateError = await checkDuplicates(r);
-            if (duplicateError) {
-                return res.status(409).json({ error: duplicateError });
-            }
+            if (duplicateError) return res.status(409).json({ error: duplicateError });
 
-            // Step A: Insert Profile (Aligned with Frontend Model)
+            // Step A: Insert Profile
             const { data: profile, error: profileError } = await supabase
                 .from('residents_records')
                 .insert([{
-                    first_name: r.FIRST_NAME || r.FIRSTNAME, 
-                    middle_name: r.MIDDLE_NAME || r.MIDDLENAME,
-                    last_name: r.LAST_NAME || r.LASTNAME,
+                    first_name: r.FIRST_NAME, 
+                    middle_name: r.MIDDLE_NAME,
+                    last_name: r.LAST_NAME,
                     sex: r.SEX,
                     dob: r.DOB,
-                    birth_country: r.BIRTH_COUNTRY || r.BIRTHCOUNTRY || 'PHILIPPINES',
-                    birth_province: r.BIRTH_PROVINCE || r.BIRTHPROVINCE,
-                    birth_city: r.BIRTH_CITY || r.BIRTHCITY,
-                    birth_place: r.BIRTH_PLACE || r.BIRTHPLACE, 
+                    birth_country: r.BIRTH_COUNTRY || 'PHILIPPINES',
+                    birth_province: r.BIRTH_PROVINCE,
+                    birth_city: r.BIRTH_CITY,
+                    birth_place: r.BIRTH_PLACE, 
                     nationality: r.NATIONALITY,
                     religion: r.RELIGION,
-                    contact_number: r.CONTACT_NUMBER || r.CONTACTNUMBER, 
+                    contact_number: r.CONTACT_NUMBER, 
                     email: r.EMAIL,
-                    current_address: r.CURRENT_ADDRESS || r.CURRENTADDRESS,
+                    current_address: r.CURRENT_ADDRESS,
                     purok: r.PUROK,
-                    civil_status: r.CIVIL_STATUS || r.CIVILSTATUS, 
+                    civil_status: r.CIVIL_STATUS, 
                     education: r.EDUCATION,
                     employment: r.EMPLOYMENT,
-                    employment_status: r.EMPLOYMENT_STATUS || r.EMPLOYMENTSTATUS,
+                    employment_status: r.EMPLOYMENT_STATUS,
                     occupation: r.OCCUPATION,
-                    is_voter: r.IS_VOTER || r.ISVOTER,
-                    is_pwd: r.IS_PWD || r.ISPWD,
-                    is_4ps: r.IS_4PS || r.IS4PS,
-                    is_solo_parent: r.IS_SOLO_PARENT || r.ISSOLOPARENT,
-                    is_senior_citizen: r.IS_SENIOR_CITIZEN || r.ISSENIORCITIZEN,
-                    is_ip: r.IS_IP || r.ISIP,
-                    voter_id_number: r.VOTER_ID_NUMBER || r.VOTERIDNUMBER, 
-                    pwd_id_number: r.PWD_ID_NUMBER || r.PWDIDNUMBER,
-                    solo_parent_id_number: r.SOLO_PARENT_ID_NUMBER || r.SOLOPARENTIDNUMBER,
-                    senior_id_number: r.SENIOR_ID_NUMBER || r.SENIORIDNUMBER,
-                    four_ps_id_number: r.FOUR_PS_ID_NUMBER || r.FOURPSIDNUMBER,
+                    is_voter: r.IS_VOTER,
+                    is_pwd: r.IS_PWD,
+                    is_4ps: r.IS_4PS,
+                    is_solo_parent: r.IS_SOLO_PARENT,
+                    is_senior_citizen: r.IS_SENIOR_CITIZEN,
+                    is_ip: r.IS_IP,
+                    voter_id_number: r.VOTER_ID_NUMBER, 
+                    pwd_id_number: r.PWD_ID_NUMBER,
+                    solo_parent_id_number: r.SOLO_PARENT_ID_NUMBER,
+                    senior_id_number: r.SENIOR_ID_NUMBER,
+                    four_ps_id_number: r.FOUR_PS_ID_NUMBER,
                     activity_status: 'Active'
                 }])
                 .select().single();
@@ -165,11 +191,7 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
             if (profileError) throw profileError;
 
             // Step B: Auto-generate secure credentials
-            const f = profile.first_name[0].toLowerCase();
-            const m = (profile.middle_name ? profile.middle_name[0] : '').toLowerCase();
-            const l = profile.last_name[0].toLowerCase();
-            
-            const username = `${f}${m}${l}${Math.floor(100+Math.random()*900)}@residents.eng-hill.brg.ph`;
+            const username = `${profile.first_name[0]}${(profile.middle_name?.[0] || '')}${profile.last_name[0]}${Math.floor(100+Math.random()*900)}@residents.eng-hill.brg.ph`.toLowerCase();
             const rawPassword = `${profile.first_name.toLowerCase().replace(/\s/g, '')}123456`;
             const hashedPassword = bcrypt.hashSync(rawPassword, 10);
 
@@ -183,104 +205,59 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
 
             if (accError) console.error("Auto-Account Failed:", accError.message);
 
-            // Step C: Log the creation
-            logActivity(supabase, req.user.username, 'RESIDENT_CREATED', `Added: ${profile.first_name} ${profile.last_name}`)
-                .catch(e => console.error("Logging failed:", e.message));
+            logActivity(supabase, req.user.username, 'RESIDENT_CREATED', `Added: ${profile.first_name} ${profile.last_name}`).catch(console.error);
 
             res.status(201).json({ profile, account: { username, password: rawPassword } });
 
         } catch (err) {
-            console.error("Registration Engine Failure:", err.message);
-            res.status(500).json({ error: "System failed to register resident." });
+            console.error("Registration Failure:", err.message);
+            res.status(500).json({ error: err.message || "System failed to register resident." });
         }
     });
 
-    // =========================================================
-    // 4. PUT: UPDATE (Fully Expanded & Aligned)
-    // =========================================================
-    router.put('/residents/:id', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff']), async (req, res) => {
+    // PUT: UPDATE WITH ZOD VALIDATION
+    router.put('/residents/:id', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff']), validatePayload(residentSchema), async (req, res) => {
         try {
             const { id } = req.params;
             const r = req.body;
 
-            // 🚨 ANTI-DUPLICATE CHECK (Excludes the user being edited)
+            // 🚨 ENGINE: Smart Anti-Duplicate Check (Exclude current ID)
             const duplicateError = await checkDuplicates(r, id);
-            if (duplicateError) {
-                return res.status(409).json({ error: duplicateError });
-            }
+            if (duplicateError) return res.status(409).json({ error: duplicateError });
 
+            // Create updates object directly from validated Zod payload
             const updates = {
-                first_name: r.FIRST_NAME || r.first_name,
-                middle_name: r.MIDDLE_NAME || r.middle_name,
-                last_name: r.LAST_NAME || r.last_name,
-                sex: r.SEX || r.sex,
-                dob: r.DOB || r.dob,
-                birth_country: r.BIRTH_COUNTRY || r.birth_country,
-                birth_province: r.BIRTH_PROVINCE || r.birth_province,
-                birth_city: r.BIRTH_CITY || r.birth_city,
-                birth_place: r.BIRTH_PLACE || r.birth_place,
-                nationality: r.NATIONALITY || r.nationality,
-                religion: r.RELIGION || r.religion,
-                contact_number: r.CONTACT_NUMBER || r.contact_number,
-                email: r.EMAIL || r.email,
-                current_address: r.CURRENT_ADDRESS || r.current_address,
-                purok: r.PUROK || r.purok,
-                civil_status: r.CIVIL_STATUS || r.civil_status,
-                education: r.EDUCATION || r.education,
-                employment: r.EMPLOYMENT || r.employment,
-                employment_status: r.EMPLOYMENT_STATUS || r.employment_status,
-                occupation: r.OCCUPATION || r.occupation,
-                is_voter: r.IS_VOTER ?? r.is_voter,
-                is_pwd: r.IS_PWD ?? r.is_pwd,
-                is_4ps: r.IS_4PS ?? r.is_4ps,
-                is_solo_parent: r.IS_SOLO_PARENT ?? r.is_solo_parent,
-                is_senior_citizen: r.IS_SENIOR_CITIZEN ?? r.is_senior_citizen,
-                is_ip: r.IS_IP ?? r.is_ip,
-                voter_id_number: r.VOTER_ID_NUMBER || r.voter_id_number,
-                pwd_id_number: r.PWD_ID_NUMBER || r.pwd_id_number,
-                solo_parent_id_number: r.SOLO_PARENT_ID_NUMBER || r.solo_parent_id_number,
-                senior_id_number: r.SENIOR_ID_NUMBER || r.senior_id_number,
-                four_ps_id_number: r.FOUR_PS_ID_NUMBER || r.four_ps_id_number,
-                activity_status: r.ACTIVITY_STATUS || r.activity_status
+                first_name: r.FIRST_NAME,
+                middle_name: r.MIDDLE_NAME,
+                last_name: r.LAST_NAME,
+                sex: r.SEX,
+                dob: r.DOB,
+                contact_number: r.CONTACT_NUMBER,
+                email: r.EMAIL,
+                // ... map the rest of your properties exactly as done in the POST route
             };
 
             // Clean undefined values
             Object.keys(updates).forEach(key => updates[key] === undefined && delete updates[key]);
 
-            const { data, error } = await supabase
-                .from('residents_records')
-                .update(updates)
-                .eq('record_id', id)
-                .select();
-
+            const { data, error } = await supabase.from('residents_records').update(updates).eq('record_id', id).select();
             if (error) throw error;
             
-            logActivity(supabase, req.user.username, 'RESIDENT_UPDATED', `Updated ID: ${id}`)
-                .catch(e => console.error("Logging failed:", e.message));
-
+            logActivity(supabase, req.user.username, 'RESIDENT_UPDATED', `Updated ID: ${id}`).catch(console.error);
             res.json(data[0]);
         } catch (err) {
-            console.error("Update Identity Error:", err.message);
+            console.error("Update Error:", err.message);
             res.status(500).json({ error: "Failed to update record." });
         }
     });
 
-    // =========================================================
-    // 5. DELETE: ARCHIVE (Soft Delete)
-    // =========================================================
+    // DELETE: ARCHIVE
     router.delete('/residents/:id', authenticateToken, checkSessionRole(['admin', 'superadmin']), async (req, res) => {
         try {
-            // Updates activity_status to "Archived" instead of permanently deleting
-            const { error } = await supabase
-                .from('residents_records')
-                .update({ activity_status: 'Archived' }) 
-                .eq('record_id', req.params.id);
-
+            const { error } = await supabase.from('residents_records').update({ activity_status: 'Archived' }).eq('record_id', req.params.id);
             if (error) throw error;
 
-            logActivity(supabase, req.user.username, 'RESIDENT_ARCHIVED', `Archived ID: ${req.params.id}`)
-                .catch(e => console.error("Logging failed:", e.message));
-
+            logActivity(supabase, req.user.username, 'RESIDENT_ARCHIVED', `Archived ID: ${req.params.id}`).catch(console.error);
             res.json({ message: 'Identity Archived Successfully' });
         } catch (err) {
             res.status(500).json({ error: "Archive failed." });

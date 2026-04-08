@@ -10,9 +10,10 @@ import rawBarangays from './data/barangays.json';
  */
 class PGSUEngine {
   private provinceList: string[] = [];
+  // ALL Maps now strictly use Normalized Keys to prevent lookup failures
   private cityIndex: Map<string, string[]> = new Map();
   private brgyIndex: Map<string, string[]> = new Map();
-  private reverseCityMap: Map<string, string> = new Map(); // Maps Normalized City -> Province
+  private reverseCityMap: Map<string, string> = new Map(); 
 
   constructor() {
     this.buildIndexes();
@@ -20,13 +21,11 @@ class PGSUEngine {
 
   /**
    * SMART DATA MINER
-   * Normalizes keys by universally stripping geographic noise words.
-   * This ensures "CITY OF BAGUIO", "BAGUIO CITY", and "BAGUIO" all target the same bucket.
+   * Normalizes keys by stripping noise words and rogue punctuation.
    */
   private normalizeKey(name: string): string {
     if (!name) return "";
     
-    // Noise words typically found in messy PSGC or manual entry datasets
     const noiseWords = [
       'CITY', 'OF', 'CAPITAL', '(CAPITAL)', 
       '(POB.)', '(POBLACION)', 'POBLACION', 'PROVINCE'
@@ -34,7 +33,7 @@ class PGSUEngine {
     
     return name.toString()
       .toUpperCase()
-      .trim()
+      .replace(/[^A-Z0-9\s]/g, '') // Strips rogue punctuation
       .split(/\s+/)
       .filter(word => !noiseWords.includes(word))
       .join(' ')
@@ -52,20 +51,21 @@ class PGSUEngine {
         .map((p: any) => (p.name || "").toString().toUpperCase().trim())
         .sort();
 
-      // 2. Build City Index & Reverse Map (for Self-Healing)
+      // 2. Build City Index & Reverse Map
       rawCities.forEach((c: any) => {
         const provOriginal = (c.province || "").toString().toUpperCase().trim();
+        const provNormalized = this.normalizeKey(provOriginal); 
         const cityOriginal = (c.name || "").toString().toUpperCase().trim();
         const cityNormalized = this.normalizeKey(cityOriginal);
 
-        if (provOriginal && cityOriginal) {
-          // Forward Index: Province -> [Cities]
-          if (!this.cityIndex.has(provOriginal)) {
-            this.cityIndex.set(provOriginal, []);
+        if (provNormalized && cityOriginal) {
+          // Forward Index: Normalized Province -> [Raw Cities]
+          if (!this.cityIndex.has(provNormalized)) {
+            this.cityIndex.set(provNormalized, []);
           }
-          this.cityIndex.get(provOriginal)!.push(cityOriginal);
-
-          // Reverse Map: Normalized City -> Province (Essential for fixing Baguio/Benguet misalignment)
+          this.cityIndex.get(provNormalized)!.push(cityOriginal);
+          
+          // Reverse Map: Normalized City -> Raw Province 
           this.reverseCityMap.set(cityNormalized, provOriginal);
         }
       });
@@ -88,8 +88,26 @@ class PGSUEngine {
       this.brgyIndex.forEach(list => list.sort());
 
     } catch (error) {
-      // Silently catch indexing errors without console logging
+      // Silently catch indexing errors without console logging to keep startup clean
     }
+  }
+
+  // =========================================================================
+  // SURGICAL VALIDATION APIs
+  // =========================================================================
+  
+  public isValidCity(province: string, city: string): boolean {
+    const provKey = this.normalizeKey(province);
+    const validCities = this.cityIndex.get(provKey) || [];
+    // Compare normalized input against normalized list to ensure perfect match
+    return validCities.some(c => this.normalizeKey(c) === this.normalizeKey(city));
+  }
+
+  public isValidBarangay(city: string, brgy: string): boolean {
+    const cityKey = this.normalizeKey(city);
+    const validBrgys = this.brgyIndex.get(cityKey) || [];
+    // Strict uppercase match for Barangays
+    return validBrgys.some(b => b === brgy.toUpperCase().trim());
   }
 
   // =========================================================================
@@ -111,12 +129,12 @@ class PGSUEngine {
       "DEMOCRATIC REPUBLIC OF THE CONGO", "DENMARK", "DJIBOUTI", "DOMINICA", 
       "DOMINICAN REPUBLIC", "ECUADOR", "EGYPT", "EL SALVADOR", "EQUATORIAL GUINEA", 
       "ERITREA", "ESTONIA", "ESWATINI", "ETHIOPIA", "FIJI", "FINLAND", "FRANCE", 
-      "GABON", "GAMBIA", "GEORGIA", "GERMAN", "GHANA", "GREECE", "GRENADA", 
+      "GABON", "GAMBIA", "GEORGIA", "GERMANY", "GHANA", "GREECE", "GRENADA", 
       "GUATEMALA", "GUINEA", "GUINEA-BISSAU", "GUYANA", "HAITI", "HONDURAS", 
       "HUNGARY", "ICELAND", "INDIA", "INDONESIA", "IRAN", "IRAQ", "IRELAND", 
       "ISRAEL", "ITALY", "IVORY COAST", "JAMAICA", "JAPAN", "JORDAN", "KAZAKHSTAN", 
       "KENYA", "KIRIBATI", "KUWAIT", "KYRGYZSTAN", "LAOS", "LATVIA", "LEBANON", 
-      "LESOTHO", "LIBERIA", "LIBYA", "LIECHTENSTEIN", "LITHUANIAN", "LUXEMBOURG", 
+      "LESOTHO", "LIBERIA", "LIBYA", "LIECHTENSTEIN", "LITHUANIA", "LUXEMBOURG", 
       "MADAGASCAR", "MALAWI", "MALAYSIA", "MALDIVES", "MALI", "MALTA", 
       "MARSHALL ISLANDS", "MAURITANIA", "MAURITIUS", "MEXICO", "MICRONESIA", 
       "MOLDOVA", "MONACO", "MONGOLIA", "MONTENEGRO", "MOROCCO", "MOZAMBIQUE", 
@@ -128,7 +146,7 @@ class PGSUEngine {
       "SAMOA", "SAN MARINO", "SAO TOME AND PRINCIPE", "SAUDI ARABIA", "SENEGAL", 
       "SERBIA", "SEYCHELLES", "SIERRA LEONE", "SINGAPORE", "SLOVAKIA", "SLOVENIA", 
       "SOLOMON ISLANDS", "SOMALIA", "SOUTH AFRICA", "SOUTH KOREA", "SOUTH SUDAN", 
-      "SPAIN", "SRI LANKAN", "SUDAN", "SURINAME", "SWEDEN", "SWITZERLAND", "SYRIA", 
+      "SPAIN", "SRI LANKA", "SUDAN", "SURINAME", "SWEDEN", "SWITZERLAND", "SYRIA", 
       "TAIWAN", "TAJIKISTAN", "TANZANIA", "THAILAND", "TIMOR-LESTE", "TOGO", "TONGA", 
       "TRINIDAD AND TOBAGO", "TUNISIA", "TURKEY", "TURKMENISTAN", "TUVALU", "UGANDA", 
       "UKRAINE", "UNITED ARAB EMIRATES", "UNITED KINGDOM", "UNITED STATES OF AMERICA", 
@@ -150,12 +168,11 @@ class PGSUEngine {
     const normalized = this.normalizeKey(provinceName);
     
     // Self-Healing: If the input is actually a City (like Baguio), return the city name back
-    // so the UI chain doesn't break.
-    if (this.brgyIndex.has(normalized) && !this.cityIndex.has(provinceName.toUpperCase())) {
+    if (this.brgyIndex.has(normalized) && !this.cityIndex.has(normalized)) {
       return [provinceName.toUpperCase()];
     }
     
-    return this.cityIndex.get(provinceName.toUpperCase().trim()) || [];
+    return this.cityIndex.get(normalized) || [];
   }
 
   /**
@@ -169,7 +186,6 @@ class PGSUEngine {
   /**
    * SELF-HEALING HELPER: 
    * Essential for DataMapper. Reconstructs correct hierarchy if data is misaligned.
-   * Example: findProvinceOfCity("BAGUIO") returns "BENGUET".
    */
   public findProvinceOfCity(cityName: string): string | null {
     if (!cityName) return null;

@@ -47,7 +47,7 @@ const initialState: IResident = {
   birthCountry: 'PHILIPPINES', birthProvince: '', birthCity: '',
   birthPlace: '', nationality: 'FILIPINO', religion: 'ROMAN CATHOLIC', contact_number: '09', email: '', 
   currentAddress: '', purok: '', civilStatus: 'SINGLE',
-  education: 'NONE', employment: '', employmentStatus: 'UNEMPLOYED', occupation: '', 
+  education: 'ELEMENTARY GRADUATE', employment: '', employmentStatus: 'UNEMPLOYED', occupation: '', 
   activityStatus: 'Active', isVoter: false, isPWD: false, 
   is4Ps: false, isSoloParent: false, isSeniorCitizen: false, isIP: false,
   voterIdNumber: '', pwdIdNumber: '', soloParentIdNumber: '', seniorIdNumber: '', fourPsIdNumber: ''
@@ -120,7 +120,7 @@ export const ResidentModal: React.FC<{
 
         const standardReligion = ["ROMAN CATHOLIC", "ISLAM", "IGLESIA NI CRISTO"];
         const standardCivil = ["SINGLE", "MARRIED", "WIDOWED", "SEPARATED"];
-        const standardEdu = ["NONE", "ELEMENTARY", "HIGH SCHOOL", "COLLEGE", "POST-GRAD"];
+        const standardEdu = ["ELEMENTARY GRADUATE", "HIGH SCHOOL GRADUATE", "COLLEGE GRADUATE", "MASTER'S DEGREE", "DOCTORATE"];
         const standardEmp = ["UNEMPLOYED", "FULL-TIME", "PART-TIME", "SELF-EMPLOYED", "STUDENT"];
 
         const customObj: Record<string, boolean> = {};
@@ -386,12 +386,11 @@ export const ResidentModal: React.FC<{
                     <input className="RMS_INPUT" autoFocus placeholder="SPECIFY EDUCATION..." value={formData.education} onChange={e => handleChange('education', e.target.value)} onBlur={() => handleCustomBlur('education')} />
                   ) : (
                     <select className="RMS_INPUT" value={formData.education} onChange={e => handleChange('education', e.target.value)}>
-                      <option value="NONE">None</option>
-                      <option value="ELEMENTARY">Elementary</option>
-                      <option value="HIGH SCHOOL">High School</option>
-                      <option value="COLLEGE">College</option>
-                      <option value="POST-GRAD">Post-Grad</option>
-                      <option value="OTHERS">OTHERS (SPECIFY)</option>
+                      <option value="ELEMENTARY GRADUATE">Elementary Graduate</option>
+                      <option value="HIGH SCHOOL GRADUATE">High School Graduate</option>
+                      <option value="COLLEGE GRADUATE">College Graduate</option>
+                      <option value="MASTER'S DEGREE">Master's Degree</option>
+                      <option value="DOCTORATE">Doctorate</option>
                     </select>
                   )}
                 </div>

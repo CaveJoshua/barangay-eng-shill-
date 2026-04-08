@@ -10,6 +10,10 @@ import Community_Profile from './Community_Profile';
 import Community_Notification from './Community_Notfication'; 
 import CommunityResetPasswordModal from '../../buttons/Community_Resetpassword_modal';
 
+// 🛡️ FIX 1 & 2: Strict casing (lowercase 'p') and strict 'type' import
+import Community_Preview from '../../forms/Community_preview';
+import type { NewsItem } from '../../forms/Community_preview';
+
 type DashboardView = 'Announcements' | 'Blotter' | 'Documents';
 
 interface DashboardProps {
@@ -32,8 +36,10 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [mustResetPassword, setMustResetPassword] = useState(false);
   const [bulletinCategory, setBulletinCategory] = useState<string>('All');
+  
+  // Tracks the currently selected article for the full preview modal
+  const [selectedArticle, setSelectedArticle] = useState<NewsItem | null>(null);
 
-  // 🚨 FIX 1: Empty dependency array so this ONLY fires once when the dashboard mounts.
   useEffect(() => {
     const savedSession = localStorage.getItem('resident_session');
     if (savedSession) {
@@ -136,11 +142,20 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                     </div>
                     <div className="NEWS_BODY">
                       <span className="NEWS_DATE">
-                        <i className="far fa-calendar-alt"></i> {new Date(news.date_posted).toLocaleDateString()}
+                        <i className="far fa-calendar-alt"></i> {new Date(news.date_posted || news.created_at).toLocaleDateString()}
                       </span>
                       <h4>{news.title}</h4>
                       <p>{news.content}</p>
-                      <button className="BTN_READ_MORE">Read Full Advisory</button>
+                      
+                      <button 
+                        className="BTN_READ_MORE"
+                        onClick={() => setSelectedArticle({
+                          ...news,
+                          created_at: news.created_at || news.date_posted 
+                        })}
+                      >
+                        Read Full Advisory
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -178,14 +193,12 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   return (
     <div className="CM_PAGE_WRAPPER">
       
-      {/* 🚨 FIX 2: Deeply sanitize the localStorage on success to prevent looping */}
       <CommunityResetPasswordModal 
         isOpen={mustResetPassword}
         resident={resident}
         onSuccess={() => {
           setMustResetPassword(false);
           
-          // Manually wipe BOTH flags from the browser memory
           const savedSession = localStorage.getItem('resident_session');
           if (savedSession) {
             const session = JSON.parse(savedSession);
@@ -235,7 +248,6 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                 {resident?.record_id ? 'CONNECTED' : 'OFFLINE'}
               </div>
 
-              {/* ── 🔔 NOTIFICATION BELL COMPONENT ── */}
               <Community_Notification 
                 blotters={blotters} 
                 documents={documents} 
@@ -298,6 +310,15 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
           <span>Me</span>
         </button>
       </nav>
+
+      {/* ── FULL ARTICLE PREVIEW MODAL ── */}
+      {selectedArticle && (
+        <Community_Preview 
+          article={selectedArticle} 
+          onBack={() => setSelectedArticle(null)} 
+        />
+      )}
+
     </div>
   );
 };

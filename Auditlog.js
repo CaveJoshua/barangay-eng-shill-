@@ -1,54 +1,80 @@
 // Auditlog.js
 
 /**
- * Clean & Fast Audit Logger
- * Simply records who did what and when.
+ * 🛡️ Enterprise Audit Logger
+ * Designed to be imported and used anywhere in the backend to record system events.
  */
 export const logActivity = async (supabase, actor, action, details) => {
   try {
+    // Safely format details: If it's a JSON object (like our login metadata), stringify it.
+    let formattedDetails = details;
+    if (typeof details === 'object' && details !== null) {
+      formattedDetails = JSON.stringify(details);
+    } else if (!details) {
+      formattedDetails = 'No additional details provided.';
+    }
+
     const { error: insertError } = await supabase
       .from('audit_logs')
       .insert([{
         actor: actor || 'SYSTEM',
         action: action,
-        details: details || 'No additional details provided.',
-        timestamp: new Date().toISOString()
+        details: formattedDetails
+        // Note: Removed manual timestamp. Let PostgreSQL's 'default now()' handle it for absolute accuracy.
       }]);
 
     if (insertError) {
-      console.error("FAILED to write to Audit Log:", insertError.message);
+      console.error("❌ [AUDIT FAILED]:", insertError.message);
     } else {
-      console.log(`[AUDIT] Action Logged: ${action} by ${actor}`);
+      console.log(`✅ [AUDIT LOGGED]: ${action} by ${actor || 'SYSTEM'}`);
     }
 
   } catch (err) {
-    console.error("Audit System Error:", err.message);
+    console.error("❌ [AUDIT SYSTEM ERROR]:", err.message);
   }
 };
 
 export const AuditlogRouter = (router, supabase, authenticateToken) => {
   
-  // 1. GET ALL LOGS (Protected by Auth)
+  // 1. GET ALL LOGS (Protected by Auth & Upgraded with Query Filters)
   router.get('/audit', authenticateToken, async (req, res) => {
     try {
-      const { data, error } = await supabase
+      // Allow the frontend dashboard to paginate and search
+      const limit = parseInt(req.query.limit) || 100;
+      const actionFilter = req.query.action;
+      const actorFilter = req.query.actor;
+
+      // Build the Supabase query dynamically
+      let query = supabase
         .from('audit_logs')
         .select('*')
         .order('timestamp', { ascending: false })
-        .limit(200); // Added a limit to prevent loading thousands of logs at once
+        .limit(limit);
+
+      // Apply optional filters if the frontend sent them
+      if (actionFilter) query = query.eq('action', actionFilter);
+      if (actorFilter) query = query.eq('actor', actorFilter);
+
+      const { data, error } = await query;
 
       if (error) throw error;
       res.json(data);
+
     } catch (err) {
       console.error("Fetch Audit Error:", err.message);
       res.status(500).json({ error: "Failed to retrieve system logs." });
     }
   });
 
-  // 2. MANUAL TEST LOG (Optional)
+  // 2. MANUAL TEST LOG (Kept for testing, but requires Auth)
   router.post('/audit/test', authenticateToken, async (req, res) => {
     try {
       const { actor, action, details } = req.body;
+      
+      if (!action) {
+        return res.status(400).json({ error: "Action is required to log an event." });
+      }
+
       await logActivity(supabase, actor, action, details);
       res.status(201).json({ message: "Action logged successfully." });
     } catch (err) {
