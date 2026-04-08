@@ -15,7 +15,7 @@ export const exportResidentsToCSV = (residents: IResident[]) => {
   }
 
   const headers = [
-    "lastName", "firstName", "middleName", "sex", "genderIdentity", "dob",
+    "lastName", "firstName", "middleName", "sex", "dob",
     "birthCountry", "birthProvince", "birthCity", "birthBarangay", "birthPlace",
     "nationality", "religion", "contact_number", "email", "currentAddress", "purok",
     "civilStatus", "education", "employment", "employmentStatus", "occupation",
