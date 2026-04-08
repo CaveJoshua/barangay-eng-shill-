@@ -21,13 +21,11 @@ export const ResidentMapper = {
       firstName: (dbRow.first_name || '').toUpperCase().trim(),
       middleName: (dbRow.middle_name || '').toUpperCase().trim(),
       sex: dbRow.sex || 'Male',
-      genderIdentity: dbRow.gender_identity || 'Men',
       dob: dbRow.dob || '',
       birthPlace: (dbRow.birth_place || '').toUpperCase().trim(),
       birthCountry: (dbRow.birth_country || 'PHILIPPINES').toUpperCase().trim(),
       birthProvince: (dbRow.birth_province || '').toUpperCase().trim(),
       birthCity: (dbRow.birth_city || '').toUpperCase().trim(),
-      birthBarangay: (dbRow.birth_barangay || '').toUpperCase().trim(),
       nationality: (dbRow.nationality || 'FILIPINO').toUpperCase().trim(),
       religion: (dbRow.religion || 'ROMAN CATHOLIC').toUpperCase().trim(),
       contact_number: dbRow.contact_number || '',
@@ -62,7 +60,6 @@ export const ResidentMapper = {
         resident.birthCountry = parts[0];
         resident.birthProvince = parts[1];
         resident.birthCity = parts[2];
-        resident.birthBarangay = parts[3];
       }
     }
 
@@ -87,23 +84,20 @@ export const ResidentMapper = {
     // Standardize all text data to Uppercase for the database miner consistency
     const bProv = (ui.birthProvince || '').toUpperCase().trim();
     const bCity = (ui.birthCity || '').toUpperCase().trim();
-    const bBrgy = (ui.birthBarangay || '').toUpperCase().trim();
     const bCountry = (ui.birthCountry || 'PHILIPPINES').toUpperCase().trim();
 
     // Construct the legacy birth_place string for older report compatibility
-    const combinedPlace = `${bCountry}, ${bProv}, ${bCity}, ${bBrgy}`;
+    const combinedPlace = `${bCountry}, ${bProv}, ${bCity}, `;
 
     return {
       first_name: ui.firstName.toUpperCase().trim(),
       middle_name: ui.middleName.toUpperCase().trim(),
       last_name: ui.lastName.toUpperCase().trim(),
       sex: ui.sex,
-      gender_identity: ui.genderIdentity,
       dob: ui.dob,
       birth_country: bCountry,
       birth_province: bProv,
       birth_city: bCity,
-      birth_barangay: bBrgy,
       birth_place: combinedPlace,
       nationality: ui.nationality.toUpperCase().trim(),
       religion: ui.religion.toUpperCase().trim(),
