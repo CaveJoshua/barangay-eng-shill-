@@ -6,7 +6,9 @@ const Profile: React.FC = () => {
   // Read initial from local storage as a quick fallback before DB loads
   const [theme, setTheme] = useState(() => localStorage.getItem('sb_theme') || 'light');
   const [formData, setFormData] = useState({ fullName: '', email: '', role: '', phone: '' });
-  const [loading, setLoading]   = useState(false);
+  
+  // ✅ Changed initial state to TRUE so it blocks rendering immediately
+  const [loading, setLoading]   = useState(true); 
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError]       = useState('');
@@ -23,8 +25,10 @@ const Profile: React.FC = () => {
     const rawId = getActiveId();
     if (!rawId || rawId === 'undefined' || rawId === 'null') {
       setError('Session Error: Please log out and back in.');
+      setLoading(false); // Ensure loading stops if there's no ID
       return;
     }
+    
     setLoading(true);
     try {
       const data = await ApiService.getProfile(rawId, signal);
@@ -37,7 +41,7 @@ const Profile: React.FC = () => {
         phone:    data.contact_number || data.phone || '',
       });
 
-      // ✅ Sync theme from database if available
+      // Sync theme from database if available
       if (data.theme_preference) {
         setTheme(data.theme_preference);
         document.documentElement.setAttribute('data-theme', data.theme_preference);
@@ -48,7 +52,7 @@ const Profile: React.FC = () => {
     } catch (err: any) {
       if (err.name !== 'AbortError') setError(err.message || 'Cannot reach server.');
     } finally {
-      setLoading(false);
+      setLoading(false); // Only reveals the page once the fetch is completely finished
     }
   }, []);
 
@@ -77,20 +81,20 @@ const Profile: React.FC = () => {
     }
   };
 
-  // ── 4. TOGGLE & SAVE THEME TO DATABASE (🛡️ ZERO TRUST FIXED) ──
+  // ── 4. TOGGLE & SAVE THEME TO DATABASE ──
   const handleThemeChange = async (newTheme: 'light' | 'dark') => {
-    if (theme === newTheme) return; // Prevent unnecessary API calls
+    if (theme === newTheme) return; 
 
     // 1. Instantly update UI
     setTheme(newTheme);
     document.documentElement.setAttribute('data-theme', newTheme);
     localStorage.setItem('sb_theme', newTheme);
 
-    // 2. Send permanent update to the backend using the secure cookie
+    // 2. Send permanent update to the backend
     try {
       await fetch(`${API_BASE_URL}/accounts/theme`, {
         method: 'PATCH',
-        credentials: 'include', // <-- Replaces the manual token fetch
+        credentials: 'include', 
         headers: {
           'Content-Type': 'application/json'
         },
@@ -112,7 +116,31 @@ const Profile: React.FC = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const avatarLetter = loading ? '…' : (formData.fullName || '?').charAt(0).toUpperCase();
+  // ── 5. THE "FETCH FIRST" GUARDS ──
+
+  // Guard 1: Still fetching initial data
+  if (loading && !formData.fullName) {
+    return (
+      <div className="PF_LOADING_SCREEN">
+        <div className="PF_SPINNER"></div>
+        <p>Syncing Profile Data...</p>
+      </div>
+    );
+  }
+
+  // Guard 2: Critical failure (like missing ID or server down completely)
+  if (error && !formData.fullName) {
+    return (
+      <div className="PF_CRITICAL_ERROR">
+         <h2>System Error</h2>
+         <p>{error}</p>
+         <button onClick={() => window.location.reload()}>Retry</button>
+      </div>
+    );
+  }
+
+  // ── 6. MAIN RENDER ──
+  const avatarLetter = (formData.fullName || '?').charAt(0).toUpperCase();
 
   return (
     <div className="PF_WIDE_CONTAINER">
@@ -123,6 +151,7 @@ const Profile: React.FC = () => {
         <p>Manage your account settings and system preferences.</p>
       </header>
 
+      {/* Soft Error Banner (if error happens AFTER initial load) */}
       {error && (
         <div className="PF_ERROR_BANNER">
           <i className="fas fa-exclamation-triangle" /> {error}
@@ -144,7 +173,7 @@ const Profile: React.FC = () => {
             </div>
             <div className="PF_USER_INFO">
               <h2 className="PF_USER_DISPLAY_NAME">
-                {loading ? 'Syncing…' : (formData.fullName || '—')}
+                {formData.fullName || '—'}
               </h2>
               <span className="PF_USER_DISPLAY_ROLE">
                 {String(formData.role).toUpperCase()}
@@ -255,7 +284,6 @@ const Profile: React.FC = () => {
               onClick={() => handleThemeChange('dark')}
             >
               <div className="PF_THEME_PREVIEW">
-                {/* DARK_WINDOW class makes the mock render in dark colors */}
                 <div className="PF_MOCK_WINDOW DARK_WINDOW">
                   <div className="PF_MOCK_SIDEBAR">
                     <div className="PF_MOCK_SIDEBAR_DOT" />

@@ -10,12 +10,10 @@ export interface IResident {
   firstName: string;
   middleName: string;
   sex: 'Male' | 'Female';
-  genderIdentity: 'MEN' | 'WOMEN' | 'LGBTQ+' | string; // Updated types
   dob: string; 
   birthCountry: string;
   birthProvince: string;
   birthCity: string;
-  birthBarangay: string;
   birthPlace: string; 
   civilStatus: string;
   nationality: string;
@@ -45,8 +43,8 @@ export interface IResident {
 // HOTFIX 1: Sync the initial state values to be UPPERCASE
 const initialState: IResident = {
   lastName: '', firstName: '', middleName: '',
-  sex: 'Male', genderIdentity: 'MEN', dob: '', 
-  birthCountry: 'PHILIPPINES', birthProvince: '', birthCity: '', birthBarangay: '',
+  sex: 'Male', dob: '', 
+  birthCountry: 'PHILIPPINES', birthProvince: '', birthCity: '',
   birthPlace: '', nationality: 'FILIPINO', religion: 'ROMAN CATHOLIC', contact_number: '09', email: '', 
   currentAddress: '', purok: '', civilStatus: 'SINGLE',
   education: 'NONE', employment: '', employmentStatus: 'UNEMPLOYED', occupation: '', 
@@ -70,11 +68,11 @@ export const ResidentModal: React.FC<{
   const [customFields, setCustomFields] = useState<Record<string, boolean>>({});
 
   const [search, setSearch] = useState({
-    day: '', month: '', year: '', country: 'PHILIPPINES', province: '', city: '', brgy: '', nationality: 'FILIPINO'
+    day: '', month: '', year: '', country: 'PHILIPPINES', province: '', city: '', nationality: 'FILIPINO'
   });
 
   const dateRefs = { day: useRef<HTMLDivElement>(null), month: useRef<HTMLDivElement>(null), year: useRef<HTMLDivElement>(null) };
-  const locRefs = { country: useRef<HTMLDivElement>(null), prov: useRef<HTMLDivElement>(null), city: useRef<HTMLDivElement>(null), brgy: useRef<HTMLDivElement>(null), nat: useRef<HTMLDivElement>(null) };
+  const locRefs = { country: useRef<HTMLDivElement>(null), prov: useRef<HTMLDivElement>(null), city: useRef<HTMLDivElement>(null), nat: useRef<HTMLDivElement>(null) };
 
   const months = useMemo(() => Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, '0')), []);
   const days = useMemo(() => Array.from({ length: 31 }, (_, i) => (i + 1).toString().padStart(2, '0')), []);
@@ -90,20 +88,17 @@ export const ResidentModal: React.FC<{
         let pCountry = residentData.birthCountry || rawDB.birth_country || 'PHILIPPINES';
         let pProv = residentData.birthProvince || rawDB.birth_province || '';
         let pCity = residentData.birthCity || rawDB.birth_city || '';
-        let pBrgy = residentData.birthBarangay || rawDB.birth_barangay || '';
         let pPlace = residentData.birthPlace || rawDB.birth_place || '';
 
         if (pPlace && (!pProv || !pCity)) {
           const parts = pPlace.split(',').map((s: string) => s.trim().toUpperCase());
-          if (parts.length >= 4) {
+          if (parts.length >= 3) {
             pCountry = parts[0];
             pProv = parts[1];
             pCity = parts[2];
-            pBrgy = parts[3];
-          } else if (parts.length === 3) {
+          } else if (parts.length === 2) {
             pProv = parts[0];
             pCity = parts[1];
-            pBrgy = parts[2];
           }
         }
 
@@ -120,27 +115,24 @@ export const ResidentModal: React.FC<{
           country: pCountry,
           province: pProv.toUpperCase(),
           city: pCity.toUpperCase(),
-          brgy: pBrgy.toUpperCase(),
           nationality: residentData.nationality || 'FILIPINO'
         });
 
         const standardReligion = ["ROMAN CATHOLIC", "ISLAM", "IGLESIA NI CRISTO"];
         const standardCivil = ["SINGLE", "MARRIED", "WIDOWED", "SEPARATED"];
-        const standardGender = ["MEN", "WOMEN", "LGBTQ+"];
         const standardEdu = ["NONE", "ELEMENTARY", "HIGH SCHOOL", "COLLEGE", "POST-GRAD"];
         const standardEmp = ["UNEMPLOYED", "FULL-TIME", "PART-TIME", "SELF-EMPLOYED", "STUDENT"];
 
         const customObj: Record<string, boolean> = {};
         if (residentData.religion && !standardReligion.includes(residentData.religion.toUpperCase())) customObj.religion = true;
         if (residentData.civilStatus && !standardCivil.includes(residentData.civilStatus.toUpperCase())) customObj.civilStatus = true;
-        if (residentData.genderIdentity && !standardGender.includes(residentData.genderIdentity.toUpperCase())) customObj.genderIdentity = true;
         if (residentData.education && !standardEdu.includes(residentData.education.toUpperCase())) customObj.education = true;
         if (residentData.employmentStatus && !standardEmp.includes(residentData.employmentStatus.toUpperCase())) customObj.employmentStatus = true;
         
         setCustomFields(customObj);
       } else {
         setFormData(initialState);
-        setSearch({ day: '', month: '', year: '', country: 'PHILIPPINES', province: '', city: '', brgy: '', nationality: 'FILIPINO' });
+        setSearch({ day: '', month: '', year: '', country: 'PHILIPPINES', province: '', city: '', nationality: 'FILIPINO' });
         setCustomFields({});
       }
       setErrors({});
@@ -159,19 +151,13 @@ export const ResidentModal: React.FC<{
   const availableCountries = useMemo(() => PGSU.getCountries(), []);
   const availableProvinces = useMemo(() => PGSU.getProvinces(), []);
   const availableCities = useMemo(() => PGSU.getCities(search.province), [search.province]);
-  const availableBrgys = useMemo(() => PGSU.getBarangays(search.city), [search.city]);
 
   const filterLimit = (list: string[], term: string) => list.filter(i => i.toLowerCase().includes(term.toLowerCase())).slice(0, 20);
 
-  const filteredBrgyList = useMemo(() => {
-    if (!search.brgy) return availableBrgys.slice(0, 20);
-    return filterLimit(availableBrgys, search.brgy);
-  }, [availableBrgys, search.brgy]);
-
   const handleLocSearchChange = (field: string, val: string) => {
     const upper = val.toUpperCase();
-    if (field === 'province') setSearch(s => ({ ...s, province: upper, city: '', brgy: '' }));
-    else if (field === 'city') setSearch(s => ({ ...s, city: upper, brgy: '' }));
+    if (field === 'province') setSearch(s => ({ ...s, province: upper, city: '' }));
+    else if (field === 'city') setSearch(s => ({ ...s, city: upper }));
     else setSearch(s => ({ ...s, [field]: upper }));
   };
 
@@ -179,16 +165,16 @@ export const ResidentModal: React.FC<{
     if (search.day && search.month && search.year) {
       setFormData(prev => ({ ...prev, dob: `${search.year}-${search.month}-${search.day}` }));
     }
-    const full = `${search.country}, ${search.province}, ${search.city}, ${search.brgy}`.toUpperCase();
+    const full = [search.country, search.province, search.city].filter(Boolean).join(', ').toUpperCase();
     setFormData(prev => ({ 
       ...prev, birthCountry: search.country, birthProvince: search.province, 
-      birthCity: search.city, birthBarangay: search.brgy, birthPlace: full, nationality: search.nationality 
+      birthCity: search.city, birthPlace: full, nationality: search.nationality 
     }));
   }, [search]);
 
   const handleChange = (field: keyof IResident, value: any) => {
     let v = value;
-    const uppers = ['lastName', 'firstName', 'middleName', 'currentAddress', 'occupation', 'employment', 'pwdIdNumber', 'seniorIdNumber', 'fourPsIdNumber', 'soloParentIdNumber', 'voterIdNumber', 'religion', 'civilStatus', 'genderIdentity', 'education', 'employmentStatus'];
+    const uppers = ['lastName', 'firstName', 'middleName', 'currentAddress', 'occupation', 'employment', 'pwdIdNumber', 'seniorIdNumber', 'fourPsIdNumber', 'soloParentIdNumber', 'voterIdNumber', 'religion', 'civilStatus', 'education', 'employmentStatus'];
     if (uppers.includes(field)) v = String(value).toUpperCase();
 
     if (v === 'OTHERS') {
@@ -218,12 +204,10 @@ export const ResidentModal: React.FC<{
       LAST_NAME: formData.lastName,
       MIDDLE_NAME: formData.middleName,
       SEX: formData.sex,
-      GENDER_IDENTITY: formData.genderIdentity,
       DOB: formData.dob,
       BIRTH_COUNTRY: formData.birthCountry,
       BIRTH_PROVINCE: formData.birthProvince,
       BIRTH_CITY: formData.birthCity,
-      BIRTH_BARANGAY: formData.birthBarangay,
       BIRTH_PLACE: formData.birthPlace,
       NATIONALITY: formData.nationality,
       RELIGION: formData.religion,
@@ -343,22 +327,6 @@ export const ResidentModal: React.FC<{
                   </div>
                   {errors.birthCity && <span className="RMS_ERROR_TXT">{errors.birthCity}</span>}
                 </div>
-                <div className="RMS_GROUP" ref={locRefs.brgy}>
-                  <label className="RMS_LABEL">BARANGAY OF BIRTH</label>
-                  <div className="RMS_SEARCH_SELECT_WRAP">
-                    <input className="RMS_INPUT" placeholder={search.city ? "SEARCH BRGY..." : "SELECT CITY"} value={search.brgy} onFocus={() => setVisibleList('brgy')} onChange={e => handleLocSearchChange('brgy', e.target.value)} disabled={!search.city} />
-                    {visibleList === 'brgy' && (
-                      <ul className="RMS_SEARCH_RESULTS">
-                        {filteredBrgyList.length > 0 ? (
-                          filteredBrgyList.map(b => <li key={b} onClick={() => {handleLocSearchChange('brgy', b); setVisibleList(null);}}>{b}</li>)
-                        ) : (
-                          <li style={{padding: '10px', color: '#94a3b8', fontSize: '0.7rem', textAlign: 'center'}}>NO BARANGAYS FOUND</li>
-                        )}
-                      </ul>
-                    )}
-                  </div>
-                  {errors.birthBarangay && <span className="RMS_ERROR_TXT">{errors.birthBarangay}</span>}
-                </div>
 
                 <div className="RMS_GROUP">
                   <label className="RMS_LABEL">SEX *</label>
@@ -405,20 +373,6 @@ export const ResidentModal: React.FC<{
                     </select>
                   )}
                 </div>
-
-                <div className="RMS_GROUP">
-                  <label className="RMS_LABEL">GENDER IDENTITY</label>
-                  {customFields.genderIdentity ? (
-                    <input className="RMS_INPUT" autoFocus placeholder="SPECIFY GENDER..." value={formData.genderIdentity} onChange={e => handleChange('genderIdentity', e.target.value)} onBlur={() => handleCustomBlur('genderIdentity')} />
-                  ) : (
-                    <select className="RMS_INPUT" value={formData.genderIdentity} onChange={e => handleChange('genderIdentity', e.target.value)}>
-                      <option value="MEN">Men</option>
-                      <option value="WOMEN">Women</option>
-                      <option value="LGBTQ+">LGBTQ+</option>
-                      <option value="OTHERS">OTHERS (SPECIFY)</option>
-                    </select>
-                  )}
-                </div>
               </div>
             </div>
 
@@ -427,7 +381,7 @@ export const ResidentModal: React.FC<{
               <div className="RMS_SEC_TITLE">Socio-Economic Profile</div>
               <div className="RMS_GRID">
                 <div className="RMS_GROUP">
-                  <label className="RMS_LABEL">HIGHEST EDUCATION</label>
+                  <label className="RMS_LABEL">EDUCATIONAL ATTAINMENT</label>
                   {customFields.education ? (
                     <input className="RMS_INPUT" autoFocus placeholder="SPECIFY EDUCATION..." value={formData.education} onChange={e => handleChange('education', e.target.value)} onBlur={() => handleCustomBlur('education')} />
                   ) : (

@@ -34,7 +34,7 @@
     --ACC-text-main: #0f172a;
     --ACC-text-body: #334155;
     --ACC-text-sub: #64748b;
-    --ACC-text-ghost: #94a3b8;
+    --ACC-text-ghost: #0c1829;
 
     /* Semantic Accents */
     --ACC-clr-primary: #2563eb;
@@ -403,7 +403,7 @@
 ::-webkit-scrollbar-thumb { background: var(--ACC-border-hard); border-radius: 10px; }
 
 .ACC_EMPTY_STATE { text-align: center; padding: 6rem 0; color: var(--ACC-text-ghost); font-style: italic; }
-.ACC_TEXT_MUTED { color: var(--ACC-text-ghost); font-weight: 500; }
+.ACC_TEXT_MUTED { color: var(--ACC-text-ghost); font-weight: 500; font-size: 18px; }
 
 @media (max-width: 1100px) {
     .ACC_STATS_PANEL { grid-template-columns: repeat(2, 1fr); }

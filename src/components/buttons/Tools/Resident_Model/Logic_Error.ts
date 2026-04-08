@@ -1,7 +1,7 @@
 import { type IResident } from '../../Resident_modal'; 
 
 /**
- * Logic_error.ts - THE VALIDATION ENGINE (ALL-CAPS EDITION)
+ * Logic_Error.ts - THE VALIDATION ENGINE (ALL-CAPS EDITION)
  * Exhaustive validation for Identity, Cascading Locations, and Special Classifications.
  */
 
@@ -51,7 +51,7 @@ export const validateResidentForm = (data: IResident): Record<string, string> =>
     errors.birthCountry = "COUNTRY OF BIRTH IS REQUIRED.";
   }
 
-  // If Philippines is selected, Province, City, and Barangay become mandatory
+  // If Philippines is selected, Province and City become mandatory (Barangay removed)
   if (data.birthCountry === "PHILIPPINES") {
     if (!data.birthProvince.trim()) {
       errors.birthProvince = "PROVINCE IS REQUIRED.";
@@ -59,21 +59,18 @@ export const validateResidentForm = (data: IResident): Record<string, string> =>
     if (!data.birthCity.trim()) {
       errors.birthCity = "CITY/MUNICIPALITY IS REQUIRED.";
     }
-    if (!data.birthBarangay.trim()) {
-      errors.birthBarangay = "BARANGAY IS REQUIRED.";
-    }
   }
 
   // 4. CONTACT & EMAIL
-    const phoneRegex = /^09\d{9}$/;
+  const phoneRegex = /^09\d{9}$/;
 
-if (!data.contact_number || data.contact_number.trim() === "" || data.contact_number === "09") {
-  // Trigger if empty or just the default "09" prefix
-  errors.contact_number = "CONTACT NUMBER IS REQUIRED.";
-} else if (!phoneRegex.test(data.contact_number)) {
-  // Trigger if it doesn't match exactly 09 + 9 digits (Total 11)
-  errors.contact_number = "INVALID FORMAT: MUST BE EXACTLY 11 DIGITS (E.G. 09123456789).";
-}
+  if (!data.contact_number || data.contact_number.trim() === "" || data.contact_number === "09") {
+    // Trigger if empty or just the default "09" prefix
+    errors.contact_number = "CONTACT NUMBER IS REQUIRED.";
+  } else if (!phoneRegex.test(data.contact_number)) {
+    // Trigger if it doesn't match exactly 09 + 9 digits (Total 11)
+    errors.contact_number = "INVALID FORMAT: MUST BE EXACTLY 11 DIGITS (E.G. 09123456789).";
+  }
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (data.email && !emailRegex.test(data.email)) {

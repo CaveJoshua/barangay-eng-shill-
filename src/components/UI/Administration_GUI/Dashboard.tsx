@@ -126,7 +126,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
     { name: 'Residents',          icon: 'fas fa-users' },
     { name: 'Household',          icon: 'fas fa-home' },
     { name: 'Document',           icon: 'fas fa-file-alt' },
-    { name: 'Blotter Cases',      icon: 'fas fa-gavel' },
+    { name: 'Incident Reports',   icon: 'fas fa-gavel' },
     { name: 'Archive',            icon: 'fas fa-archive' },
     { name: 'Audit Log',          icon: 'fas fa-clipboard-list' },
     { name: 'Account Management', icon: 'fas fa-user-cog' },
@@ -139,7 +139,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
       
       // ─── 🛡️ THE FIX: String matching and Prop passing ───
       case 'Notification Center': return <NotificationSystem onNavigate={handleNavigation} />; 
-      case 'Blotter Cases':       return <BlotterPage highlightId={highlightId} />;
+      case 'Incident Reports':    return <BlotterPage highlightId={highlightId} />;
       case 'Document':            return <DocumentsPage highlightId={highlightId} />;
       
       case 'My Profile':          return <div className="DS_CONTAINER"><Profile /></div>;
@@ -159,8 +159,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
       {/* ─── SIDEBAR ─── */}
       <aside className="FRAME_SIDEBAR">
         <div className="FRAME_LOGO_AREA">
-          <i className="fas fa-landmark FRAME_LOGO_ICON" />
-          <h2 className="FRAME_LOGO_TEXT">Smart Barangay</h2>
+          <h2 className="FRAME_LOGO_TEXT">Barangay Engineer's Hill</h2>
         </div>
         <nav className="FRAME_NAV_AREA">
           {menuItems.map((item, index) => (
@@ -175,7 +174,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
           ))}
         </nav>
         <div className="FRAME_FOOTER">
-          <span className="FRAME_VERSION_TEXT">v1.5.0 Engineers Hill</span>
+          <span className="FRAME_VERSION_TEXT">Smart Barangay</span>
         </div>
       </aside>
 

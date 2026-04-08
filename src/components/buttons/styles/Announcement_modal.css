@@ -98,7 +98,7 @@
 }
 
 .AM_GROUP label {
-  font-size: 0.7rem;
+  font-size: 1rem;
   font-weight: 800;
   color: var(--am-slate-700);
   text-transform: uppercase;

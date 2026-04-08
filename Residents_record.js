@@ -123,7 +123,7 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                 return res.status(409).json({ error: duplicateError });
             }
 
-            // Step A: Insert Profile
+            // Step A: Insert Profile (Aligned with Frontend Model)
             const { data: profile, error: profileError } = await supabase
                 .from('residents_records')
                 .insert([{
@@ -131,12 +131,10 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                     middle_name: r.MIDDLE_NAME || r.MIDDLENAME,
                     last_name: r.LAST_NAME || r.LASTNAME,
                     sex: r.SEX,
-                    gender_identity: r.GENDER_IDENTITY || r.GENDERIDENTITY,
                     dob: r.DOB,
                     birth_country: r.BIRTH_COUNTRY || r.BIRTHCOUNTRY || 'PHILIPPINES',
                     birth_province: r.BIRTH_PROVINCE || r.BIRTHPROVINCE,
                     birth_city: r.BIRTH_CITY || r.BIRTHCITY,
-                    birth_barangay: r.BIRTH_BARANGAY || r.BIRTHBARANGAY,
                     birth_place: r.BIRTH_PLACE || r.BIRTHPLACE, 
                     nationality: r.NATIONALITY,
                     religion: r.RELIGION,
@@ -198,7 +196,7 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
     });
 
     // =========================================================
-    // 4. PUT: UPDATE (With Anti-Duplicate Edit Protection)
+    // 4. PUT: UPDATE (Fully Expanded & Aligned)
     // =========================================================
     router.put('/residents/:id', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff']), async (req, res) => {
         try {
@@ -212,16 +210,38 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
             }
 
             const updates = {
-                first_name: r.FIRST_NAME || r.FIRSTNAME || r.first_name,
-                middle_name: r.MIDDLE_NAME || r.MIDDLENAME || r.middle_name,
-                last_name: r.LAST_NAME || r.LASTNAME || r.last_name,
+                first_name: r.FIRST_NAME || r.first_name,
+                middle_name: r.MIDDLE_NAME || r.middle_name,
+                last_name: r.LAST_NAME || r.last_name,
                 sex: r.SEX || r.sex,
                 dob: r.DOB || r.dob,
-                contact_number: r.CONTACT_NUMBER || r.CONTACTNUMBER || r.contact_number,
+                birth_country: r.BIRTH_COUNTRY || r.birth_country,
+                birth_province: r.BIRTH_PROVINCE || r.birth_province,
+                birth_city: r.BIRTH_CITY || r.birth_city,
+                birth_place: r.BIRTH_PLACE || r.birth_place,
+                nationality: r.NATIONALITY || r.nationality,
+                religion: r.RELIGION || r.religion,
+                contact_number: r.CONTACT_NUMBER || r.contact_number,
                 email: r.EMAIL || r.email,
+                current_address: r.CURRENT_ADDRESS || r.current_address,
                 purok: r.PUROK || r.purok,
-                activity_status: r.ACTIVITY_STATUS || r.ACTIVITYSTATUS || r.activity_status
-                // ... add other fields as needed
+                civil_status: r.CIVIL_STATUS || r.civil_status,
+                education: r.EDUCATION || r.education,
+                employment: r.EMPLOYMENT || r.employment,
+                employment_status: r.EMPLOYMENT_STATUS || r.employment_status,
+                occupation: r.OCCUPATION || r.occupation,
+                is_voter: r.IS_VOTER ?? r.is_voter,
+                is_pwd: r.IS_PWD ?? r.is_pwd,
+                is_4ps: r.IS_4PS ?? r.is_4ps,
+                is_solo_parent: r.IS_SOLO_PARENT ?? r.is_solo_parent,
+                is_senior_citizen: r.IS_SENIOR_CITIZEN ?? r.is_senior_citizen,
+                is_ip: r.IS_IP ?? r.is_ip,
+                voter_id_number: r.VOTER_ID_NUMBER || r.voter_id_number,
+                pwd_id_number: r.PWD_ID_NUMBER || r.pwd_id_number,
+                solo_parent_id_number: r.SOLO_PARENT_ID_NUMBER || r.solo_parent_id_number,
+                senior_id_number: r.SENIOR_ID_NUMBER || r.senior_id_number,
+                four_ps_id_number: r.FOUR_PS_ID_NUMBER || r.four_ps_id_number,
+                activity_status: r.ACTIVITY_STATUS || r.activity_status
             };
 
             // Clean undefined values

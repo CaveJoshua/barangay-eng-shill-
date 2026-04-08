@@ -1,5 +1,5 @@
 /**
- * api.ts - THE MASTERMIND (V6.0 - ZERO TRUST ARCHITECTURE)
+ * api.ts - THE MASTERMIND (V6.1 - ZERO TRUST + DUAL SERVER FAIL-SAFE)
  * ────────────────────────────────────────────────────────
  * Features:
  * - Bearer Token Header Injection (Bypasses 3rd-Party Cookie Blocks)
@@ -7,9 +7,25 @@
  * - Direct-Link Handshake for Notifications
  * - Silent Token Rotation & Anti-CSRF Injection
  * - Automatic 401 Session Cleanup
+ * - 🛡️ DUAL-SERVER FAIL-SAFE (Auto-routes to Cloud if Local dies)
  */
 
-export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+// ── 🛡️ FAIL-SAFE CONFIGURATION ──
+export const PRIMARY_API_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+export const CLOUD_API_URL = (import.meta.env.VITE_API_BASE_URL_CLOUD || '').replace(/\/$/, '');
+
+// Default to primary
+export const API_BASE_URL = PRIMARY_API_URL; 
+
+let isFailoverActive = false;
+
+// Intercepts URLs and rewrites them if the local server crashes
+const getActiveUrl = (originalUrl: string) => {
+    if (isFailoverActive && CLOUD_API_URL) {
+        return originalUrl.replace(PRIMARY_API_URL, CLOUD_API_URL);
+    }
+    return originalUrl;
+};
 
 /**
  * ==========================================
@@ -65,7 +81,6 @@ export const getAuthHeaders = (isFormData = false, method = 'GET') => {
     if (!isFormData) headers['Content-Type'] = 'application/json';
 
     // 🛡️ THE BULLETPROOF FIX: Attach Token directly to Headers
-    // This entirely bypasses Chrome's strict third-party cookie blocking.
     const token = localStorage.getItem('access_token');
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
@@ -79,8 +94,6 @@ export const getAuthHeaders = (isFormData = false, method = 'GET') => {
 
     return headers;
 };
-
-
 
 
 /**
@@ -113,13 +126,13 @@ const attemptSilentRefresh = async (): Promise<boolean> => {
     if (isRefreshing && refreshPromise) return refreshPromise;
 
     isRefreshing = true;
-    refreshPromise = fetch(REFRESH_API, {
+    // 🛡️ Uses getActiveUrl just in case we are in failover mode
+    refreshPromise = fetch(getActiveUrl(REFRESH_API), {
         method: 'POST',
         credentials: 'include', 
         headers: { 'Content-Type': 'application/json' }
     }).then(async (res) => {
         isRefreshing = false;
-        // If refresh gives a new token, update it in localStorage
         if (res.ok) {
             const contentType = res.headers.get("content-type");
             if (contentType && contentType.includes("application/json")) {
@@ -145,11 +158,13 @@ const attemptSilentRefresh = async (): Promise<boolean> => {
 
 // VALVE: For GET requests
 const valveFetch = async (url: string, signal?: AbortSignal, isRetry = false): Promise<any> => {
+    const targetUrl = getActiveUrl(url); // 🛡️ Reroutes if failover is active
+
     try {
-        const response = await fetch(url, {
+        const response = await fetch(targetUrl, {
             method: 'GET',
             headers: getAuthHeaders(false, 'GET'),
-            credentials: 'include', // Keep as fallback for Safari/Firefox
+            credentials: 'include', 
             signal: signal
         });
 
@@ -180,7 +195,7 @@ const valveFetch = async (url: string, signal?: AbortSignal, isRetry = false): P
             return null;
         }
         
-        // 🛡️ SAFE PARSING: Prevent HTML crash if the server returns a 404 page
+        // 🛡️ SAFE PARSING
         const contentType = response.headers.get("content-type");
         if (contentType && contentType.includes("application/json")) {
             return await response.json();
@@ -190,6 +205,14 @@ const valveFetch = async (url: string, signal?: AbortSignal, isRetry = false): P
         }
     } catch (err: any) {
         if (err.name === 'AbortError') return null;
+
+        // 🛡️ THE FAIL-SAFE TRIGGER: Network crash detected
+        if (!isFailoverActive && CLOUD_API_URL && (err.message.includes('Failed to fetch') || err.name === 'TypeError')) {
+            console.warn(`[FAIL-SAFE] Primary server down! Rerouting to Cloud Server...`);
+            isFailoverActive = true; 
+            return valveFetch(url, signal, isRetry); // Instantly retry
+        }
+
         console.error("[VALVE ERROR]", err.message);
         return null; 
     }
@@ -197,10 +220,12 @@ const valveFetch = async (url: string, signal?: AbortSignal, isRetry = false): P
 
 // TRIGGER: For PATCH, POST, DELETE, PUT
 const triggerAction = async (url: string, method: 'POST' | 'PATCH' | 'PUT' | 'DELETE', body?: any, isRetry = false): Promise<any> => {
+    const targetUrl = getActiveUrl(url); // 🛡️ Reroutes if failover is active
+
     try {
         const isFormData = body instanceof FormData;
 
-        const response = await fetch(url, {
+        const response = await fetch(targetUrl, {
             method: method,
             headers: getAuthHeaders(isFormData, method),
             credentials: 'include',
@@ -228,7 +253,7 @@ const triggerAction = async (url: string, method: 'POST' | 'PATCH' | 'PUT' | 'DE
             return { success: false, error: "Security Policy Violation: You do not have permission for this action." };
         }
 
-        // 🛡️ SAFE PARSING: Prevent HTML crash on backend errors
+        // 🛡️ SAFE PARSING
         const contentType = response.headers.get("content-type");
         let data;
         if (contentType && contentType.includes("application/json")) {
@@ -241,6 +266,13 @@ const triggerAction = async (url: string, method: 'POST' | 'PATCH' | 'PUT' | 'DE
         
         return { success: true, data };
     } catch (err: any) {
+        // 🛡️ THE FAIL-SAFE TRIGGER FOR MUTATIONS
+        if (!isFailoverActive && CLOUD_API_URL && (err.message.includes('Failed to fetch') || err.name === 'TypeError')) {
+            console.warn(`[FAIL-SAFE] Primary server down! Rerouting Action to Cloud Server...`);
+            isFailoverActive = true; 
+            return triggerAction(url, method, body, isRetry); // Instantly retry
+        }
+
         console.error(`[TRIGGER ERROR - ${method}]`, err.message);
         return { success: false, error: err.message };
     }
@@ -330,12 +362,10 @@ export const ApiService = {
     getAnalytics: (signal?: AbortSignal) => valveFetch(ANALYTICS_API, signal),
 
     // --- 🔔 RECTO NOTIFICATIONS MODULE ---
-    // 🛡️ THE ONLY CHANGE: Points to NOTIF_LIVE_API to match backend /alerts/live
     getNotifications: (signal?: AbortSignal) => valveFetch(NOTIF_LIVE_API, signal),
     markNotificationRead: (id: string) => triggerAction(`${NOTIFICATION_API}/${id}/read`, 'PUT'),
     markAllNotificationsRead: () => triggerAction(`${NOTIFICATION_API}/read-all`, 'PUT'),
     
-    // (Legacy direct-link alerts preserved for compatibility)
     getNotificationMarker: () => valveFetch(NOTIF_MARKER_API),
     getNotificationCount: () => valveFetch(NOTIF_COUNT_API),
 };
