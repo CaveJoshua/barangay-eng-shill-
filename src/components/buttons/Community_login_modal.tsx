@@ -90,9 +90,16 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
       const needsReset = data.requires_reset || data.user?.requires_reset || data.profile?.is_first_login;
       const sessionData = { ...data, requires_reset: needsReset };
 
-      // 🛡️ ZERO TRUST UPDATE: 
-      // We ONLY store non-sensitive UI state here. 
-      // The actual JWT is now locked inside the browser's HttpOnly cookie vault.
+      // 🛡️ ZERO TRUST FIX: 
+      // We MUST explicitly save the access token using the exact key 'api.ts' expects.
+      // This handles both 'data.token' or 'data.access_token' depending on how your backend sends it.
+      const actualToken = data.token || data.access_token;
+      if (actualToken) {
+          localStorage.setItem('access_token', actualToken);
+      } else {
+          console.warn("No token received from backend!");
+      }
+
       localStorage.setItem('user_role', 'resident');
       localStorage.setItem('resident_session', JSON.stringify(sessionData));
 

@@ -33,6 +33,7 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   } = useDashboardLogic(onLogout);
 
   const [currentView, setCurrentView] = useState<DashboardView>('Announcements');
+  // 🛡️ FIXED TYPO HERE: Changed 'useState' to 'setIsProfileOpen'
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [mustResetPassword, setMustResetPassword] = useState(false);
   const [bulletinCategory, setBulletinCategory] = useState<string>('All');
@@ -229,7 +230,7 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                 onClick={() => navigateTo(view)}
                 disabled={mustResetPassword}
               >
-                {view === 'Announcements' ? 'Bulletin' : view}
+                {view === 'Announcements' ? 'Bulletin' : view === 'Blotter' ? 'Incident Report' : view}
               </button>
             ))}
           </div>
@@ -291,7 +292,7 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
           disabled={mustResetPassword}
         >
           <i className="fas fa-gavel" />
-          <span>Blotter</span>
+          <span>Incident Report</span>
         </button>
         <button 
           className={currentView === 'Documents' && !isProfileOpen ? 'ACTIVE' : ''} 

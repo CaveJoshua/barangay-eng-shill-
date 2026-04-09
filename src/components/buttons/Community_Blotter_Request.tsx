@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import './styles/Community_Blotter_Request.css';
+import './styles/Blotter_modal.css'; // Updated CSS import
 import { ApiService } from '../UI/api'; 
 
 // ─── INTERFACES ─────────────────────────────────────────────────────────
@@ -85,7 +85,7 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
       const year = new Date().getFullYear();
       const uniqueHash = Math.random().toString(36).substring(2, 6).toUpperCase();
       const timeStamp = Date.now().toString().slice(-4);
-      const generatedCaseNum = `INCD-${year}-${timeStamp}-${uniqueHash}`; // Changed prefix to INCD
+      const generatedCaseNum = `INCD-${year}-${timeStamp}-${uniqueHash}`;
 
       // Map payload to Backend schema
       const payload = {
@@ -124,41 +124,41 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
   const isNextDisabled = !formData.respondent.trim() || (step === 2 && !formData.narrative.trim());
 
   return (
-    <div className="CBR_OVERLAY">
-      <div className="CBR_MODAL">
+    <div className="CIR_OVERLAY">
+      <div className="CIR_MODAL">
         
         {/* HEADER */}
-        <div className="CBR_HEADER">
-          <div className="CBR_HEADER_TEXT">
+        <div className="CIR_HEADER">
+          <div className="CIR_HEADER_TEXT">
               <h3>File Incident Report</h3>
               <p>Step {step} of 3: {step === 1 ? 'Parties Involved' : step === 2 ? 'Incident Details' : 'Review & Submit'}</p>
           </div>
-          <button className="CBR_CLOSE_BTN" onClick={onClose}><i className="fas fa-times"></i></button>
+          <button className="CIR_CLOSE_BTN" onClick={onClose}><i className="fas fa-times"></i></button>
         </div>
 
         {/* PROGRESS BAR */}
-        <div className="CBR_PROGRESS">
-           <div className={`CBR_FILL STEP_${step}`}></div>
+        <div className="CIR_PROGRESS">
+           <div className={`CIR_FILL STEP_${step}`}></div>
         </div>
 
         {/* MODAL BODY */}
-        <div className="CBR_BODY">
+        <div className="CIR_BODY">
            
            {/* STEP 1: PARTIES INVOLVED */}
            {step === 1 && (
-             <div className="CBR_STEP_CONTENT">
-                <div className="CBR_FORM_GROUP">
+             <div className="CIR_STEP_CONTENT">
+                <div className="CIR_FORM_GROUP">
                   <label>Complainant (You)</label>
-                  <div className="CBR_READONLY_FIELD">
+                  <div className="CIR_READONLY_FIELD">
                       <i className="fas fa-user-circle"></i>
                       <span>{currentUser?.formattedName || 'Loading...'}</span>
                   </div>
                 </div>
 
-                <div className="CBR_FORM_GROUP">
+                <div className="CIR_FORM_GROUP">
                   <label>Respondent (Person involved/complained against)</label>
                   <input 
-                    className="CBR_INPUT"
+                    className="CIR_INPUT"
                     type="text" 
                     placeholder="Enter full name" 
                     value={formData.respondent}
@@ -166,10 +166,10 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
                   />
                 </div>
 
-                <div className="CBR_FORM_GROUP">
+                <div className="CIR_FORM_GROUP">
                   <label>Nature of Incident</label>
                   <select 
-                    className="CBR_SELECT"
+                    className="CIR_SELECT"
                     value={formData.type}
                     onChange={e => setFormData({...formData, type: e.target.value})}
                   >
@@ -181,21 +181,21 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
 
            {/* STEP 2: INCIDENT DETAILS */}
            {step === 2 && (
-             <div className="CBR_STEP_CONTENT">
-                <div className="CBR_ROW">
-                   <div className="CBR_FORM_GROUP">
+             <div className="CIR_STEP_CONTENT">
+                <div className="CIR_ROW">
+                   <div className="CIR_FORM_GROUP">
                       <label>Date of Incident</label>
                       <input 
-                        className="CBR_INPUT" 
+                        className="CIR_INPUT" 
                         type="date" 
                         value={formData.dateFiled} 
                         onChange={e => setFormData({...formData, dateFiled: e.target.value})} 
                       />
                    </div>
-                   <div className="CBR_FORM_GROUP">
+                   <div className="CIR_FORM_GROUP">
                       <label>Incident Location</label>
                       <select 
-                        className="CBR_SELECT" 
+                        className="CIR_SELECT" 
                         value={formData.purok} 
                         onChange={e => setFormData({...formData, purok: e.target.value})} 
                       >
@@ -205,10 +205,10 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
                       </select>
                    </div>
                 </div>
-                <div className="CBR_FORM_GROUP">
+                <div className="CIR_FORM_GROUP">
                   <label>Narrative (Statement of Facts)</label>
                   <textarea 
-                    className="CBR_TEXTAREA" 
+                    className="CIR_TEXTAREA" 
                     rows={6} 
                     placeholder="Describe exactly what happened..." 
                     value={formData.narrative} 
@@ -220,30 +220,30 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
 
            {/* STEP 3: REVIEW & SUBMIT */}
            {step === 3 && (
-             <div className="CBR_STEP_CONTENT">
-                <div className="CBR_REVIEW_CARD">
-                   <div className="CBR_REVIEW_HEADER">Incident Report Summary</div>
-                   <div className="CBR_REVIEW_BODY">
-                      <div className="CBR_REVIEW_ITEM">
+             <div className="CIR_STEP_CONTENT">
+                <div className="CIR_REVIEW_CARD">
+                   <div className="CIR_REVIEW_HEADER">Incident Report Summary</div>
+                   <div className="CIR_REVIEW_BODY">
+                      <div className="CIR_REVIEW_ITEM">
                         <span>Complainant:</span> 
                         <strong>{currentUser?.formattedName}</strong>
                       </div>
-                      <div className="CBR_REVIEW_ITEM">
+                      <div className="CIR_REVIEW_ITEM">
                         <span>Respondent:</span> 
                         <strong>{formData.respondent.toUpperCase()}</strong>
                       </div>
-                      <div className="CBR_REVIEW_ITEM">
+                      <div className="CIR_REVIEW_ITEM">
                         <span>Type:</span> 
-                        <span className="CBR_TAG">{formData.type}</span>
+                        <span className="CIR_TAG">{formData.type}</span>
                       </div>
-                      <div className="CBR_REVIEW_DIVIDER"></div>
-                      <div className="CBR_REVIEW_ITEM VERTICAL">
+                      <div className="CIR_REVIEW_DIVIDER"></div>
+                      <div className="CIR_REVIEW_ITEM VERTICAL">
                         <span>Statement:</span> 
                         <p>"{formData.narrative}"</p>
                       </div>
                    </div>
                 </div>
-                <div className="CBR_DISCLAIMER">
+                <div className="CIR_DISCLAIMER">
                    <input type="checkbox" id="certify" checked readOnly />
                    <label htmlFor="certify">I certify that the information provided is true and correct.</label>
                 </div>
@@ -252,19 +252,19 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
         </div>
 
         {/* FOOTER CONTROLS */}
-        <div className="CBR_FOOTER">
+        <div className="CIR_FOOTER">
            {step > 1 && (
-             <button className="CBR_BTN_SECONDARY" onClick={handleBack} disabled={isSubmitting}>
+             <button className="CIR_BTN_SECONDARY" onClick={handleBack} disabled={isSubmitting}>
                Back
              </button>
            )}
 
            {step < 3 ? (
-             <button className="CBR_BTN_PRIMARY" onClick={handleNext} disabled={isNextDisabled}>
+             <button className="CIR_BTN_PRIMARY" onClick={handleNext} disabled={isNextDisabled}>
                Next Step <i className="fas fa-arrow-right"></i>
              </button>
            ) : (
-             <button className="CBR_BTN_PRIMARY SUBMIT" onClick={handleSubmit} disabled={isSubmitting}>
+             <button className="CIR_BTN_PRIMARY SUBMIT" onClick={handleSubmit} disabled={isSubmitting}>
                {isSubmitting ? 'Sending...' : 'Submit Report'}
              </button>
            )}

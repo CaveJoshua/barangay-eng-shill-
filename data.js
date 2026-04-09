@@ -27,6 +27,9 @@ import { BlotterRouter } from './Blotter.js';
 import { ProfileRouter } from './Profile.js';
 import { ResidentsLoginRouter } from './Resident_login.js';
 import { NotificationRouter } from './notification.js'; 
+import { CaptchaRouter } from './captcha.js';
+// 🛡️ SECURITY REGULATOR IMPORT
+import { createSecurityRegulator } from './Regulator.js';
 
 dotenv.config();
 
@@ -89,8 +92,8 @@ export const authenticateToken = (req, res, next) => {
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
-        console.error("[AUTH BOUNCER] Token Verification Failed:", err.message);
-        return res.status(403).json({ error: 'Invalid or expired token.' });
+      console.error("[AUTH BOUNCER] Token Verification Failed:", err.message);
+      return res.status(403).json({ error: 'Invalid or expired token.' });
     }
     req.user = user;
     next();
@@ -129,6 +132,12 @@ router.use(cors(corsOptions));
 // 🚨 CRITICAL FIX: Increased limit to 50mb to stop the 500 error when uploading Base64 images
 router.use(express.json({ limit: '50mb' }));
 router.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// ==========================================
+// 2.5 ZERO TRUST SECURITY REGULATOR (IDS/IPS)
+// ==========================================
+// Scans the payload for threats BEFORE it reaches authentication or the database
+router.use(createSecurityRegulator(supabase));
 
 // ==========================================
 // 3. SECURITY HELPERS
@@ -201,6 +210,10 @@ router.post('/login', async (req, res) => {
 // ==========================================
 // 5. INITIALIZE PROTECTED MODULES
 // ==========================================
+// 🛡️ SECURITY MODULES (Must be Public/Outside Auth)
+CaptchaRouter(router, supabase); 
+
+// Core Modules
 NotificationRouter(router, supabase, authenticateToken); 
 HouseholdRouter(router, supabase, authenticateToken);
 ResidentsLoginRouter(router, supabase);

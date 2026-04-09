@@ -2,22 +2,22 @@
  * api.ts — MASTERMIND SERVICE LAYER (V7.1 — PRODUCTION HARDENED)
  * ─────────────────────────────────────────────────────────────────
  * Security model:
- *   • Bearer token via Authorization header
- *     ⚠️  SECURITY NOTE: localStorage is XSS-readable. Migrate to HttpOnly
- *         SameSite=Strict cookie when backend supports it (OWASP 2021+).
- *   • CSRF double-submit cookie for all state-mutating requests
- *   • Silent token rotation with mutex lock (prevents refresh storms)
- *   • Single 401 → refresh → retry cycle per request (no infinite loops)
- *   • Dual-server fail-safe with auto-recovery timer
+ * • Bearer token via Authorization header
+ * ⚠️  SECURITY NOTE: localStorage is XSS-readable. Migrate to HttpOnly
+ * SameSite=Strict cookie when backend supports it (OWASP 2021+).
+ * • CSRF double-submit cookie for all state-mutating requests
+ * • Silent token rotation with mutex lock (prevents refresh storms)
+ * • Single 401 → refresh → retry cycle per request (no infinite loops)
+ * • Dual-server fail-safe with auto-recovery timer
  *
  * Bug fixes over v6.1:
- *   [1] Failover never reset — now auto-recovers after 60 s
- *   [2] Refresh mutex leaked on network throw — fixed with .finally()
- *   [3] No request timeout — added 15 s hard limit via AbortSignal
- *   [4] Fail-safe infinite loop if cloud also down — guarded with isRetry
- *   [5] CSRF cookie value not URI-decoded — fixed
- *   [6] SESSION_KEYS constant for consistent session cleanup
- *   [7] triggerAction gains optional signal param (backward-compatible)
+ * [1] Failover never reset — now auto-recovers after 60 s
+ * [2] Refresh mutex leaked on network throw — fixed with .finally()
+ * [3] No request timeout — added 15 s hard limit via AbortSignal
+ * [4] Fail-safe infinite loop if cloud also down — guarded with isRetry
+ * [5] CSRF cookie value not URI-decoded — fixed
+ * [6] SESSION_KEYS constant for consistent session cleanup
+ * [7] triggerAction gains optional signal param (backward-compatible)
  */
 
 // ── ENVIRONMENT ────────────────────────────────────────────────────────────────
@@ -86,6 +86,9 @@ export const NOTIF_COUNT_API      = `${API_BASE_URL}/alerts/count`;
 export const AUTH_REQUEST_OTP     = `${API_BASE_URL}/auth/request-reset`;
 export const AUTH_VERIFY_OTP      = `${API_BASE_URL}/auth/verify-otp`;
 export const AUTH_PASSWORD_UPDATE = `${API_BASE_URL}/auth/reset-password`;
+
+// 🛡️ CAPTCHA ENDPOINT
+export const CAPTCHA_VERIFY_API   = `${API_BASE_URL}/captcha/verify`;
 
 // ── CSRF HELPER ────────────────────────────────────────────────────────────────
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -200,8 +203,8 @@ const attemptSilentRefresh = (): Promise<boolean> => {
  * With 10 pages polling simultaneously, this caused full app freezes.
  *
  * Returns [signal, cancel]:
- *   signal — fires on the earlier of hard timeout OR caller unmount
- *   cancel — call after a successful response to clear the internal timer
+ * signal — fires on the earlier of hard timeout OR caller unmount
+ * cancel — call after a successful response to clear the internal timer
  */
 const withTimeout = (callerSignal?: AbortSignal): [AbortSignal, () => void] => {
   const controller = new AbortController();
@@ -242,6 +245,13 @@ const valveFetch = async (url: string, signal?: AbortSignal, isRetry = false): P
 
     if (response.status === 403) {
       console.warn(`[RBAC] Access forbidden: ${url}`);
+      return null;
+    }
+
+    // 🛡️ CAPTCHA TRAP
+    if (response.status === 428) {
+      console.warn(`[SECURITY] Bot behavior detected on ${url}. Triggering CAPTCHA...`);
+      window.dispatchEvent(new CustomEvent('trigger-captcha'));
       return null;
     }
 
@@ -322,6 +332,13 @@ const triggerAction = async (
 
     if (response.status === 403) {
       return { success: false, error: 'Access denied. You do not have permission for this action.' };
+    }
+
+    // 🛡️ CAPTCHA TRAP
+    if (response.status === 428) {
+      console.warn(`[SECURITY] Bot behavior detected on ${url}. Triggering CAPTCHA...`);
+      window.dispatchEvent(new CustomEvent('trigger-captcha'));
+      return { success: false, error: 'HUMAN_VERIFICATION_REQUIRED' };
     }
 
     const ct = response.headers.get('content-type') ?? '';
@@ -486,6 +503,10 @@ export const ApiService = {
 
   getAnalytics: (signal?: AbortSignal) =>
     valveFetch(ANALYTICS_API, signal),
+
+  // 🛡️ CAPTCHA VERIFICATION METHOD
+  verifyCaptcha: (token: string) =>
+    triggerAction(CAPTCHA_VERIFY_API, 'POST', { token }),
 
   // ── NOTIFICATIONS ───────────────────────────────────────────────────────────
   getNotifications: (signal?: AbortSignal) =>

@@ -31,7 +31,7 @@ transporter.verify((error, success) => {
 export const sendAutoMail = async (to, subject, title, message) => {
   try {
     await transporter.sendMail({
-      from: `"Smart Barangay" <${process.env.SMTP_USER}>`,
+      from: `"Barangay Engineer's Hill" <${process.env.SMTP_USER}>`,
       to,
       subject: `[NOTICE] ${subject}`,
       html: `

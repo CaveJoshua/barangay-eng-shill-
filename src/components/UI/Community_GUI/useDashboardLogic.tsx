@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ApiService } from '../api'; 
+import { ApiService } from '../api';
 
 export const useDashboardLogic = (onLogout: () => void) => {
   const [resident, setResident] = useState<any>(null);

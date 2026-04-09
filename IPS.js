@@ -1,39 +1,58 @@
-// IPS.js
 import chalk from 'chalk';
-import { logActivity } from './Auditlog.js'; // Assumes you have your existing Audit logger
+import { logActivity } from './Auditlog.js'; 
+import { lockedIPs } from './captcha.js'; 
 
 /**
  * THE REGULATOR (Zero Trust IPS)
- * Intercepts malicious behavior, resolves real client IPs behind proxies,
- * and logs intrusion attempts directly to the database.
+ * Updated for better async handling and debug visibility.
  */
 export const IPS = async (req, res, next, idsReport, supabase) => {
-    // 1. ROBUST IP EXTRACTION (Proxy/Cloudflare Safe)
+    // 1. ROBUST IP EXTRACTION
     const rawIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip;
-    // If multiple IPs are forwarded, the first one is the original client
     const ip = rawIp ? rawIp.split(',')[0].trim() : 'UNKNOWN_IP';
+
+    // DEBUG: This will prove the function is actually running
+    // console.log(chalk.dim(` [DEBUG] IPS evaluating IP: ${ip} | Level: ${idsReport.level}`));
 
     const requestedUrl = req.originalUrl;
     const method = req.method;
-    const incidentId = `INC-${Date.now().toString().slice(-6)}`; // Generates a short trace ID
+    const incidentId = `INC-${Date.now().toString().slice(-6)}`;
+
+    // 🚨 1.5 ENFORCED LOCK CHECK
+    // If they are in the penalty box, don't let them do anything but verify
+    if (lockedIPs.has(ip) && !requestedUrl.includes('/api/captcha/verify')) {
+        return res.status(428).json({ 
+            error: 'HUMAN_VERIFICATION_REQUIRED',
+            message: 'You must complete verification to continue using the system.',
+            incident_id: 'LOCKED'
+        });
+    }
 
     // 2. SOFT LOCK (The Challenge)
     if (idsReport.level === 'CHALLENGE') {
+        // 🔒 LOCK THEM IN MEMORY
+        lockedIPs.add(ip); 
+
         console.log(
             chalk.bgYellow.black(' [IPS CHALLENGE] ') + 
             chalk.yellow(` Soft-locking ${ip} on ${method} ${requestedUrl}. Awaiting CAPTCHA.`)
         );
         
-        // Non-blocking Audit Log to Supabase
+        // Log to Supabase (We await this so the process doesn't die mid-log)
         if (supabase) {
-            logActivity(
-                supabase, 
-                'SYSTEM_FIREWALL', 
-                'IPS_CHALLENGE', 
-                `Suspicious behavior from IP: ${ip} targeting ${requestedUrl}. Incident ID: ${incidentId}`
-            ).catch(err => console.error("Failed to log IPS event:", err.message));
+            try {
+                await logActivity(
+                    supabase, 
+                    'SYSTEM_FIREWALL', 
+                    'IPS_CHALLENGE', 
+                    `Suspicious behavior from IP: ${ip} targeting ${requestedUrl}. Incident ID: ${incidentId}`
+                );
+            } catch (err) {
+                console.error("Supabase Log Failed:", err.message);
+            }
         }
 
+        // Send the "Trap" to the frontend
         return res.status(428).json({ 
             error: 'HUMAN_VERIFICATION_REQUIRED',
             message: 'Our security system detected unusual behavior. Please complete verification to continue.',
@@ -48,14 +67,17 @@ export const IPS = async (req, res, next, idsReport, supabase) => {
             chalk.red(` Hard-blocking ${ip} on ${method} ${requestedUrl}. Reason: ${idsReport.reason || 'Malicious Payload'}`)
         );
 
-        // Non-blocking Audit Log to Supabase
         if (supabase) {
-            logActivity(
-                supabase, 
-                'SYSTEM_FIREWALL', 
-                'IPS_BLOCK', 
-                `Critical intrusion prevented from IP: ${ip} targeting ${requestedUrl}. Reason: ${idsReport.reason}. Incident ID: ${incidentId}`
-            ).catch(err => console.error("Failed to log IPS event:", err.message));
+            try {
+                await logActivity(
+                    supabase, 
+                    'SYSTEM_FIREWALL', 
+                    'IPS_BLOCK', 
+                    `Critical intrusion prevented from IP: ${ip} targeting ${requestedUrl}. Reason: ${idsReport.reason}. Incident ID: ${incidentId}`
+                );
+            } catch (err) {
+                console.error("Supabase Log Failed:", err.message);
+            }
         }
 
         return res.status(403).json({ 

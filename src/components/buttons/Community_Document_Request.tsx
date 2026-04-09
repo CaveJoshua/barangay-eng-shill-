@@ -33,6 +33,9 @@ export default function Community_Document_Request({ isOpen, onClose, onSuccess,
   const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(false);
   const [refNumber, setRefNumber] = useState('');
+  
+  // 🛡️ NEW: State to catch and display backend rejection errors
+  const [fetchError, setFetchError] = useState('');
 
   const [formData, setFormData] = useState({
     docTypeId: '', 
@@ -46,23 +49,33 @@ export default function Community_Document_Request({ isOpen, onClose, onSuccess,
 
     if (isOpen) {
       setStep(1);
+      setFetchError(''); // Reset error state on open
+      
       const fetchDocs = async () => {
         setIsLoadingDocs(true);
         try {
           const data = await ApiService.getDocumentTypes(controller.signal);
-          if (data) {
+          
+          // If data is null, the ApiService Mastermind caught a 401/403 error
+          if (!data) {
+              setFetchError("Session expired or unauthorized. Please close this modal, log out, and log back in.");
+              return;
+          }
+
+          if (data && data.length > 0) {
             const validatedData = data.map((doc: any) => ({
               ...doc,
               icon: doc.id === 'brgy_clearance' ? 'fa-file-contract' : (doc.icon || 'fa-file-alt')
             }));
             
             setDocumentTypes(validatedData);
-            if (validatedData.length > 0) {
-              setFormData(prev => ({ ...prev, docTypeId: validatedData[0].id }));
-            }
+            setFormData(prev => ({ ...prev, docTypeId: validatedData[0].id }));
+          } else {
+             setFetchError("No document types are currently available.");
           }
         } catch (err) {
           console.error("Failed to load document types");
+          setFetchError("Unable to connect to the server. Please check your connection.");
         } finally {
           setIsLoadingDocs(false);
         }
@@ -74,18 +87,15 @@ export default function Community_Document_Request({ isOpen, onClose, onSuccess,
 
   if (!isOpen) return null;
 
-  // ─── DERIVED STATE (Fixing the Duplication) ─────────────────────────────
+  // ─── DERIVED STATE ─────────────────────────────
   
   const selectedDoc = documentTypes.find(d => d.id === formData.docTypeId);
   
-  // 1. Consolidate repetitive upper-casing and fallback logic
   const safeResidentName = (residentName || 'RESIDENT').toUpperCase();
   const safeDocLabel = selectedDoc?.label.toUpperCase() || 'UNKNOWN DOCUMENT';
   
-  // 2. Consolidate the Purpose ternary logic (used in both UI and Payload)
   const finalPurposeText = (formData.purpose === 'OTHER' ? formData.otherPurpose : formData.purpose).toUpperCase();
 
-  // 3. Form Validation
   const isNextDisabled = !formData.docTypeId || 
                          !formData.purpose || 
                          (formData.purpose === 'OTHER' && !formData.otherPurpose.trim());
@@ -98,12 +108,11 @@ export default function Community_Document_Request({ isOpen, onClose, onSuccess,
     const generatedRef = `REF-${Date.now()}`;
     setRefNumber(generatedRef);
 
-    // Using the derived state from above to keep payload clean
     const payload = {
         resident_id: residentId, 
         resident_name: safeResidentName, 
         type: safeDocLabel, 
-        purpose: formData.purpose.toUpperCase(), // Backend might need exact category
+        purpose: formData.purpose.toUpperCase(),
         other_purpose: formData.purpose === 'OTHER' ? formData.otherPurpose.toUpperCase() : '', 
         price: 0, 
         reference_no: generatedRef,
@@ -111,11 +120,11 @@ export default function Community_Document_Request({ isOpen, onClose, onSuccess,
 
     try {
         const result = await ApiService.saveDocumentRecord(payload);
-        if (result.success) {
+        if (result && result.success) {
             setStep(4);
             onSuccess();
         } else {
-            alert(`SUBMISSION FAILED: ${result.error}`);
+            alert(`SUBMISSION FAILED: ${result?.error || 'Unknown error'}`);
         }
     } catch (err) {
         alert('SERVER ERROR: CHECK CONSOLE');
@@ -124,7 +133,6 @@ export default function Community_Document_Request({ isOpen, onClose, onSuccess,
     }
   };
 
-  // Helper for safe step transitions
   const handleBack = () => setStep(prev => (prev - 1) as StepType);
 
   return (
@@ -149,7 +157,14 @@ export default function Community_Document_Request({ isOpen, onClose, onSuccess,
           {step === 1 && (
             <div className="DOC_STEP_CONTAINER">
               <label className="DOC_LABEL">SELECT DOCUMENT TYPE</label>
-              {isLoadingDocs ? (
+              
+              {/* 🛡️ RENDER ERROR STATE IF FETCH FAILED */}
+              {fetchError ? (
+                <div style={{ color: '#dc2626', backgroundColor: '#fee2e2', padding: '15px', borderRadius: '8px', textAlign: 'center', marginBottom: '20px', fontSize: '14px', border: '1px solid #f87171' }}>
+                    <i className="fas fa-exclamation-triangle" style={{ marginRight: '8px' }}></i>
+                    {fetchError}
+                </div>
+              ) : isLoadingDocs ? (
                 <div className="DOC_LOADING"><i className="fas fa-circle-notch fa-spin"></i></div>
               ) : (
                 <div className="DOC_GRID_SELECT">
@@ -166,24 +181,29 @@ export default function Community_Document_Request({ isOpen, onClose, onSuccess,
                 </div>
               )}
 
-              <label className="DOC_LABEL">PURPOSE</label>
-              <select 
-                value={formData.purpose} 
-                onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
-                className="DOC_INPUT"
-              >
-                <option value="" disabled>Select a purpose...</option>
-                {PURPOSES.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
+              {/* HIDE INPUTS IF THERE IS AN ERROR OR IF LOADING */}
+              {!fetchError && !isLoadingDocs && (
+                  <>
+                    <label className="DOC_LABEL">PURPOSE</label>
+                    <select 
+                        value={formData.purpose} 
+                        onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
+                        className="DOC_INPUT"
+                    >
+                        <option value="" disabled>Select a purpose...</option>
+                        {PURPOSES.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
 
-              {formData.purpose === 'OTHER' && (
-                <input 
-                  type="text" 
-                  className="DOC_INPUT" 
-                  placeholder="SPECIFY PURPOSE HERE..."
-                  value={formData.otherPurpose}
-                  onChange={(e) => setFormData({...formData, otherPurpose: e.target.value})}
-                />
+                    {formData.purpose === 'OTHER' && (
+                        <input 
+                        type="text" 
+                        className="DOC_INPUT" 
+                        placeholder="SPECIFY PURPOSE HERE..."
+                        value={formData.otherPurpose}
+                        onChange={(e) => setFormData({...formData, otherPurpose: e.target.value})}
+                        />
+                    )}
+                  </>
               )}
             </div>
           )}
@@ -206,7 +226,7 @@ export default function Community_Document_Request({ isOpen, onClose, onSuccess,
                   </div>
                   <div className="DOC_REVIEW_ITEM">
                     <small>PURPOSE</small>
-                    <p>{finalPurposeText}</p> {/* Replaced duplicated ternary logic */}
+                    <p>{finalPurposeText}</p>
                   </div>
                </div>
             </div>
@@ -240,7 +260,7 @@ export default function Community_Document_Request({ isOpen, onClose, onSuccess,
                 )}
                 
                 {step === 1 && (
-                  <button className="DOC_BTN_PRIMARY" onClick={() => setStep(2)} disabled={isNextDisabled}>REVIEW REQUEST</button>
+                  <button className="DOC_BTN_PRIMARY" onClick={() => setStep(2)} disabled={isNextDisabled || !!fetchError || isLoadingDocs}>REVIEW REQUEST</button>
                 )}
                 
                 {step === 2 && (

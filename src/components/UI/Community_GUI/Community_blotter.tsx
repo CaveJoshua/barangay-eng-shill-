@@ -95,7 +95,7 @@ const Community_blotter: React.FC<BlotterProps> = ({
       
       <header className="DOC_HEADER_CARD">
         <div className="HEADER_TEXT">
-          <h1>Public Safety & Blotter</h1>
+          <h1>Incedent Report</h1>
           <p>Confidential records and incident tracking for Engineer's Hill.</p>
         </div>
         <button className="BTN_REQUEST_NEW" onClick={() => setIsModalOpen(true)}>

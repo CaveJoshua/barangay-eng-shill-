@@ -4,6 +4,9 @@ import Dashboard from './components/UI/Administration_GUI/Dashboard';
 import Community from './components/UI/Community_GUI/Community'; 
 import Community_Dashboard from './components/UI/Community_GUI/Community_Dashboard'; 
 
+// 🛡️ IMPORT THE CAPTCHA MODAL
+import { CaptchaModal } from './components/UI/Community_GUI/Captcha_model';
+
 import { API_BASE_URL } from './components/UI/api'; 
 import './App.css';
 
@@ -161,6 +164,9 @@ const App: React.FC = () => {
 
   return (
     <div className="APP_ROOT">
+      
+      {/* 🛡️ THE GLOBAL SECURITY MODAL - Always Active */}
+      <CaptchaModal />
       
       {currentView === 'login' && (
         <Login onSelectPortal={handlePortalSelection} />

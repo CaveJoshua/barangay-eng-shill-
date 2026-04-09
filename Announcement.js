@@ -8,15 +8,30 @@ import { uploadImage } from './cloud.js';
 export const AnnouncementRouter = (router, supabase) => {
 
     // ==========================================
-    // 1. GET ALL ANNOUNCEMENTS
+    // 1. GET ALL ANNOUNCEMENTS (UPDATED: Filters Expired)
     // ==========================================
     router.get('/announcements', async (req, res) => {
         try {
-            const { data, error } = await supabase
+            // Get today's exact date and time in ISO format
+            const today = new Date().toISOString();
+
+            // Check if the frontend is specifically asking for 'all' (Admin mode)
+            const isAdmin = req.query.admin === 'true';
+
+            let query = supabase
                 .from('announcements')
                 .select('*')
                 .order('priority', { ascending: false }) 
                 .order('created_at', { ascending: false });
+
+            // If it's NOT the admin dashboard, filter out expired and inactive ones
+            if (!isAdmin) {
+                query = query
+                    .eq('status', 'Active')    // Only get Active status
+                    .gte('expires_at', today); // Only get dates greater than or equal to today
+            }
+
+            const { data, error } = await query;
 
             if (error) throw error;
             res.status(200).json(data);
@@ -25,7 +40,7 @@ export const AnnouncementRouter = (router, supabase) => {
             res.status(500).json({ error: "Failed to sync bulletin board." });
         }
     });
-
+    
     // ==========================================
     // 2. CREATE NEW ANNOUNCEMENT
     // ==========================================
