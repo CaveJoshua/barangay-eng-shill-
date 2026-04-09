@@ -121,6 +121,7 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
       if (!isMounted.current) return;
 
       if (response.ok) {
+        // Save Core IDs
         localStorage.setItem('account_id', data.account_id);
         localStorage.setItem('profile_id', data.profile?.record_id || data.account_id);
         
@@ -128,9 +129,10 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
             sessionStorage.setItem('trace_id', traceId);
         }
 
+        // 🛡️ THE RBAC FIX: Prioritize specific database role from profile
         localStorage.setItem('admin_session', JSON.stringify({
             username: data.username,
-            role: data.role,
+            role: data.profile?.role || data.role, 
             profile: data.profile
         }));
 
@@ -161,12 +163,11 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
   };
 
   // ==========================================
-  // 🛠️ RECOVERY HANDLERS (Clears TS "Unused" Errors)
+  // 🛠️ RECOVERY HANDLERS
   // ==========================================
   const handleEmailRecovery = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Logic for email recovery using {email}
     setTimeout(() => {
       if (isMounted.current) { setView('RECOVER_SUCCESS'); setLoading(false); }
     }, 1000);
@@ -175,7 +176,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
   const startPhoneRecovery = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Logic for phone recovery using {phone}
     setTimeout(() => {
       if (isMounted.current) { setView('RECOVER_OTP'); setLoading(false); }
     }, 1000);
@@ -184,7 +184,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
   const verifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Logic for OTP verification using {otp}
     setTimeout(() => {
       if (isMounted.current) { setView('RECOVER_SUCCESS'); setLoading(false); }
     }, 1000);

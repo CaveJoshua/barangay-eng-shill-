@@ -2,7 +2,6 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { logActivity } from './Auditlog.js';
 
-// Siguraduhin na ang secret na ito ay ang "Legacy JWT Secret" mula sa Supabase Dashboard
 const JWT_SECRET = process.env.SUPABASE_JWT_SECRET || 'your_fallback_secret';
 
 const verifyPassword = (inputPassword, storedPassword) => {
@@ -51,7 +50,10 @@ export const OfficialsLoginRouter = (router, supabase) => {
 
             const realName = accountData.officials?.full_name || 'System Administrator';
             const position = accountData.officials?.position || 'Official';
-            const userRole = accountData.role ? accountData.role.toLowerCase() : 'staff';
+            
+            // 🛡️ THE FIX: Normalize the role (remove spaces, lowercase) 
+            // This ensures "superadmin" is sent exactly as the frontend expects.
+            const userRole = accountData.role ? accountData.role.toLowerCase().trim() : 'staff';
 
             const tokenPayload = {
                 aud: 'authenticated',           
@@ -61,29 +63,31 @@ export const OfficialsLoginRouter = (router, supabase) => {
                 user_role: userRole,            
             };
 
-            // Sign token (24 hours expiry)
             const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '24h' });
 
             logActivity(supabase, accountData.username, 'LOGIN', `${realName} (${userRole}) logged in.`)
                 .catch(err => console.error("[LOG ERROR]", err.message));
 
-            // 🛡️ UPDATED: Cross-Site Cookie Injection
+            // 🛡️ Cross-Site Cookie Injection
             res.cookie('auth_token', token, {
                 httpOnly: true,  
-                secure: true,       // MUST BE TRUE for sameSite 'none'
-                sameSite: 'none',   // ALLOWS Cloudflare to talk to Render
+                secure: true,       // Required for sameSite 'none' (Cloudflare/Render)
+                sameSite: 'none',   
                 maxAge: 24 * 60 * 60 * 1000 
             });
 
+            // 🛡️ Consistency: Send the specific userRole in the main role field 
+            // and the profile object to avoid any frontend confusion.
             res.status(200).json({
                 message: 'Authentication successful',
                 account_id: accountData.account_id,
                 username: accountData.username,
-                role: userRole,
+                role: userRole, 
                 profile: { 
                     record_id: accountData.official_id, 
                     profileName: realName,
-                    position: position
+                    position: position,
+                    role: userRole 
                 }
             });
 
@@ -97,7 +101,6 @@ export const OfficialsLoginRouter = (router, supabase) => {
     // 2. THE KILL SWITCH (LOGOUT)
     // ==========================================
     router.post('/admin/logout', (req, res) => {
-        // 🛡️ UPDATED: Cross-Site Cookie Destruction
         res.clearCookie('auth_token', {
             httpOnly: true,
             secure: true,
@@ -118,25 +121,19 @@ export const OfficialsLoginRouter = (router, supabase) => {
                 return res.status(401).json({ error: 'No token to refresh' });
             }
 
-            // Verify the token, ignoring expiration so we can rotate a recently expired one safely
             jwt.verify(token, JWT_SECRET, { ignoreExpiration: true }, (err, decoded) => {
                 if (err || !decoded) {
                     return res.status(403).json({ error: 'Invalid token signature' });
                 }
 
-                // Check if the token is completely stale (e.g., expired more than 7 days ago)
                 const now = Math.floor(Date.now() / 1000);
                 if (decoded.exp && (now - decoded.exp > 604800)) { 
                     return res.status(401).json({ error: 'Refresh window expired. Please log in again.' });
                 }
 
-                // Strip old timeline claims so jwt.sign can generate fresh ones
                 const { iat, exp, ...newPayload } = decoded;
-                
-                // Mint a fresh 24-hour token
                 const newToken = jwt.sign(newPayload, JWT_SECRET, { expiresIn: '24h' });
 
-                // 🛡️ UPDATED: Cross-Site Cookie Injection
                 res.cookie('auth_token', newToken, {
                     httpOnly: true,
                     secure: true,

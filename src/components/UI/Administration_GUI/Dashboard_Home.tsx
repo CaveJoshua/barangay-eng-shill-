@@ -73,6 +73,9 @@ interface DashboardHomeProps {
 const DashboardHome: React.FC<DashboardHomeProps> = ({
   data, loading, onNavigate,
 }) => {
+  // 🛡️ RBAC: Identify if the current user is a Superadmin for the UI header
+  const [sessionRole, setSessionRole] = useState('Official');
+  
   const [pendingDocs, setPendingDocs] = useState<IDocRequest[]>(() => {
     try {
       const cached = localStorage.getItem('pr_queue_cache');
@@ -89,6 +92,17 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({
 
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
+
+  // 🛡️ Load session on mount to fix the "Stuck as Admin" visual bug
+  useEffect(() => {
+    const sessionStr = localStorage.getItem('admin_session');
+    if (sessionStr) {
+      const session = JSON.parse(sessionStr);
+      // Normalize the role display
+      const role = session.role?.toLowerCase() === 'superadmin' ? 'Superadmin' : (session.profile?.position || 'Official');
+      setSessionRole(role);
+    }
+  }, []);
 
   const hasDataChanged = (newData: IDocRequest[], oldData: IDocRequest[]) => {
     if (newData.length !== oldData.length) return true;
@@ -138,7 +152,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({
     } finally {
       setPendingLoading(false);
       if (document.visibilityState === 'visible') {
-        pollTimer.current = setTimeout(fetchData, 5000); 
+        pollTimer.current = setTimeout(fetchData, 8000); // Polling every 8s for stability
       }
     }
   }, []);
@@ -173,8 +187,15 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({
   return (
     <div className="DS_CONTAINER">
       <header className="DS_HEADER">
-        <h1 className="DS_TITLE">{data.barangayName}</h1>
-        <p className="DS_SUBTITLE">Welcome back, <strong>{loading ? '...' : data.adminName}</strong>.</p>
+        <div className="DS_TITLE_GROUP">
+          <h1 className="DS_TITLE">{data.barangayName}</h1>
+          {/* 🛡️ VISUAL PROOF: Show Superadmin badge if applicable */}
+          {sessionRole === 'Superadmin' && <span className="DS_SUPER_BADGE">SUPERADMIN ACCESS</span>}
+        </div>
+        <p className="DS_SUBTITLE">
+          Welcome back, <strong>{loading ? '...' : data.adminName}</strong>. 
+          <span className="DS_ROLE_TEXT">Logged in as {sessionRole}</span>
+        </p>
       </header>
 
       {/* Stats Cards */}
@@ -198,7 +219,14 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({
         <div className="DS_SECTION_BOX">
           <div className="DS_SECTION_HEADER"><h3><i className="fas fa-map-marked-alt" /> Barangay Map</h3></div>
           <div className="DS_MAP_VIEW">
-            <iframe title="Map" src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3827.4253308892976!2d120.60060961486333!3d16.402324988673733!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3391a1687d000001%3A0x6b2e04db7df02c0!2sEngineer's%20Hill%20Barangay%20Hall!5e0!3m2!1sen!2sph!4v1700000000000!5m2!1sen!2sph" width="100%" height="100%" style={{ border: 0 }} loading="lazy" />
+            <iframe 
+              title="Map" 
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3827.123456789!2d120.59!3d16.41!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTbCsDI0JzM2LjAiTiAxMjDCsDM1JzI0LjAiRQ!5e0!3m2!1sen!2sph!4v1620000000000!5m2!1sen!2sph" 
+              width="100%" 
+              height="100%" 
+              style={{ border: 0 }} 
+              loading="lazy" 
+            />
           </div>
         </div>
 

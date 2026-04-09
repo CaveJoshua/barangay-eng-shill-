@@ -1,40 +1,46 @@
 import { authenticateToken } from './data.js';
-import { logActivity } from './Auditlog.js'; // <-- NEW: Required for Zero Trust Tracking
+import { logActivity } from './Auditlog.js';
 
 /**
- * RBAC MIDDLEWARE (UPGRADED)
- * Smart role checking that handles capitalization and variations
+ * RBAC MIDDLEWARE (GOD-MODE READY)
+ * Absolute role validation that prioritizes Superadmin clearance.
  */
 export const checkRole = (allowedRoles) => {
   return async (req, res, next) => {
     try {
-      const actualRole = req.user?.user_role || req.user?.role;
+      // 🛡️ Look for the role in all possible JWT payload locations
+      const actualRole = req.user?.user_role || req.user?.role || req.user?.profile?.role;
 
       if (!req.user || !actualRole) {
         return res.status(401).json({ 
           error: 'Unauthorized', 
-          message: 'Access denied. Role information missing from security token.' 
+          message: 'Security token is valid, but your role identity is missing.' 
         });
       }
 
-      const rawRole = actualRole.toLowerCase().trim();
+      // 🛡️ Normalization: Lowercase and strip all whitespace
+      const rawRole = String(actualRole).toLowerCase().trim();
       
-      let normalizedRole = rawRole;
-      if (rawRole.includes('super')) normalizedRole = 'superadmin';
-      else if (rawRole.includes('admin')) normalizedRole = 'admin';
-      else if (rawRole.includes('staff')) normalizedRole = 'staff';
-      else normalizedRole = 'resident';
+      let normalizedRole = 'resident'; // Default to lowest privilege
+      if (rawRole === 'superadmin' || rawRole.includes('super')) {
+        normalizedRole = 'superadmin';
+      } else if (rawRole === 'admin' || rawRole === 'staff') {
+        normalizedRole = rawRole; 
+      }
 
+      // 🛡️ The Gatekeeper: Check if normalized role exists in the allowed list
       if (!allowedRoles.includes(normalizedRole)) {
+        console.warn(`[RBAC BLOCK] User ${req.user.username} (Role: ${rawRole}) attempted to access restricted route.`);
         return res.status(403).json({ 
           error: 'Forbidden', 
-          message: `Your role (${actualRole}) does not have permission to perform this action.` 
+          message: `Access Denied. Required roles: [${allowedRoles.join(', ')}]. Your detected role: ${normalizedRole}` 
         });
       }
 
       next();
     } catch (error) {
-      res.status(500).json({ error: 'Internal server error during role validation.' });
+      console.error("[RBAC CRITICAL ERROR]:", error);
+      res.status(500).json({ error: 'Internal security engine failure.' });
     }
   };
 };
@@ -45,12 +51,10 @@ export const checkRole = (allowedRoles) => {
 export const RbacRouter = (router, supabase) => {
   
   // ==========================================
-  // 1. GET ALL ACCOUNTS (Zero Trust / Memory Safe View)
+  // 1. GET ALL ACCOUNTS (Audited View)
   // ==========================================
   router.get('/rbac/accounts', authenticateToken, checkRole(['admin', 'superadmin']), async (req, res) => {
     try {
-      // THE FIX: We use Supabase Joins to let the Database do the heavy lifting.
-      // This prevents the server from downloading thousands of unneeded records.
       const [resAcc, offAcc] = await Promise.all([
         supabase
             .from('residents_account')
@@ -71,10 +75,8 @@ export const RbacRouter = (router, supabase) => {
       if (resAcc.error) throw resAcc.error;
       if (offAcc.error) throw offAcc.error;
 
-      // Map them smoothly without massive Memory Maps
       const combinedAccounts = [
         ...resAcc.data.map(acc => {
-            // Safely extract name, handling arrays or single objects depending on your Supabase relationship setup
             const rec = Array.isArray(acc.residents_records) ? acc.residents_records[0] : acc.residents_records;
             return { 
                 id: acc.account_id,
@@ -108,7 +110,7 @@ export const RbacRouter = (router, supabase) => {
   });
 
   // ==========================================
-  // 2. UPDATE ACCOUNT ROLE (DYNAMIC + AUDITED)
+  // 2. UPDATE ACCOUNT ROLE (Superadmin ONLY)
   // ==========================================
   router.patch('/rbac/accounts/:id/role', authenticateToken, checkRole(['superadmin']), async (req, res) => {
     try {
@@ -120,13 +122,8 @@ export const RbacRouter = (router, supabase) => {
         return res.status(400).json({ error: 'Invalid role assignment.' });
       }
 
-      if (!source || !['resident', 'official'].includes(source)) {
-        return res.status(400).json({ error: 'Account source (resident/official) is required.' });
-      }
-
       const targetTable = source === 'official' ? 'officials_accounts' : 'residents_account';
 
-      // 1. Update the Role
       const { data, error } = await supabase
         .from(targetTable)
         .update({ role: newRole })
@@ -136,60 +133,21 @@ export const RbacRouter = (router, supabase) => {
       if (error) throw error;
       
       if (!data || data.length === 0) {
-        return res.status(404).json({ error: `Account not found in ${source} records.` });
+        return res.status(404).json({ error: `Account not found.` });
       }
 
-      // 2. ZERO TRUST: Log the Privilege Escalation
-      const adminName = req.user?.username || 'System';
+      // Log the escalation
       logActivity(
           supabase, 
-          adminName, 
+          req.user?.username || 'System', 
           'PRIVILEGE_MODIFIED', 
-          `Changed role of account [${data[0].username}] to ${newRole.toUpperCase()}.`
-      ).catch(err => console.error("Audit Log Failed:", err.message));
+          `Changed role of ${data[0].username} to ${newRole.toUpperCase()}.`
+      ).catch(err => console.error("Audit Failure:", err.message));
 
-      res.status(200).json({ 
-        message: 'Role updated successfully.', 
-        account: data[0]
-      });
+      res.status(200).json({ message: 'Role updated successfully.', account: data[0] });
 
     } catch (err) {
-      console.error("RBAC Update Error:", err.message);
       res.status(400).json({ error: err.message });
-    }
-  });
-
-  // ==========================================
-  // 3. ACCOUNT SEARCH
-  // ==========================================
-  router.get('/rbac/accounts/search', authenticateToken, checkRole(['admin', 'superadmin']), async (req, res) => {
-    const { query } = req.query;
-    if (!query) return res.status(400).json({ error: 'Search query required.' });
-
-    try {
-      const searchStr = `%${query}%`;
-
-      // Parallel search across both account types
-      const [{ data: residents, error: resErr }, { data: officials, error: offErr }] = await Promise.all([
-        supabase
-          .from('residents_account')
-          .select('account_id, username, role, status, residents_records!inner(first_name, last_name)')
-          .or(`first_name.ilike.${searchStr},last_name.ilike.${searchStr}`, { foreignTable: 'residents_records' }),
-        supabase
-          .from('officials_accounts')
-          .select('account_id, username, role, status, officials!inner(full_name)')
-          .ilike('officials.full_name', searchStr)
-      ]);
-
-      if (resErr || offErr) throw (resErr || offErr);
-
-      res.status(200).json({
-        residents: residents.map(r => ({ ...r, id: r.account_id, source: 'resident' })),
-        officials: officials.map(o => ({ ...o, id: o.account_id, source: 'official' }))
-      });
-    } catch (err) {
-      console.error("RBAC Search Error:", err.message);
-      res.status(500).json({ error: "Failed to process search query." });
     }
   });
 };

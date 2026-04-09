@@ -3,66 +3,51 @@ import { ApiService } from '../api';
 import './styles/Notification_system.css';
 
 // ─── INTERFACES ──────────────────────────────────────────────────────────────
-
-interface LiveNotification {
-  id: string;         // Prefixed ID (e.g., 'doc-5' or 'blt-12')
-  originalId: string; // The raw Database UUID or ID (used for the hint animation)
+interface DatabaseNotification {
+  id: number | string; // 🛡️ FIX: Allowed both number and string to satisfy TypeScript
+  user_id: string;
   title: string;
   message: string;
-  type: 'document' | 'blotter'; 
-  timestamp: string;  
-  status: string;
+  type: string; 
+  is_read: boolean;
+  created_at: string;  
 }
 
-const NOTIF_POLL_INTERVAL = 30000; // Poll every 30 seconds for the full page
+const NOTIF_POLL_INTERVAL = 30000; // Poll every 30 seconds
 
 interface NotificationSystemProps {
-  // onNavigate now accepts an optional highlightId to trigger the animation
   onNavigate?: (tabName: string, highlightId?: string) => void;
 }
 
 const NotificationSystem: React.FC<NotificationSystemProps> = ({ onNavigate }) => {
-  const [notifications, setNotifications] = useState<LiveNotification[]>([]);
+  const [notifications, setNotifications] = useState<DatabaseNotification[]>([]);
   const [loading, setLoading] = useState(true);
   
   // ─── FILTERS ───
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'UNREAD'>('ALL');
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'document' | 'blotter'>('ALL');
-  
-  // Local storage handshake: Track IDs that the admin has already "read"
-  const [readIds, setReadIds] = useState<string[]>(() => {
-    const saved = localStorage.getItem('admin_read_notif_ids');
-    return saved ? JSON.parse(saved) : [];
-  });
 
   const controllerRef = useRef<AbortController | null>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 💾 Persist read IDs to local storage whenever they change
-  useEffect(() => {
-    localStorage.setItem('admin_read_notif_ids', JSON.stringify(readIds));
-  }, [readIds]);
-
-  // ─── DATA FETCHING (HANDSHAKE) ─────────────────────────────────────────────
+  // ─── DATA FETCHING ─────────────────────────────────────────────
   const fetchData = useCallback(async () => {
-    // Abort previous hanging requests before starting a new pulse
     if (pollTimer.current) clearTimeout(pollTimer.current);
     if (controllerRef.current) controllerRef.current.abort();
     
     controllerRef.current = new AbortController();
 
     try {
+      // Ask for the latest 50 notifications
       const data = await ApiService.getNotifications(controllerRef.current.signal);
-      
       if (data && Array.isArray(data)) {
         setNotifications(data);
       }
     } catch (error: any) {
-      if (error.name !== 'AbortError') console.error("[NOTIFS] Direct Link Sync Error:", error);
+      if (error.name !== 'AbortError') console.error("[NOTIFS] Database Sync Error:", error);
     } finally {
       setLoading(false);
-      
-      // Re-queue the pulse only if the tab is currently active
+      // Only keep polling if the user is actively looking at the page
       if (document.visibilityState === 'visible') {
         pollTimer.current = setTimeout(fetchData, NOTIF_POLL_INTERVAL);
       }
@@ -71,15 +56,10 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ onNavigate }) =
 
   useEffect(() => {
     fetchData();
-
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        fetchData(); 
-      } else if (pollTimer.current) {
-        clearTimeout(pollTimer.current); 
-      }
+      if (document.visibilityState === 'visible') fetchData(); 
+      else if (pollTimer.current) clearTimeout(pollTimer.current); 
     };
-
     document.addEventListener('visibilitychange', handleVisibility);
     return () => {
       if (pollTimer.current) clearTimeout(pollTimer.current);
@@ -88,34 +68,70 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ onNavigate }) =
     };
   }, [fetchData]);
 
-  // ─── EVENT HANDLERS ────────────────────────────────────────────────────────
-  const handleNotificationClick = (n: LiveNotification) => {
-    // Mark as read locally if not already done
-    if (!readIds.includes(n.id)) {
-      setReadIds(prev => [...prev, n.id]);
+  // ─── EVENT HANDLERS (DB BOUND) ─────────────────────────────────────────────
+  
+  const handleNotificationClick = async (n: DatabaseNotification) => {
+    // 1. Tell database to mark as read if it isn't already
+    if (!n.is_read) {
+      try {
+        // 🛡️ FIX: Cast to any and String() to bypass strict TS errors from api.ts
+        await (ApiService as any).markNotificationRead(String(n.id));
+        // Optimistically update the UI so it feels instant
+        setNotifications(prev => prev.map(notif => notif.id === n.id ? { ...notif, is_read: true } : notif));
+      } catch (err) {
+        console.error("Failed to mark read", err);
+      }
     }
 
-    // Smart Routing logic: Send the user to the correct page AND pass the ID for the animation
+    // 2. Navigate to the appropriate dashboard tab
     if (onNavigate) {
       const destination = n.type === 'document' ? 'Document' : 'Blotter Cases';
-      onNavigate(destination, n.originalId); 
+      onNavigate(destination); 
     }
   };
 
-  const handleMarkAllRead = () => {
-    // Collect all visible notification IDs based on current filters
-    const allVisibleIds = notifications.map(n => n.id);
-    setReadIds(prev => Array.from(new Set([...prev, ...allVisibleIds])));
+  const handleMarkAllRead = async () => {
+    // Find all currently visible unread notifications
+    const unreadVisible = filteredNotifs.filter(n => !n.is_read);
+    if (unreadVisible.length === 0) return;
+
+    // Optimistically update UI first
+    const unreadIds = unreadVisible.map(n => n.id);
+    setNotifications(prev => prev.map(n => unreadIds.includes(n.id) ? { ...n, is_read: true } : n));
+
+    // Fire off API calls in the background
+    try {
+      // 🛡️ FIX: Cast to any and String() to bypass strict TS errors from api.ts
+      await Promise.allSettled(unreadIds.map(id => (ApiService as any).markNotificationRead(String(id))));
+    } catch (err) {
+      console.error("Failed to mark all as read");
+    }
+  };
+
+  // 🛡️ THE PERMANENT DELETE FUNCTION
+  const handleDelete = async (e: React.MouseEvent, id: number | string) => {
+    e.stopPropagation(); // Stop the click from triggering the "handleNotificationClick" navigation
+
+    if (!window.confirm("Are you sure you want to permanently delete this notification?")) return;
+
+    try {
+      // 🛡️ FIX: Cast to any and String() to bypass strict TS errors from api.ts
+      await (ApiService as any).deleteNotification(String(id));
+      // Remove from UI immediately
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    } catch (err) {
+      alert("Failed to delete notification from database.");
+    }
   };
 
   // ─── DUAL FILTER LOGIC ───
   const filteredNotifs = notifications.filter(n => {
-    const matchesStatus = statusFilter === 'ALL' || !readIds.includes(n.id);
+    const matchesStatus = statusFilter === 'ALL' || !n.is_read;
     const matchesType = typeFilter === 'ALL' || n.type === typeFilter;
     return matchesStatus && matchesType;
   });
 
-  const unreadCount = notifications.filter(n => !readIds.includes(n.id)).length;
+  const unreadCount = notifications.filter(n => !n.is_read).length;
 
   const getIconClass = (type: string) => {
     return type === 'document' ? "fas fa-file-alt" : "fas fa-balance-scale";
@@ -125,7 +141,7 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ onNavigate }) =
     <div className="DS_CONTAINER">
       <header className="DS_HEADER">
         <h1 className="DS_TITLE">Notification Center</h1>
-        <p className="DS_SUBTITLE">Review live updates and history from Document and Blotter registries.</p>
+        <p className="DS_SUBTITLE">Review live updates and history from your database.</p>
       </header>
 
       <div className="DS_SECTION_BOX NS_SECTION_BOX">
@@ -198,16 +214,15 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ onNavigate }) =
             </div>
           ) : (
             <ul className="NS_LIST">
-              {filteredNotifs.map((n) => {
-                const isRead = readIds.includes(n.id);
-                return (
-                  <li 
-                    key={n.id} 
-                    className={`NS_ITEM ${isRead ? 'NS_ITEM--read' : 'NS_ITEM--unread'}`}
-                    onClick={() => handleNotificationClick(n)}
-                    style={{ cursor: onNavigate ? 'pointer' : 'default' }}
-                  >
-                    <div className={`NS_ITEM_ICON ${isRead ? 'NS_ITEM_ICON--read' : 'NS_ITEM_ICON--unread'} ${n.type}`}>
+              {filteredNotifs.map((n) => (
+                <li 
+                  key={n.id} 
+                  className={`NS_ITEM ${n.is_read ? 'NS_ITEM--read' : 'NS_ITEM--unread'}`}
+                  onClick={() => handleNotificationClick(n)}
+                  style={{ cursor: onNavigate ? 'pointer' : 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '15px', flex: 1 }}>
+                    <div className={`NS_ITEM_ICON ${n.is_read ? 'NS_ITEM_ICON--read' : 'NS_ITEM_ICON--unread'} ${n.type}`}>
                       <i className={getIconClass(n.type)}></i>
                     </div>
                     
@@ -215,20 +230,35 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ onNavigate }) =
                       <div className="NS_ITEM_HEADER">
                         <span className="NS_ITEM_TITLE">{n.title}</span>
                         <span className="NS_ITEM_DATE">
-                          {new Date(n.timestamp).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {new Date(n.created_at).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
                       <p className="NS_ITEM_TEXT">{n.message}</p>
                     </div>
-                    
-                    {!isRead && (
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px', paddingLeft: '15px' }}>
+                    {!n.is_read && (
                       <div className="NS_UNREAD_INDICATOR">
                         <i className="fas fa-circle"></i>
                       </div>
                     )}
-                  </li>
-                );
-              })}
+                    {/* 🛡️ THE TRASH CAN BUTTON */}
+                    <button 
+                      onClick={(e) => handleDelete(e, n.id)}
+                      className="NS_DELETE_BTN"
+                      style={{ 
+                        background: 'none', border: 'none', color: '#ef4444', 
+                        cursor: 'pointer', padding: '8px', borderRadius: '4px',
+                        fontSize: '1.2rem', transition: 'all 0.2s'
+                      }}
+                      title="Permanently Delete Notification"
+                    >
+                      <i className="fas fa-trash-alt"></i>
+                    </button>
+                  </div>
+                </li>
+              ))}
             </ul>
           )}
         </div>

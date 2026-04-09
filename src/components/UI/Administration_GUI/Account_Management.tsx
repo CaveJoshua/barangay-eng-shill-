@@ -17,12 +17,15 @@ type TabState = 'Officials' | 'Residents';
 const ITEMS_PER_PAGE = 10;
 
 export default function AccountManagement() {
+  // 🛡️ NEW: Access Control State (null = checking, true = granted, false = denied)
+  const [isSuperAdmin,       setIsSuperAdmin]      = useState<boolean | null>(null);
+
   const [accounts,         setAccounts]        = useState<IAccount[]>([]);
   const [error,            setError]           = useState('');
   const [isSyncing,        setIsSyncing]       = useState(false);
   const [activeTab,        setActiveTab]       = useState<TabState>('Officials');
   const [searchTerm,       setSearchTerm]      = useState('');
-  const [selectedAccount, setSelectedAccount]  = useState<IAccount | null>(null);
+  const [selectedAccount,  setSelectedAccount] = useState<IAccount | null>(null);
   const [isResetOpen,      setIsResetOpen]     = useState(false);
   const [newPassword,      setNewPassword]     = useState('');
   const [isRoleOpen,       setIsRoleOpen]      = useState(false);
@@ -35,10 +38,44 @@ export default function AccountManagement() {
   const isFetching = useRef(false);
   const isMounted = useRef(true);
 
+  // 🛡️ ── ROLE VERIFICATION ON MOUNT ──
+// 🛡️ ── BULLETPROOF ROLE VERIFICATION ──
+  useEffect(() => {
+    try {
+      const sessionData = localStorage.getItem('admin_session'); 
+      
+      if (sessionData) {
+        const session = JSON.parse(sessionData);
+        
+        // 1. Hunt for the role in all common locations
+        const rawRole = session?.role || session?.admin?.role || session?.user?.role || session?.profile?.role || '';
+        
+        // 2. Normalize the text (turns "Super Admin" or " SUPERADMIN " into "superadmin")
+        const userRole = rawRole.toLowerCase().replace(/\s+/g, '');
+
+        console.log("🔍 [RBAC DEBUG] Found Role:", userRole); // Press F12 to see this in your browser console!
+
+        // 3. The Gatekeeper: Allow 'superadmin' (or 'admin' if you want regular admins to see this too)
+        if (userRole === 'superadmin' || userRole === 'admin') {
+          setIsSuperAdmin(true);
+          return;
+        }
+      }
+      
+      // If we get here, they failed the check
+      console.warn("🚫 [RBAC DEBUG] Access Denied. Role insufficient.");
+      setIsSuperAdmin(false);
+      
+    } catch (err) {
+      console.error("RBAC Parse Error", err);
+      setIsSuperAdmin(false);
+    }
+  }, []);
+  
   // ── Fetch (Smart Handshake) ───────────────────────────────────────────
   const fetchAccounts = useCallback(async (silent = false, signal?: AbortSignal) => {
-    // Prevent overlapping fetches and updates on unmounted components
-    if (!isMounted.current || isFetching.current) return;
+    // Prevent overlapping fetches, unmounted updates, OR if user isn't superadmin
+    if (!isMounted.current || isFetching.current || !isSuperAdmin) return;
     
     if (!silent) setIsSyncing(true);
     isFetching.current = true;
@@ -59,9 +96,12 @@ export default function AccountManagement() {
       isFetching.current = false;
       if (isMounted.current) setIsSyncing(false);
     }
-  }, [accounts.length]);
+  }, [accounts.length, isSuperAdmin]);
 
   useEffect(() => {
+    // Only run the fetching logic if the user is verified as a Superadmin
+    if (isSuperAdmin !== true) return;
+
     isMounted.current = true;
     const valve = new AbortController();
     let timeoutId: ReturnType<typeof setTimeout>;
@@ -69,31 +109,27 @@ export default function AccountManagement() {
     const runPulse = async () => {
       if (!isMounted.current) return;
       
-      // Only fetch if the tab is actively visible to save resources
       if (document.visibilityState === 'visible') {
         await fetchAccounts(true, valve.signal);
       }
 
-      // Loop the handshake every 5 minutes (300,000 ms)
       if (isMounted.current) {
         timeoutId = setTimeout(runPulse, 300000); 
       }
     };
 
-    // Ignite the first load
     fetchAccounts(false, valve.signal).then(() => {
       if (isMounted.current) {
         timeoutId = setTimeout(runPulse, 1000);
       }
     });
 
-    // Cleanup: Stop the pulse and close the valve when unmounting
     return () => {
       isMounted.current = false;
       valve.abort();
       clearTimeout(timeoutId);
     };
-  }, [fetchAccounts]);
+  }, [fetchAccounts, isSuperAdmin]);
 
   // ── RESET PAGE ON FILTER CHANGE ──
   useEffect(() => {
@@ -139,7 +175,6 @@ export default function AccountManagement() {
     );
   }, [accounts, searchTerm]);
 
-  // 🛡️ BULLETPROOF FIX: We now filter by the database 'source' tag instead of typing text roles.
   const officialAccounts = filtered.filter(a => a.source === 'official');
   const residentAccounts = filtered.filter(a => a.source === 'resident');
   
@@ -152,6 +187,37 @@ export default function AccountManagement() {
     return tableData.slice(start, start + ITEMS_PER_PAGE);
   }, [tableData, currentPage]);
 
+
+  // ─── 🛡️ RENDER GUARDS ─────────────────────────────────────────────────────
+
+  // 1. Still checking credentials
+  if (isSuperAdmin === null) {
+    return (
+      <div className="ACC_PAGE_WRAP">
+        <div className="ACC_MAIN_CONTAINER" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
+          <div className="SPINNER" style={{ width: '40px', height: '40px', borderTopColor: '#3b82f6', borderRadius: '50%', border: '4px solid #e2e8f0', animation: 'spin 1s linear infinite' }} />
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Access Denied State
+  if (isSuperAdmin === false) {
+    return (
+      <div className="ACC_PAGE_WRAP">
+        <div className="ACC_MAIN_CONTAINER" style={{ textAlign: 'center', padding: '100px 20px', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+          <i className="fas fa-shield-alt" style={{ fontSize: '4rem', color: '#ef4444', marginBottom: '20px' }}></i>
+          <h2 style={{ color: '#1e293b', fontSize: '2rem', marginBottom: '10px', fontWeight: 700 }}>Access Restricted</h2>
+          <p style={{ color: '#64748b', fontSize: '1.1rem', maxWidth: '400px', margin: '0 auto' }}>
+            You do not have the required security clearance to view this module. <br /><br />
+            This page is strictly reserved for <strong>Superadmin</strong> personnel.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. Authorized Render (Original Return)
   return (
     <div className="ACC_PAGE_WRAP">
       <div className="ACC_MAIN_CONTAINER">

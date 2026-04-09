@@ -1,126 +1,147 @@
 /**
- * Notification.js - THE RECTO ENGINE (V5.4 - HISTORY & ADBLOCK FIX)
+ * Notification.js - DEDICATED TABLE ENGINE (FULL CRUD)
  * ────────────────────────────────────────────────────────
- * Logic: Pulls live data directly from 'document_requests' 
- * and 'blotter_cases'. This bypasses the need for a separate 
- * notifications table, guaranteeing 100% reliability.
+ * Connects directly to the public.notifications table.
+ * Fully complete with Create, Read-All, and Clear-All capabilities.
  */
 
 export const NotificationRouter = (router, supabase, authenticateToken) => {
     
     // =========================================================
-    // 1. THE HANDSHAKE MARKER
+    // 1. GET ALL NOTIFICATIONS (LIVE FEED)
     // =========================================================
-    // CHANGED to /alerts/ to bypass Brave Browser/AdBlockers
-    router.get('/alerts/latest-marker', authenticateToken, async (req, res) => {
-        try {
-            // Get the single most recent Document ID
-            const { data: doc } = await supabase
-                .from('document_requests')
-                .select('id')
-                .order('id', { ascending: false })
-                .limit(1)
-                .single();
-
-            // Get the single most recent Blotter ID
-            const { data: blt } = await supabase
-                .from('blotter_cases')
-                .select('id')
-                .order('id', { ascending: false })
-                .limit(1)
-                .single();
-
-            res.status(200).json({
-                latestDocId: doc?.id || 0,
-                latestBltId: blt?.id || 0,
-                serverTime: new Date().toISOString()
-            });
-        } catch (err) {
-            res.status(200).json({ latestDocId: 0, latestBltId: 0 });
-        }
-    });
-
-    // =========================================================
-    // 2. THE LIVE FEED (UNIFIED & HISTORY ENABLED)
-    // =========================================================
-    // CHANGED to /alerts/live
     router.get('/alerts/live', authenticateToken, async (req, res) => {
         try {
-            // A. Fetch Documents (REMOVED 'Pending' filter, INCREASED limit to 30 for History tab)
-            const { data: docs, error: e1 } = await supabase
-                .from('document_requests')
-                .select('id, resident_name, type, date_requested, status')
-                .order('date_requested', { ascending: false })
-                .limit(30);
+            const fetchLimit = parseInt(req.query.limit) || 50;
 
-            if (e1) throw e1;
-
-            // B. Fetch Blotters (REMOVED 'Pending' filter, INCREASED limit to 30 for History tab)
-            const { data: blts, error: e2 } = await supabase
-                .from('blotter_cases')
-                .select('id, complainant_name, incident_type, created_at, status')
+            const { data, error } = await supabase
+                .from('notifications')
+                .select('*')
+                // .eq('user_id', req.user.id) // Optional: filter by user
                 .order('created_at', { ascending: false })
-                .limit(30);
+                .limit(fetchLimit);
 
-            // C. Format and Merge into a single array
-            const feed = [
-                // Map Document Requests
-                ...(docs || []).map(d => ({
-                    id: `doc-${d.id}`, 
-                    originalId: d.id,
-                    title: 'New Document Request',
-                    message: `${d.resident_name} filed for ${d.type}`,
-                    timestamp: d.date_requested,
-                    type: 'document',
-                    status: d.status // Added status so frontend can style it
-                })),
-                
-                // Map Blotter Cases
-                ...(blts || []).map(b => ({
-                    id: `blt-${b.id}`, 
-                    originalId: b.id,
-                    title: 'New Blotter Report',
-                    message: `Incident: ${b.incident_type} reported by ${b.complainant_name}`,
-                    timestamp: b.created_at,
-                    type: 'blotter',
-                    status: b.status // Added status so frontend can style it
-                }))
-            ];
+            if (error) throw error;
+            res.status(200).json(data);
 
-            // D. Sort combined feed by timestamp (Newest on top)
-            const sortedFeed = feed.sort((a, b) => 
-                new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-            );
-
-            res.status(200).json(sortedFeed);
         } catch (err) {
-            console.error("[RECTO ENGINE ERROR]", err.message);
-            res.status(500).json({ error: "Failed to fetch unified feed." });
+            console.error("[NOTIF DB ERROR]", err.message);
+            res.status(500).json({ error: "Failed to fetch notifications." });
         }
     });
 
     // =========================================================
-    // 3. THE BADGE COUNT
+    // 2. GET UNREAD COUNT (FOR BADGES)
     // =========================================================
-    // CHANGED to /alerts/count
     router.get('/alerts/count', authenticateToken, async (req, res) => {
         try {
-            // Count ONLY pending documents for the red badge
-            const { count: c1 } = await supabase
-                .from('document_requests')
+            const { count, error } = await supabase
+                .from('notifications')
                 .select('*', { count: 'exact', head: true })
-                .eq('status', 'Pending');
+                .eq('is_read', false);
+                // .eq('user_id', req.user.id); 
 
-            // Count ONLY pending blotter cases for the red badge
-            const { count: c2 } = await supabase
-                .from('blotter_cases')
-                .select('*', { count: 'exact', head: true })
-                .eq('status', 'Pending');
+            if (error) throw error;
+            res.status(200).json({ total: count || 0 });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
 
-            // Return the sum
-            res.status(200).json({ 
-                total: (c1 || 0) + (c2 || 0) 
-            });
+    // =========================================================
+    // 3. CREATE NEW NOTIFICATION (SYSTEM OR ADMIN)
+    // =========================================================
+    router.post('/alerts/create', authenticateToken, async (req, res) => {
+        try {
+            const { user_id, title, message, type } = req.body;
+            
+            if (!title || !message) {
+                return res.status(400).json({ error: "Title and message are required" });
+            }
+
+            const { data, error } = await supabase
+                .from('notifications')
+                .insert([{ 
+                    user_id: user_id || 'system', 
+                    title, 
+                    message, 
+                    type: type || 'system', 
+                    is_read: false 
+                }])
+                .select();
+
+            if (error) throw error;
+            res.status(201).json({ success: true, data });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    // =========================================================
+    // 4. MARK SINGLE AS READ
+    // =========================================================
+    router.put('/alerts/read/:id', authenticateToken, async (req, res) => {
+        try {
+            const { error } = await supabase
+                .from('notifications')
+                .update({ is_read: true })
+                .eq('id', req.params.id);
+
+            if (error) throw error;
+            res.status(200).json({ success: true, message: "Marked as read" });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    // =========================================================
+    // 5. MARK ALL AS READ (BATCH OPTIMIZATION)
+    // =========================================================
+    router.put('/alerts/read-all', authenticateToken, async (req, res) => {
+        try {
+            const { error } = await supabase
+                .from('notifications')
+                .update({ is_read: true })
+                .eq('is_read', false);
+                // .eq('user_id', req.user.id); // Secure to specific user
+
+            if (error) throw error;
+            res.status(200).json({ success: true, message: "All marked as read" });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    // =========================================================
+    // 6. PERMANENT CLEAR SINGLE (DELETE)
+    // =========================================================
+    router.delete('/alerts/clear/:id', authenticateToken, async (req, res) => {
+        try {
+            const { error } = await supabase
+                .from('notifications')
+                .delete()
+                .eq('id', req.params.id);
+
+            if (error) throw error;
+            res.status(200).json({ success: true, message: "Permanently deleted from database" });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    // =========================================================
+    // 7. PERMANENT CLEAR ALL (WIPE HISTORY)
+    // =========================================================
+    router.delete('/alerts/clear-all', authenticateToken, async (req, res) => {
+        try {
+            const { error } = await supabase
+                .from('notifications')
+                .delete()
+                .neq('id', 0); // Failsafe to target all rows
+                // .eq('user_id', req.user.id);
+
+            if (error) throw error;
+            res.status(200).json({ success: true, message: "Notification history wiped" });
         } catch (err) {
             res.status(500).json({ error: err.message });
         }

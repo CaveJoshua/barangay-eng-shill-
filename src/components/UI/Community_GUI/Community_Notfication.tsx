@@ -26,10 +26,11 @@ const Community_Notification: React.FC<NotificationProps> = ({ blotters, documen
     const list: any[] = [];
 
     // 1. Check for Documents Ready for Pickup
-    documents?.forEach(doc => {
+    documents?.forEach((doc, index) => {
       if (doc.status?.toLowerCase() === 'ready') {
         list.push({
-          id: `doc-${doc.id}`,
+          // 🛡️ FIX: Added fallback to index so it never becomes undefined
+          id: `doc-${doc.id || doc.reference_no || index}`, 
           type: 'document',
           title: 'Document Ready',
           message: `Your ${doc.type} is ready for pickup at the barangay hall.`,
@@ -41,13 +42,14 @@ const Community_Notification: React.FC<NotificationProps> = ({ blotters, documen
     });
 
     // 2. Check for Blotter Hearings
-    blotters?.forEach(caseItem => {
+    blotters?.forEach((caseItem, index) => {
       if (caseItem.status?.toLowerCase() === 'hearing') {
         list.push({
-          id: `blot-${caseItem.id}`,
+          // 🛡️ FIX: Falls back to case_no, case_number, or index to ensure a unique key
+          id: `blot-${caseItem.id || caseItem.case_no || caseItem.case_number || index}`, 
           type: 'blotter',
           title: 'Hearing Scheduled',
-          message: `A hearing is scheduled for Case #${caseItem.case_no || 'Pending'}.`,
+          message: `A hearing is scheduled for Case #${caseItem.case_no || caseItem.case_number || 'Pending'}.`,
           time: 'Check Schedule',
           icon: 'fas fa-gavel',
           color: '#f59e0b'

@@ -11,7 +11,7 @@ interface AdminNotifProps {
 
 // Interface matching the Unified Live Feed from Notification.js
 interface LiveNotification {
-  id: string;         // e.g., "doc-5" or "blt-12"
+  id: string;        // e.g., "doc-5" or "blt-12"
   originalId: string; // The actual ID in the database (used for hinting)
   title: string;
   message: string;
@@ -22,21 +22,33 @@ interface LiveNotification {
 
 const AdministratorNotification: React.FC<AdminNotifProps> = ({ onNavigate }) => {
   const [notifications, setNotifications] = useState<LiveNotification[]>([]);
+  
+  // 💾 Memory for Read Notifications
   const [readIds, setReadIds] = useState<string[]>(() => {
-    // Load previously read IDs from browser memory
     const saved = localStorage.getItem('admin_read_notif_ids');
     return saved ? JSON.parse(saved) : [];
   });
+
+  // 💾 NEW: Memory for Cleared Notifications (hidden from dropdown)
+  const [clearedIds, setClearedIds] = useState<string[]>(() => {
+    const saved = localStorage.getItem('admin_cleared_notif_ids');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const [showNotifs, setShowNotifs] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
   
   const notifsControllerRef = useRef<AbortController | null>(null);
   const notifsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 💾 Sync read IDs to local storage whenever they change
+  // 💾 Sync read/cleared IDs to local storage whenever they change
   useEffect(() => {
     localStorage.setItem('admin_read_notif_ids', JSON.stringify(readIds));
   }, [readIds]);
+
+  useEffect(() => {
+    localStorage.setItem('admin_cleared_notif_ids', JSON.stringify(clearedIds));
+  }, [clearedIds]);
 
   // 🖱️ Close dropdown when clicking outside
   useEffect(() => {
@@ -55,7 +67,6 @@ const AdministratorNotification: React.FC<AdminNotifProps> = ({ onNavigate }) =>
     notifsControllerRef.current = new AbortController();
 
     try {
-      // Connects to your new GET /alerts/live endpoint via ApiService
       const liveData = await ApiService.getNotifications(notifsControllerRef.current.signal);
       
       if (liveData && Array.isArray(liveData)) {
@@ -89,8 +100,11 @@ const AdministratorNotification: React.FC<AdminNotifProps> = ({ onNavigate }) =>
     };
   }, [fetchLiveNotifs]);
 
-  // Calculate unread count by checking if ID exists in readIds array
-  const unreadCount = notifications.filter(n => !readIds.includes(n.id)).length;
+  // 🛡️ Filter out notifications that have been cleared by the admin
+  const visibleNotifications = notifications.filter(n => !clearedIds.includes(n.id));
+  
+  // Calculate unread count only for visible notifications
+  const unreadCount = visibleNotifications.filter(n => !readIds.includes(n.id)).length;
 
   // 🚀 HANDSHAKE: Mark as read locally and navigate with Highlight Hint
   const handleNotificationClick = (n: LiveNotification) => {
@@ -100,7 +114,6 @@ const AdministratorNotification: React.FC<AdminNotifProps> = ({ onNavigate }) =>
 
     setShowNotifs(false);
 
-    // 🛡️ THE FIX: Pass the originalId so the target page can highlight the row
     if (n.type === 'document') {
       onNavigate('Document', String(n.originalId)); 
     } else if (n.type === 'blotter') {
@@ -108,9 +121,12 @@ const AdministratorNotification: React.FC<AdminNotifProps> = ({ onNavigate }) =>
     }
   };
 
+  // 🛡️ THE FIX: Mark all as read AND add them to the cleared list to hide them
   const handleMarkAllRead = () => {
-    const allIds = notifications.map(n => n.id);
-    setReadIds(prev => Array.from(new Set([...prev, ...allIds])));
+    const allVisibleIds = visibleNotifications.map(n => n.id);
+    
+    setReadIds(prev => Array.from(new Set([...prev, ...allVisibleIds])));
+    setClearedIds(prev => Array.from(new Set([...prev, ...allVisibleIds])));
   };
 
   const getIconClass = (type: string) => {
@@ -132,7 +148,7 @@ const AdministratorNotification: React.FC<AdminNotifProps> = ({ onNavigate }) =>
         <div className="FRAME_NOTIF_DROPDOWN">
           <div className="FRAME_NOTIF_HEADER">
             <h4>Live Feed</h4>
-            {unreadCount > 0 && (
+            {visibleNotifications.length > 0 && (
               <button onClick={handleMarkAllRead} className="FRAME_NOTIF_MARKALL">
                 Clear All
               </button>
@@ -140,14 +156,13 @@ const AdministratorNotification: React.FC<AdminNotifProps> = ({ onNavigate }) =>
           </div>
           
           <div className="FRAME_NOTIF_BODY">
-            {notifications.length === 0 ? (
+            {visibleNotifications.length === 0 ? (
               <div className="FRAME_NOTIF_EMPTY">
                 <i className="fas fa-check-circle"></i>
                 <p>No pending requests.</p>
               </div>
             ) : (
-              // 🛡️ THE FIX: Slice to 5 so the dropdown doesn't become overwhelmingly long
-              notifications.slice(0, 5).map((n) => {
+              visibleNotifications.slice(0, 5).map((n) => {
                 const isRead = readIds.includes(n.id);
                 return (
                   <div 
@@ -173,7 +188,6 @@ const AdministratorNotification: React.FC<AdminNotifProps> = ({ onNavigate }) =>
           </div>
           
           <div className="FRAME_NOTIF_FOOTER">
-            {/* 🛡️ THE FIX: Navigate to the full Notification Center History page */}
             <button onClick={() => { setShowNotifs(false); onNavigate('Notification Center'); }}>
               View All History <i className="fas fa-history" style={{ marginLeft: '5px' }}></i>
             </button>
