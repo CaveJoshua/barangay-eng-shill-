@@ -34,7 +34,7 @@ export default function Community_Authentication({ isOpen, onClose, resident }: 
     setLoading(true);
     setError(null);
     try {
-      // Backend triggers Mailer.js to send 6-digit code
+      // Backend triggers Mailer.js to send 6-character code
       const result = await ApiService.requestPasswordResetOTP(resident.email);
       if (result.success) {
         setStep('VERIFY_OTP');
@@ -78,11 +78,13 @@ export default function Community_Authentication({ isOpen, onClose, resident }: 
 
     setLoading(true);
     try {
-      const result = await ApiService.updatePassword(resident.record_id, passwords.new);
+      // 🛡️ THE FIX: Pass exactly 3 arguments (Email, OTP, New Password)
+      const result = await ApiService.updatePassword(resident.email, otp, passwords.new);
+      
       if (result.success) {
         setStep('SUCCESS');
       } else {
-        setError(result.message || "Update failed.");
+        setError(result.message || result.error || "Update failed.");
       }
     } catch (err) {
       setError("System handshake failed.");
@@ -115,14 +117,15 @@ export default function Community_Authentication({ isOpen, onClose, resident }: 
             <div className="AUTH_STEP">
               <i className="fas fa-key AUTH_ICON" />
               <h3>Enter Security Code</h3>
-              <p>Type the 6-digit code sent to your Gmail.</p>
+              <p>Type the 6-character code sent to your Gmail.</p>
               <input 
                 type="text" 
                 maxLength={6} 
                 className="AUTH_INPUT OTP_INPUT" 
-                placeholder="000000"
+                placeholder="XXXXXX"
                 value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                // 🛡️ THE FIX: Allow Letters and Numbers (Alphanumeric) instead of just digits
+                onChange={(e) => setOtp(e.target.value.replace(/[^A-Za-z0-9]/g, ''))}
               />
               {error && <p className="AUTH_ERR">{error}</p>}
               <button className="AUTH_PRIMARY_BTN" onClick={handleVerifyOTP} disabled={otp.length !== 6 || loading}>
