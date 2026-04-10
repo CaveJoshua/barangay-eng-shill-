@@ -1,412 +1,523 @@
 /* =========================================================
-   HOUSEHOLD PROFILE SYSTEM — VERSION 13.0 "HIGH-VISIBILITY"
+   BLOTTER SYSTEM — VERSION 12.0 "ENTERPRISE BLACK-LABEL"
    ─────────────────────────────────────────────────────────
-   Design System: SaaS Compact / Enterprise Density
-   Target: Anti-Distortion, High Contrast, Dark Sync
+   Design System: High-Density Dashboard Architecture
+   Compatibility: Dark/Light Mode Sync
    Code Weight: 400+ Lines (Full Implementation)
    ========================================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+
 
 /* ── 1. GLOBAL DESIGN TOKENS ──────────────────────────── */
 :root {
-    /* Layout Constants */
-    --HP-radius-xl: 18px;
-    --HP-radius-lg: 12px;
-    --HP-radius-md: 8px;
-    --HP-radius-sm: 5px;
+    /* Fluid Sizing Scale */
+    --BLOT-radius-xl: 18px;
+    --BLOT-radius-lg: 12px;
+    --BLOT-radius-md: 8px;
+    --BLOT-radius-sm: 4px;
 
-    /* Light Mode Color Space (High Contrast) */
-    --HP-bg-body: #f1f5f9;      /* Deeper gray for background contrast */
-    --HP-bg-card: #ffffff;      /* Pure white cards */
-    --HP-bg-accent: #f8fafc;
-    --HP-surface-hover: #f1f5f9;
+    /* Transition Dynamics */
+    --BLOT-timing: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     
-    --HP-border-subtle: #e2e8f0;
-    --HP-border-hard: #cbd5e1;  /* Visible, hard borders */
-    --HP-border-primary: #2563eb;
+    /* Light Mode Color Space */
+    --BLOT-bg-main: #f4f7fa;
+    --BLOT-bg-card: #ffffff;
+    --BLOT-bg-side: #f8fafc;
+    --BLOT-bg-hover: #f1f5f9;
+    --BLOT-bg-active: #eff6ff;
 
-    --HP-text-primary: #0f172a; /* Near black heading */
-    --HP-text-secondary: #334155; /* Dark body text */
-    --HP-text-muted: #64748b;
+    --BLOT-border-subtle: #e2e8f0;
+    --BLOT-border-hard: #cbd5e1;
+    --BLOT-border-primary: #3b82f6;
 
-    /* Branding & Semantics */
-    --HP-primary: #2563eb;
-    --HP-primary-hover: #1d4ed8;
-    --HP-danger: #ef4444;
-    --HP-danger-hover: #fee2e2;
-    --HP-success: #10b981;
-    
-    /* Shadows (Defined for visibility) */
-    --HP-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-    --HP-shadow-lg: 0 15px 30px -5px rgba(15, 23, 42, 0.15);
-    --HP-shadow-focus: 0 0 0 4px rgba(37, 99, 235, 0.1);
+    --BLOT-text-heading: #0f172a;
+    --BLOT-text-body: #334155;
+    --BLOT-text-muted: #64748b;
+    --BLOT-text-ghost: #94a3b8;
+
+    /* Semantic Accents */
+    --BLOT-clr-primary: #2563eb;
+    --BLOT-clr-danger: #ef4444;
+    --BLOT-clr-success: #10b981;
+    --BLOT-clr-warning: #f59e0b;
+    --BLOT-clr-info: #0ea5e9;
+
+    /* Soft Accent Overlays */
+    --BLOT-glass-blue: rgba(37, 99, 235, 0.08);
+    --BLOT-glass-red: rgba(239, 68, 68, 0.08);
+    --BLOT-glass-green: rgba(16, 185, 129, 0.08);
+    --BLOT-glass-yellow: rgba(245, 158, 11, 0.08);
+
+    /* Shadow Architectures */
+    --BLOT-shd-flat: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --BLOT-shd-pop: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    --BLOT-shd-modal: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
 }
+
 
 /* ── 2. DARK MODE CORE ENGINE ─────────────────────────── */
-[data-theme='dark'] {
-    --HP-bg-body: #0b1120;
-    --HP-bg-card: #151c2c;
-    --HP-bg-accent: #0f172a;
-    --HP-surface-hover: #1e293b;
+[data-theme="dark"] {
+    --BLOT-bg-main: #0b1120;
+    --BLOT-bg-card: #151c2c;
+    --BLOT-bg-side: #0f172a;
+    --BLOT-bg-hover: #1e293b;
+    --BLOT-bg-active: #1e293b;
+
+    --BLOT-border-subtle: #2d3748;
+    --BLOT-border-hard: #334155;
+    --BLOT-border-primary: #60a5fa;
+
+    --BLOT-text-heading: #f8fafc;
+    --BLOT-text-body: #cbd5e1;
+    --BLOT-text-muted: #94a3b8;
+    --BLOT-text-ghost: #64748b;
+
+    --BLOT-clr-primary: #60a5fa;
+    --BLOT-glass-blue: rgba(96, 165, 250, 0.15);
+    --BLOT-glass-red: rgba(239, 68, 68, 0.15);
     
-    --HP-border-subtle: #2d3748;
-    --HP-border-hard: #334155;
-    --HP-border-primary: #60a5fa;
-
-    --HP-text-primary: #f8fafc;
-    --HP-text-secondary: #cbd5e1;
-    --HP-text-muted: #94a3b8;
-
-    --HP-primary: #60a5fa;
-    --HP-shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.4);
+    --BLOT-shd-pop: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
 }
 
-/* ── 3. BASE WRAPPERS ────────────────────────────────── */
-.HP_PAGE_WRAPPER {
-    height: 100%;
-    width: 100%;
-    background-color: var(--HP-bg-body);
-    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
-    color: var(--HP-text-secondary);
-    transition: background 0.3s ease;
+
+/* ── 3. PAGE FRAMEWORK ───────────────────────────────── */
+.BLOT_PAGE_WRAP {
+    padding: 1.5rem 2rem;
+    background-color: var(--BLOT-bg-main);
+    min-height: 100vh;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    color: var(--BLOT-text-body);
+    transition: background-color 0.4s ease;
     box-sizing: border-box;
 }
 
-.HP_MAIN_CONTAINER {
-    max-width: 1300px;
+.BLOT_MAIN_CONTAINER {
+    max-width: 1400px;
     margin: 0 auto;
-    padding: 1.5rem; /* Reduced padding for appropriate sizing */
-}
-
-/* ── 4. MODAL ARCHITECTURE (Fix for image_011e1c) ─────── */
-@keyframes hp_overlayFade {
-    0% { opacity: 0; }
-    100% { opacity: 1; }
-}
-
-@keyframes hp_cardPop {
-    0% { transform: scale(0.96) translateY(10px); opacity: 0; }
-    100% { transform: scale(1) translateY(0); opacity: 1; }
-}
-
-.HP_MODAL_OVERLAY {
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.75); /* Darker overlay for focus */
-    backdrop-filter: blur(8px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 5000;
-    animation: hp_overlayFade 0.2s ease-out forwards;
-}
-
-.HP_MODAL_CARD {
-    background: var(--HP-bg-card);
-    width: 92%;
-    max-width: 880px; /* Refined width for enterprise density */
-    max-height: 88vh;
-    border-radius: var(--HP-radius-xl);
     display: flex;
     flex-direction: column;
-    box-shadow: var(--HP-shadow-lg);
-    border: 1px solid var(--HP-border-hard);
-    animation: hp_cardPop 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    overflow: hidden;
+    gap: 1.5rem;
 }
 
-.HP_MODAL_HEADER {
-    padding: 1.25rem 1.75rem;
-    border-bottom: 1px solid var(--HP-border-subtle);
+
+/* ── 4. HEADER SECTION ───────────────────────────────── */
+.BLOT_HEADER_FLEX {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: var(--HP-bg-card);
+    border-bottom: 1px solid var(--BLOT-border-subtle);
+    padding-bottom: 1rem;
 }
 
-.HP_MODAL_TITLE { 
-    font-size: 1.25rem; 
+.BLOT_PAGE_TITLE { 
+    font-size: 1.5rem; 
     font-weight: 800; 
-    color: var(--HP-text-primary); 
+    color: var(--BLOT-text-heading); 
     margin: 0; 
-    letter-spacing: -0.02em;
+    letter-spacing: -0.03em; 
 }
 
-.HP_MODAL_CLOSE_X {
-    background: var(--HP-surface-hover);
-    border: 1px solid var(--HP-border-subtle);
-    height: 32px;
-    width: 32px;
-    border-radius: 50%;
+.BLOT_PAGE_SUB { 
+    color: var(--BLOT-text-muted); 
+    margin: 2px 0 0 0; 
+    font-size: 0.875rem; 
+    font-weight: 500;
+}
+
+.BLOT_ADD_BTN {
+    background: var(--BLOT-text-heading);
+    color: var(--BLOT-bg-card);
+    border: 1px solid transparent;
+    padding: 8px 18px;
+    border-radius: var(--BLOT-radius-md);
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: var(--BLOT-timing);
+}
+
+.BLOT_ADD_BTN:hover { 
+    background: var(--BLOT-clr-primary);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px var(--BLOT-glass-blue);
+}
+
+
+/* ── 5. STAT CARDS (Anti-Distortion Tech) ────────────── */
+.BLOT_STATS_GRID {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.25rem;
+}
+
+.BLOT_STAT_CARD {
+    background: var(--BLOT-bg-card);
+    padding: 1rem 1.25rem;
+    border-radius: var(--BLOT-radius-lg);
+    border: 1px solid var(--BLOT-border-subtle);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: var(--BLOT-timing);
+    cursor: pointer;
+    min-height: 85px; 
+    box-shadow: var(--BLOT-shd-flat);
+}
+
+.BLOT_STAT_CARD:hover { 
+    transform: translateY(-3px); 
+    border-color: var(--BLOT-border-hard);
+    box-shadow: var(--BLOT-shd-pop);
+}
+
+.BLOT_STAT_CARD.ACTIVE_CARD { 
+    border-color: var(--BLOT-clr-primary); 
+    background: var(--BLOT-glass-blue);
+    border-width: 2px;
+}
+
+/* 🛡️ THE FIX: This separates the number and the text cleanly */
+.BLOT_STAT_INFO {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+}
+
+.BLOT_STAT_NUM { 
+    font-size: 1.65rem; 
+    font-weight: 800; 
+    color: var(--BLOT-text-heading); 
+    line-height: 1; 
+}
+
+.BLOT_STAT_LABEL { 
+    font-size: 0.65rem; 
+    font-weight: 700; 
+    color: var(--BLOT-text-muted); 
+    text-transform: uppercase; 
+    letter-spacing: 0.1em;
+}
+
+.BLOT_STAT_ICON_WRAP {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 1.1rem;
-    color: var(--HP-text-muted);
-    cursor: pointer;
-    transition: all 0.2s ease;
+    flex-shrink: 0;
 }
 
-.HP_MODAL_CLOSE_X:hover {
-    background: var(--HP-danger-hover);
-    color: var(--HP-danger);
-    transform: rotate(90deg);
-}
+.ICON_YELLOW { background: var(--BLOT-glass-yellow); color: var(--BLOT-clr-warning); }
+.ICON_RED    { background: var(--BLOT-glass-red); color: var(--BLOT-clr-danger); }
+.ICON_BLUE   { background: var(--BLOT-glass-blue); color: var(--BLOT-clr-primary); }
+.ICON_GREEN  { background: var(--BLOT-glass-green); color: var(--BLOT-clr-success); }
 
-.HP_MODAL_SCROLL_BODY { 
-    padding: 1.75rem; 
-    overflow-y: auto; 
-    background-color: var(--HP-bg-card);
-}
 
-/* ── 5. FORM ELEMENTS (Compact Visibility) ───────────── */
-.HP_SECTION_INDICATOR {
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--HP-primary);
-    font-weight: 800;
-    margin-bottom: 1.25rem;
+/* ── 6. TOOLBAR (Search & Tabs) ──────────────────────── */
+.BLOT_SEARCH_ROW {
     display: flex;
+    justify-content: space-between;
     align-items: center;
-    gap: 12px;
+    background: var(--BLOT-bg-card);
+    padding: 0.6rem 1.25rem;
+    border-radius: var(--BLOT-radius-md);
+    border: 1px solid var(--BLOT-border-subtle);
+    gap: 2rem;
+    box-shadow: var(--BLOT-shd-flat);
 }
 
-.HP_SECTION_INDICATOR::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: var(--HP-border-subtle);
-}
-
-.HP_FORM_GRID { 
-    display: grid; 
-    grid-template-columns: 1fr 1fr; 
-    gap: 1.25rem; 
-    margin-bottom: 2rem; 
-}
-
-.HP_GRID_FULL { grid-column: span 2; }
-
-.HP_FORM_LABEL { 
-    font-size: 0.75rem; 
-    font-weight: 700; 
-    color: var(--HP-text-muted); 
-    margin-bottom: 6px; 
-    display: block; 
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-}
-
-/* High Contrast Inputs */
-.HP_FORM_INPUT, .HP_FORM_SELECT, .HP_MEMBER_FIELD {
-    width: 100%;
-    padding: 0.75rem 1rem;
-    border: 1.5px solid var(--HP-border-subtle);
-    border-radius: 10px;
-    background: var(--HP-bg-accent);
-    color: var(--HP-text-primary);
-    font-size: 0.9rem;
-    font-weight: 600;
-    outline: none;
-    transition: all 0.2s ease;
-}
-
-.HP_FORM_INPUT:hover, .HP_MEMBER_FIELD:hover {
-    border-color: var(--HP-border-hard);
-}
-
-.HP_FORM_INPUT:focus, .HP_FORM_SELECT:focus { 
-    background: var(--HP-bg-card);
-    border-color: var(--HP-primary); 
-    box-shadow: var(--HP-shadow-focus); 
-}
-
-.HP_STATIC_FIELD {
-    padding: 0.75rem 1rem;
-    background: var(--HP-surface-hover);
-    border-radius: 10px;
-    color: var(--HP-text-secondary);
-    font-weight: 700;
-    border: 1px dashed var(--HP-border-hard);
-    font-size: 0.875rem;
-}
-
-/* ── 6. SEARCH & COMBOBOX (High Density) ────────────── */
-.HP_COMBOBOX_WRAP { position: relative; }
-
-.HP_INPUT_AGE_BADGE {
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    background: var(--HP-bg-card);
-    border: 1px solid var(--HP-border-hard);
-    padding: 2px 8px;
-    border-radius: 6px;
-    font-size: 0.65rem;
-    font-weight: 800;
-    color: var(--HP-primary);
-    pointer-events: none;
-}
-
-.HP_DROP_RESULTS {
-    position: absolute;
-    top: calc(100% + 5px);
-    width: 100%;
-    background: var(--HP-bg-card);
-    border: 1px solid var(--HP-border-hard);
-    border-radius: 12px;
-    z-index: 6000;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-    max-height: 200px;
-    overflow-y: auto;
-    padding: 5px;
-}
-
-.HP_DROP_ITEM { 
-    padding: 10px 12px; 
-    cursor: pointer; 
-    border-radius: 8px;
+.BLOT_TABS_ROW {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
-    transition: background 0.1s ease;
+    background: var(--BLOT-bg-main);
+    padding: 4px;
+    border-radius: 10px;
+    gap: 4px;
 }
 
-.HP_DROP_ITEM:hover { background: var(--HP-surface-hover); }
-
-.HP_DROP_NAME { font-weight: 700; font-size: 0.875rem; color: var(--HP-text-primary); }
-.HP_DROP_SUB { font-size: 0.75rem; color: var(--HP-text-muted); font-weight: 600; }
-
-/* ── 7. MEMBERS TABLE (Surgical Anti-Distortion) ────── */
-.HP_MEMBERS_TABLE { 
-    width: 100%; 
-    border-collapse: separate; 
-    border-spacing: 0 8px;
-}
-
-.HP_TABLE_ROW td {
-    background: var(--HP-bg-card);
-    padding: 6px 4px;
-    vertical-align: middle;
-}
-
-.HP_RELATIVE_CELL { width: 48%; }
-
-.HP_AGE_DISPLAY_CELL { 
-    width: 70px;
-    text-align: center; 
-    font-weight: 800; 
-    color: var(--HP-text-muted); 
-    font-size: 0.8rem;
-}
-
-.HP_CENTERED_ACTION_CELL { text-align: right; width: 50px; }
-
-.HP_REMOVE_ROW_BTN {
-    background: var(--HP-surface-hover);
-    border: 1px solid var(--HP-border-subtle);
-    color: var(--HP-text-muted);
-    cursor: pointer;
-    height: 34px;
-    width: 34px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-}
-
-.HP_REMOVE_ROW_BTN:hover {
-    background: var(--HP-danger-hover);
-    color: var(--HP-danger);
-    border-color: var(--HP-danger);
-}
-
-.HP_ADD_ROW_TRIGGER {
-    width: 100%;
-    margin-top: 0.5rem;
-    padding: 10px;
-    border: 2px dashed var(--HP-border-hard);
+.BLOT_TAB_BTN {
+    padding: 6px 18px;
+    border: none;
     background: transparent;
-    color: var(--HP-primary);
-    font-weight: 800;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--BLOT-text-muted);
+    border-radius: 6px;
     cursor: pointer;
-    border-radius: 12px;
-    transition: var(--HP-timing);
+    transition: var(--BLOT-timing);
 }
 
-.HP_ADD_ROW_TRIGGER:hover { 
-    border-color: var(--HP-primary); 
-    background: rgba(37, 99, 235, 0.04); 
+.BLOT_TAB_BTN:hover { color: var(--BLOT-text-heading); }
+
+.BLOT_TAB_BTN.ACTIVE {
+    background: var(--BLOT-bg-card);
+    color: var(--BLOT-text-heading);
+    box-shadow: var(--BLOT-shd-flat);
 }
 
-/* ── 8. FOOTER ACTIONS ──────────────────────────────── */
-.HP_MODAL_FOOTER {
-    padding: 1rem 1.75rem;
-    border-top: 1px solid var(--HP-border-subtle);
+.BLOT_SEARCH_WRAP { position: relative; flex: 1; max-width: 320px; }
+.BLOT_SEARCH_ICON { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--BLOT-text-ghost); font-size: 0.9rem; }
+
+.BLOT_SEARCH_INPUT {
+    width: 100%;
+    height: 38px;
+    padding: 0 16px 0 40px;
+    border: 1px solid var(--BLOT-border-subtle);
+    background: var(--BLOT-bg-main);
+    color: var(--BLOT-text-heading);
+    border-radius: 8px;
+    outline: none;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.BLOT_SEARCH_INPUT:focus { 
+    border-color: var(--BLOT-clr-primary); 
+    background: var(--BLOT-bg-card); 
+}
+
+
+/* ── 7. TABLE & STREAM VIEW ──────────────────────────── */
+.BLOT_TABLE_CONTAINER {
+    background: var(--BLOT-bg-card);
+    border-radius: var(--BLOT-radius-lg);
+    border: 1px solid var(--BLOT-border-subtle);
+    overflow: hidden;
+}
+
+.BLOT_TABLE_WRAP { max-height: 580px; overflow-y: auto; }
+.BLOT_TABLE_MAIN { width: 100%; border-collapse: collapse; text-align: left; }
+
+.BLOT_TABLE_MAIN thead th {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--BLOT-bg-side);
+    padding: 0.85rem 1.25rem;
+    color: var(--BLOT-text-muted);
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--BLOT-border-subtle);
+}
+
+.BLOT_TABLE_MAIN td { 
+    padding: 0.85rem 1.25rem; 
+    border-bottom: 1px solid var(--BLOT-bg-main); 
+    font-size: 0.9rem; 
+    color: var(--BLOT-text-body); 
+    font-weight: 500;
+}
+
+.BLOT_TABLE_MAIN tr:hover { background-color: var(--BLOT-bg-hover); }
+
+.BLOT_CASE_NUMBER { 
+    font-family: 'JetBrains Mono', monospace; 
+    font-weight: 700; 
+    color: var(--BLOT-clr-primary);
+    background: var(--BLOT-glass-blue);
+    padding: 3px 8px; 
+    border-radius: 5px; 
+    font-size: 0.8rem; 
+}
+
+
+/* ── Status Badges ── */
+.BLOT_STATUS_BADGE { 
+    padding: 4px 10px; 
+    border-radius: 5px; 
+    font-size: 0.65rem; 
+    font-weight: 900; 
+    text-transform: uppercase; 
+}
+
+.STATUS_PENDING  { background: var(--BLOT-glass-yellow); color: var(--BLOT-clr-warning); }
+.STATUS_ACTIVE   { background: var(--BLOT-glass-red); color: var(--BLOT-clr-danger); }
+.STATUS_HEARING  { background: var(--BLOT-glass-blue); color: var(--BLOT-clr-primary); }
+.STATUS_SETTLED  { background: var(--BLOT-glass-green); color: var(--BLOT-clr-success); }
+.STATUS_REJECTED { background: #000; color: #fff; }
+
+
+/* ── 8. ACTION CLUSTER ── */
+.BLOT_ACTION_ICON { 
+    background: transparent; 
+    border: 1px solid transparent; 
+    padding: 6px; 
+    cursor: pointer; 
+    color: var(--BLOT-text-muted); 
+    transition: var(--BLOT-timing); 
+    border-radius: 6px;
+    font-size: 0.9rem;
+    margin-left: 2px;
+}
+
+.BLOT_ACTION_ICON:hover { 
+    background: var(--BLOT-bg-card); 
+    color: var(--BLOT-clr-primary); 
+    border-color: var(--BLOT-border-hard);
+    box-shadow: var(--BLOT-shd-flat);
+}
+
+.BLOT_ACTION_ICON.DEL:hover { 
+    color: var(--BLOT-clr-danger); 
+    background: var(--BLOT-glass-red);
+}
+
+
+/* ── 9. PAGINATION CONTROLS ─────────────────────────── */
+.BLOT_PAGINATION_BAR {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    background: var(--BLOT-bg-card);
+    border-top: 1px solid var(--BLOT-border-subtle);
+}
+
+.BLOT_PAGINATION_INFO {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--BLOT-text-muted);
+}
+
+.BLOT_NAV_GROUP {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.BLOT_NAV_BTN {
+    padding: 7px 14px;
+    background: var(--BLOT-bg-card);
+    border: 1px solid var(--BLOT-border-subtle);
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--BLOT-text-body);
+    cursor: pointer;
+    transition: var(--BLOT-timing);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.BLOT_NAV_BTN:hover:not(:disabled) {
+    border-color: var(--BLOT-clr-primary);
+    color: var(--BLOT-clr-primary);
+}
+
+.BLOT_NAV_BTN:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.BLOT_PAGE_INDICATOR {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--BLOT-text-heading);
+    padding: 4px 12px;
+    background: var(--BLOT-bg-main);
+    border-radius: 6px;
+}
+
+
+/* ── 10. MODAL ECOSYSTEM ── */
+.BLOT_MODAL_OVERLAY { 
+    position: fixed; inset: 0; 
+    background: rgba(15, 23, 42, 0.75); 
+    backdrop-filter: blur(8px); 
+    display: flex; align-items: center; justify-content: center; z-index: 5000; 
+}
+
+.BLOT_SIMPLE_MODAL { 
+    background: var(--BLOT-bg-card); 
+    border-radius: var(--BLOT-radius-xl); 
+    width: 90%; max-width: 420px; 
+    padding: 1.75rem; 
+    border: 1px solid var(--BLOT-border-hard); 
+    box-shadow: var(--BLOT-shd-modal); 
+}
+
+.BLOT_MODAL_TITLE { 
+    font-size: 1.25rem; 
+    font-weight: 800; 
+    color: var(--BLOT-text-heading); 
+    margin-bottom: 1.25rem; 
+}
+
+.BLOT_MODAL_LABEL { 
+    font-size: 0.7rem; 
+    font-weight: 800; 
+    color: var(--BLOT-text-muted); 
+    text-transform: uppercase; 
+    letter-spacing: 0.05em;
+    display: block;
+    margin-bottom: 6px;
+}
+
+.BLOT_SIMPLE_MODAL input, 
+.BLOT_SIMPLE_MODAL textarea { 
+    background: var(--BLOT-bg-main); 
+    border: 1.5px solid var(--BLOT-border-subtle); 
+    padding: 10px 12px; 
+    border-radius: 8px; 
+    color: var(--BLOT-text-heading); 
+    width: 100%; 
+    box-sizing: border-box; 
+    outline: none;
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+}
+
+.BLOT_SIMPLE_MODAL input:focus { border-color: var(--BLOT-clr-primary); background: var(--BLOT-bg-card); }
+
+.BLOT_MODAL_ACTIONS {
     display: flex;
     justify-content: flex-end;
-    gap: 0.75rem;
-    background: var(--HP-bg-accent);
+    gap: 10px;
+    margin-top: 1rem;
 }
 
-.HP_CANCEL_BTN { 
-    padding: 0.6rem 1.25rem; 
-    border: 1px solid var(--HP-border-hard); 
-    background: var(--HP-bg-card); 
-    color: var(--HP-text-secondary); 
-    cursor: pointer; 
-    border-radius: 8px;
-    font-weight: 700;
-    font-size: 0.85rem;
+
+/* ── 11. SCROLLBARS & UTILITIES ───────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--BLOT-border-hard); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: var(--BLOT-text-ghost); }
+
+.TEXT_DANGER { color: var(--BLOT-clr-danger); }
+.TEXT_SUCCESS { color: var(--BLOT-clr-success); }
+
+/* Responsive Grid Adaptation */
+@media (max-width: 1100px) {
+    .BLOT_STATS_GRID { grid-template-columns: repeat(2, 1fr); }
+    .BLOT_SEARCH_ROW { flex-direction: column; align-items: stretch; gap: 1rem; }
 }
 
-.HP_CANCEL_BTN:hover { background: var(--HP-surface-hover); }
-
-.HP_SAVE_BTN { 
-    padding: 0.6rem 1.75rem; 
-    border: none; 
-    background: var(--HP-primary); 
-    color: white; 
-    cursor: pointer; 
-    border-radius: 8px; 
-    font-weight: 800;
-    font-size: 0.85rem;
-    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.25);
+@media (max-width: 650px) {
+    .BLOT_PAGE_WRAP { padding: 1rem; }
+    .BLOT_STATS_GRID { grid-template-columns: 1fr; }
+    .BLOT_HEADER_FLEX { flex-direction: column; align-items: flex-start; gap: 1rem; }
+    .BLOT_PAGINATION_BAR { flex-direction: column; gap: 1rem; }
 }
 
-.HP_SAVE_BTN:hover:not(:disabled) { 
-    background: var(--HP-primary-hover); 
-    transform: translateY(-1px);
+
+/* ── 12. ANIMATIONS & HIGHLIGHTS ──────────────────────── */
+@keyframes hintPulse {
+  0%   { background-color: transparent; }
+  20%  { background-color: rgba(255, 204, 0, 0.25); } 
+  80%  { background-color: rgba(255, 204, 0, 0.25); }
+  100% { background-color: transparent; }
 }
 
-.HP_SAVE_BTN:disabled { 
-    opacity: 0.5; 
-    cursor: not-allowed; 
+.HINT_HIGHLIGHT {
+  animation: hintPulse 2.5s ease-in-out forwards;
 }
 
-/* ── 9. SYSTEM SCROLLBARS ────────────────────────────── */
-.HP_MODAL_SCROLL_BODY::-webkit-scrollbar,
-.HP_DROP_RESULTS::-webkit-scrollbar { 
-    width: 6px; 
+.HINT_HIGHLIGHT td:first-child {
+  border-left: 4px solid #f59e0b !important;
 }
-
-.HP_MODAL_SCROLL_BODY::-webkit-scrollbar-thumb,
-.HP_DROP_RESULTS::-webkit-scrollbar-thumb { 
-    background: var(--HP-border-hard); 
-    border-radius: 10px; 
-}
-
-/* ── 10. RESPONSIVE QUERIES ──────────────────────────── */
-@media (max-width: 768px) {
-    .HP_FORM_GRID { grid-template-columns: 1fr; gap: 1rem; }
-    .HP_MODAL_CARD { width: 100%; height: 100%; max-height: 100vh; border-radius: 0; }
-    .HP_RELATIVE_CELL { width: 60%; }
-}
-
-/* Consistency Helper for text visibility */
-.HP_TEXT_VISIBLE { color: var(--HP-text-primary) !important; font-weight: 700 !important; }

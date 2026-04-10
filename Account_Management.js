@@ -55,7 +55,7 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
     };
 
     // =========================================================
-    // 1. GENERATE & SEND SECURE OTP 
+    // 1. GENERATE & SEND SECURE OTP (Public / Residents)
     // =========================================================
     router.post('/accounts/request-otp', async (req, res) => {
         try {
@@ -110,7 +110,7 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
     });
 
     // =========================================================
-    // 2. VERIFY OTP 
+    // 2. VERIFY OTP (Public / Residents)
     // =========================================================
     router.post('/accounts/verify-otp', async (req, res) => {
         try {
@@ -145,10 +145,18 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
     });
 
     // =========================================================
-    // 3. CORE: PASSWORD RESET (For Logged-in Users / Admin Dashboard)
+    // 3. CORE: PASSWORD RESET (Restricted: SUPERADMIN ONLY)
     // =========================================================
     router.patch('/accounts/reset/:accountId', authenticateToken, async (req, res) => {
         try {
+            // 🛡️ THE FIX: STRICT SUPERADMIN GATEKEEPER
+            const userRole = (req.user?.user_role || req.user?.role || '').toLowerCase().trim();
+            
+            if (userRole !== 'superadmin') {
+                console.warn(`[SECURITY] Blocked forceful password reset attempt. Detected Role: ${userRole || 'UNKNOWN'}`);
+                return res.status(403).json({ error: 'Access Denied. Only Superadmins can manually reset passwords.' });
+            }
+
             const { password } = req.body;
             const { accountId } = req.params;
             const securePass = hashPassword(password);
@@ -160,7 +168,6 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
                 .select();
 
             if (resData && resData.length > 0) {
-                // 🛡️ THE FIX: Wrapped in try/catch to prevent 500 crash
                 try {
                     await supabase.from('residents_account')
                         .update({ requires_reset: false })
@@ -189,7 +196,7 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
     });
 
     // =========================================================
-    // 4. PUBLIC: RESET PASSWORD VIA OTP 
+    // 4. PUBLIC: RESET PASSWORD VIA OTP (Public / Residents)
     // =========================================================
     router.post('/accounts/public-reset', async (req, res) => {
         try {
@@ -224,7 +231,6 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
 
             if (updateError) throw updateError;
 
-            // 🛡️ THE FIX: Wrapped in try/catch to prevent 500 crash
             try {
                 await supabase.from('residents_account')
                     .update({ requires_reset: false })

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LOGIN_API } from '../UI/api'; 
+import AdminRecoveryModal from './AdminRecoveryModal'; // We will create this next
 import './styles/Login_modal.css';
 
 // --- ENDPOINT CONSTANTS ---
@@ -11,23 +12,15 @@ interface LoginModalProps {
   onSuccess: (token: string) => void;
 }
 
-type ModalView =
-  | 'LOGIN'
-  | 'ROOT_OTP' 
-  | 'RECOVER_SELECT'
-  | 'RECOVER_EMAIL'
-  | 'RECOVER_PHONE'
-  | 'RECOVER_OTP'
-  | 'RECOVER_SUCCESS';
+type ModalView = 'LOGIN' | 'ROOT_OTP';
 
 const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
   const [view, setView] = useState<ModalView>('LOGIN');
+  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
 
   // --- DATA INPUTS ---
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [traceId, setTraceId] = useState(''); 
 
@@ -52,9 +45,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
   const handleBack = () => {
     setError('');
     if (view === 'ROOT_OTP') setView('LOGIN');
-    else if (view === 'RECOVER_SELECT') setView('LOGIN');
-    else if (view === 'RECOVER_EMAIL' || view === 'RECOVER_PHONE') setView('RECOVER_SELECT');
-    else if (view === 'RECOVER_OTP') setView('RECOVER_PHONE');
   };
 
   // ==========================================
@@ -129,10 +119,16 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
             sessionStorage.setItem('trace_id', traceId);
         }
 
-        // 🛡️ THE RBAC FIX: Prioritize specific database role from profile
+        // 🛡️ THE RBAC FIX: Aggressively hunt for the role name
+        const resolvedRole = (data.user_role || data.role || data.profile?.role || data.profile?.user_role || '').toLowerCase();
+
+        // 1. Set the standalone key for quick route guards
+        localStorage.setItem('user_role', resolvedRole);
+
+        // 2. Set the detailed session object
         localStorage.setItem('admin_session', JSON.stringify({
             username: data.username,
-            role: data.profile?.role || data.role, 
+            role: resolvedRole, 
             profile: data.profile
         }));
 
@@ -162,38 +158,16 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
     }
   };
 
-  // ==========================================
-  // 🛠️ RECOVERY HANDLERS
-  // ==========================================
-  const handleEmailRecovery = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setTimeout(() => {
-      if (isMounted.current) { setView('RECOVER_SUCCESS'); setLoading(false); }
-    }, 1000);
-  };
-
-  const startPhoneRecovery = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setTimeout(() => {
-      if (isMounted.current) { setView('RECOVER_OTP'); setLoading(false); }
-    }, 1000);
-  };
-
-  const verifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setTimeout(() => {
-      if (isMounted.current) { setView('RECOVER_SUCCESS'); setLoading(false); }
-    }, 1000);
-  };
+  // If the user clicks "Forgot Password", we render the new component instead.
+  if (showRecoveryModal) {
+    return <AdminRecoveryModal onClose={() => setShowRecoveryModal(false)} />;
+  }
 
   return (
     <div className="LM_MODAL_OVERLAY" onClick={onClose}>
       <div className={`LM_MODAL_CARD ${username === ROOT_USERNAME ? 'ROOT_BORDER' : ''}`} onClick={(e) => e.stopPropagation()}>
         
-        {view !== 'LOGIN' && view !== 'RECOVER_SUCCESS' && (
+        {view !== 'LOGIN' && (
           <button className="LM_BACK_LINK" onClick={handleBack}>
             <i className="fas fa-chevron-left"></i> Back
           </button>
@@ -252,7 +226,7 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
                  username === ROOT_USERNAME ? 'Request Security Code' : 'Authenticate'}
               </button>
 
-              <button type="button" className="LM_FORGOT_LINK" onClick={() => setView('RECOVER_SELECT')}>
+              <button type="button" className="LM_FORGOT_LINK" onClick={() => setShowRecoveryModal(true)}>
                 Forgot password?
               </button>
             </form>
@@ -286,65 +260,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
           </form>
         )}
 
-        {/* --- VIEW: RECOVER SELECT --- */}
-        {view === 'RECOVER_SELECT' && (
-          <>
-            <div className="LM_HEADER">
-              <div className="LM_ICON"><i className="fas fa-key"></i></div>
-              <h2>Recovery</h2>
-              <p>Select verification method</p>
-            </div>
-            <div className="LM_RECOVERY_OPTIONS">
-              <button className="LM_RECOVERY_BTN" onClick={() => setView('RECOVER_EMAIL')}>
-                <i className="fas fa-envelope"></i><span>Email</span>
-              </button>
-              <button className="LM_RECOVERY_BTN" onClick={() => setView('RECOVER_PHONE')}>
-                <i className="fas fa-mobile-alt"></i><span>Phone</span>
-              </button>
-            </div>
-          </>
-        )}
-
-        {/* --- VIEW: RECOVER EMAIL --- */}
-        {view === 'RECOVER_EMAIL' && (
-          <form className="LM_FORM" onSubmit={handleEmailRecovery}>
-            <div className="LM_HEADER"><h2>Email Recovery</h2></div>
-            <div className="LM_INPUT_GROUP">
-              <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            </div>
-            <button className="LM_SUBMIT_BTN" disabled={loading}>Send Reset Link</button>
-          </form>
-        )}
-
-        {/* --- VIEW: RECOVER PHONE --- */}
-        {view === 'RECOVER_PHONE' && (
-          <form className="LM_FORM" onSubmit={startPhoneRecovery}>
-            <div className="LM_HEADER"><h2>Phone Recovery</h2></div>
-            <div className="LM_INPUT_GROUP">
-              <input type="tel" placeholder="09XXXXXXXXX" value={phone} onChange={(e) => setPhone(e.target.value)} required />
-            </div>
-            <button className="LM_SUBMIT_BTN" disabled={loading}>Send OTP</button>
-          </form>
-        )}
-
-        {/* --- VIEW: RECOVER OTP (For Phone) --- */}
-        {view === 'RECOVER_OTP' && (
-          <form className="LM_FORM" onSubmit={verifyOtp}>
-            <div className="LM_HEADER"><h2>Enter OTP</h2></div>
-            <input type="text" className="LM_OTP_INPUT" maxLength={6} value={otp} onChange={(e) => setOtp(e.target.value)} required />
-            <button className="LM_SUBMIT_BTN" disabled={loading}>Verify</button>
-          </form>
-        )}
-
-        {/* --- VIEW: RECOVER SUCCESS --- */}
-        {view === 'RECOVER_SUCCESS' && (
-          <div className="LM_SUCCESS_AREA">
-            <i className="fas fa-check-circle"></i>
-            <h2>Verified</h2>
-            <p>Identity confirmed. Please sign in.</p>
-            <button className="LM_SUBMIT_BTN" onClick={() => setView('LOGIN')}>Return</button>
-          </div>
-        )}
       </div>
     </div>
   );

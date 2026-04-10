@@ -120,7 +120,8 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
 
   const handleSelectResident = (r: IResident) => {
     const middle = r.middle_name ? `${r.middle_name} ` : '';
-    const fullName = `${r.first_name} ${middle}${r.last_name}`.trim();
+    // 🛡️ FIX: Force uppercase when selecting from the dropdown
+    const fullName = `${r.first_name} ${middle}${r.last_name}`.trim().toUpperCase();
     
     setFormData(prev => ({
       ...prev,
@@ -230,7 +231,8 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
                 placeholder="Search resident or type name..."
                 value={formData.full_name}
                 onChange={e => {
-                  setFormData({...formData, full_name: e.target.value});
+                  // 🛡️ FIX: Instantly force the typed value to UPPERCASE
+                  setFormData({...formData, full_name: e.target.value.toUpperCase()});
                   setShowDropdown(true);
                 }}
                 onFocus={() => setShowDropdown(true)}

@@ -1,25 +1,3 @@
-/**
- * api.ts — MASTERMIND SERVICE LAYER (V7.1 — PRODUCTION HARDENED)
- * ─────────────────────────────────────────────────────────────────
- * Security model:
- * • Bearer token via Authorization header
- * ⚠️  SECURITY NOTE: localStorage is XSS-readable. Migrate to HttpOnly
- * SameSite=Strict cookie when backend supports it (OWASP 2021+).
- * • CSRF double-submit cookie for all state-mutating requests
- * • Silent token rotation with mutex lock (prevents refresh storms)
- * • Single 401 → refresh → retry cycle per request (no infinite loops)
- * • Dual-server fail-safe with auto-recovery timer
- *
- * Bug fixes over v6.1:
- * [1] Failover never reset — now auto-recovers after 60 s
- * [2] Refresh mutex leaked on network throw — fixed with .finally()
- * [3] No request timeout — added 15 s hard limit via AbortSignal
- * [4] Fail-safe infinite loop if cloud also down — guarded with isRetry
- * [5] CSRF cookie value not URI-decoded — fixed
- * [6] SESSION_KEYS constant for consistent session cleanup
- * [7] triggerAction gains optional signal param (backward-compatible)
- */
-
 // ── ENVIRONMENT ────────────────────────────────────────────────────────────────
 export const PRIMARY_API_URL  = (import.meta.env.VITE_API_BASE_URL       ?? '').replace(/\/$/, '');
 export const CLOUD_API_URL    = (import.meta.env.VITE_API_BASE_URL_CLOUD ?? '').replace(/\/$/, '');
@@ -30,12 +8,7 @@ const REQUEST_TIMEOUT_MS   = 15_000;  // Hard limit per fetch call
 const REFRESH_TIMEOUT_MS   = 10_000;  // Refresh endpoint must respond within this
 const FAILOVER_RECOVERY_MS = 60_000;  // Try primary again after this interval
 
-// ── FAIL-SAFE STATE ────────────────────────────────────────────────────────────
-/**
- * FIX [1]: Original set isFailoverActive = true and never reset it.
- * Once triggered it routed every request to cloud for the entire session,
- * even after the primary server recovered. Auto-recovery timer fixes this.
- */
+
 const failover = {
   active:        false,
   recoveryTimer: null as ReturnType<typeof setTimeout> | null,
@@ -83,12 +56,13 @@ export const NOTIF_LIVE_API       = `${API_BASE_URL}/alerts/live`;
 export const NOTIF_MARKER_API     = `${API_BASE_URL}/alerts/latest-marker`;
 export const NOTIF_COUNT_API      = `${API_BASE_URL}/alerts/count`;
 
-export const AUTH_REQUEST_OTP     = `${API_BASE_URL}/auth/request-reset`;
-export const AUTH_VERIFY_OTP      = `${API_BASE_URL}/auth/verify-otp`;
-export const AUTH_PASSWORD_UPDATE = `${API_BASE_URL}/auth/reset-password`;
+export const AUTH_REQUEST_OTP     = `${API_BASE_URL}/accounts/request-otp`;
+export const AUTH_VERIFY_OTP      = `${API_BASE_URL}/accounts/verify-otp`;
+export const AUTH_PASSWORD_UPDATE = `${API_BASE_URL}/accounts/public-reset`;
 
-// 🛡️ CAPTCHA ENDPOINT
-export const CAPTCHA_VERIFY_API   = `${API_BASE_URL}/captcha/verify`;
+// 🛡️ CAPTCHA ENDPOINTS
+export const CAPTCHA_CHALLENGE_API = `${API_BASE_URL}/captcha/challenge`;
+export const CAPTCHA_VERIFY_API    = `${API_BASE_URL}/captcha/verify`;
 
 // ── CSRF HELPER ────────────────────────────────────────────────────────────────
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -382,8 +356,8 @@ export const ApiService = {
   verifyOTP: (email: string, otp: string) =>
     triggerAction(AUTH_VERIFY_OTP, 'POST', { email, otp }),
 
-  updatePassword: (residentId: string, newPassword: string) =>
-    triggerAction(AUTH_PASSWORD_UPDATE, 'PUT', { residentId, newPassword }),
+  updatePassword: (email: string, otp: string, newPassword: string) =>
+    triggerAction(AUTH_PASSWORD_UPDATE, 'POST', { email, otp, newPassword }),
 
   // ── IDENTITY & PROFILE ──────────────────────────────────────────────────────
   getProfile: (id: string, signal?: AbortSignal) =>
@@ -504,9 +478,12 @@ export const ApiService = {
   getAnalytics: (signal?: AbortSignal) =>
     valveFetch(ANALYTICS_API, signal),
 
-  // 🛡️ CAPTCHA VERIFICATION METHOD
-  verifyCaptcha: (token: string) =>
-    triggerAction(CAPTCHA_VERIFY_API, 'POST', { token }),
+  // 🛡️ CAPTCHA VERIFICATION METHODS (NEW & UPDATED)
+  getCaptchaChallenge: (signal?: AbortSignal) =>
+    valveFetch(CAPTCHA_CHALLENGE_API, signal),
+
+  verifyCaptcha: (payload: { challenge_id: string; answer: string }) =>
+    triggerAction(CAPTCHA_VERIFY_API, 'POST', payload),
 
   // ── NOTIFICATIONS ───────────────────────────────────────────────────────────
   getNotifications: (signal?: AbortSignal) =>

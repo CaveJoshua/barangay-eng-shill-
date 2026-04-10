@@ -17,7 +17,7 @@ type TabState = 'Officials' | 'Residents';
 const ITEMS_PER_PAGE = 10;
 
 export default function AccountManagement() {
-  // 🛡️ NEW: Access Control State (null = checking, true = granted, false = denied)
+  // 🛡️ Access Control State (null = checking, true = granted, false = denied)
   const [isSuperAdmin,       setIsSuperAdmin]      = useState<boolean | null>(null);
 
   const [accounts,         setAccounts]        = useState<IAccount[]>([]);
@@ -31,39 +31,41 @@ export default function AccountManagement() {
   const [isRoleOpen,       setIsRoleOpen]      = useState(false);
   const [newRole,          setNewRole]         = useState('');
 
-  // ── NEW: PAGINATION STATE ──
+  // ── PAGINATION STATE ──
   const [currentPage,      setCurrentPage]     = useState(1);
 
   // ── SAFE REFS FOR THE HANDSHAKE ──
   const isFetching = useRef(false);
   const isMounted = useRef(true);
 
-  // 🛡️ ── ROLE VERIFICATION ON MOUNT ──
-// 🛡️ ── BULLETPROOF ROLE VERIFICATION ──
+  // 🛡️ ── STRICT SUPERADMIN ROLE VERIFICATION ──
   useEffect(() => {
     try {
+      // 1. Grab BOTH sources from LocalStorage
+      const standaloneRole = localStorage.getItem('user_role'); 
       const sessionData = localStorage.getItem('admin_session'); 
       
-      if (sessionData) {
+      let rawRole = standaloneRole || ''; 
+
+      // 2. Fallback: Hunt inside the session object
+      if (!rawRole && sessionData) {
         const session = JSON.parse(sessionData);
-        
-        // 1. Hunt for the role in all common locations
-        const rawRole = session?.role || session?.admin?.role || session?.user?.role || session?.profile?.role || '';
-        
-        // 2. Normalize the text (turns "Super Admin" or " SUPERADMIN " into "superadmin")
-        const userRole = rawRole.toLowerCase().replace(/\s+/g, '');
+        rawRole = session?.role || session?.user_role || session?.profile?.role || '';
+      }
+      
+      // 3. Normalize the text
+      const userRole = rawRole.toLowerCase().replace(/\s+/g, '');
 
-        console.log("🔍 [RBAC DEBUG] Found Role:", userRole); // Press F12 to see this in your browser console!
+      console.log("🔍 [RBAC DEBUG] Found Role:", userRole || "NONE"); 
 
-        // 3. The Gatekeeper: Allow 'superadmin' (or 'admin' if you want regular admins to see this too)
-        if (userRole === 'superadmin' || userRole === 'admin') {
-          setIsSuperAdmin(true);
-          return;
-        }
+      // 4. The Gatekeeper: STRICTLY Superadmin Only
+      if (userRole === 'superadmin') {
+        setIsSuperAdmin(true);
+        return;
       }
       
       // If we get here, they failed the check
-      console.warn("🚫 [RBAC DEBUG] Access Denied. Role insufficient.");
+      console.warn("🚫 [RBAC DEBUG] Access Denied. Superadmin clearance required.");
       setIsSuperAdmin(false);
       
     } catch (err) {
@@ -74,7 +76,7 @@ export default function AccountManagement() {
   
   // ── Fetch (Smart Handshake) ───────────────────────────────────────────
   const fetchAccounts = useCallback(async (silent = false, signal?: AbortSignal) => {
-    // Prevent overlapping fetches, unmounted updates, OR if user isn't superadmin
+    // Prevent overlapping fetches, unmounted updates, OR if user isn't verified
     if (!isMounted.current || isFetching.current || !isSuperAdmin) return;
     
     if (!silent) setIsSyncing(true);
@@ -99,7 +101,7 @@ export default function AccountManagement() {
   }, [accounts.length, isSuperAdmin]);
 
   useEffect(() => {
-    // Only run the fetching logic if the user is verified as a Superadmin
+    // Only run the fetching logic if the user is verified
     if (isSuperAdmin !== true) return;
 
     isMounted.current = true;

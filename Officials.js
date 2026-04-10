@@ -50,7 +50,7 @@ export const OfficialsRouter = (router, supabase, authenticateToken) => {
         }
     });
 
-        // ==========================================
+    // ==========================================
     // 2. GET: SMART PROFILE FETCH (Zero Trust Override)
     // ==========================================
     router.get('/officials/profile/:id', authenticateToken, async (req, res) => {
@@ -108,21 +108,28 @@ export const OfficialsRouter = (router, supabase, authenticateToken) => {
     // ==========================================
     router.put('/officials/profile/:id', authenticateToken, async (req, res) => {
         try {
-            const { id } = req.params;
             const { full_name, email, contact_number } = req.body;
 
-            // Search both columns to prevent 404s
+            // 🛡️ ZERO TRUST OVERRIDE FIX: 
+            // We ignore req.params.id to prevent IDOR attacks.
+            const trueId = req.user?.account_id || req.user?.record_id || req.user?.sub;
+
+            if (!trueId) {
+                return res.status(401).json({ error: "Invalid session token." });
+            }
+
+            // Search both columns to prevent 404s using the verified token ID
             let { data: account } = await supabase
                 .from('officials_accounts')
                 .select('official_id')
-                .eq('account_id', id)
+                .eq('account_id', trueId)
                 .single();
 
             if (!account) {
                 const { data: altAccount } = await supabase
                     .from('officials_accounts')
                     .select('official_id')
-                    .eq('official_id', id)
+                    .eq('official_id', trueId)
                     .single();
                 account = altAccount;
             }

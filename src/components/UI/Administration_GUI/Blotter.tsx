@@ -322,18 +322,21 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
                         </td>
                         <td><span className={`BLOT_STATUS_BADGE STATUS_${c.status.toUpperCase()}`}>{c.status}</span></td>
                         <td style={{ textAlign: 'right' }}>
-                          {(c.status === 'Active' || c.status === 'Pending') && (
-                            <button className="BLOT_ACTION_ICON" onClick={() => setHearingModal({ isOpen: true, caseId: c.id, date: '', time: '09:00' })} title="Schedule"><i className="fas fa-calendar-plus"></i></button>
-                          )}
-                          {(c.status === 'Active' || c.status === 'Pending') && (
-                            <button className="BLOT_ACTION_ICON" onClick={() => setRejectModal({ isOpen: true, caseId: c.id, reason: '' })} title="Reject"><i className="fas fa-ban" style={{ color: '#ef4444' }}></i></button>
-                          )}
-                          {c.status === 'Hearing' && (
-                            <button className="BLOT_ACTION_ICON" onClick={() => handleStatusUpdate(c.id, { status: 'Settled' })} title="Mark Settled"><i className="fas fa-handshake" style={{ color: '#10b981' }}></i></button>
-                          )}
-                          <button className="BLOT_ACTION_ICON" onClick={() => { setSelectedCase(c); setIsModalOpen(true); }} title="View Details">
-                            {isFinalized ? <i className="fas fa-eye"></i> : <i className="fas fa-edit"></i>}
-                          </button>
+                          {/* 🛡️ ADDED GAP & FLEX HERE */}
+                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                            {(c.status === 'Active' || c.status === 'Pending') && (
+                              <button className="BLOT_ACTION_ICON" onClick={() => setHearingModal({ isOpen: true, caseId: c.id, date: '', time: '09:00' })} title="Schedule"><i className="fas fa-calendar-plus"></i></button>
+                            )}
+                            {(c.status === 'Active' || c.status === 'Pending') && (
+                              <button className="BLOT_ACTION_ICON" onClick={() => setRejectModal({ isOpen: true, caseId: c.id, reason: '' })} title="Reject"><i className="fas fa-ban" style={{ color: '#ef4444' }}></i></button>
+                            )}
+                            {c.status === 'Hearing' && (
+                              <button className="BLOT_ACTION_ICON" onClick={() => handleStatusUpdate(c.id, { status: 'Settled' })} title="Mark Settled"><i className="fas fa-handshake" style={{ color: '#10b981' }}></i></button>
+                            )}
+                            <button className="BLOT_ACTION_ICON" onClick={() => { setSelectedCase(c); setIsModalOpen(true); }} title="View Details">
+                              {isFinalized ? <i className="fas fa-eye"></i> : <i className="fas fa-edit"></i>}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -388,7 +391,9 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
             <input type="date" value={hearingModal.date} onChange={e => setHearingModal(p => ({ ...p, date: e.target.value }))} />
             <label className="BLOT_MODAL_LABEL">Time</label>
             <input type="time" value={hearingModal.time} onChange={e => setHearingModal(p => ({ ...p, time: e.target.value }))} />
-            <div className="BLOT_MODAL_ACTIONS">
+            
+            {/* 🛡️ ADDED GAP HERE */}
+            <div className="BLOT_MODAL_ACTIONS" style={{ display: 'flex', gap: '10px' }}>
               <button className="BLOT_PAGE_BTN" onClick={() => setHearingModal(p => ({ ...p, isOpen: false }))}>Cancel</button>
               <button className="BLOT_ADD_BTN" onClick={submitHearing}>Confirm</button>
             </div>
@@ -403,7 +408,9 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
             <h3 className="BLOT_MODAL_TITLE" style={{ color: '#ef4444' }}>Reject Complaint</h3>
             <label className="BLOT_MODAL_LABEL">Provide reason for rejection</label>
             <textarea rows={3} value={rejectModal.reason} onChange={e => setRejectModal(p => ({ ...p, reason: e.target.value }))} />
-            <div className="BLOT_MODAL_ACTIONS">
+            
+            {/* 🛡️ ADDED GAP HERE */}
+            <div className="BLOT_MODAL_ACTIONS" style={{ display: 'flex', gap: '10px' }}>
               <button className="BLOT_PAGE_BTN" onClick={() => setRejectModal(p => ({ ...p, isOpen: false }))}>Cancel</button>
               <button className="BLOT_ADD_BTN" onClick={submitRejection} style={{ backgroundColor: '#ef4444' }}>Confirm Reject</button>
             </div>

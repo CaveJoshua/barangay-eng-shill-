@@ -1,4 +1,3 @@
-import { authenticateToken } from './data.js';
 import { logActivity } from './Auditlog.js';
 
 /**
@@ -37,9 +36,11 @@ export const checkRole = (allowedRoles) => {
         });
       }
 
+      // Pass the normalized role down to the route
+      req.validatedRole = normalizedRole;
       next();
     } catch (error) {
-      console.error("[RBAC CRITICAL ERROR]:", error);
+      console.error("[RBAC CRITICAL ERROR]:", error.message);
       res.status(500).json({ error: 'Internal security engine failure.' });
     }
   };
@@ -48,7 +49,7 @@ export const checkRole = (allowedRoles) => {
 /**
  * RBAC ROUTER MODULE
  */
-export const RbacRouter = (router, supabase) => {
+export const RbacRouter = (router, supabase, authenticateToken) => {
   
   // ==========================================
   // 1. GET ALL ACCOUNTS (Audited View)
@@ -75,25 +76,29 @@ export const RbacRouter = (router, supabase) => {
       if (resAcc.error) throw resAcc.error;
       if (offAcc.error) throw offAcc.error;
 
+      // Safe fallbacks to prevent .map() from crashing if a table is empty
+      const safeResData = resAcc.data || [];
+      const safeOffData = offAcc.data || [];
+
       const combinedAccounts = [
-        ...resAcc.data.map(acc => {
+        ...safeResData.map(acc => {
             const rec = Array.isArray(acc.residents_records) ? acc.residents_records[0] : acc.residents_records;
             return { 
                 id: acc.account_id,
                 username: acc.username,
-                role: acc.role,
+                role: acc.role || 'resident',
                 status: acc.status || 'Active', 
                 created_at: acc.created_at,
                 source: 'resident', 
                 profileName: rec ? `${rec.last_name}, ${rec.first_name}` : 'Unknown Resident'
             };
         }),
-        ...offAcc.data.map(acc => {
+        ...safeOffData.map(acc => {
             const rec = Array.isArray(acc.officials) ? acc.officials[0] : acc.officials;
             return { 
                 id: acc.account_id,
                 username: acc.username,
-                role: acc.role,
+                role: acc.role || 'staff',
                 status: acc.status || 'Active',
                 created_at: acc.created_at,
                 source: 'official',
@@ -116,6 +121,11 @@ export const RbacRouter = (router, supabase) => {
     try {
       const { id } = req.params; 
       const { newRole, source } = req.body; 
+
+      // 🛡️ ROOT PROTECTION: Prevent anyone from trying to demote the ghost root account
+      if (id === 'SYSTEM-ROOT-0000') {
+          return res.status(403).json({ error: 'The Root System Administrator account cannot be modified.' });
+      }
 
       const validRoles = ['resident', 'staff', 'admin', 'superadmin'];
       if (!validRoles.includes(newRole)) {
@@ -147,7 +157,8 @@ export const RbacRouter = (router, supabase) => {
       res.status(200).json({ message: 'Role updated successfully.', account: data[0] });
 
     } catch (err) {
-      res.status(400).json({ error: err.message });
+        console.error("Role Update Error:", err.message);
+        res.status(500).json({ error: 'Failed to update account role.' });
     }
   });
 };
