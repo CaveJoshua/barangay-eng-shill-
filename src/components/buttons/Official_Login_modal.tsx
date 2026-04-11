@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LOGIN_API } from '../UI/api'; 
-import AdminRecoveryModal from './AdminRecoveryModal'; // We will create this next
+import AdminRecoveryModal from './AdminRecoveryModal'; 
 import './styles/Login_modal.css';
 
-// --- ENDPOINT CONSTANTS ---
 const ROOT_REQUEST_API = '/api/auth/root-request'; 
 const ROOT_USERNAME = 'SYSTEM_ROOT_ADMIN';
+
+// --- SAFE DEV CHECK (Vite Compatible) ---
+const IS_DEV = import.meta.env.DEV; 
 
 interface LoginModalProps {
   onClose: () => void;
@@ -18,13 +20,11 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
   const [view, setView] = useState<ModalView>('LOGIN');
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
 
-  // --- DATA INPUTS ---
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [traceId, setTraceId] = useState(''); 
 
-  // UI State
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -42,14 +42,38 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
     };
   }, []);
 
+  // ==========================================
+  // 🛠️ ACTION: THE SMART BYPASS
+  // ==========================================
+  const handleDevBypass = () => {
+    if (!IS_DEV) return;
+    
+    // NOTE: Go to your Supabase table and copy Arturo's actual IDs!
+    const MOCK_ACCOUNT_ID = "PASTE_ARTURO_ACCOUNT_ID_HERE";
+    const MOCK_OFFICIAL_ID = "PASTE_ARTURO_OFFICIAL_ID_HERE";
+
+    localStorage.setItem('account_id', MOCK_ACCOUNT_ID);
+    localStorage.setItem('profile_id', MOCK_OFFICIAL_ID);
+    localStorage.setItem('user_role', 'superadmin');
+
+    localStorage.setItem('admin_session', JSON.stringify({
+        username: 'arturo.pb@example.com',
+        role: 'superadmin', 
+        profile: { 
+            record_id: MOCK_OFFICIAL_ID, 
+            profileName: 'Arturo Tolentino',
+            position: 'Punong Barangay'
+        }
+    }));
+
+    onSuccess("DEV_SESSION_ACTIVE");
+  };
+
   const handleBack = () => {
     setError('');
     if (view === 'ROOT_OTP') setView('LOGIN');
   };
 
-  // ==========================================
-  // 🛡️ ACTION: GHOST HANDSHAKE (ROOT REQUEST)
-  // ==========================================
   const handleRootHandshake = async () => {
     setLoading(true);
     setError('');
@@ -74,9 +98,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
     }
   };
 
-  // ==========================================
-  // 🔑 ACTION: SIGN IN (Standard & Root Verify)
-  // ==========================================
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -111,7 +132,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
       if (!isMounted.current) return;
 
       if (response.ok) {
-        // Save Core IDs
         localStorage.setItem('account_id', data.account_id);
         localStorage.setItem('profile_id', data.profile?.record_id || data.account_id);
         
@@ -119,13 +139,9 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
             sessionStorage.setItem('trace_id', traceId);
         }
 
-        // 🛡️ THE RBAC FIX: Aggressively hunt for the role name
         const resolvedRole = (data.user_role || data.role || data.profile?.role || data.profile?.user_role || '').toLowerCase();
 
-        // 1. Set the standalone key for quick route guards
         localStorage.setItem('user_role', resolvedRole);
-
-        // 2. Set the detailed session object
         localStorage.setItem('admin_session', JSON.stringify({
             username: data.username,
             role: resolvedRole, 
@@ -158,7 +174,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
     }
   };
 
-  // If the user clicks "Forgot Password", we render the new component instead.
   if (showRecoveryModal) {
     return <AdminRecoveryModal onClose={() => setShowRecoveryModal(false)} />;
   }
@@ -177,13 +192,12 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
           <i className="fas fa-times"></i>
         </button>
 
-        {/* --- VIEW: LOGIN --- */}
         {view === 'LOGIN' && (
           <>
             <div className="LM_HEADER">
               <div className="LM_ICON"><i className="fas fa-user-shield"></i></div>
               <h2>Official Access</h2>
-              <p>Enter your administrative credentials</p>
+              <p>Enter administrative credentials</p>
             </div>
 
             <form className="LM_FORM" onSubmit={handleSignIn}>
@@ -229,17 +243,28 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
               <button type="button" className="LM_FORGOT_LINK" onClick={() => setShowRecoveryModal(true)}>
                 Forgot password?
               </button>
+
+              {/* --- BYPASS BUTTON --- */}
+              {IS_DEV && (
+                <button 
+                   type="button" 
+                   className="LM_SUBMIT_BTN" 
+                   style={{marginTop: '10px', backgroundColor: '#6366f1'}}
+                   onClick={handleDevBypass}
+                >
+                  Dev: Quick Login (Arturo)
+                </button>
+              )}
             </form>
           </>
         )}
 
-        {/* --- VIEW: GHOST ADMIN OTP --- */}
         {view === 'ROOT_OTP' && (
           <form className="LM_FORM" onSubmit={handleSignIn}>
             <div className="LM_HEADER">
               <div className="LM_ICON ROOT_ICON"><i className="fas fa-shield-alt"></i></div>
               <h2>Root Verification</h2>
-              <p>A code was sent to the official Gmail.</p>
+              <p>Security code required for ghost access.</p>
               <span className="LM_TRACE_DISPLAY">TRACE ID: {traceId}</span>
             </div>
             {error && <div className="LM_ERROR_MSG">{error}</div>}
@@ -259,7 +284,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
             </button>
           </form>
         )}
-
       </div>
     </div>
   );
