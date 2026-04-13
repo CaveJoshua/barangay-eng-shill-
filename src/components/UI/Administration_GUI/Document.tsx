@@ -15,11 +15,11 @@ export interface IDocRequest {
   dateRequested: string;
   status: 'Pending' | 'Processing' | 'Ready' | 'Completed' | 'Rejected';
   price: number;
+  requestMethod?: 'Online' | 'Walk-in'; // 🛡️ THE FIX: Made optional (?) to prevent TS errors from older components
 }
 
 const ITEMS_PER_PAGE = 10;
 
-// ─── 🛡️ THE FIX: Define the props so TypeScript knows to expect highlightId ───
 interface DocumentPageProps {
   highlightId?: string;
 }
@@ -47,14 +47,12 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
   const prevCountRef = useRef(0);
   const [newRequestCount, setNewRequestCount] = useState(0);
 
-  // ─── 🛡️ THE FIX: State for the Glowing Highlight ───
+  // ─── Glowing Highlight ───
   const [activeHighlight, setActiveHighlight] = useState<string | null>(null);
 
-  // ─── 🛡️ THE FIX: Effect to trigger and remove the highlight glow ───
   useEffect(() => {
     if (highlightId) {
       setActiveHighlight(highlightId);
-      // Automatically clear the highlight after 2.5 seconds
       const timer = setTimeout(() => setActiveHighlight(null), 2500);
       return () => clearTimeout(timer);
     }
@@ -68,7 +66,7 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
       const rawData = await ApiService.getDocuments(signal);
       if (rawData === null) return; 
 
-      const mappedData = rawData.map((d: any) => ({
+      const mappedData: IDocRequest[] = rawData.map((d: any) => ({
         id: d.id || d.record_id, 
         referenceNo: d.reference_no || d.referenceNo || 'REF-N/A',
         residentName: d.resident_name || d.residentName || 'Unknown Resident',
@@ -77,11 +75,12 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
         otherPurpose: d.other_purpose || d.otherPurpose,
         dateRequested: d.date_requested || d.dateRequested || new Date().toISOString(),
         status: d.status,
-        price: d.price || 0
+        price: d.price || 0,
+        requestMethod: d.request_method || 'Online' 
       }));
 
       // Sort by newest first
-      const sortedData = mappedData.sort((a: IDocRequest, b: IDocRequest) => 
+      const sortedData = mappedData.sort((a, b) => 
         new Date(b.dateRequested).getTime() - new Date(a.dateRequested).getTime()
       );
 
@@ -112,7 +111,6 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
     const valve = new AbortController();
     fetchRequests(false, valve.signal);
     
-    // Sync every 15s
     const interval = setInterval(() => fetchRequests(true, valve.signal), 15000);
     return () => { valve.abort(); clearInterval(interval); };
   }, [fetchRequests]);
@@ -128,11 +126,15 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
         (doc.residentName || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
         (doc.referenceNo || '').toLowerCase().includes(searchTerm.toLowerCase());
 
+      if (!searchMatch) return false;
+
+      const isWalkIn = doc.requestMethod?.toLowerCase() === 'walk-in';
+
       if (activeTab === 'History') {
-        // History catches Completed or Rejected
-        return searchMatch && (doc.status === 'Completed' || doc.status === 'Rejected');
+        return (doc.status === 'Completed' || doc.status === 'Rejected') || isWalkIn;
       }
-      return searchMatch && doc.status === activeTab;
+      
+      return !isWalkIn && doc.status === activeTab;
     });
   }, [requests, activeTab, searchTerm]);
 
@@ -169,12 +171,15 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
 
       {/* KPI STATS PANEL */}
       <div className="DOC_STATS_GRID">
-        {['Pending', 'Processing', 'Ready'].map(status => (
-          <div key={status} className="DOC_STAT_CARD">
-            <span className="DOC_STAT_VAL">{requests.filter(r => r.status === status).length}</span>
-            <span className="DOC_STAT_LABEL">{status.toUpperCase()}</span>
-          </div>
-        ))}
+        {['Pending', 'Processing', 'Ready'].map(status => {
+          const count = requests.filter(r => r.status === status && r.requestMethod?.toLowerCase() !== 'walk-in').length;
+          return (
+            <div key={status} className="DOC_STAT_CARD">
+              <span className="DOC_STAT_VAL">{count}</span>
+              <span className="DOC_STAT_LABEL">{status.toUpperCase()}</span>
+            </div>
+          );
+        })}
         
         <div className="DOC_STAT_CARD DOC_ANALYTICS_TRIGGER" onClick={() => setIsAnalyticsOpen(true)}>
           <span className="DOC_STAT_VAL"><i className="fas fa-chart-pie"></i></span>
@@ -230,17 +235,26 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
                 <tr><td colSpan={6} className="MSG_ROW">No records found for this stage.</td></tr>
               ) : (
                 paginatedDocs.map(doc => {
-                  // ─── 🛡️ THE FIX: Check if this row matches the hint ID ───
                   const isGlowing = activeHighlight === String(doc.id);
 
                   return (
                     <tr 
                       key={doc.id} 
-                      // ─── 🛡️ THE FIX: Combine DOC_ROW_CLICK with HINT_HIGHLIGHT ───
                       className={`DOC_ROW_CLICK ${isGlowing ? 'HINT_HIGHLIGHT' : ''}`}
                       onClick={() => { setSelectedDoc(doc); setIsViewModalOpen(true); }} 
                     >
-                      <td><span className="DOC_REF_BADGE">{doc.referenceNo}</span></td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span className="DOC_REF_BADGE">{doc.referenceNo}</span>
+                          <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>
+                            {doc.requestMethod === 'Walk-in' ? (
+                              <><i className="fas fa-walking" style={{marginRight: '4px'}}></i> Walk-in</>
+                            ) : (
+                              <><i className="fas fa-globe" style={{marginRight: '4px', color: '#3b82f6'}}></i> Online</>
+                            )}
+                          </span>
+                        </div>
+                      </td>
                       <td><strong>{doc.residentName}</strong></td>
                       <td>{doc.type}</td>
                       <td>{new Date(doc.dateRequested).toLocaleDateString()}</td>
@@ -289,9 +303,12 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
           isOpen={isViewModalOpen} 
           onClose={() => setIsViewModalOpen(false)} 
           onUpdate={handleRefresh} 
-          onGenerate={(docData) => {
-            // Passes the doc data to the Document_modal for FINAL generation at the 'Ready' stage
-            setSelectedDoc(docData);
+          // 🛡️ THE FIX: Cast docData to `any` to prevent strict TS mismatches from older components
+          onGenerate={(docData: any) => {
+            setSelectedDoc({
+              ...docData,
+              requestMethod: docData.requestMethod || 'Online'
+            });
             setIsManualModalOpen(true);
           }}
           data={selectedDoc} 

@@ -445,11 +445,11 @@ export const ApiService = {
   updateDocumentStatus: (id: string, status: string) =>
     triggerAction(`${DOCUMENTS_API}/${id}/status`, 'PATCH', { status }),
 
-  saveDocumentRecord: (payload: any) => {
+ saveDocumentRecord: (payload: any) => {
     const url    = payload.id ? `${DOCUMENTS_API}/${payload.id}` : `${DOCUMENTS_API}/save`;
     const method = (payload.id ? 'PUT' : 'POST') as 'PUT' | 'POST';
     return triggerAction(url, method, payload);
-  },
+},
 
   deleteDocument: (id: string) =>
     triggerAction(`${DOCUMENTS_API}/${id}`, 'DELETE'),
@@ -485,15 +485,25 @@ export const ApiService = {
   verifyCaptcha: (payload: { challenge_id: string; answer: string }) =>
     triggerAction(CAPTCHA_VERIFY_API, 'POST', payload),
 
-  // ── NOTIFICATIONS ───────────────────────────────────────────────────────────
+// ── NOTIFICATIONS ───────────────────────────────────────────────────────────
   getNotifications: (signal?: AbortSignal) =>
     valveFetch(NOTIF_LIVE_API, signal),
 
+  // 🛡️ UPDATED: Matches the new /alerts/read/:id endpoint
   markNotificationRead: (id: string) =>
-    triggerAction(`${NOTIFICATION_API}/${id}/read`, 'PUT'),
+    triggerAction(`${API_BASE_URL}/alerts/read/${id}`, 'PUT'),
 
+  // 🛡️ UPDATED: Matches the new /alerts/read-all endpoint
   markAllNotificationsRead: () =>
-    triggerAction(`${NOTIFICATION_API}/read-all`, 'PUT'),
+    triggerAction(`${API_BASE_URL}/alerts/read-all`, 'PUT'),
+
+  // 🛡️ NEW: Matches the /alerts/clear/:id endpoint for the Trash Can button
+  deleteNotification: (id: string) =>
+    triggerAction(`${API_BASE_URL}/alerts/clear/${id}`, 'DELETE'),
+
+  // 🛡️ NEW: Matches the /alerts/clear-all endpoint for wiping history
+  clearAllNotifications: () =>
+    triggerAction(`${API_BASE_URL}/alerts/clear-all`, 'DELETE'),
 
   getNotificationMarker: (signal?: AbortSignal) =>
     valveFetch(NOTIF_MARKER_API, signal),

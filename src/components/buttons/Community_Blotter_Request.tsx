@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import './styles/Blotter_modal.css'; // Updated CSS import
+import './styles/Community_Blotter_Request.css'; // Updated CSS import
 import { ApiService } from '../UI/api'; 
 
 // ─── INTERFACES ─────────────────────────────────────────────────────────

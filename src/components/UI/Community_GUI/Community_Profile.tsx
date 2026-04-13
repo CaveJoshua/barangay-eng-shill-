@@ -12,42 +12,80 @@ interface ProfileProps {
 const Community_Profile: React.FC<ProfileProps> = ({ resident, onClose }) => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false); 
+  const [profileData, setProfileData] = useState<any>({
+      displayName: 'LOADING...',
+      initial: 'U',
+      recordId: 'N/A',
+      address: "ENGINEER'S HILL",
+      username: 'user',
+      email: 'NOT LINKED'
+  });
 
-  // ── 🛡️ IDENTITY EXTRACTION ──
-  const displayName = (resident?.formattedName || 'UNKNOWN RESIDENT').toUpperCase();
-  
-  const initial = displayName !== 'UNKNOWN RESIDENT' 
-    ? displayName.charAt(0).toUpperCase() 
-    : (resident?.username ? String(resident.username).charAt(0).toUpperCase() : 'U');
-  
-  const recordId = resident?.record_id || resident?.id || 'N/A';
-  const address = (resident?.purok || resident?.address || "ENGINEER'S HILL").toUpperCase();
-  const username = (resident?.username || 'user').toUpperCase();
-  const email = resident?.email || 'NOT LINKED';
-
-  // ── THEME INITIALIZATION ──
+  // ── 🛡️ DEEP IDENTITY EXTRACTION ──
   useEffect(() => {
-    if (!recordId || recordId === 'N/A') return;
+    // 1. Get backup data directly from local storage just in case the prop is stale
+    const sessionStr = localStorage.getItem('resident_session');
+    const sessionObj = sessionStr ? JSON.parse(sessionStr) : {};
 
-    const savedTheme = localStorage.getItem(`theme_${recordId}`);
-    const rootTheme = document.documentElement.getAttribute('data-resident-theme');
+    // 2. Merge everything together
+    const source = { ...sessionObj, ...resident };
     
-    if (savedTheme === 'dark' || rootTheme === 'dark') {
-      setIsDarkMode(true);
-      document.documentElement.setAttribute('data-resident-theme', 'dark');
-    } else {
-      setIsDarkMode(false);
-      document.documentElement.setAttribute('data-resident-theme', 'light');
+    // 3. Dig into the nested objects (Backend usually separates 'user' and 'profile')
+    const userNode = source.user || {};
+    const profileNode = source.profile || {};
+
+    // 4. Extract with fallbacks
+    const recordId = profileNode.record_id || userNode.record_id || userNode.account_id || source.account_id || 'N/A';
+    const email = profileNode.email || userNode.email || source.email || 'NOT LINKED';
+    const username = userNode.username || source.username || 'user';
+    const address = profileNode.purok || profileNode.address || source.address || "ENGINEER'S HILL";
+
+    // 5. Safely construct the display name
+    const fName = profileNode.first_name || userNode.first_name || '';
+    const lName = profileNode.last_name || userNode.last_name || '';
+    
+    let fullName = source.formattedName;
+    if (!fullName && (fName || lName)) {
+        fullName = `${fName} ${lName}`.trim();
     }
-  }, [recordId]);
+
+    const displayName = (fullName || 'UNKNOWN RESIDENT').toUpperCase();
+    const initial = fullName 
+        ? fullName.charAt(0).toUpperCase() 
+        : (username ? String(username).charAt(0).toUpperCase() : 'U');
+
+    // 6. Save to state so React renders it
+    setProfileData({
+        recordId,
+        email,
+        username,
+        address,
+        displayName,
+        initial
+    });
+
+    // ── THEME INITIALIZATION ──
+    if (recordId !== 'N/A') {
+      const savedTheme = localStorage.getItem(`theme_${recordId}`);
+      const rootTheme = document.documentElement.getAttribute('data-resident-theme');
+      
+      if (savedTheme === 'dark' || rootTheme === 'dark') {
+        setIsDarkMode(true);
+        document.documentElement.setAttribute('data-resident-theme', 'dark');
+      } else {
+        setIsDarkMode(false);
+        document.documentElement.setAttribute('data-resident-theme', 'light');
+      }
+    }
+  }, [resident]);
 
   // ── TOGGLE HANDLER ──
   const toggleTheme = () => {
     const newTheme = !isDarkMode ? 'dark' : 'light';
     document.documentElement.setAttribute('data-resident-theme', newTheme);
     
-    if (recordId !== 'N/A') {
-      localStorage.setItem(`theme_${recordId}`, newTheme);
+    if (profileData.recordId !== 'N/A') {
+      localStorage.setItem(`theme_${profileData.recordId}`, newTheme);
     }
     
     setIsDarkMode(!isDarkMode);
@@ -70,9 +108,9 @@ const Community_Profile: React.FC<ProfileProps> = ({ resident, onClose }) => {
         <div className="C_P_PROFILE_CONTENT">
           
           <div className="C_P_PROFILE_CARD C_P_HERO_CARD">
-            <div className="C_P_AVATAR_LARGE">{initial}</div>
+            <div className="C_P_AVATAR_LARGE">{profileData.initial}</div>
             <div className="C_P_HERO_TEXT">
-              <h3>{displayName}</h3>
+              <h3>{profileData.displayName}</h3>
               <p className="C_P_VERIFIED_BADGE">
                 <i className="fas fa-check-circle"></i> VERIFIED RESIDENT
               </p>
@@ -87,19 +125,19 @@ const Community_Profile: React.FC<ProfileProps> = ({ resident, onClose }) => {
                   <span className="C_P_DATA_LABEL">
                     <i className="fas fa-id-card"></i> RESIDENT ID
                   </span>
-                  <span className="C_P_DATA_VALUE">{recordId}</span>
+                  <span className="C_P_DATA_VALUE">{profileData.recordId}</span>
                 </div>
                 <div className="C_P_DATA_ROW">
                   <span className="C_P_DATA_LABEL">
                     <i className="fas fa-envelope"></i> GMAIL ADDRESS
                   </span>
-                  <span className="C_P_DATA_VALUE">{email}</span>
+                  <span className="C_P_DATA_VALUE">{profileData.email}</span>
                 </div>
                 <div className="C_P_DATA_ROW">
                   <span className="C_P_DATA_LABEL">
                     <i className="fas fa-map-marker-alt"></i> ADDRESS
                   </span>
-                  <span className="C_P_DATA_VALUE">{address}</span>
+                  <span className="C_P_DATA_VALUE">{profileData.address}</span>
                 </div>
               </div>
             </div>
@@ -113,7 +151,7 @@ const Community_Profile: React.FC<ProfileProps> = ({ resident, onClose }) => {
                   <span className="C_P_DATA_LABEL">
                     <i className="fas fa-user-circle"></i> USERNAME
                   </span>
-                  <span className="C_P_DATA_VALUE">@{username}</span>
+                  <span className="C_P_DATA_VALUE">@{profileData.username}</span>
                 </div>
 
                 <div className="C_P_DATA_ROW">

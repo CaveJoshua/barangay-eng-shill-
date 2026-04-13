@@ -40,7 +40,6 @@ export interface IResident {
   fourPsIdNumber?: string;
 }
 
-// HOTFIX 1: Sync the initial state values to be UPPERCASE
 const initialState: IResident = {
   lastName: '', firstName: '', middleName: '',
   sex: 'Male', dob: '', 
@@ -64,8 +63,10 @@ export const ResidentModal: React.FC<{
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [visibleList, setVisibleList] = useState<string | null>(null);
-
   const [customFields, setCustomFields] = useState<Record<string, boolean>>({});
+
+  // 🛡️ Determine if we are in "Update Mode". Genesis fields are locked.
+  const isUpdateMode = !!residentData?.id;
 
   const [search, setSearch] = useState({
     day: '', month: '', year: '', country: 'PHILIPPINES', province: '', city: '', nationality: 'FILIPINO'
@@ -155,6 +156,7 @@ export const ResidentModal: React.FC<{
   const filterLimit = (list: string[], term: string) => list.filter(i => i.toLowerCase().includes(term.toLowerCase())).slice(0, 20);
 
   const handleLocSearchChange = (field: string, val: string) => {
+    if (isUpdateMode && ['country', 'province', 'city'].includes(field)) return; // 🛡️ Lock locations on update
     const upper = val.toUpperCase();
     if (field === 'province') setSearch(s => ({ ...s, province: upper, city: '' }));
     else if (field === 'city') setSearch(s => ({ ...s, city: upper }));
@@ -162,17 +164,23 @@ export const ResidentModal: React.FC<{
   };
 
   useEffect(() => {
-    if (search.day && search.month && search.year) {
+    if (search.day && search.month && search.year && !isUpdateMode) { // 🛡️ Lock DOB on update
       setFormData(prev => ({ ...prev, dob: `${search.year}-${search.month}-${search.day}` }));
     }
-    const full = [search.country, search.province, search.city].filter(Boolean).join(', ').toUpperCase();
-    setFormData(prev => ({ 
-      ...prev, birthCountry: search.country, birthProvince: search.province, 
-      birthCity: search.city, birthPlace: full, nationality: search.nationality 
-    }));
-  }, [search]);
+    if (!isUpdateMode) { // 🛡️ Lock Birthplace on update
+        const full = [search.country, search.province, search.city].filter(Boolean).join(', ').toUpperCase();
+        setFormData(prev => ({ 
+          ...prev, birthCountry: search.country, birthProvince: search.province, 
+          birthCity: search.city, birthPlace: full, nationality: search.nationality 
+        }));
+    } else {
+        setFormData(prev => ({ ...prev, nationality: search.nationality })); // Nationality is temporal, can update
+    }
+  }, [search, isUpdateMode]);
 
   const handleChange = (field: keyof IResident, value: any) => {
+    if (isUpdateMode && ['firstName', 'lastName', 'middleName', 'sex'].includes(field)) return; // 🛡️ Lock Core ID
+
     let v = value;
     const uppers = ['lastName', 'firstName', 'middleName', 'currentAddress', 'occupation', 'employment', 'pwdIdNumber', 'seniorIdNumber', 'fourPsIdNumber', 'soloParentIdNumber', 'voterIdNumber', 'religion', 'civilStatus', 'education', 'employmentStatus'];
     if (uppers.includes(field)) v = String(value).toUpperCase();
@@ -199,6 +207,8 @@ export const ResidentModal: React.FC<{
     
     setIsLoading(true);
 
+    // 🛡️ The payload is fully assembled, but the backend's Zod Schema 
+    // will strictly strip out the immutable fields during a PUT request.
     const safePayload = {
       FIRST_NAME: formData.firstName,
       LAST_NAME: formData.lastName,
@@ -241,7 +251,7 @@ export const ResidentModal: React.FC<{
         onSuccess(result.data); 
         onClose();
       } else {
-        alert(`Registration failed: ${result.error}`);
+        alert(`Request failed: ${result.error}`);
       }
     } catch (error) {
       console.error("Submission Error:", error);
@@ -253,50 +263,56 @@ export const ResidentModal: React.FC<{
 
   if (!isOpen) return null;
 
+  // Render a tiny lock icon for immutable fields
+  const lockIcon = <i className="fas fa-lock" style={{ fontSize: '10px', color: '#cbd5e1', marginLeft: '5px' }}></i>;
+
   return (
     <div className="RMS_OVERLAY" onClick={onClose}>
       <div className="RMS_CARD" onClick={e => e.stopPropagation()}>
         <div className="RMS_HEADER">
-          <h2>{residentData ? 'UPDATE RESIDENT PROFILE' : 'RESIDENT REGISTRATION'}</h2>
+          <h2>{isUpdateMode ? 'UPDATE RESIDENT PROFILE' : 'RESIDENT REGISTRATION'}</h2>
           <button className="RMS_CLOSE_X" onClick={onClose}>&times;</button>
         </div>
 
         <form onSubmit={onSubmit} className="RMS_FORM">
           <div className="RMS_BODY">
             
-            {/* SECTION 1: PERSONAL IDENTITY */}
+            {/* SECTION 1: PERSONAL IDENTITY (THE GENESIS BLOCK) */}
             <div className="RMS_SECTION">
-              <div className="RMS_SEC_TITLE">Personal Identity</div>
+              <div className="RMS_SEC_TITLE" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Personal Identity</span>
+                {isUpdateMode && <span style={{ fontSize: '0.7rem', color: '#f59e0b', background: '#fffbeb', padding: '2px 8px', borderRadius: '4px' }}><i className="fas fa-shield-alt"></i> IMMUTABLE RECORD</span>}
+              </div>
               <div className="RMS_GRID">
                 <div className="RMS_GROUP">
-                  <label className="RMS_LABEL">LAST NAME *</label>
-                  <input className={`RMS_INPUT ${errors.lastName ? 'ERR_BORDER' : ''}`} value={formData.lastName} onChange={e => handleChange('lastName', e.target.value)} required />
+                  <label className="RMS_LABEL">LAST NAME * {isUpdateMode && lockIcon}</label>
+                  <input className={`RMS_INPUT ${errors.lastName ? 'ERR_BORDER' : ''}`} value={formData.lastName} onChange={e => handleChange('lastName', e.target.value)} readOnly={isUpdateMode} required />
                   {errors.lastName && <span className="RMS_ERROR_TXT">{errors.lastName}</span>}
                 </div>
                 <div className="RMS_GROUP">
-                  <label className="RMS_LABEL">FIRST NAME *</label>
-                  <input className={`RMS_INPUT ${errors.firstName ? 'ERR_BORDER' : ''}`} value={formData.firstName} onChange={e => handleChange('firstName', e.target.value)} required />
+                  <label className="RMS_LABEL">FIRST NAME * {isUpdateMode && lockIcon}</label>
+                  <input className={`RMS_INPUT ${errors.firstName ? 'ERR_BORDER' : ''}`} value={formData.firstName} onChange={e => handleChange('firstName', e.target.value)} readOnly={isUpdateMode} required />
                   {errors.firstName && <span className="RMS_ERROR_TXT">{errors.firstName}</span>}
                 </div>
                 <div className="RMS_GROUP">
-                  <label className="RMS_LABEL">MIDDLE NAME</label>
-                  <input className="RMS_INPUT" value={formData.middleName} onChange={e => handleChange('middleName', e.target.value)} />
+                  <label className="RMS_LABEL">MIDDLE NAME {isUpdateMode && lockIcon}</label>
+                  <input className="RMS_INPUT" value={formData.middleName} onChange={e => handleChange('middleName', e.target.value)} readOnly={isUpdateMode} />
                   {errors.middleName && <span className="RMS_ERROR_TXT">{errors.middleName}</span>}
                 </div>
 
                 <div className="RMS_GROUP">
-                  <label className="RMS_LABEL">DATE OF BIRTH *</label>
+                  <label className="RMS_LABEL">DATE OF BIRTH * {isUpdateMode && lockIcon}</label>
                   <div className="RMS_DATE_FLEX">
                     <div className="RMS_SEARCH_SELECT_WRAP" ref={dateRefs.month}>
-                      <input className="RMS_INPUT" placeholder="MM" value={search.month} onFocus={() => setVisibleList('month')} onChange={e => setSearch({...search, month: e.target.value})} maxLength={2} />
+                      <input className="RMS_INPUT" placeholder="MM" value={search.month} readOnly={isUpdateMode} onFocus={() => !isUpdateMode && setVisibleList('month')} onChange={e => setSearch({...search, month: e.target.value})} maxLength={2} />
                       {visibleList === 'month' && <ul className="RMS_SEARCH_RESULTS">{filterLimit(months, search.month).map(m => <li key={m} onClick={() => {setSearch({...search, month: m}); setVisibleList(null);}}>{m}</li>)}</ul>}
                     </div>
                     <div className="RMS_SEARCH_SELECT_WRAP" ref={dateRefs.day}>
-                      <input className="RMS_INPUT" placeholder="DD" value={search.day} onFocus={() => setVisibleList('day')} onChange={e => setSearch({...search, day: e.target.value})} maxLength={2} />
+                      <input className="RMS_INPUT" placeholder="DD" value={search.day} readOnly={isUpdateMode} onFocus={() => !isUpdateMode && setVisibleList('day')} onChange={e => setSearch({...search, day: e.target.value})} maxLength={2} />
                       {visibleList === 'day' && <ul className="RMS_SEARCH_RESULTS">{filterLimit(days, search.day).map(d => <li key={d} onClick={() => {setSearch({...search, day: d}); setVisibleList(null);}}>{d}</li>)}</ul>}
                     </div>
                     <div className="RMS_SEARCH_SELECT_WRAP" ref={dateRefs.year}>
-                      <input className="RMS_INPUT" placeholder="YYYY" value={search.year} onFocus={() => setVisibleList('year')} onChange={e => setSearch({...search, year: e.target.value})} maxLength={4} />
+                      <input className="RMS_INPUT" placeholder="YYYY" value={search.year} readOnly={isUpdateMode} onFocus={() => !isUpdateMode && setVisibleList('year')} onChange={e => setSearch({...search, year: e.target.value})} maxLength={4} />
                       {visibleList === 'year' && <ul className="RMS_SEARCH_RESULTS">{filterLimit(years, search.year).map(y => <li key={y} onClick={() => {setSearch({...search, year: y}); setVisibleList(null);}}>{y}</li>)}</ul>}
                     </div>
                   </div>
@@ -304,39 +320,39 @@ export const ResidentModal: React.FC<{
                 </div>
 
                 <div className="RMS_GROUP" ref={locRefs.country}>
-                  <label className="RMS_LABEL">COUNTRY OF BIRTH</label>
+                  <label className="RMS_LABEL">COUNTRY OF BIRTH {isUpdateMode && lockIcon}</label>
                   <div className="RMS_SEARCH_SELECT_WRAP">
-                    <input className="RMS_INPUT" value={search.country} onFocus={() => setVisibleList('country')} onChange={e => handleLocSearchChange('country', e.target.value)} />
+                    <input className="RMS_INPUT" value={search.country} readOnly={isUpdateMode} onFocus={() => !isUpdateMode && setVisibleList('country')} onChange={e => handleLocSearchChange('country', e.target.value)} />
                     {visibleList === 'country' && <ul className="RMS_SEARCH_RESULTS">{filterLimit(availableCountries, search.country).map(c => <li key={c} onClick={() => {handleLocSearchChange('country', c); setVisibleList(null);}}>{c}</li>)}</ul>}
                   </div>
                   {errors.birthCountry && <span className="RMS_ERROR_TXT">{errors.birthCountry}</span>}
                 </div>
                 <div className="RMS_GROUP" ref={locRefs.prov}>
-                  <label className="RMS_LABEL">PROVINCE OF BIRTH</label>
+                  <label className="RMS_LABEL">PROVINCE OF BIRTH {isUpdateMode && lockIcon}</label>
                   <div className="RMS_SEARCH_SELECT_WRAP">
-                    <input className="RMS_INPUT" placeholder="SEARCH PROVINCE..." value={search.province} onFocus={() => setVisibleList('prov')} onChange={e => handleLocSearchChange('province', e.target.value)} />
+                    <input className="RMS_INPUT" placeholder="SEARCH PROVINCE..." value={search.province} readOnly={isUpdateMode} onFocus={() => !isUpdateMode && setVisibleList('prov')} onChange={e => handleLocSearchChange('province', e.target.value)} />
                     {visibleList === 'prov' && <ul className="RMS_SEARCH_RESULTS">{filterLimit(availableProvinces, search.province).map(p => <li key={p} onClick={() => {handleLocSearchChange('province', p); setVisibleList(null);}}>{p}</li>)}</ul>}
                   </div>
                   {errors.birthProvince && <span className="RMS_ERROR_TXT">{errors.birthProvince}</span>}
                 </div>
                 <div className="RMS_GROUP" ref={locRefs.city}>
-                  <label className="RMS_LABEL">CITY/MUNICIPALITY</label>
+                  <label className="RMS_LABEL">CITY/MUNICIPALITY {isUpdateMode && lockIcon}</label>
                   <div className="RMS_SEARCH_SELECT_WRAP">
-                    <input className="RMS_INPUT" placeholder={search.province ? "SEARCH CITY..." : "SELECT PROVINCE"} value={search.city} onFocus={() => setVisibleList('city')} onChange={e => handleLocSearchChange('city', e.target.value)} disabled={!search.province} />
+                    <input className="RMS_INPUT" placeholder={search.province ? "SEARCH CITY..." : "SELECT PROVINCE"} value={search.city} readOnly={isUpdateMode} onFocus={() => !isUpdateMode && setVisibleList('city')} onChange={e => handleLocSearchChange('city', e.target.value)} disabled={!search.province || isUpdateMode} />
                     {visibleList === 'city' && <ul className="RMS_SEARCH_RESULTS">{filterLimit(availableCities, search.city).map(c => <li key={c} onClick={() => {handleLocSearchChange('city', c); setVisibleList(null);}}>{c}</li>)}</ul>}
                   </div>
                   {errors.birthCity && <span className="RMS_ERROR_TXT">{errors.birthCity}</span>}
                 </div>
 
                 <div className="RMS_GROUP">
-                  <label className="RMS_LABEL">SEX *</label>
-                  <select className="RMS_INPUT" value={formData.sex} onChange={e => handleChange('sex', e.target.value)}>
+                  <label className="RMS_LABEL">SEX * {isUpdateMode && lockIcon}</label>
+                  <select className="RMS_INPUT" value={formData.sex} disabled={isUpdateMode} onChange={e => handleChange('sex', e.target.value)}>
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
                   </select>
                 </div>
                 
-                {/* HOTFIX 2: Sync dropdown values to match state */}
+                {/* ── TEMPORAL FIELDS (Can be changed anytime) ── */}
                 <div className="RMS_GROUP">
                   <label className="RMS_LABEL">CIVIL STATUS</label>
                   {customFields.civilStatus ? (
@@ -512,7 +528,7 @@ export const ResidentModal: React.FC<{
 
           <div className="RMS_FOOTER">
             <button type="button" className="RMS_BTN_CANCEL" onClick={onClose}>DISCARD</button>
-            <button type="submit" className="RMS_BTN_SUBMIT" disabled={isLoading}>{isLoading ? 'SAVING...' : 'CONFIRM REGISTRATION'}</button>
+            <button type="submit" className="RMS_BTN_SUBMIT" disabled={isLoading}>{isLoading ? 'SAVING...' : (isUpdateMode ? 'UPDATE RECORD' : 'CONFIRM REGISTRATION')}</button>
           </div>
         </form>
       </div>

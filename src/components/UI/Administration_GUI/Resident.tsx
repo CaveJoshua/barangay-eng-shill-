@@ -76,7 +76,7 @@ export default function ResidentsPage() {
     };
   }, [fetchResidents]);
 
-const handleArchive = async (id: string | undefined) => {
+  const handleArchive = async (id: string | undefined) => {
     if (!id) return;
     if (!window.confirm('Archive this resident identity? This action is logged.')) return;
 
@@ -87,10 +87,9 @@ const handleArchive = async (id: string | undefined) => {
       // 1. Optimistic UI Update: Hide the resident immediately to make the app feel fast
       setResidents(prev => prev.filter(r => r.id !== id));
       
-      // 2. THE FIX: Call the correct API endpoint for Residents, NOT Blotter
-      // We assume your ApiService has a `saveResident` or `updateResident` method.
-      // If it's a generic save method, it should look something like this:
-      const response = await ApiService.saveResident(id, { activityStatus: 'Archived' }); 
+      // 🛡️ THE FIX: Use deleteResident to hit the dedicated DELETE endpoint on the backend.
+      // Our backend intercepts this DELETE call and securely converts it into an 'Archived' status update.
+      const response = await ApiService.deleteResident(id); 
       
       if (!response.success) {
           throw new Error(response.error || 'Server rejected archive request');
@@ -239,48 +238,64 @@ const handleArchive = async (id: string | undefined) => {
                    </tr>
                  </thead>
                  <tbody>
-                   {error ? <tr><td colSpan={6} className="RES_ERROR_MSG">{error}</td></tr> : 
-                    paginatedResidents.length > 0 ? paginatedResidents.map((res) => {
-                     const age = res.dob ? new Date().getFullYear() - new Date(res.dob).getFullYear() : '-';
-                     return (
-                       <tr key={res.id}>
-                           <td>
-                             <div className="RES_PROF_FLEX">
-                                 <div className="RES_AVATAR">{res.firstName?.charAt(0)}</div>
-                                 <div className="RES_PROF_NAME">{res.lastName}, {res.firstName}<span>{res.sex}</span></div>
-                             </div>
-                           </td>
-                           <td>{age}</td><td>{res.purok || '-'}</td><td>{res.occupation || '-'}</td>
-                           <td><span className={res.activityStatus === 'Active' ? 'RES_STATUS_ACTIVE' : 'RES_STATUS_WARN'}>{res.activityStatus || 'Active'}</span></td>
-                           <td style={{textAlign:'right'}}>
-                               <select className="RES_ACTION_SELECT" defaultValue="" onChange={(e) => {
-                                   const action = e.target.value;
-                                   if (action === 'edit') { setSelectedResident(res); setIsModalOpen(true); } 
-                                   else if (action === 'archive') { handleArchive(res.id); }
-                                   e.target.value = "";
-                               }}>
-                                 <option value="" disabled>Manage</option><option value="edit">Edit Profile</option><option value="archive">Archive Record</option>
-                               </select>
-                           </td>
-                       </tr>
-                     );
-                   }) : <tr><td colSpan={6} style={{textAlign:'center', padding: '20px'}}>No records found.</td></tr>}
+                   {error ? (
+                     <tr><td colSpan={6} className="RES_ERROR_MSG">{error}</td></tr>
+                   ) : paginatedResidents.length > 0 ? (
+                     paginatedResidents.map((res) => {
+                       const age = res.dob ? new Date().getFullYear() - new Date(res.dob).getFullYear() : '-';
+                       return (
+                         <tr key={res.id}>
+                             <td>
+                               <div className="RES_PROF_FLEX">
+                                   <div className="RES_AVATAR">{res.firstName?.charAt(0)}</div>
+                                   <div className="RES_PROF_NAME">
+                                      {res.lastName}, {res.firstName}
+                                      {/* 🛡️ Optional: Visual cue for Genesis Hash protection could go here */}
+                                      <span>{res.sex}</span>
+                                   </div>
+                               </div>
+                             </td>
+                             <td>{age}</td><td>{res.purok || '-'}</td><td>{res.occupation || '-'}</td>
+                             <td><span className={res.activityStatus === 'Active' ? 'RES_STATUS_ACTIVE' : 'RES_STATUS_WARN'}>{res.activityStatus || 'Active'}</span></td>
+                             <td style={{textAlign:'right'}}>
+                                 <select className="RES_ACTION_SELECT" defaultValue="" onChange={(e) => {
+                                     const action = e.target.value;
+                                     if (action === 'edit') { setSelectedResident(res); setIsModalOpen(true); } 
+                                     else if (action === 'archive') { handleArchive(res.id); }
+                                     e.target.value = "";
+                                 }}>
+                                   <option value="" disabled>Manage</option>
+                                   <option value="edit">Edit Profile</option>
+                                   <option value="archive">Archive Record</option>
+                                 </select>
+                             </td>
+                         </tr>
+                       );
+                     })
+                   ) : (
+                     <tr><td colSpan={6} style={{textAlign:'center', padding: '20px', color: '#64748b'}}>No records found.</td></tr>
+                   )}
                  </tbody>
                </table>
 
                <div className="RES_PAGINATION_BAR">
-                  <div className="PAG_LEFT">Showing {startIndex + 1} to {Math.min(startIndex + ITEMS_PER_PAGE, totalCount)} of {totalCount} entries</div>
+                  <div className="PAG_LEFT">Showing {filteredResidents.length > 0 ? startIndex + 1 : 0} to {Math.min(startIndex + ITEMS_PER_PAGE, totalCount)} of {totalCount} entries</div>
                   <div className="PAG_RIGHT">
                      <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="PAG_BTN"><i className="fas fa-chevron-left"></i> Previous</button>
                      <div className="PAG_NUMBER">Page {currentPage} of {totalPages || 1}</div>
-                     <button disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => p + 1)} className="PAG_BTN">Next <i className="fas fa-chevron-right"></i></button>
+                     <button disabled={currentPage >= totalPages || totalPages === 0} onClick={() => setCurrentPage(p => p + 1)} className="PAG_BTN">Next <i className="fas fa-chevron-right"></i></button>
                   </div>
                </div>
            </div>
         </div>
 
         {isModalOpen && (
-            <ResidentModal isOpen={isModalOpen} residentData={selectedResident} onClose={() => { setIsModalOpen(false); setSelectedResident(null); }} onSuccess={() => fetchResidents(true)} />
+            <ResidentModal 
+              isOpen={isModalOpen} 
+              residentData={selectedResident} 
+              onClose={() => { setIsModalOpen(false); setSelectedResident(null); }} 
+              onSuccess={() => fetchResidents(true)} 
+            />
         )}
       </div>
     </div>

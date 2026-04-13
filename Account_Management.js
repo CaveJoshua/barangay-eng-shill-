@@ -144,56 +144,65 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
         }
     });
 
-    // =========================================================
-    // 3. CORE: PASSWORD RESET (Restricted: SUPERADMIN ONLY)
-    // =========================================================
-    router.patch('/accounts/reset/:accountId', authenticateToken, async (req, res) => {
-        try {
-            // 🛡️ THE FIX: STRICT SUPERADMIN GATEKEEPER
-            const userRole = (req.user?.user_role || req.user?.role || '').toLowerCase().trim();
-            
-            if (userRole !== 'superadmin') {
-                console.warn(`[SECURITY] Blocked forceful password reset attempt. Detected Role: ${userRole || 'UNKNOWN'}`);
-                return res.status(403).json({ error: 'Access Denied. Only Superadmins can manually reset passwords.' });
-            }
+  // =========================================================
+// 3. CORE: PASSWORD RESET (Restricted: SUPERADMIN OR THE USER THEMSELVES)
+// =========================================================
+router.patch('/accounts/reset/:accountId', authenticateToken, async (req, res) => {
+    try {
+        const userRole = (req.user?.user_role || req.user?.role || '').toLowerCase().trim();
+        const loggedInUserId = req.user?.account_id || req.user?.sub; // ID from the JWT
+        const targetId = req.params.accountId;
 
-            const { password } = req.body;
-            const { accountId } = req.params;
-            const securePass = hashPassword(password);
+        // 🛡️ SECURITY GATEKEEPER:
+        // Allow if the user is a Superadmin OR if the user is changing THEIR OWN password
+        const isSuperAdmin = userRole === 'superadmin';
+        const isSelf = String(loggedInUserId) === String(targetId);
 
-            const { data: resData, error: resErr } = await supabase
-                .from('residents_account')
-                .update({ password: securePass }) 
-                .or(`account_id.eq.${accountId},resident_id.eq.${accountId}`)
-                .select();
+        if (!isSuperAdmin && !isSelf) {
+            console.warn(`[SECURITY] Blocked unauthorized password reset attempt. Actor: ${loggedInUserId}, Target: ${targetId}`);
+            return res.status(403).json({ error: 'Access Denied. You can only reset your own password.' });
+        }
 
-            if (resData && resData.length > 0) {
-                try {
-                    await supabase.from('residents_account')
-                        .update({ requires_reset: false })
-                        .eq('account_id', resData[0].account_id);
-                } catch (ignoreErr) { console.warn("Reset flag ignore"); }
-                    
-                return res.json({ success: true, message: 'Resident password updated successfully.' });
-            }
+        const { password } = req.body;
+        if (!password) return res.status(400).json({ error: 'New password is required.' });
 
-            const { data: offData, error: offErr } = await supabase
+        const securePass = hashPassword(password);
+
+        // Update the Residents Account
+        const { data: resData, error: resErr } = await supabase
+            .from('residents_account')
+            .update({ 
+                password: securePass,
+                requires_reset: false // Automatically clear the first-time login flag
+            }) 
+            .or(`account_id.eq.${targetId},resident_id.eq.${targetId}`)
+            .select();
+
+        if (resData && resData.length > 0) {
+            console.log(`✅ Password updated for resident: ${targetId}`);
+            return res.json({ success: true, message: 'Password updated successfully.' });
+        }
+
+        // If not a resident, try Officials (only if Superadmin)
+        if (isSuperAdmin) {
+            const { data: offData } = await supabase
                 .from('officials_accounts')
                 .update({ password: securePass })
-                .eq('account_id', accountId)
+                .eq('account_id', targetId)
                 .select();
             
             if (offData && offData.length > 0) {
                 return res.json({ success: true, message: 'Official password updated successfully.' });
             }
-
-            return res.status(404).json({ error: 'Account not found in any directory.' });
-
-        } catch (err) {
-            console.error("❌ [CRITICAL RESET ERROR]:", err.message);
-            res.status(500).json({ error: 'Database synchronization failed.' });
         }
-    });
+
+        return res.status(404).json({ error: 'Account not found.' });
+
+    } catch (err) {
+        console.error("❌ [CRITICAL RESET ERROR]:", err.message);
+        res.status(500).json({ error: 'Database synchronization failed.' });
+    }
+});
 
     // =========================================================
     // 4. PUBLIC: RESET PASSWORD VIA OTP (Public / Residents)

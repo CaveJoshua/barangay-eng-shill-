@@ -4,7 +4,7 @@ import './styles/Notification_system.css';
 
 // ─── INTERFACES ──────────────────────────────────────────────────────────────
 interface DatabaseNotification {
-  id: number | string; // 🛡️ FIX: Allowed both number and string to satisfy TypeScript
+  id: number | string; 
   user_id: string;
   title: string;
   message: string;
@@ -38,7 +38,7 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ onNavigate }) =
     controllerRef.current = new AbortController();
 
     try {
-      // Ask for the latest 50 notifications
+      // Backend automatically applies the "Online Sensor" filter for Admin/Staff
       const data = await ApiService.getNotifications(controllerRef.current.signal);
       if (data && Array.isArray(data)) {
         setNotifications(data);
@@ -47,7 +47,6 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ onNavigate }) =
       if (error.name !== 'AbortError') console.error("[NOTIFS] Database Sync Error:", error);
     } finally {
       setLoading(false);
-      // Only keep polling if the user is actively looking at the page
       if (document.visibilityState === 'visible') {
         pollTimer.current = setTimeout(fetchData, NOTIF_POLL_INTERVAL);
       }
@@ -68,89 +67,85 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ onNavigate }) =
     };
   }, [fetchData]);
 
-  // ─── EVENT HANDLERS (DB BOUND) ─────────────────────────────────────────────
+  // ─── EVENT HANDLERS ───────────────────────────────────────────────
   
   const handleNotificationClick = async (n: DatabaseNotification) => {
-    // 1. Tell database to mark as read if it isn't already
     if (!n.is_read) {
       try {
-        // 🛡️ FIX: Cast to any and String() to bypass strict TS errors from api.ts
-        await (ApiService as any).markNotificationRead(String(n.id));
-        // Optimistically update the UI so it feels instant
         setNotifications(prev => prev.map(notif => notif.id === n.id ? { ...notif, is_read: true } : notif));
+        await ApiService.markNotificationRead(String(n.id));
       } catch (err) {
         console.error("Failed to mark read", err);
       }
     }
 
-    // 2. Navigate to the appropriate dashboard tab
     if (onNavigate) {
-      const destination = n.type === 'document' ? 'Document' : 'Blotter Cases';
-      onNavigate(destination); 
+      const normalizedType = (n.type || '').toLowerCase();
+      // 🛡️ SYNC: Corrected destination names to match your Sidebar tabs
+      const destination = normalizedType === 'document' ? 'Document' : 'Incident Reports';
+      
+      // 🛡️ SYNC: Pass the reference number hint if it exists in the message
+      const refMatch = n.message.match(/Ref:\s*([A-Z0-9-]+)/i);
+      onNavigate(destination, refMatch ? refMatch[1] : undefined); 
     }
   };
 
   const handleMarkAllRead = async () => {
-    // Find all currently visible unread notifications
     const unreadVisible = filteredNotifs.filter(n => !n.is_read);
     if (unreadVisible.length === 0) return;
 
-    // Optimistically update UI first
     const unreadIds = unreadVisible.map(n => n.id);
     setNotifications(prev => prev.map(n => unreadIds.includes(n.id) ? { ...n, is_read: true } : n));
 
-    // Fire off API calls in the background
     try {
-      // 🛡️ FIX: Cast to any and String() to bypass strict TS errors from api.ts
-      await Promise.allSettled(unreadIds.map(id => (ApiService as any).markNotificationRead(String(id))));
+      await ApiService.markAllNotificationsRead();
     } catch (err) {
       console.error("Failed to mark all as read");
     }
   };
 
-  // 🛡️ THE PERMANENT DELETE FUNCTION
   const handleDelete = async (e: React.MouseEvent, id: number | string) => {
-    e.stopPropagation(); // Stop the click from triggering the "handleNotificationClick" navigation
-
-    if (!window.confirm("Are you sure you want to permanently delete this notification?")) return;
+    e.stopPropagation(); 
+    if (!window.confirm("Permanently delete this notification record?")) return;
 
     try {
-      // 🛡️ FIX: Cast to any and String() to bypass strict TS errors from api.ts
-      await (ApiService as any).deleteNotification(String(id));
-      // Remove from UI immediately
       setNotifications(prev => prev.filter(n => n.id !== id));
+      await ApiService.deleteNotification(String(id));
     } catch (err) {
-      alert("Failed to delete notification from database.");
+      alert("Database error: Record could not be removed.");
+      fetchData();
     }
   };
 
-  // ─── DUAL FILTER LOGIC ───
+  // ─── FILTER LOGIC ───
   const filteredNotifs = notifications.filter(n => {
     const matchesStatus = statusFilter === 'ALL' || !n.is_read;
-    const matchesType = typeFilter === 'ALL' || n.type === typeFilter;
+    const safeType = (n.type || 'system').toLowerCase();
+    const matchesType = typeFilter === 'ALL' || safeType === typeFilter;
     return matchesStatus && matchesType;
   });
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   const getIconClass = (type: string) => {
-    return type === 'document' ? "fas fa-file-alt" : "fas fa-balance-scale";
+    const t = (type || '').toLowerCase();
+    if (t === 'document') return "fas fa-file-alt";
+    if (t === 'blotter') return "fas fa-balance-scale";
+    return "fas fa-info-circle";
   };
 
   return (
     <div className="DS_CONTAINER">
       <header className="DS_HEADER">
         <h1 className="DS_TITLE">Notification Center</h1>
-        <p className="DS_SUBTITLE">Review live updates and history from your database.</p>
+        <p className="DS_SUBTITLE">Review live updates and online requests from the community portal.</p>
       </header>
 
       <div className="DS_SECTION_BOX NS_SECTION_BOX">
         
-        {/* ─── CONTROLS HEADER ─── */}
         <div className="DS_SECTION_HEADER NS_HEADER_CONTROLS">
           <div className="NS_FILTER_GROUP">
             
-            {/* Status Filters */}
             <div className="NS_SUB_FILTER">
               <button 
                 onClick={() => setStatusFilter('ALL')}
@@ -168,24 +163,14 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ onNavigate }) =
 
             <div className="NS_DIVIDER"></div>
 
-            {/* Type Filters */}
             <div className="NS_SUB_FILTER">
-              <button 
-                onClick={() => setTypeFilter('ALL')} 
-                className={`NS_TYPE_BTN ${typeFilter === 'ALL' ? 'active' : ''}`}
-              >
+              <button onClick={() => setTypeFilter('ALL')} className={`NS_TYPE_BTN ${typeFilter === 'ALL' ? 'active' : ''}`}>
                 All Types
               </button>
-              <button 
-                onClick={() => setTypeFilter('document')} 
-                className={`NS_TYPE_BTN ${typeFilter === 'document' ? 'active' : ''}`}
-              >
+              <button onClick={() => setTypeFilter('document')} className={`NS_TYPE_BTN ${typeFilter === 'document' ? 'active' : ''}`}>
                 <i className="fas fa-file-invoice"></i> Documents
               </button>
-              <button 
-                onClick={() => setTypeFilter('blotter')} 
-                className={`NS_TYPE_BTN ${typeFilter === 'blotter' ? 'active' : ''}`}
-              >
+              <button onClick={() => setTypeFilter('blotter')} className={`NS_TYPE_BTN ${typeFilter === 'blotter' ? 'active' : ''}`}>
                 <i className="fas fa-gavel"></i> Incidents
               </button>
             </div>
@@ -199,18 +184,17 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ onNavigate }) =
           )}
         </div>
 
-        {/* ─── LIST BODY ─── */}
         <div className="NS_BODY">
           {loading ? (
             <div className="NS_STATE_MESSAGE">
               <i className="fas fa-spinner fa-spin fa-2x"></i>
-              <p>Fetching live feed...</p>
+              <p>Synchronizing with database...</p>
             </div>
           ) : filteredNotifs.length === 0 ? (
             <div className="NS_STATE_MESSAGE">
-              <i className="fas fa-inbox fa-3x"></i>
-              <h3>No records found</h3>
-              <p>Try adjusting your filters or checking back later.</p>
+              <i className="fas fa-satellite-dish fa-3x"></i>
+              <h3>No Online Requests Found</h3>
+              <p>The sensor is active. New portal requests will appear here in real-time.</p>
             </div>
           ) : (
             <ul className="NS_LIST">
@@ -219,10 +203,9 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ onNavigate }) =
                   key={n.id} 
                   className={`NS_ITEM ${n.is_read ? 'NS_ITEM--read' : 'NS_ITEM--unread'}`}
                   onClick={() => handleNotificationClick(n)}
-                  style={{ cursor: onNavigate ? 'pointer' : 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                 >
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: '15px', flex: 1 }}>
-                    <div className={`NS_ITEM_ICON ${n.is_read ? 'NS_ITEM_ICON--read' : 'NS_ITEM_ICON--unread'} ${n.type}`}>
+                    <div className={`NS_ITEM_ICON ${n.is_read ? 'NS_ITEM_ICON--read' : 'NS_ITEM_ICON--unread'} ${(n.type || '').toLowerCase()}`}>
                       <i className={getIconClass(n.type)}></i>
                     </div>
                     
@@ -243,16 +226,9 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ onNavigate }) =
                         <i className="fas fa-circle"></i>
                       </div>
                     )}
-                    {/* 🛡️ THE TRASH CAN BUTTON */}
                     <button 
                       onClick={(e) => handleDelete(e, n.id)}
                       className="NS_DELETE_BTN"
-                      style={{ 
-                        background: 'none', border: 'none', color: '#ef4444', 
-                        cursor: 'pointer', padding: '8px', borderRadius: '4px',
-                        fontSize: '1.2rem', transition: 'all 0.2s'
-                      }}
-                      title="Permanently Delete Notification"
                     >
                       <i className="fas fa-trash-alt"></i>
                     </button>

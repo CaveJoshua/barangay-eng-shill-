@@ -1,53 +1,48 @@
 import { logActivity } from './Auditlog.js';
 import { sendAutoMail } from './Mailer.js';
 
-/**
- * 📢 INTERNAL HELPER 1: Notify a Specific User (Admin -> Resident)
- */
+// =========================================================
+// INTERNAL HELPER 1: Notify a Specific User (Admin -> Resident)
+// =========================================================
 const createNotification = async (supabase, userId, title, message, type = 'document') => {
+    if (!userId) return; 
     try {
         const { error } = await supabase
             .from('notifications')
             .insert([{
-                user_id: String(userId), // Forced to string to match the new text format
+                user_id: String(userId), 
                 title: title,
                 message: message,
                 type: type,
                 is_read: false,
                 created_at: new Date().toISOString()
             }]);
-        if (error) console.error("[NOTIFICATION ERROR]", error.message);
+        if (error) throw error;
     } catch (err) {
-        console.error("[SYSTEM ERROR] Notification Dispatch Failed:", err.message);
+        console.error("[NOTIFICATION_DISPATCH_ERROR] Failed to send user notification:", err.message);
     }
 };
 
-/**
- * 📢 INTERNAL HELPER 2: Notify All Admins/Staff (Resident -> Admin)
- * 🛡️ BULLETPROOF VERSION: Ignores uppercase/lowercase role mismatches
- */
+// =========================================================
+// INTERNAL HELPER 2: Notify All Admins/Staff
+// =========================================================
 const notifyAllAdmins = async (supabase, title, message, type = 'document') => {
     try {
-        // 1. Fetch ALL officials to bypass case-sensitivity SQL limitations
         const { data: officials, error: fetchError } = await supabase
-            .from('officials_account')
+            .from('officials_accounts') 
             .select('account_id, role');
 
-        if (fetchError) {
-            console.error("❌ [NOTIF ERROR] Could not fetch officials:", fetchError.message);
-            return;
-        }
+        if (fetchError) throw fetchError;
+        if (!officials || officials.length === 0) return;
 
-        // 2. Filter in JavaScript to make it 100% case-insensitive
         const validRoles = ['admin', 'superadmin', 'staff'];
         const targetAdmins = officials.filter(off => 
             off.role && validRoles.includes(off.role.toLowerCase().trim())
         );
 
         if (targetAdmins.length > 0) {
-            // 3. Prepare the payload
             const bulkNotifs = targetAdmins.map(admin => ({
-                user_id: String(admin.account_id), // Forced to string to match the SQL update
+                user_id: String(admin.account_id),
                 title: title,
                 message: message,
                 type: type,
@@ -55,29 +50,22 @@ const notifyAllAdmins = async (supabase, title, message, type = 'document') => {
                 created_at: new Date().toISOString()
             }));
 
-            // 4. Fire the notifications
             const { error: insertError } = await supabase.from('notifications').insert(bulkNotifs);
-            
-            if (insertError) {
-                console.error("❌ [NOTIF ERROR] Supabase rejected the insert:", insertError.message);
-            } else {
-                console.log(`✅ [NOTIF SUCCESS] Notification delivered to ${targetAdmins.length} admins.`);
-            }
-        } else {
-            console.warn("⚠️ [NOTIF WARNING] No admins or staff found in the database. Nobody to notify.");
+            if (insertError) throw insertError;
         }
     } catch (err) {
-        console.error("💥 [SYSTEM ERROR] Admin Notification Dispatch Failed:", err.message);
+        console.error("[ADMIN_NOTIFICATION_ERROR] Failed to broadcast to officials:", err.message);
     }
 };
 
-/**
- * 🛡️ ZERO TRUST RBAC MIDDLEWARE
- */
+// =========================================================
+// ZERO TRUST RBAC MIDDLEWARE
+// =========================================================
 const checkSessionRole = (allowedRoles) => {
     return (req, res, next) => {
         const userRole = (req.user?.user_role || req.user?.role || 'resident').toLowerCase().trim();
         if (!allowedRoles.includes(userRole)) {
+            console.warn(`[RBAC_VIOLATION] Role '${userRole}' attempted unauthorized access to ${req.originalUrl}.`);
             return res.status(403).json({ 
                 error: 'Forbidden', 
                 message: 'Security Policy: Insufficient permissions.' 
@@ -88,11 +76,12 @@ const checkSessionRole = (allowedRoles) => {
     };
 };
 
+// =========================================================
+// ROUTER EXPORT
+// =========================================================
 export const documentRouter = (router, supabase, authenticateToken) => {
 
-    // =========================================================
-    // 1. GET CONFIG: DOCUMENT TYPES
-    // =========================================================
+    // ── 1. GET CONFIG: DOCUMENT TYPES ──
     router.get('/documents/types', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff', 'resident']), async (req, res) => {
         try {
             const documentTypes = [
@@ -104,25 +93,31 @@ export const documentRouter = (router, supabase, authenticateToken) => {
             ];
             res.status(200).json(documentTypes);
         } catch (err) {
+            console.error("[DOCUMENT_TYPES_FETCH_ERROR] Configuration sync failed:", err.message);
             res.status(500).json({ error: "Configuration Sync Failed." });
         }
     });
 
-    // =========================================================
-    // 2. GET REGISTRY: FETCH ALL DOCUMENTS
-    // =========================================================
+    // ── 2. GET REGISTRY: FETCH ALL DOCUMENTS ──
     router.get('/documents', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff', 'resident']), async (req, res) => {
         try {
             let query = supabase.from('document_requests').select('*');
+            
+            // SECURITY: Residents can ONLY pull their own records
             if (req.validatedRole === 'resident') {
-                const residentId = req.user?.record_id || req.user?.resident_id; 
+                const residentId = req.user?.record_id || req.user?.resident_id || req.user?.sub; 
+                if (!residentId) return res.status(400).json({ error: "Missing resident identity in token." });
                 query = query.eq('resident_id', residentId);
             }
+
             const { data: docs, error: docError } = await query.order('date_requested', { ascending: false });
             if (docError) throw docError;
 
-            const { data: residents } = await supabase.from('residents_records').select('record_id, first_name, last_name, email');
-            const formattedData = docs.map(doc => {
+            // Optional: Attach resident emails/names if fetching for admins
+            const { data: residents, error: resError } = await supabase.from('residents_records').select('record_id, first_name, last_name, email');
+            if (resError) throw resError;
+
+            const formattedData = (docs || []).map(doc => {
                 const resident = residents?.find(r => r.record_id === doc.resident_id);
                 return {
                     ...doc,
@@ -130,88 +125,95 @@ export const documentRouter = (router, supabase, authenticateToken) => {
                     residentEmail: resident?.email || null
                 };
             });
+            
             res.status(200).json(formattedData);
         } catch (err) {
-            res.status(500).json({ error: "Registry Sync Error." });
+            console.error("[DOCUMENT_REGISTRY_FETCH_ERROR] Failed to retrieve document records:", err.message || err);
+            res.status(500).json({ error: "Registry Sync Error. Check server logs." });
         }
     });
 
-    // =========================================================
-    // 3. POST: SAVE REQUEST (Resident & Admin Notifications)
-    // =========================================================
+    // ── 3. POST: SAVE REQUEST (THE ID FACTORY) ──
     router.post('/documents/save', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff', 'resident']), async (req, res) => {
         try {
             const r = req.body;
-            const actor = req.user?.username || 'Resident';
+            const actor = req.user?.username || req.user?.sub || 'Resident';
             const userRole = req.validatedRole;
+
+            // 🛡️ SMART SOURCE INDICATOR & PREFIX SELECTOR
+            const requestMethod = userRole === 'resident' ? 'Online' : 'Walk-in';
+            const prefix = userRole === 'resident' ? 'ON-LN' : 'WK-IN';
 
             // 🛡️ THE IDENTITY LOCK
             const secureResidentId = (userRole === 'resident') 
-                ? (req.user?.record_id || req.user?.resident_id) 
+                ? (req.user?.record_id || req.user?.resident_id || req.user?.sub) 
                 : r.resident_id;
 
             if (!secureResidentId) {
                 return res.status(403).json({ success: false, error: "Cannot verify resident identity." });
             }
 
-            const { data, error } = await supabase.from('document_requests').insert([{
+            // Step 1: Generate a temporary unique ID to avoid UNIQUE constraint clashes
+            const tempRef = `TEMP-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+
+            // Step 2: Insert the record
+            const { data: initialDoc, error: insertError } = await supabase.from('document_requests').insert([{
                 resident_id: secureResidentId,
                 resident_name: r.resident_name,
                 type: r.type,
                 purpose: r.purpose,
                 other_purpose: r.other_purpose || '',
                 price: r.price || 0,
-                reference_no: r.reference_no || `REF-${Date.now()}`,
+                reference_no: tempRef, 
                 date_requested: new Date().toISOString(),
-                status: 'Pending'
+                status: 'Pending',
+                request_method: requestMethod
             }]).select().single();
 
-            if (error) throw error;
+            if (insertError) throw insertError;
 
-            logActivity(supabase, actor, 'DOCUMENT_REQUEST_CREATED', `Request for ${r.type} filed by ${r.resident_name}.`);
+            // Step 3: Format the official "Pretty ID" padding with zeros
+            const prettyId = `${prefix}-${String(initialDoc.id).padStart(4, '0')}`;
 
-            // 🔔 RESIDENT CONFIRMATION NOTIFICATION
-            if (userRole === 'resident') {
-                await createNotification(
-                    supabase, 
-                    secureResidentId, 
-                    "Request Received", 
-                    `Your request for ${r.type} is pending review. The final fee is to be assessed by the staff.`,
-                    'document'
-                );
+            // Step 4: Update the row with the official ID
+            const { data: finalDoc, error: updateError } = await supabase
+                .from('document_requests')
+                .update({ reference_no: prettyId })
+                .eq('id', initialDoc.id)
+                .select()
+                .single();
+
+            if (updateError) throw updateError;
+
+            logActivity(supabase, actor, 'DOCUMENT_REQUEST_CREATED', `Request for ${r.type} filed by ${r.resident_name} (${requestMethod}). ID: ${prettyId}`);
+
+            // 🔔 ETHICAL NOTIFICATION LOGIC
+            if (userRole === 'resident' && requestMethod === 'Online') {
+                await createNotification(supabase, secureResidentId, "Request Received", `Your online request for ${r.type} is pending review.`, 'document');
+            } else if (requestMethod === 'Walk-in') {
+                console.info(`[SYSTEM_INFO] Walk-in request logged for ${r.resident_name}. Initial notification bypassed.`);
             }
 
-            // 🔔 RESIDENT -> ADMIN NOTIFICATION TRIGGER
-            await notifyAllAdmins(
-                supabase, 
-                "New Document Request", 
-                `${r.resident_name} has requested a ${r.type}. Please review the request and assess the fee.`,
-                'document'
-            );
+            await notifyAllAdmins(supabase, "New Document Request", `${r.resident_name} requested a ${r.type} (${requestMethod}). Ref: ${prettyId}`, 'document');
 
-            // 📧 AUTO-MAILER
             if (process.env.SMTP_USER) {
                 sendAutoMail(
                     process.env.SMTP_USER, 
                     "New Document Request Received",
-                    "Action Required: Review & Assess Fee",
-                    `A new request for <b>${r.type}</b> has been submitted by <b>${r.resident_name}</b>.<br><br>
-                     <b>Purpose:</b> ${r.purpose}<br>
-                     <b>Reference No:</b> ${data.reference_no}<br><br>
-                     Please log in to the Dashboard to review the request and assess the document fee.`
-                ).catch(e => console.error("[ADMIN MAIL FAIL]", e.message));
+                    "Action Required",
+                    `A new <b>${requestMethod}</b> request for <b>${r.type}</b> has been submitted by <b>${r.resident_name}</b>.<br><br>Reference No: <strong>${prettyId}</strong>`
+                ).catch(e => console.error("[ADMIN_EMAIL_DISPATCH_ERROR]", e.message));
             }
 
-            res.status(201).json({ success: true, data });
+            // Return the finalized document so the frontend can read the new reference_no
+            res.status(201).json({ success: true, data: finalDoc });
         } catch (err) {
-            console.error("[DOC SAVE ERROR]", err.message);
+            console.error("[DOCUMENT_SAVE_ERROR] Failed to create document request:", err.message);
             res.status(400).json({ success: false, error: err.message || "Database Rejected Request." });
         }
     });
 
-    // =========================================================
-    // 4. PUT: UPDATE & NOTIFY RESIDENT
-    // =========================================================
+    // ── 4. PUT: FULL UPDATE ──
     router.put('/documents/:id', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff']), async (req, res) => {
         try {
             const { id } = req.params;
@@ -228,37 +230,24 @@ export const documentRouter = (router, supabase, authenticateToken) => {
 
             logActivity(supabase, actor, 'DOCUMENT_UPDATED', `Doc ID ${id} set to ${r.status}.`);
             
-            // 🔔 ADMIN -> RESIDENT NOTIFICATION TRIGGER
-            await createNotification(
-                supabase, 
-                data.resident_id, 
-                "Document Status Update", 
-                `Your request for ${data.type} is now ${r.status}. Assessed Fee: ₱${parseFloat(r.price).toFixed(2)}.`,
-                'document'
-            );
+            await createNotification(supabase, data.resident_id, "Document Status Update", `Your request for ${data.type} is now ${r.status}.`, 'document');
 
             if (['Approved', 'Ready', 'Released', 'Rejected'].includes(r.status)) {
                 const { data: resi } = await supabase.from('residents_records').select('email, first_name').eq('record_id', data.resident_id).single();
                 if (resi?.email) {
-                    sendAutoMail(
-                        resi.email, 
-                        `Document Update: ${r.status}`, 
-                        `Hello, ${resi.first_name}!`, 
-                        `Your request for <b>${data.type}</b> has been updated to <b>${r.status}</b>.<br>
-                         <b>Assessed Fee:</b> ₱${parseFloat(r.price).toFixed(2)}`
-                    ).catch(e => console.error("[RESIDENT MAIL FAIL]", e.message));
+                    sendAutoMail(resi.email, `Document Update: ${r.status}`, `Hello, ${resi.first_name}!`, `Your request for <b>${data.type}</b> is now <b>${r.status}</b>.`)
+                    .catch(e => console.error("[RESIDENT_EMAIL_DISPATCH_ERROR]", e.message));
                 }
             }
 
             res.status(200).json(data);
         } catch (err) {
+            console.error("[DOCUMENT_UPDATE_ERROR] Failed to modify document data:", err.message);
             res.status(400).json({ error: "Update failed." });
         }
     });
 
-    // =========================================================
-    // 5. PATCH: QUICK STATUS CHANGE & NOTIFY
-    // =========================================================
+    // ── 5. PATCH: QUICK STATUS UPDATE ──
     router.patch('/documents/:id/status', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff']), async (req, res) => {
         try {
             const { status } = req.body;
@@ -274,30 +263,22 @@ export const documentRouter = (router, supabase, authenticateToken) => {
 
             logActivity(supabase, actor, 'STATUS_PATCH', `Doc ID ${req.params.id} -> ${status}`);
             
-            // 🔔 ADMIN -> RESIDENT NOTIFICATION TRIGGER
-            await createNotification(
-                supabase, 
-                data.resident_id, 
-                "Document Alert", 
-                `Your ${data.type} is now marked as ${status}.`,
-                'document'
-            );
+            await createNotification(supabase, data.resident_id, "Document Alert", `Your ${data.type} is now ${status}.`, 'document');
 
             const { data: resi } = await supabase.from('residents_records').select('email, first_name').eq('record_id', data.resident_id).single();
             if (resi?.email) {
-                sendAutoMail(resi.email, "Status Alert", `Hi ${resi.first_name}`, `Your ${data.type} status is now: ${status}.`)
-                .catch(e => console.error("[MAIL FAIL]", e.message));
+                sendAutoMail(resi.email, "Status Alert", `Hi ${resi.first_name}`, `Your ${data.type} is now: ${status}.`)
+                .catch(e => console.error("[RESIDENT_EMAIL_DISPATCH_ERROR]", e.message));
             }
 
             res.status(200).json(data);
         } catch (err) {
+            console.error("[DOCUMENT_STATUS_PATCH_ERROR] Failed to patch status:", err.message);
             res.status(400).json({ error: "Status toggle rejected." });
         }
     });
 
-    // =========================================================
-    // 6. DELETE: PURGE
-    // =========================================================
+    // ── 6. DELETE: PURGE ──
     router.delete('/documents/:id', authenticateToken, checkSessionRole(['admin', 'superadmin']), async (req, res) => {
         try {
             const actor = req.user?.username || 'Admin';
@@ -307,6 +288,7 @@ export const documentRouter = (router, supabase, authenticateToken) => {
             logActivity(supabase, actor, 'DELETED_DOCUMENT', `Purged Record ID: ${req.params.id}`);
             res.status(200).json({ message: "Record removed." });
         } catch (err) {
+            console.error("[DOCUMENT_DELETE_ERROR] Failed to execute database purge:", err.message);
             res.status(500).json({ error: err.message });
         }
     });

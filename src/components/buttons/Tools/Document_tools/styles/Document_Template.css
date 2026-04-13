@@ -1,1355 +1,729 @@
 /* ═══════════════════════════════════════════════════════════════════
    DOCUMENT_TEMPLATE.CSS
-   Engineer's Hill Barangay — Document Editor Stylesheet
-   Architecture: GPU-optimized, theme-variable-driven, print-ready
-   Version: 3.1 — Targeted Fix: cert-no positioning, P2 context
+   Engineer's Hill Barangay — Physical Print & Layout Stylesheet
+   Architecture: GPU-optimized, strict A4 dimensions, Print-Ready
 ═══════════════════════════════════════════════════════════════════ */
 
-/* ─────────────────────────────────────────────────────────────────
-   0. CSS CUSTOM PROPERTIES
-───────────────────────────────────────────────────────────────────*/
 :root {
-  /* Brand */
-  --brgy-green-900: #0d2b14;
-  --brgy-green-800: #1e4d2b;
-  --brgy-green-700: #1a5c32;
-  --brgy-green-600: #236b3d;
-  --brgy-green-100: #e8f5e9;
-  --brgy-green-50:  #f0fdf4;
-
-  /* UI Chrome */
-  --toolbar-bg:     #0f172a;
-  --toolbar-border: #1e293b;
-  --sidebar-bg:     #f8fafc;
-  --sidebar-border: #e2e8f0;
-  --canvas-bg:      #404448;
-  --overlay-bg:     rgba(2, 6, 23, 0.92);
-
-  /* Accent */
-  --accent-blue:      #2563eb;
-  --accent-blue-glow: rgba(37, 99, 235, 0.25);
-  --accent-emerald:   #059669;
-  --accent-red:       #dc2626;
-  --accent-amber:     #d97706;
-
-  /* Text */
-  --text-primary:   #0f172a;
-  --text-secondary: #475569;
-  --text-muted:     #94a3b8;
-  --text-white:     #f8fafc;
-
-  /* Borders */
-  --border-light:  #e2e8f0;
-  --border-mid:    #cbd5e1;
-  --border-strong: #94a3b8;
-
-  /* Shadows */
-  --shadow-page:     0 20px 60px rgba(0,0,0,0.55), 0 4px 16px rgba(0,0,0,0.35);
-  --shadow-panel:    10px 0 20px -10px rgba(0,0,0,0.12);
-  --shadow-dropdown: 0 12px 40px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.1);
-
-  /* Radii */
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-
-  /* Transitions */
-  --t-fast: 0.12s ease;
-  --t-mid:  0.22s ease;
-  --t-slow: 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-
-  /* A4 dimensions */
-  --a4-width:  210mm;
-  --a4-height: 297mm;
-  --a4-pad-v:  18mm;
-  --a4-pad-h:  20mm;
-
-  /* Editor zoom */
-  --doc-zoom: 1;
+    /* Brand Colors */
+    --brgy-green-dark: #1e4d2b;
+    --brgy-green-mid: #315b36;
+    --accent-blue: #2563eb;
+    --accent-blue-glow: rgba(37, 99, 235, 0.25);
+  
+    /* UI Chrome */
+    --toolbar-bg: #0f172a;
+    --sidebar-bg: #f8fafc;
+    --canvas-bg: #404448;
+    --overlay-bg: rgba(15, 23, 42, 0.92);
+  
+    /* A4 Physical Dimensions */
+    --a4-width: 210mm;
+    --a4-height: 297mm;
+    --a4-pad-v: 20mm; /* Standard 1-inch margins */
+    --a4-pad-h: 20mm;
+    
+    --doc-zoom: 1;
 }
 
-/* ─────────────────────────────────────────────────────────────────
-   1. OVERLAY
-───────────────────────────────────────────────────────────────────*/
+/* =========================================================
+   1. OVERLAY & UI FRAMEWORK
+========================================================= */
 .DTPL_OVERLAY {
-  position: fixed;
-  inset: 0;
-  background: var(--overlay-bg);
-  display: flex;
-  flex-direction: column;
-  z-index: 9999;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
-  transform: translateZ(0);
-  will-change: transform;
+    position: fixed;
+    inset: 0;
+    background: var(--overlay-bg);
+    display: flex;
+    flex-direction: column;
+    z-index: 9999;
+    backdrop-filter: blur(6px);
+    font-family: 'Inter', system-ui, sans-serif;
 }
 
-/* ─────────────────────────────────────────────────────────────────
-   2. TOOLBAR
-───────────────────────────────────────────────────────────────────*/
 .DTPL_TOOLBAR {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: var(--toolbar-bg);
-  padding: 10px 20px;
-  border-bottom: 1px solid var(--toolbar-border);
-  z-index: 100;
-  flex-shrink: 0;
-  transform: translateZ(0);
-  will-change: auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--toolbar-bg);
+    padding: 12px 24px;
+    border-bottom: 1px solid #1e293b;
+    color: white;
+    flex-shrink: 0;
+    z-index: 100;
 }
 
 .DTPL_TOOLBAR_BRAND {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-right: 14px;
-  border-right: 1px solid #1e293b;
-  margin-right: 4px;
-  flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
 }
 
 .DTPL_TOOLBAR_BRAND_ICON {
-  width: 26px;
-  height: 26px;
-  background: var(--brgy-green-800);
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-}
-
-.DTPL_TOOLBAR_BRAND_LABEL {
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--text-muted);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  white-space: nowrap;
+    background: var(--brgy-green-mid);
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
 }
 
 .DTPL_TOOL_GROUP {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 0 10px;
-  border-right: 1px solid #1e293b;
+    display: flex;
+    gap: 6px;
+    padding: 0 16px;
+    border-right: 1px solid #334155;
 }
 
-.DTPL_TOOL_GROUP:last-of-type {
-  border-right: none;
-}
+.DTPL_TOOL_GROUP:last-of-type { border-right: none; }
 
 .DTPL_TOOL_BTN {
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--text-muted);
-  width: 32px;
-  height: 30px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
-  position: relative;
-  flex-shrink: 0;
+    background: transparent;
+    border: 1px solid transparent;
+    color: #cbd5e1;
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
 }
 
 .DTPL_TOOL_BTN:hover {
-  background: #1e293b;
-  color: var(--text-white);
-  border-color: #334155;
+    background: #1e293b;
+    color: white;
 }
 
 .DTPL_TOOL_BTN.active {
-  background: var(--accent-blue);
-  color: #ffffff;
-  border-color: rgba(147, 197, 253, 0.3);
-  box-shadow: 0 0 0 2px var(--accent-blue-glow);
-}
-
-.DTPL_TOOL_BTN[title]:hover::after {
-  content: attr(title);
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  background: #1e293b;
-  color: #e2e8f0;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 3px 7px;
-  border-radius: 4px;
-  white-space: nowrap;
-  pointer-events: none;
-  z-index: 200;
-  border: 1px solid #334155;
+    background: var(--accent-blue);
+    color: white;
+    box-shadow: 0 0 0 2px var(--accent-blue-glow);
 }
 
 .DTPL_TOOL_SELECT {
-  background: #1e293b;
-  border: 1px solid #334155;
-  color: var(--text-white);
-  font-size: 0.78rem;
-  font-weight: 500;
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  height: 30px;
-  outline: none;
-  transition: border-color var(--t-fast);
-}
-
-.DTPL_TOOL_SELECT:focus {
-  border-color: var(--accent-blue);
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: white;
+    padding: 0 10px;
+    height: 36px;
+    border-radius: 6px;
+    outline: none;
 }
 
 .DTPL_ZOOM_CTL {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 10px;
-  border-right: 1px solid #1e293b;
-}
-
-.DTPL_ZOOM_LABEL {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  min-width: 38px;
-  text-align: center;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #94a3b8;
 }
 
 .DTPL_TOOLBAR_META {
-  flex: 1;
-  text-align: center;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: #475569;
-  letter-spacing: 0.03em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+    color: #94a3b8;
+    font-size: 0.85rem;
+    font-weight: 600;
 }
 
-.DTPL_TOOLBAR_META span {
-  color: #64748b;
-}
-
-.DTPL_TOOL_ACTIONS {
-  display: flex;
-  gap: 8px;
-  margin-left: auto;
-  flex-shrink: 0;
-}
+.DTPL_TOOL_ACTIONS { display: flex; gap: 12px; }
 
 .DTPL_BTN {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 16px;
-  border: none;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-weight: 700;
-  font-size: 0.8rem;
-  letter-spacing: 0.02em;
-  transition: background var(--t-fast), transform 0.1s, box-shadow var(--t-fast);
-  white-space: nowrap;
+    padding: 10px 18px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    border: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
 }
-
-.DTPL_BTN:active { transform: scale(0.97); }
 
 .DTPL_BTN--cancel {
-  background: transparent;
-  border: 1px solid #334155;
-  color: var(--text-muted);
+    background: transparent;
+    border: 1px solid #475569;
+    color: #cbd5e1;
 }
 
-.DTPL_BTN--cancel:hover {
-  background: #1e293b;
-  color: #e2e8f0;
-  border-color: #475569;
-}
+.DTPL_BTN--cancel:hover { background: #1e293b; color: white; }
 
 .DTPL_BTN--save {
-  background: var(--accent-emerald);
-  color: #ffffff;
-  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);
+    background: #10b981;
+    color: white;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
-.DTPL_BTN--save:hover:not(:disabled) {
-  background: #047857;
-  box-shadow: 0 6px 16px rgba(5, 150, 105, 0.45);
-}
+.DTPL_BTN--save:hover { background: #059669; }
 
-.DTPL_BTN--save:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-/* ─────────────────────────────────────────────────────────────────
-   3. BODY LAYOUT
-───────────────────────────────────────────────────────────────────*/
+/* =========================================================
+   2. BODY & SIDEBAR
+========================================================= */
 .DTPL_BODY {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-  contain: layout style;
+    display: flex;
+    flex: 1;
+    overflow: hidden;
 }
 
-/* ─────────────────────────────────────────────────────────────────
-   4. SIDEBAR
-───────────────────────────────────────────────────────────────────*/
 .DTPL_SIDEBAR {
-  width: 320px;
-  min-width: 280px;
-  max-width: 360px;
-  background: var(--sidebar-bg);
-  border-right: 1px solid var(--sidebar-border);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  box-shadow: var(--shadow-panel);
-  flex-shrink: 0;
-  will-change: transform;
-  transform: translateZ(0);
+    width: 380px;
+    background: var(--sidebar-bg);
+    border-right: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    z-index: 10;
+    box-shadow: 10px 0 20px rgba(0,0,0,0.05);
 }
 
 .DTPL_SIDEBAR_HEADER {
-  padding: 14px 18px 12px;
-  border-bottom: 1px solid var(--border-light);
-  background: #ffffff;
-  flex-shrink: 0;
+    padding: 20px 24px 0;
+    background: white;
+    border-bottom: 1px solid #e2e8f0;
 }
 
 .DTPL_SIDEBAR_TITLE {
-  font-size: 0.85rem;
-  font-weight: 800;
-  color: var(--text-primary);
-  letter-spacing: 0.02em;
-  margin: 0 0 10px 0;
-  display: flex;
-  align-items: center;
-  gap: 7px;
+    font-weight: 800;
+    font-size: 1.1rem;
+    color: #0f172a;
+    margin-bottom: 15px;
 }
 
 .DTPL_TAB_NAV {
-  display: flex;
-  gap: 4px;
-  background: #f1f5f9;
-  padding: 3px;
-  border-radius: var(--radius-md);
+    display: flex;
+    gap: 8px;
+    margin-bottom: -1px;
 }
 
 .DTPL_TAB_BTN {
-  flex: 1;
-  padding: 6px 8px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--text-secondary);
-  cursor: pointer;
-  text-align: center;
-  transition: background var(--t-fast), color var(--t-fast), box-shadow var(--t-fast);
-  white-space: nowrap;
-  letter-spacing: 0.02em;
+    padding: 10px 16px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-bottom: none;
+    color: #64748b;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    border-radius: 8px 8px 0 0;
 }
 
 .DTPL_TAB_BTN.active {
-  background: #ffffff;
-  color: var(--brgy-green-800);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
-}
-
-.DTPL_TAB_BTN:hover:not(.active) {
-  background: #e8edf4;
-  color: var(--text-primary);
+    color: #2563eb;
+    background: white;
+    border-color: #e2e8f0;
+    border-bottom-color: white;
 }
 
 .DTPL_SIDEBAR_SCROLL {
-  flex: 1;
-  overflow-y: auto;
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 11px;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
 }
-
-.DTPL_SIDEBAR_SCROLL::-webkit-scrollbar          { width: 4px; }
-.DTPL_SIDEBAR_SCROLL::-webkit-scrollbar-track    { background: transparent; }
-.DTPL_SIDEBAR_SCROLL::-webkit-scrollbar-thumb    { background: #cbd5e1; border-radius: 99px; }
 
 .DTPL_SEC_LABEL {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 0.67rem;
-  font-weight: 800;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: #ffffff;
-  padding: 5px 9px;
-  border-radius: var(--radius-sm);
-  margin-top: 2px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #f1f5f9;
+    margin-top: 10px;
 }
 
-.DTPL_SEC_LABEL--green  { background: var(--brgy-green-800); }
-.DTPL_SEC_LABEL--navy   { background: #1e3a5f; }
-.DTPL_SEC_LABEL--slate  { background: #334155; }
-.DTPL_SEC_LABEL--amber  { background: #92400e; }
-.DTPL_SEC_LABEL--purple { background: #4c1d95; }
+.DTPL_SEC_LABEL--green { color: #10b981; border-color: #d1fae5; }
+.DTPL_SEC_LABEL--navy { color: #3b82f6; border-color: #dbeafe; }
+.DTPL_SEC_LABEL--slate { color: #64748b; border-color: #e2e8f0; }
+.DTPL_SEC_LABEL--purple { color: #8b5cf6; border-color: #ede9fe; }
+.DTPL_SEC_LABEL--amber { color: #f59e0b; border-color: #fef3c7; }
 
-.DTPL_FIELD {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  position: relative;
-}
+.DTPL_FIELD { display: flex; flex-direction: column; gap: 8px; position: relative; }
+.DTPL_GRID_2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
 .DTPL_FIELD_LABEL {
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  display: flex;
-  align-items: center;
-  gap: 5px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
 }
 
-.DTPL_FIELD_LABEL .required-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #ef4444;
-  display: inline-block;
+.required-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    background: #ef4444;
+    border-radius: 50%;
+    margin-left: 4px;
 }
 
-.DTPL_INPUT,
-.DTPL_SELECT,
-.DTPL_TEXTAREA {
-  width: 100%;
-  padding: 9px 11px;
-  border: 1.5px solid var(--border-mid);
-  border-radius: var(--radius-md);
-  font-size: 0.855rem;
-  font-family: inherit;
-  background: #ffffff;
-  color: var(--text-primary);
-  box-sizing: border-box;
-  outline: none;
-  transition: border-color var(--t-fast), box-shadow var(--t-fast), background var(--t-fast);
-  -webkit-appearance: none;
-  appearance: none;
+.DTPL_INPUT, .DTPL_SELECT, .DTPL_TEXTAREA {
+    padding: 10px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    color: #0f172a;
+    outline: none;
+    transition: border-color 0.2s;
+    font-family: inherit;
 }
 
-.DTPL_INPUT:focus,
-.DTPL_SELECT:focus,
-.DTPL_TEXTAREA:focus {
-  border-color: var(--accent-blue);
-  box-shadow: 0 0 0 3px var(--accent-blue-glow);
-  background: #ffffff;
+.DTPL_INPUT:focus, .DTPL_SELECT:focus, .DTPL_TEXTAREA:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.DTPL_INPUT:read-only {
-  background: #f1f5f9;
-  color: var(--text-muted);
-  cursor: default;
-}
-
-.DTPL_TEXTAREA {
-  resize: vertical;
-  min-height: 68px;
-  line-height: 1.55;
-}
-
-.DTPL_SELECT {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-  padding-right: 30px;
-  cursor: pointer;
-}
-
-.DTPL_GRID_2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 9px;
-}
-
-.DTPL_GRID_3 {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px;
-}
+.DTPL_INPUT[readonly] { background: #f1f5f9; color: #64748b; }
+.DTPL_TEXTAREA { resize: vertical; min-height: 80px; }
 
 .DTPL_DROPDOWN {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  background: #ffffff;
-  border: 1.5px solid var(--border-mid);
-  border-radius: var(--radius-md);
-  list-style: none;
-  padding: 4px 0;
-  margin: 0;
-  box-shadow: var(--shadow-dropdown);
-  z-index: 500;
-  max-height: 220px;
-  overflow-y: auto;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0; width: 100%;
+    background: white;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    z-index: 1000;
+    max-height: 200px;
+    overflow-y: auto;
+    margin: 0; padding: 4px 0;
+    list-style: none;
 }
 
 .DTPL_DROPDOWN li {
-  padding: 9px 13px;
-  cursor: pointer;
-  transition: background var(--t-fast);
-  border-bottom: 1px solid #f8fafc;
+    padding: 10px 16px;
+    cursor: pointer;
 }
-
-.DTPL_DROPDOWN li:last-child { border-bottom: none; }
-.DTPL_DROPDOWN li:hover      { background: #eff6ff; }
-
-.DTPL_DROPDOWN_NAME {
-  font-weight: 700;
-  font-size: 0.85rem;
-  color: var(--text-primary);
-  display: block;
-}
-
-.DTPL_DROPDOWN_META {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-  margin-top: 1px;
-}
+.DTPL_DROPDOWN li:hover { background: #eff6ff; }
+.DTPL_DROPDOWN_NAME { font-weight: 700; font-size: 0.9rem; display: block; }
+.DTPL_DROPDOWN_META { font-size: 0.75rem; color: #64748b; }
 
 .DTPL_INFO_BOX {
-  border-radius: var(--radius-md);
-  padding: 10px 12px;
-  font-size: 0.76rem;
-  line-height: 1.5;
-  font-weight: 600;
-  display: flex;
-  align-items: flex-start;
-  gap: 7px;
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    line-height: 1.5;
 }
-
-.DTPL_INFO_BOX--green  { background: var(--brgy-green-50); border: 1.5px solid #86efac; color: #14532d; }
-.DTPL_INFO_BOX--blue   { background: #eff6ff;              border: 1.5px solid #93c5fd; color: #1e3a8a; }
-.DTPL_INFO_BOX--amber  { background: #fffbeb;              border: 1.5px solid #fcd34d; color: #78350f; }
-.DTPL_INFO_BOX--edit   { background: #f5f3ff;              border: 1.5px solid #c4b5fd; color: #3b0764; }
+.DTPL_INFO_BOX--green { background: #ecfdf5; border: 1px solid #10b981; color: #065f46; }
+.DTPL_INFO_BOX--amber { background: #fffbeb; border: 1px solid #f59e0b; color: #92400e; }
+.DTPL_INFO_BOX--edit { background: #f8fafc; border: 1px dashed #cbd5e1; color: #475569; }
 
 .DTPL_SIDEBAR_FOOTER {
-  padding: 10px 16px;
-  border-top: 1px solid var(--border-light);
-  background: #ffffff;
-  font-size: 0.68rem;
-  color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-shrink: 0;
+    padding: 16px 24px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+    color: #64748b;
 }
 
-.DTPL_PAGE_INDICATOR {
-  display: flex;
-  gap: 5px;
-  align-items: center;
-}
+.DTPL_PAGE_INDICATOR { display: flex; gap: 6px; align-items: center; }
+.DTPL_PAGE_DOT { width: 8px; height: 8px; border-radius: 50%; background: #cbd5e1; cursor: pointer; }
+.DTPL_PAGE_DOT.active { background: #3b82f6; transform: scale(1.2); }
 
-.DTPL_PAGE_DOT {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--border-mid);
-  transition: background var(--t-mid), transform var(--t-mid);
-  cursor: pointer;
-}
-
-.DTPL_PAGE_DOT.active {
-  background: var(--brgy-green-800);
-  transform: scale(1.4);
-}
-
-/* ─────────────────────────────────────────────────────────────────
-   5. CANVAS
-───────────────────────────────────────────────────────────────────*/
+/* =========================================================
+   3. A4 CANVAS & PRINT ENGINE (STRICT)
+========================================================= */
 .DTPL_CANVAS {
-  flex: 1;
-  background: var(--canvas-bg);
-  overflow-y: auto;
-  overflow-x: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 48px 32px;
-  gap: 36px;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  will-change: scroll-position;
+    flex: 1;
+    background: var(--canvas-bg);
+    overflow: auto;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
-.DTPL_CANVAS::-webkit-scrollbar             { width: 8px; height: 8px; }
-.DTPL_CANVAS::-webkit-scrollbar-track       { background: #35393d; }
-.DTPL_CANVAS::-webkit-scrollbar-thumb       { background: #5a5f65; border-radius: 4px; }
-.DTPL_CANVAS::-webkit-scrollbar-thumb:hover { background: #6b7280; }
-
-.DTPL_PAGE_LABEL {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #6b7280;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin-bottom: -28px;
-  align-self: flex-start;
-  margin-left: calc((100% - var(--a4-width)) / 2);
-  padding: 4px 10px;
-  background: #2d3035;
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-}
-
-/* ─────────────────────────────────────────────────────────────────
-   6. A4 PAGE
-───────────────────────────────────────────────────────────────────*/
 .DTPL_A4 {
-  width: var(--a4-width);
-  height: var(--a4-height);
-  min-height: var(--a4-height);
-  max-height: var(--a4-height);
-  background: #ffffff;
-  box-shadow: var(--shadow-page);
-  position: relative;         /* positioning context for ALL absolute children */
-  padding: var(--a4-pad-v) var(--a4-pad-h);
-  box-sizing: border-box;
-  overflow: hidden;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  color: #000000;
-  font-family: 'Arial', 'Helvetica', sans-serif;
-  contain: layout paint;
-  transform: scale(var(--doc-zoom));
-  transform-origin: top center;
-  will-change: transform;
-  transition: box-shadow var(--t-mid);
-  isolation: isolate;
-}
-
-.DTPL_A4:hover {
-  box-shadow: var(--shadow-page), 0 0 0 2px rgba(37,99,235,0.18);
+    width: var(--a4-width);
+    height: var(--a4-height);
+    min-height: var(--a4-height);
+    max-height: var(--a4-height);
+    background: #ffffff;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+    position: relative; /* CRITICAL: Anchors absolutely positioned child elements */
+    padding: var(--a4-pad-v) var(--a4-pad-h);
+    box-sizing: border-box;
+    overflow: hidden; /* CRITICAL: Prevents layout breaking */
+    flex-shrink: 0;
+    color: #000000;
+    font-family: 'Arial', 'Helvetica', sans-serif;
+    transform: scale(var(--doc-zoom));
+    transform-origin: top center;
 }
 
 .DTPL_WATERMARK {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 76%;
-  max-width: 520px;
-  opacity: 0.06;
-  pointer-events: none;
-  z-index: 0;
-  will-change: auto;
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 550px;
+    opacity: 0.05;
+    pointer-events: none;
+    z-index: 0;
 }
 
-/* ─────────────────────────────────────────────────────────────────
-   7. PAGE 1 — STANDARD HEADER (Clearance / Residency / Indigency)
-───────────────────────────────────────────────────────────────────*/
-.DTPL_HDR_STANDARD {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 8px;
-  position: relative;
-  z-index: 5;
-  flex-shrink: 0;
-}
-
-.DTPL_HDR_LOGO_BOX {
-  width: 88px;
-  height: 88px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.DTPL_HDR_LOGO_IMG {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.DTPL_HDR_BANNER {
-  flex: 1;
-  text-align: center;
-  background: var(--brgy-green-800);
-  color: #ffffff;
-  padding: 13px 12px;
-  border-radius: 2px;
-  line-height: 1.4;
-  -webkit-print-color-adjust: exact;
-  print-color-adjust: exact;
-}
-
-.DTPL_HDR_BANNER p {
-  margin: 0;
-  font-size: 10.5pt;
-  letter-spacing: 1px;
-  font-weight: 400;
-}
-
-.DTPL_HDR_BANNER_NAME {
-  font-size: 16.5pt !important;
-  font-weight: 900 !important;
-  font-style: italic;
-  display: block;
-  margin-top: 3px !important;
-  letter-spacing: 1.2px !important;
-  text-transform: uppercase;
-}
-
-/* ─────────────────────────────────────────────────────────────────
-   8. PAGE 1 — PLAIN HEADER (Certification / Affidavit)
-
-   FIX v3.1 — THREE targeted changes:
-   (a) position: relative  — scopes .DTPL_HDR_PLAIN_CERTNO to
-       THIS element instead of the A4 page, preventing the child
-       from floating to the wrong coordinates.
-   (b) padding-top: 20px   — carves out vertical space ABOVE the
-       logo/text row so the cert-no label has a clean home.
-   (c) margin-bottom: 6px  — tightens gap to title block below.
-───────────────────────────────────────────────────────────────────*/
+/* =========================================================
+   4. HEADERS (PLAIN & STANDARD)
+========================================================= */
+/* Plain Header (Jobseeker & Affidavit) */
 .DTPL_HDR_PLAIN {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  position: relative;  /* (a) FIX: scopes cert-no to this row */
-  padding-top: 20px;   /* (b) FIX: reserve room for cert-no line above logo row */
-  margin-bottom: 6px;  /* (c) tighten spacing to title */
-  z-index: 5;
-  flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    position: relative;
+    margin-bottom: 25px;
+    z-index: 5;
+    /* Removed the solid border-bottom to perfectly match physical copies */
 }
 
 .DTPL_HDR_PLAIN_LOGO {
-  width: 76px;
-  height: 76px;
-  object-fit: contain;
-  flex-shrink: 0;
+    width: 90px;
+    height: 90px;
+    position: absolute; /* Keeps it on the left without shifting center text */
+    left: 0;
+    top: -10px;
 }
 
 .DTPL_HDR_PLAIN_TEXT {
-  flex: 1;
-  text-align: center;
-  line-height: 1.35;
+    flex: 1;
+    text-align: center;
+    line-height: 1.3;
 }
 
 .DTPL_HDR_PLAIN_TEXT p { margin: 0; }
+.DTPL_HDR_PLAIN_TEXT .republic { font-size: 10.5pt; font-weight: 400; }
+.DTPL_HDR_PLAIN_TEXT .brgy-name { font-size: 14pt; font-weight: 900; text-transform: uppercase; margin: 3px 0 !important; }
+.DTPL_HDR_PLAIN_TEXT .city { font-size: 10pt; font-weight: 400; }
+.DTPL_HDR_PLAIN_TEXT .phone, 
+.DTPL_HDR_PLAIN_TEXT .email { font-size: 9.5pt; }
 
-.DTPL_HDR_PLAIN_TEXT .republic  { font-size: 9.5pt;  font-weight: 400; }
-.DTPL_HDR_PLAIN_TEXT .brgy-name { font-size: 13pt;   font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; margin: 2px 0 !important; }
-.DTPL_HDR_PLAIN_TEXT .city      { font-size: 9.5pt;  font-weight: 400; }
-.DTPL_HDR_PLAIN_TEXT .phone     { font-size: 9pt; }
-.DTPL_HDR_PLAIN_TEXT .email     { font-size: 8.5pt;  color: #1a5c32; }
-
-/*
-  FIX v3.1 — cert-no positioning:
-  top: 0  → sits at the very top of .DTPL_HDR_PLAIN's padding box.
-             Because the parent has padding-top: 20px, "top: 0"
-             lands exactly in the reserved space ABOVE the logo row,
-             matching the reference screenshot (cert no at top-right
-             of the document, above the header content).
-  right: 0 → flush with the right edge of the header row.
-  No more negative top values escaping to the A4 level.
-*/
-.DTPL_HDR_PLAIN_CERTNO {
-  position: absolute;
-  top: 0;     /* FIX: inside the 20px reserved space, above logo row */
-  right: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-  white-space: nowrap;
+/* Standard Green Banner Header (Clearance) */
+.DTPL_HDR_STANDARD {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 25px;
+    z-index: 5;
+    position: relative;
 }
 
-.DTPL_HDR_PLAIN_CERTNO .cert-label {
-  font-size: 8.5pt;
-  font-weight: 700;
-  color: #000000;
+.DTPL_HDR_LOGO_BOX { width: 90px; height: 90px; }
+.DTPL_HDR_LOGO_IMG { width: 100%; height: 100%; object-fit: contain; }
+
+.DTPL_HDR_BANNER {
+    flex: 1;
+    text-align: center;
+    background: var(--brgy-green-dark);
+    color: #ffffff;
+    padding: 12px 10px;
+    line-height: 1.3;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
 }
 
-.DTPL_HDR_PLAIN_CERTNO .cert-value {
-  font-size: 8.5pt;
-  font-weight: 700;
-  color: #000000;
-}
+.DTPL_HDR_BANNER p { margin: 0; font-size: 10.5pt; }
+.DTPL_HDR_BANNER_NAME { font-size: 16.5pt !important; font-weight: 900 !important; font-style: italic; display: block; margin-top: 4px !important; }
 
-/* ─────────────────────────────────────────────────────────────────
-   9. DOCUMENT TITLE BLOCK
-───────────────────────────────────────────────────────────────────*/
+/* =========================================================
+   5. TITLES & TYPOGRAPHY
+========================================================= */
 .DTPL_TITLE_BLOCK {
-  text-align: center;
-  position: relative;
-  z-index: 5;
-  flex-shrink: 0;
+    text-align: center;
+    position: relative;
+    z-index: 5;
 }
 
 .DTPL_OFFICE_SUBTITLE {
-  font-weight: 700;
-  font-size: 12pt;
-  text-transform: uppercase;
-  margin: 0 0 10px 0;
-  letter-spacing: 0.5px;
+    font-weight: 700;
+    font-size: 12.5pt;
+    margin-bottom: 15px;
 }
 
 .DTPL_DOC_TITLE {
-  font-weight: 900;
-  text-transform: uppercase;
-  margin: 0;
-  letter-spacing: 1px;
-  text-decoration: underline;
-  text-underline-offset: 5px;
-  line-height: 1.1;
+    font-weight: 900;
+    text-transform: uppercase;
+    margin: 0;
+    letter-spacing: 0.5px;
 }
 
-.DTPL_DOC_TITLE--lg { font-size: 22pt; }
-.DTPL_DOC_TITLE--md { font-size: 19pt; }
+/* Specific overrides for visual accuracy */
+.DTPL_DOC_TITLE--lg { font-size: 24pt; text-decoration: underline; }
+.DTPL_DOC_TITLE--md { font-size: 16pt; /* No underline for Jobseeker form 1 title */ }
 
 .DTPL_DOC_SUBTITLE {
-  margin: 6px 0 0 0;
-  font-size: 10.5pt;
-  font-weight: 700;
+    font-size: 10.5pt;
+    margin-top: 6px;
 }
 
-/* ─────────────────────────────────────────────────────────────────
-   10. EDITABLE CONTENT BODY
-───────────────────────────────────────────────────────────────────*/
 .DTPL_RICH_BODY {
-  position: relative;
-  z-index: 5;
-  flex: 1;
-  min-height: 0;
-  text-align: justify;
-  padding: 0 3px;
-  outline: none;
-  caret-color: var(--accent-blue);
+    position: relative;
+    z-index: 5;
+    outline: none;
+    caret-color: var(--accent-blue);
 }
 
-.DTPL_RICH_BODY:focus {
-  box-shadow: inset 0 0 0 1.5px rgba(37,99,235,0.2);
-  border-radius: 2px;
-}
+.DTPL_RICH_BODY--certification { font-size: 11pt; line-height: 1.6; }
+.DTPL_RICH_BODY--standard { font-size: 12pt; line-height: 1.7; }
 
-.DTPL_RICH_BODY p      { margin-bottom: 14px; }
-.DTPL_RICH_BODY b      { font-weight: 800; }
-
-.DTPL_RICH_BODY--certification { font-size: 11.5pt; line-height: 1.65; }
-.DTPL_RICH_BODY--standard      { font-size: 12pt;   line-height: 1.78; }
-
-/* ─────────────────────────────────────────────────────────────────
-   11. SIGNATURE SECTION
-───────────────────────────────────────────────────────────────────*/
+/* =========================================================
+   6. SIGNATURES & STAMPS
+========================================================= */
 .DTPL_SIG_ROW {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  padding: 0 6px;
-  position: relative;
-  z-index: 5;
-  flex-shrink: 0;
+    position: relative;
+    z-index: 5;
 }
 
-.DTPL_SIG_ROW--center { justify-content: center; }
-.DTPL_SIG_ROW--right  { justify-content: flex-end; }
+.DTPL_RESIDENT_SIG { text-align: center; width: 40%; margin-top: 40px; }
+.DTPL_RESIDENT_SIG_LINE { border-top: 1.5px solid #000; padding-top: 4px; font-weight: bold; font-size: 10pt; }
 
-.DTPL_SIG_BLOCK {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0;
-}
+.DTPL_WITNESS_BLOCK p { margin: 4px 0; font-size: 10.5pt; }
 
-.DTPL_SIG_BLOCK--left { align-items: flex-start; }
+.DTPL_SIG_BLOCK { display: flex; flex-direction: column; }
+.DTPL_SIG_NAME { border-bottom: 1.5px solid #000; padding-bottom: 2px; white-space: nowrap; }
+.DTPL_SIG_POSITION { margin-top: 4px; }
+.DTPL_SIG_DATE { font-size: 10.5pt; }
 
-.DTPL_SIG_NAME {
-  font-weight: 900;
-  font-size: 12.5pt;
-  border-bottom: 1.5px solid #000000;
-  min-width: 230px;
-  text-align: center;
-  padding-bottom: 2px;
-  letter-spacing: 0.3px;
-}
-
-.DTPL_SIG_POSITION {
-  font-size: 10pt;
-  text-align: center;
-  text-transform: uppercase;
-  margin-top: 3px;
-  letter-spacing: 0.3px;
-}
-
-.DTPL_SIG_DATE {
-  font-size: 10.5pt;
-  margin-top: 10px;
-  margin-bottom: 4px;
-}
-
-.DTPL_SIG_WITNESS_LABEL {
-  font-size: 10.5pt;
-  font-weight: 600;
-  margin: 12px 0 10px 0;
-}
-
-.DTPL_RESIDENT_SIG {
-  width: 38%;
-  text-align: center;
-}
-
-.DTPL_RESIDENT_SIG_LINE {
-  border-top: 1px solid #000;
-  padding-top: 4px;
-  margin-top: 48px;
-  font-weight: 700;
-  font-size: 10pt;
-}
-
-.DTPL_WITNESS_BLOCK {
-  width: 46%;
-  text-align: left;
-  font-size: 10.5pt;
-}
-
-.DTPL_WITNESS_BLOCK p { margin: 3px 0; }
-
-/* ─────────────────────────────────────────────────────────────────
-   12. STAMP BOX
-───────────────────────────────────────────────────────────────────*/
 .DTPL_STAMP_BOX {
-  border: 2px solid #000000;
-  padding: 11px 15px;
-  width: 308px;
-  margin-top: 14px;
-  margin-left: auto;
-  margin-right: 6px;
-  flex-shrink: 0;
-  position: relative;
-  z-index: 5;
-  background: #ffffff;
+    border: 2px solid #000;
+    padding: 15px;
+    width: 320px;
+    margin: 30px 0 10px auto;
+    z-index: 5;
+    background: #fff;
+    box-sizing: border-box;
 }
 
-.DTPL_STAMP_TITLE {
-  font-weight: 900;
-  font-size: 9.5pt;
-  text-align: center;
-  text-transform: uppercase;
-  margin-bottom: 13px;
-  letter-spacing: 0.3px;
-}
+.DTPL_STAMP_TITLE { font-weight: 900; font-size: 10pt; text-align: center; margin-bottom: 15px; }
+.DTPL_STAMP_ROW { display: flex; justify-content: space-between; }
+.DTPL_STAMP_COL { width: 45%; text-align: center; }
+.DTPL_STAMP_VALUE { font-weight: 700; font-size: 10.5pt; min-height: 18px; margin-bottom: 2px; }
+.DTPL_STAMP_LINE { border-bottom: 1px solid #000; margin-bottom: 5px; }
+.DTPL_STAMP_SUBLABEL { font-size: 8.5pt; font-weight: 800; }
 
-.DTPL_STAMP_ROW {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 14px;
-}
-
-.DTPL_STAMP_COL { flex: 1; text-align: center; }
-
-.DTPL_STAMP_VALUE {
-  font-weight: 700;
-  font-size: 10.5pt;
-  margin-bottom: 2px;
-}
-
-.DTPL_STAMP_LINE {
-  border-top: 1.5px solid #000000;
-  margin-bottom: 4px;
-}
-
-.DTPL_STAMP_SUBLABEL {
-  font-size: 8.5pt;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-/* ─────────────────────────────────────────────────────────────────
-   13. BOTTOM METADATA ROW
-───────────────────────────────────────────────────────────────────*/
+/* =========================================================
+   7. FOOTER & TAGS
+========================================================= */
 .DTPL_META_ROW {
-  display: flex;
-  justify-content: space-between;
-  font-size: 8.5pt;
-  padding: 0 3px;
-  flex-shrink: 0;
-  position: relative;
-  z-index: 5;
-  line-height: 1.6;
+    display: flex;
+    justify-content: space-between;
+    font-size: 9.5pt;
+    font-weight: bold;
+    z-index: 5;
+    margin-top: 15px;
 }
 
-.DTPL_META_ROW p       { margin: 1px 0; }
-.DTPL_META_ROW .right  { text-align: right; }
+.DTPL_META_ROW p { margin: 4px 0; }
 
-/* ─────────────────────────────────────────────────────────────────
-   14. GREEN FOOTER
-───────────────────────────────────────────────────────────────────*/
 .DTPL_GREEN_FOOTER {
-  border-top: 2px solid var(--brgy-green-800);
-  padding-top: 8px;
-  margin-top: 8px;
-  text-align: center;
-  font-weight: 700;
-  color: var(--brgy-green-800);
-  font-size: 8.5pt;
-  flex-shrink: 0;
-  position: relative;
-  z-index: 5;
-  -webkit-print-color-adjust: exact;
-  print-color-adjust: exact;
+    margin-top: auto; /* Pushes to bottom */
+    border-top: 1px solid #000; /* Reverted to black line to match physical copies */
+    padding-top: 10px;
+    text-align: center;
+    color: #000; /* Reverted to black text to match physical copies */
+    z-index: 5;
 }
 
 .DTPL_GREEN_FOOTER_CONTACTS {
-  display: flex;
-  justify-content: center;
-  gap: 28px;
-  margin-bottom: 3px;
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    font-weight: bold;
+    font-size: 9pt;
+    margin-bottom: 4px;
+}
+.DTPL_GREEN_FOOTER_ADDR { margin: 0; font-weight: bold; font-size: 9pt; }
+
+/* CRITICAL: Absolute positioning anchored to the .DTPL_A4 bottom-left corner */
+.DTPL_FORM_TAG, .DTPL_P2_FORM_TAG {
+    position: absolute;
+    bottom: var(--a4-pad-v);
+    left: var(--a4-pad-h);
+    font-size: 9pt;
+    font-weight: 700;
+    line-height: 1.4;
+    z-index: 10;
 }
 
-.DTPL_GREEN_FOOTER_ADDR {
-  margin: 0;
-  font-weight: 800;
-}
-
-/* ─────────────────────────────────────────────────────────────────
-   15. FORM TAG — Page 1 bottom-left label
-───────────────────────────────────────────────────────────────────*/
-.DTPL_FORM_TAG {
-  position: absolute;          /* relative to .DTPL_A4 */
-  bottom: var(--a4-pad-v);
-  left: var(--a4-pad-h);
-  font-size: 8pt;
-  font-weight: 700;
-  line-height: 1.45;
-  font-family: 'Arial', sans-serif;
-  z-index: 10;
-}
-
-/* ─────────────────────────────────────────────────────────────────
-   16. PAGE 2 — OATH OF UNDERTAKING
-
-   FIX v3.1: Added position: relative to .DTPL_P2_WRAPPER.
-   Without it, .DTPL_P2_FORM_TAG (position: absolute) escaped to
-   .DTPL_A4 and its bottom value was calculated against the full A4
-   page height instead of the wrapper — causing misalignment when
-   the wrapper's content height was less than the A4 height.
-───────────────────────────────────────────────────────────────────*/
+/* =========================================================
+   8. PAGE 2: OATH OF UNDERTAKING SPECIFICS
+========================================================= */
 .DTPL_P2_WRAPPER {
-  position: relative;   /* FIX: scopes .DTPL_P2_FORM_TAG here */
-  z-index: 5;
-  font-family: 'Arial', 'Helvetica', sans-serif;
-  font-size: 10.5pt;
-  line-height: 1.45;
-  text-align: justify;
-  color: #000000;
-  flex: 1;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
+    position: relative; /* CRITICAL: Sub-wrapper for organization */
+    z-index: 5;
+    font-size: 10.5pt;
+    line-height: 1.45;
+    color: #000;
+    flex: 1;
 }
 
-.DTPL_P2_REVISED {
-  text-align: right;
-  font-style: italic;
-  font-size: 9.5pt;
-  margin: 0 0 12px 0;
-  color: #444444;
-  flex-shrink: 0;
-}
+.DTPL_P2_REVISED { font-style: italic; font-weight: bold; font-size: 9.5pt; margin-bottom: 15px; }
 
-.DTPL_P2_TITLE {
-  text-align: center;
-  font-size: 13pt;
-  font-weight: 900;
-  text-decoration: underline;
-  text-transform: uppercase;
-  margin: 0 0 5px 0;
-  flex-shrink: 0;
-}
+.DTPL_P2_TITLE { font-weight: 900; font-size: 14pt; text-decoration: underline; text-align: center; margin: 0 0 5px 0; }
+.DTPL_P2_SUBTITLE { font-weight: 700; font-size: 10.5pt; text-align: center; margin: 0 0 20px 0; }
 
-.DTPL_P2_SUBTITLE {
-  text-align: center;
-  font-size: 10.5pt;
-  font-weight: 700;
-  margin: 0 0 16px 0;
-  flex-shrink: 0;
-}
+.DTPL_P2_PARA { text-indent: 48px; text-align: justify; margin-bottom: 12px; outline: none; }
+.DTPL_P2_LIST { padding-left: 40px; margin: 15px 0; }
+.DTPL_P2_LIST li { margin-bottom: 8px; text-align: justify; outline: none; }
 
-.DTPL_P2_PARA {
-  outline: none;
-  border-radius: 2px;
-  transition: box-shadow var(--t-fast), background var(--t-fast);
-  caret-color: var(--accent-blue);
-  margin-bottom: 12px;
-  cursor: text;
-}
+.DTPL_P2_SIG_LABEL { font-size: 10.5pt; }
+.DTPL_P2_SIG_LINE { outline: none; caret-color: var(--accent-blue); }
+.DTPL_P2_SIG_SUBLABEL { font-size: 10pt; margin-top: 4px; }
 
-.DTPL_P2_PARA:focus {
-  box-shadow: inset 0 0 0 1.5px rgba(37,99,235,0.25);
-  background: rgba(239,246,255,0.45);
-  border-radius: 3px;
-}
+.DTPL_P2_MINOR_LABEL { font-weight: 700; font-size: 10.5pt; margin-bottom: 10px; }
 
-.DTPL_P2_LIST {
-  padding-left: 28px;
-  margin: 12px 0;
-  flex-shrink: 0;
-}
-
-.DTPL_P2_LIST li {
-  margin-bottom: 5px;
-  font-size: 10.5pt;
-  line-height: 1.45;
-  text-align: justify;
-  padding-left: 6px;
-  outline: none;
-  transition: background var(--t-fast);
-  caret-color: var(--accent-blue);
-}
-
-.DTPL_P2_LIST li:focus {
-  background: rgba(239,246,255,0.5);
-  border-radius: 2px;
-}
-
-.DTPL_P2_SIGNED_ROW {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 16px;
-  flex-shrink: 0;
-}
-
-.DTPL_P2_SIG_BLOCK { width: 46%; }
-
-.DTPL_P2_SIG_LABEL {
-  font-size: 10.5pt;
-  margin: 0 0 22px 0;
-}
-
-.DTPL_P2_SIG_LINE {
-  border-bottom: 1.5px solid #000000;
-  text-align: center;
-  font-weight: 900;
-  font-size: 11pt;
-  min-height: 22px;
-  padding-bottom: 2px;
-  outline: none;
-  transition: box-shadow var(--t-fast);
-  caret-color: var(--accent-blue);
-}
-
-.DTPL_P2_SIG_LINE:focus {
-  box-shadow: 0 2px 0 var(--accent-blue);
-}
-
-.DTPL_P2_SIG_SUBLABEL {
-  text-align: center;
-  margin: 4px 0 0 0;
-  font-size: 10pt;
-}
-
-.DTPL_P2_MINOR_SECTION {
-  margin-top: 18px;
-  flex-shrink: 0;
-}
-
-.DTPL_P2_MINOR_LABEL {
-  font-weight: 700;
-  font-size: 10.5pt;
-  margin-bottom: 8px;
-}
-
-.DTPL_P2_MINOR_PARA {
-  font-size: 10.5pt;
-  line-height: 1.6;
-  text-align: justify;
-  outline: none;
-  caret-color: var(--accent-blue);
-}
-
-.DTPL_P2_MINOR_PARA:focus {
-  background: rgba(239,246,255,0.4);
-  border-radius: 2px;
-}
-
-.DTPL_P2_GUARDIAN_SIG {
-  margin-top: 16px;
-  width: 46%;
-  flex-shrink: 0;
-}
-
-/*
-  FIX v3.1 — Form tag now anchors to .DTPL_P2_WRAPPER (position:relative).
-  bottom: 0  → flush with the bottom of the wrapper content boundary.
-  left: 0    → flush with the left edge of the wrapper (already inside A4 padding).
-  No pixel guessing needed — it follows the content naturally.
-*/
-.DTPL_P2_FORM_TAG {
-  position: absolute;   /* anchored to .DTPL_P2_WRAPPER */
-  bottom: 0;
-  left: 0;
-  font-size: 8pt;
-  font-weight: 700;
-  font-family: 'Arial', sans-serif;
-  line-height: 1.4;
-  z-index: 10;
-}
-
-/* Blank line helpers */
-.blank-line {
-  display: inline-block;
-  border-bottom: 1px solid #000;
-  min-width: 120px;
-  vertical-align: bottom;
-  margin: 0 3px;
-}
-
-.blank-line--long  { min-width: 200px; }
-.blank-line--short { min-width: 60px; }
-
-/* ─────────────────────────────────────────────────────────────────
-   17. CANVAS STATUS BAR
-───────────────────────────────────────────────────────────────────*/
+/* Status bar bottom fixed */
 .DTPL_STATUS_BAR {
-  position: sticky;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: rgba(28,32,36,0.94);
-  backdrop-filter: blur(4px);
-  border-top: 1px solid #2d3035;
-  padding: 5px 20px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 0.7rem;
-  color: #6b7280;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  flex-shrink: 0;
-  z-index: 50;
+    position: fixed;
+    bottom: 0; left: 380px; right: 0;
+    background: rgba(15, 23, 42, 0.95);
+    padding: 8px 24px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    z-index: 50;
 }
 
-.DTPL_STATUS_LEFT,
-.DTPL_STATUS_RIGHT {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
+.DTPL_STATUS_LEFT, .DTPL_STATUS_RIGHT { display: flex; gap: 16px; align-items: center; }
+.DTPL_STATUS_PILL { background: #1e293b; padding: 4px 10px; border-radius: 12px; }
+.DTPL_STATUS_PILL.online { color: #10b981; background: rgba(16, 185, 129, 0.1); }
 
-.DTPL_STATUS_PILL {
-  background: #2d3035;
-  padding: 2px 8px;
-  border-radius: 99px;
-  color: #9ca3af;
-}
-
-.DTPL_STATUS_PILL.online {
-  background: rgba(16,185,129,0.15);
-  color: #6ee7b7;
-}
-
-/* ─────────────────────────────────────────────────────────────────
-   18. GPU & RENDERING OPTIMIZATION
-───────────────────────────────────────────────────────────────────*/
-.DTPL_CANVAS,
-.DTPL_SIDEBAR,
-.DTPL_TOOLBAR {
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-}
-
-.DTPL_SIDEBAR_SCROLL { contain: content; }
-.DTPL_DROPDOWN       { contain: layout paint; }
-
-/* ─────────────────────────────────────────────────────────────────
-   19. PRINT / PDF EXPORT
-───────────────────────────────────────────────────────────────────*/
+/* =========================================================
+   9. PRINT EXPORT SAFEGUARDS
+========================================================= */
 @media print {
-  body { background: none !important; }
-
-  .DTPL_OVERLAY {
-    background: none !important;
-    position: relative !important;
-  }
-
-  .DTPL_TOOLBAR,
-  .DTPL_SIDEBAR,
-  .DTPL_STATUS_BAR {
-    display: none !important;
-  }
-
-  .DTPL_CANVAS {
-    background: none !important;
-    padding: 0 !important;
-    overflow: visible !important;
-  }
-
-  .DTPL_A4 {
-    box-shadow: none !important;
-    margin: 0 !important;
-    page-break-after: always;
-    break-after: page;
-    transform: none !important;
-  }
-
-  .DTPL_HDR_BANNER,
-  .DTPL_GREEN_FOOTER {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
+    body { background: none !important; margin: 0 !important; padding: 0 !important; }
+    
+    .DTPL_OVERLAY { position: absolute !important; top: 0; left: 0; background: none !important; display: block !important; }
+    .DTPL_TOOLBAR, .DTPL_SIDEBAR, .DTPL_STATUS_BAR { display: none !important; }
+    
+    .DTPL_CANVAS { padding: 0 !important; overflow: visible !important; display: block !important; }
+    
+    .DTPL_A4 {
+        box-shadow: none !important;
+        margin: 0 !important;
+        page-break-after: always;
+        transform: none !important; /* Forces 100% scale for print engine */
+    }
+    
+    .DTPL_HDR_BANNER, .DTPL_GREEN_FOOTER {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
 }
 
-/* ─────────────────────────────────────────────────────────────────
-   20. RESPONSIVE
-───────────────────────────────────────────────────────────────────*/
+/* ═══════════════════════════════════════════════════════════════════
+   10. RESPONSIVE UI OVERRIDES (THE FIX)
+   We make the surrounding UI fluid, but scale the A4 paper visually 
+   so the PDF generator doesn't capture a distorted layout.
+═══════════════════════════════════════════════════════════════════ */
+
+/* ── LAPTOP & SMALL DESKTOP (Max 1200px) ── */
+@media (max-width: 1200px) {
+    .DTPL_SIDEBAR {
+        width: 320px; /* Shrink the sidebar */
+    }
+    .DTPL_CANVAS {
+        padding: 20px; /* Less empty space around the paper */
+    }
+    /* Visually scale the paper down by 20% on laptops */
+    .DTPL_A4 {
+        transform: scale(calc(var(--doc-zoom) * 0.8)) !important;
+        margin-bottom: -60mm; /* Compensate for the visual shrinking */
+    }
+    .DTPL_STATUS_BAR {
+        left: 320px;
+    }
+}
+
+/* ── TABLET (Max 900px) ── */
 @media (max-width: 900px) {
-  .DTPL_SIDEBAR { width: 260px; min-width: 220px; }
-  :root { --a4-width: 170mm; --a4-height: 240mm; }
+    .DTPL_BODY {
+        flex-direction: column; /* Stack the sidebar ON TOP of the canvas */
+        overflow-y: auto;       /* Let the whole screen scroll */
+    }
+    
+    .DTPL_SIDEBAR {
+        width: 100%;
+        max-height: 350px; /* Prevent sidebar from taking over the whole screen */
+        border-right: none;
+        border-bottom: 2px solid #cbd5e1;
+        box-shadow: 0 10px 15px -5px rgba(0,0,0,0.1);
+        z-index: 20;
+    }
+
+    .DTPL_CANVAS {
+        overflow: visible; /* Let the main body handle the scroll */
+        padding-bottom: 100px;
+    }
+
+    .DTPL_TOOLBAR {
+        flex-wrap: wrap; /* Let toolbar buttons wrap to the next line */
+        gap: 12px;
+        padding: 12px 16px;
+    }
+
+    .DTPL_TOOLBAR_META {
+        display: none; /* Hide the middle title to save space */
+    }
+
+    /* Visually scale the paper down by 35% on tablets */
+    .DTPL_A4 {
+        transform: scale(calc(var(--doc-zoom) * 0.65)) !important;
+        margin-bottom: -100mm; 
+    }
+    
+    .DTPL_STATUS_BAR {
+        left: 0;
+    }
 }
 
-/* ─────────────────────────────────────────────────────────────────
-   21. ANIMATIONS
-───────────────────────────────────────────────────────────────────*/
-@keyframes dtpl-page-in {
-  from { opacity: 0; transform: translateY(16px) scale(0.99); }
-  to   { opacity: 1; transform: translateY(0)    scale(1);    }
-}
+/* ── MOBILE SCREENS (Max 600px) ── */
+@media (max-width: 600px) {
+    .DTPL_TOOL_GROUP {
+        padding: 0 8px; /* Tighter toolbar */
+    }
+    
+    .DTPL_TOOL_BTN {
+        width: 32px;
+        height: 32px;
+    }
 
-@keyframes dtpl-slide-in {
-  from { opacity: 0; transform: translateX(-8px); }
-  to   { opacity: 1; transform: translateX(0);    }
-}
+    .DTPL_ZOOM_CTL {
+        display: none; /* Hide manual zoom on mobile, CSS handles it */
+    }
 
-.DTPL_A4 {
-  animation: dtpl-page-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
+    .DTPL_SIDEBAR_HEADER {
+        padding: 15px 15px 0;
+    }
 
-.DTPL_A4:nth-child(2) { animation-delay: 0.07s; }
+    .DTPL_SIDEBAR_SCROLL {
+        padding: 15px;
+    }
 
-.DTPL_SIDEBAR_SCROLL > * {
-  animation: dtpl-slide-in 0.2s ease both;
+    .DTPL_GRID_2 {
+        grid-template-columns: 1fr; /* Stack side-by-side inputs on mobile */
+    }
+
+    /* Visually scale the paper down by 50% for phones */
+    .DTPL_A4 {
+        transform: scale(calc(var(--doc-zoom) * 0.5)) !important;
+        margin-bottom: -150mm;
+    }
+
+    .DTPL_STATUS_BAR {
+        flex-wrap: wrap;
+        height: auto;
+        padding: 10px;
+        justify-content: center;
+        gap: 10px;
+    }
+
+    .DTPL_STATUS_RIGHT span:not(.DTPL_STATUS_PILL) {
+        display: none; /* Hide extra meta info on mobile footer */
+    }
 }

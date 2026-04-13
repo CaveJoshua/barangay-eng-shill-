@@ -1,218 +1,40 @@
 /* =========================================================
-   1. CORE VARIABLES & ROOT DEFINITIONS
-   Strict color schemes for Barangay Engineer's Hill Branding
+   DOCUMENT TEMPLATE & FORMAT CSS
+   Strict styling for physical A4 printing via html2canvas/jsPDF
 ========================================================= */
+
 :root {
   --brgy-green-dark: #1e4d2b;
-  --brgy-green-mid: #315b36;
-  --brgy-green-light: #e8f5e9;
-  --pdf-bg: #525659;
+  --pdf-bg: #e2e8f0;
   --text-main: #000000;
-  --text-muted: #475569;
-  --border-std: #cbd5e1;
-  --shadow-deep: 0 15px 35px rgba(0, 0, 0, 0.5);
-  --toolbar-bg: #1e293b;
-  --accent-blue: #0088ff;
+  --shadow-deep: 0 15px 35px rgba(0, 0, 0, 0.2);
 }
 
 /* =========================================================
-   2. OVERLAY & WRAPPER
-   Ensures a high-fidelity workspace for document generation
-========================================================= */
-.DOC_GEN_OVERLAY {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background-color: rgba(0, 0, 0, 0.85);
-  display: flex;
-  flex-direction: column;
-  z-index: 9999;
-  font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
-  backdrop-filter: blur(4px);
-}
-
-.DOC_GEN_TOOLBAR {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background-color: var(--toolbar-bg);
-  padding: 14px 28px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  border-bottom: 1px solid #334155;
-  z-index: 100;
-}
-
-.DOC_GEN_TOOL_GROUP {
-  display: flex;
-  gap: 8px;
-}
-
-.DOC_GEN_TOOL_GROUP button {
-  background: #334155;
-  border: 1px solid #475569;
-  color: #ffffff;
-  padding: 8px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.DOC_GEN_TOOL_GROUP button:hover {
-  background: #475569;
-  border-color: #94a3b8;
-}
-
-.DOC_GEN_TOOL_GROUP button.active {
-  background: var(--accent-blue);
-  border-color: #60a5fa;
-  box-shadow: 0 0 8px rgba(0, 136, 255, 0.4);
-}
-
-.DOC_GEN_TOOL_ACTIONS {
-  display: flex;
-  gap: 12px;
-}
-
-.DOC_GEN_TOOL_ACTIONS button {
-  padding: 10px 24px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 700;
-  font-size: 14px;
-  transition: transform 0.1s active, background 0.2s;
-}
-
-.DOC_GEN_BTN_CANCEL {
-  background-color: #ef4444;
-  color: white;
-}
-
-.DOC_GEN_BTN_CANCEL:hover {
-  background-color: #dc2626;
-}
-
-.DOC_GEN_BTN_SAVE {
-  background-color: #10b981;
-  color: white;
-  box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
-}
-
-.DOC_GEN_BTN_SAVE:hover:not(:disabled) {
-  background-color: #059669;
-}
-
-.DOC_GEN_BTN_SAVE:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* =========================================================
-   3. SIDEBAR CONTROLS
-   Precision input management
-========================================================= */
-.DOC_GEN_BODY {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-}
-
-.DOC_GEN_SIDE_PANEL {
-  width: 360px;
-  background-color: #f1f5f9;
-  padding: 30px;
-  overflow-y: auto;
-  border-right: 1px solid var(--border-std);
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.DOC_GEN_PANEL_HEADER {
-  font-size: 1.2rem;
-  font-weight: 800;
-  color: #1e293b;
-  margin-bottom: 10px;
-  padding-bottom: 12px;
-  border-bottom: 3px solid var(--brgy-green-dark);
-}
-
-.DOC_GEN_INPUT_GROUP {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.DOC_GEN_INPUT_GROUP label {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.DOC_GEN_INPUT_GROUP input,
-.DOC_GEN_SELECT {
-  padding: 12px;
-  border: 1.5px solid var(--border-std);
-  border-radius: 8px;
-  font-size: 0.95rem;
-  background: white;
-  color: #1e293b;
-  transition: all 0.2s;
-}
-
-.DOC_GEN_INPUT_GROUP input:focus,
-.DOC_GEN_SELECT:focus {
-  outline: none;
-  border-color: var(--accent-blue);
-  box-shadow: 0 0 0 3px rgba(0, 136, 255, 0.15);
-}
-
-/* =========================================================
-   4. A4 PAGE ENGINE (STRICT SEPARATION FIX)
+   1. A4 PAGE ENGINE (STRICT SEPARATION FIX)
    MM units used to ensure 1:1 ratio with physical paper.
-   Fixed to prevent stretching or "double" page bleeding.
 ========================================================= */
-.DOC_GEN_PREVIEW_AREA {
-  flex: 1;
-  background-color: var(--pdf-bg);
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 60px 20px;
-  gap: 40px; /* Provides visual separation between multiple distinct A4 pages */
-}
-
-.DOC_GEN_A4_PAGE {
+.DTPL_A4 {
   width: 210mm;
-  height: 297mm;     /* STRICT FIXED HEIGHT: Forces exact A4 bounds */
-  max-height: 297mm; /* Prevents container from stretching to a double size */
+  min-height: 297mm;     
+  max-height: 297mm; /* Strict fixed height: Forces exact A4 bounds */
   background-color: #ffffff;
   box-shadow: var(--shadow-deep);
   position: relative;
-  padding: 20mm 20mm 25mm 20mm;
+  padding: 20mm 20mm 25mm 20mm; /* Standard document margins */
   box-sizing: border-box;
   margin: 0;
   color: var(--text-main);
   font-family: 'Arial', 'Helvetica', sans-serif;
   display: flex;
   flex-direction: column;
-  overflow: hidden;  /* Hides any accidental overflow to prevent layout breaks */
-  flex-shrink: 0;    /* Prevents flexbox from squishing the page */
+  overflow: hidden;  
+  flex-shrink: 0;    
 }
 
-.DOC_WATERMARK {
+.DTPL_WATERMARK {
   position: absolute;
-  top: 148mm; /* Absolute Center of Page 1 */
+  top: 50%; /* Absolute Center */
   left: 50%;
   transform: translate(-50%, -50%);
   width: 80%;
@@ -223,9 +45,10 @@
 }
 
 /* =========================================================
-   5. DOCUMENT HEADER & BRANDING
+   2. DOCUMENT HEADERS (STANDARD & PLAIN)
 ========================================================= */
-.DOC_HEADER_ROW {
+/* Standard Green Banner Header */
+.DTPL_HDR_STANDARD {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -235,19 +58,19 @@
   gap: 20px;
 }
 
-.DOC_LOGO_BOX {
+.DTPL_HDR_LOGO_BOX {
   width: 95px;
   height: 95px;
   flex-shrink: 0;
 }
 
-.DOC_LOGO_IMG {
+.DTPL_HDR_LOGO_IMG {
   width: 100%;
   height: 100%;
   object-fit: contain;
 }
 
-.DOC_BANNER_GREEN {
+.DTPL_HDR_BANNER {
   flex: 1;
   text-align: center;
   background-color: var(--brgy-green-dark);
@@ -257,14 +80,14 @@
   line-height: 1.4;
 }
 
-.DOC_BANNER_GREEN p {
+.DTPL_HDR_BANNER p {
   margin: 0;
   font-size: 10.5pt;
   letter-spacing: 1.2px;
   font-weight: 400;
 }
 
-.BANNER_BRGY_NAME {
+.DTPL_HDR_BANNER_NAME {
   font-size: 17pt;
   font-weight: 900 !important;
   font-style: italic;
@@ -274,27 +97,58 @@
   text-transform: uppercase;
 }
 
+/* Plain Header (For Certifications/Affidavits) */
+.DTPL_HDR_PLAIN {
+  display: flex;
+  align-items: center;
+  position: relative;
+  z-index: 5;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #000;
+  padding-bottom: 15px;
+}
+
+.DTPL_HDR_PLAIN_LOGO {
+  width: 80px;
+  height: 80px;
+  margin-right: 20px;
+}
+
+.DTPL_HDR_PLAIN_TEXT {
+  flex: 1;
+}
+
+.DTPL_HDR_PLAIN_TEXT p {
+  margin: 0;
+  line-height: 1.3;
+}
+
+.DTPL_HDR_PLAIN_TEXT .republic { font-size: 10pt; }
+.DTPL_HDR_PLAIN_TEXT .brgy-name { font-size: 14pt; font-weight: 900; letter-spacing: 1px; }
+.DTPL_HDR_PLAIN_TEXT .city { font-size: 10pt; }
+.DTPL_HDR_PLAIN_TEXT .phone { font-size: 10pt; margin-top: 4px; }
+.DTPL_HDR_PLAIN_TEXT .email { font-size: 10pt; }
+
 /* =========================================================
-   6. TITLE & CONTENT TYPOGRAPHY
+   3. TITLE & CONTENT TYPOGRAPHY
 ========================================================= */
-.RES_HEADER_BLOCK {
+.DTPL_TITLE_BLOCK {
   text-align: center;
-  margin-top: 20px;
-  margin-bottom: 35px;
+  margin-top: 10px;
+  margin-bottom: 25px;
   position: relative;
   z-index: 5;
 }
 
-.RES_OFFICE_TITLE {
+.DTPL_OFFICE_SUBTITLE {
   font-weight: 700;
-  font-size: 13.5pt;
-  margin-bottom: 20px;
+  font-size: 12pt;
+  margin-bottom: 15px;
   text-transform: uppercase;
 }
 
-.RES_DOC_TITLE {
+.DTPL_DOC_TITLE {
   font-weight: 900;
-  font-size: 24pt;
   text-transform: uppercase;
   margin: 0;
   letter-spacing: 1px;
@@ -302,263 +156,285 @@
   text-underline-offset: 4px;
 }
 
-.DOC_RICH_CONTENT {
+.DTPL_DOC_TITLE--lg { font-size: 22pt; }
+.DTPL_DOC_TITLE--md { font-size: 17pt; }
+
+.DTPL_DOC_SUBTITLE {
+  font-size: 10.5pt;
+  margin-top: 8px;
+  font-weight: 600;
+}
+
+.DTPL_RICH_BODY {
   position: relative;
   z-index: 5;
-  font-size: 12.5pt;
-  line-height: 1.75;
+  font-size: 12pt;
+  line-height: 1.6;
   text-align: justify;
   padding: 0 5px;
-  min-height: 350px;
-}
-
-.DOC_RICH_CONTENT b {
-  font-weight: 800;
-}
-
-.DOC_RICH_CONTENT p {
-  margin-bottom: 18px;
+  outline: none; /* Removes editable blue box */
 }
 
 /* =========================================================
-   7. SIGNATURES & OFFICIAL NAMES
+   4. SIGNATURES & OFFICIAL NAMES
 ========================================================= */
-.DOC_SIG_SECTION {
+.DTPL_SIG_ROW {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-top: 50px;
+  margin-top: 30px;
   padding: 0 10px;
   z-index: 5;
 }
 
-.OFFICIAL_NAME {
-  font-weight: 900;
-  font-size: 13pt;
-  margin-bottom: 0;
-  border-bottom: 1.5px solid #000;
-  display: inline-block;
-  min-width: 260px;
-  text-align: center;
-  padding-bottom: 2px;
+.DTPL_RESIDENT_SIG {
+  margin-top: 40px;
 }
 
-.OFFICIAL_POSITION {
-  font-size: 11pt;
+.DTPL_RESIDENT_SIG_LINE {
+  border-top: 1.5px solid #000;
+  width: 200px;
+  text-align: center;
+  padding-top: 4px;
+  font-weight: bold;
+  font-size: 10pt;
+}
+
+.DTPL_WITNESS_BLOCK p {
+  margin: 4px 0;
+  font-size: 10pt;
+}
+
+.DTPL_SIG_BLOCK {
+  display: flex;
+  flex-direction: column;
+}
+
+.DTPL_SIG_NAME {
+  font-weight: 900;
+  font-size: 12pt;
+  border-bottom: 1.5px solid #000;
+  text-align: center;
+  padding-bottom: 2px;
+  display: inline-block;
+  min-width: 220px;
+}
+
+.DTPL_SIG_POSITION {
+  font-size: 10pt;
   margin-top: 4px;
   text-align: center;
-  font-weight: 400;
+  font-weight: bold;
   text-transform: uppercase;
 }
 
+.DTPL_SIG_DATE {
+  font-size: 10pt;
+  text-align: center;
+}
+
+.DTPL_SIG_WITNESS_LABEL {
+  font-size: 10pt;
+  font-weight: bold;
+}
+
 /* =========================================================
-   8. STAMP BOXES (TAX & GOR)
+   5. STAMP BOXES (TAX & GOR)
 ========================================================= */
-.RES_STAMP_BOX {
+.DTPL_STAMP_BOX {
   border: 2px solid #000;
-  padding: 18px;
-  width: 350px;
-  margin: 50px 0 10px auto;
+  padding: 15px;
+  width: 320px;
+  margin: 40px 0 10px auto;
   z-index: 5;
   background: #fff;
 }
 
-.RES_STAMP_TITLE {
+.DTPL_STAMP_TITLE {
   font-weight: 900;
-  font-size: 10.5pt;
+  font-size: 10pt;
   text-align: center;
-  margin-bottom: 20px;
-  text-transform: uppercase;
+  margin-bottom: 15px;
 }
 
-.RES_STAMP_ROW {
+.DTPL_STAMP_ROW {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
   gap: 20px;
 }
 
-.RES_STAMP_COL {
+.DTPL_STAMP_COL {
   flex: 1;
   text-align: center;
 }
 
-.RES_STAMP_LINE {
-  border-top: 1.5px solid #000;
-  margin-top: 4px;
+.DTPL_STAMP_VALUE {
+  font-size: 10pt;
+  min-height: 18px;
 }
 
-.RES_STAMP_LABEL {
-  font-size: 9pt;
-  font-weight: 800;
-  margin-top: 6px;
+.DTPL_STAMP_LINE {
+  border-top: 1px solid #000;
+  margin: 4px 0;
+}
+
+.DTPL_STAMP_SUBLABEL {
+  font-size: 8.5pt;
+  font-weight: bold;
 }
 
 /* =========================================================
-   9. JOBSEEKER SURGICAL OVERRIDES (FORM 1 & 2)
+   6. METADATA ROW & GREEN FOOTER
 ========================================================= */
-.DOC_RICH_CONTENT_PAGE_2 {
-  position: relative;
-  font-family: 'Arial', sans-serif;
-  color: #000;
+.DTPL_META_ROW {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  font-size: 9.5pt;
+  font-weight: bold;
   z-index: 5;
-  /* Removed hacky margin-top: 55mm to prevent "double stretching" */
+  padding: 0 10px;
 }
 
-.DOC_RICH_CONTENT_PAGE_2::before {
-  content: "Revised as of 16 June 2021";
-  position: absolute;
-  top: 15px;
-  right: 0;
+.DTPL_META_ROW p { margin: 4px 0; }
+.DTPL_META_ROW .right { text-align: left; }
+
+.DTPL_GREEN_FOOTER {
+  margin-top: auto;
+  border-top: 2px solid var(--brgy-green-dark);
+  padding-top: 10px;
+  text-align: center;
+  color: var(--brgy-green-dark);
+  z-index: 5;
+}
+
+.DTPL_GREEN_FOOTER_CONTACTS {
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  font-weight: bold;
+  font-size: 9.5pt;
+  margin-bottom: 4px;
+}
+
+.DTPL_GREEN_FOOTER_ADDR {
+  font-size: 9.5pt;
+  font-weight: bold;
+  margin: 0;
+}
+
+/* =========================================================
+   7. PAGE 2: OATH OF UNDERTAKING SPECIFICS
+========================================================= */
+.DTPL_P2_WRAPPER {
+  position: relative;
+  z-index: 5;
+  font-family: 'Arial', sans-serif;
+  font-size: 11pt;
+  color: #000;
+}
+
+.DTPL_P2_REVISED {
   font-style: italic;
   font-size: 9.5pt;
   font-weight: bold;
 }
 
-.DOC_RICH_CONTENT_PAGE_2 h2 {
+.DTPL_P2_TITLE {
   text-align: center;
-  font-size: 15pt;
+  font-size: 14pt;
   text-decoration: underline;
   font-weight: 900;
-  margin-bottom: 8px;
+  margin-bottom: 5px;
   text-transform: uppercase;
 }
 
-.form2-subtitle {
+.DTPL_P2_SUBTITLE {
   text-align: center;
-  font-size: 11.5pt;
+  font-size: 11pt;
+  font-weight: bold;
   margin-bottom: 30px;
-  font-weight: 600;
 }
 
-.DOC_RICH_CONTENT_PAGE_2 ol {
-  margin-top: 25px;
+.DTPL_P2_PARA {
+  text-indent: 48px;
+  text-align: justify;
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+.DTPL_P2_LIST {
+  margin-top: 20px;
+  margin-bottom: 20px;
   padding-left: 40px;
   list-style-type: decimal;
 }
 
-.DOC_RICH_CONTENT_PAGE_2 li {
-  font-size: 10.8pt;
+.DTPL_P2_LIST li {
+  text-align: justify;
   line-height: 1.5;
   margin-bottom: 10px;
-  text-align: justify;
   padding-left: 10px;
 }
 
-.form2-sig-area {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 45px;
-  margin-bottom: 40px;
+.DTPL_P2_SIG_LABEL {
+  margin-bottom: 30px;
 }
 
-.form2-sig-box {
-  width: 48%;
-  display: flex;
-  flex-direction: column;
-}
-
-.form2-line {
-  border-bottom: 2px solid #000;
-  margin-top: 45px;
-  margin-bottom: 5px;
-  font-weight: 900;
-  text-align: center;
-  text-transform: uppercase;
+.DTPL_P2_SIG_LINE {
   font-size: 11pt;
-}
-
-.form2-minor-section {
-  margin-top: 35px;
-  border-top: 1.5px solid #000;
-  padding-top: 20px;
-}
-
-.form2-minor-text {
-  font-size: 10.5pt;
-  line-height: 1.6;
-  text-align: justify;
-  margin-top: 12px;
-}
-
-.form2-minor-line {
-  border-bottom: 1px solid #000;
   display: inline-block;
-  min-width: 250px;
-  margin: 0 5px;
+  outline: none;
 }
 
-.form2-footer-note {
-  margin-top: 45px;
+.DTPL_P2_SIG_SUBLABEL {
   font-size: 10pt;
-  font-weight: 900;
+  margin-top: 4px;
   text-transform: uppercase;
 }
 
 /* =========================================================
-   10. GLOBAL GREEN FOOTER
-   Surgical alignment for document bottom
-========================================================= */
-.DOC_GREEN_FOOTER {
-  margin-top: auto;
-  border-top: 2px solid var(--brgy-green-dark);
-  padding-top: 12px;
-  text-align: center;
-  font-weight: 700;
-  color: var(--brgy-green-dark);
-  font-size: 10pt;
-  z-index: 5;
-}
-
-.DOC_FOOTER_DETAILS {
-  display: flex;
-  justify-content: center;
-  gap: 40px;
-  margin-top: 5px;
-}
-
-/* =========================================================
-   11. PRINT AND PDF EXPORT ADJUSTMENTS
-   Ensures browser UI doesn't bleed into PDF
+   8. PRINT MEDIA QUERIES
+   Prevents browser UI from bleeding into the physical PDF
 ========================================================= */
 @media print {
-  body {
+  body, html {
     background: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
-  .DOC_GEN_OVERLAY {
+  .DTPL_OVERLAY {
+    position: absolute !important;
+    top: 0;
+    left: 0;
     background: none !important;
-    position: relative !important;
+    display: block !important;
   }
 
-  .DOC_GEN_TOOLBAR,
-  .DOC_GEN_SIDE_PANEL {
+  .DTPL_TOOLBAR,
+  .DTPL_SIDEBAR {
     display: none !important;
   }
 
-  .DOC_GEN_A4_PAGE {
+  .DTPL_CANVAS {
+    padding: 0 !important;
+    overflow: visible !important;
+    display: block !important;
+    align-items: flex-start !important;
+  }
+
+  .DTPL_A4 {
     box-shadow: none !important;
     margin: 0 !important;
     padding: 20mm !important;
     page-break-after: always;
+    transform: none !important; /* Disables React Zoom state for print */
   }
 
-  .DOC_RICH_CONTENT_PAGE_2 {
-    border-top: none !important;
-    page-break-before: always;
-  }
-
-  .DOC_BANNER_GREEN {
+  .DTPL_HDR_BANNER, 
+  .DTPL_GREEN_FOOTER {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 }
-
-/* =========================================================
-   12. UTILITY CLASSES
-========================================================= */
-.text-center { text-align: center; }
-.font-bold { font-weight: 800; }
-.uppercase { text-transform: uppercase; }
-.mt-20 { margin-top: 20px; }
-.mb-20 { margin-bottom: 20px; }
