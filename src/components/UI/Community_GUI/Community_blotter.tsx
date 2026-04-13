@@ -9,7 +9,9 @@ interface BlotterProps {
   refresh: () => void;
 }
 
+// 🛡️ THE FIX: Added "Pending" tab so incoming reports aren't invisible!
 const STATUS_TABS = [
+  { id: 'Pending', label: 'Pending / New', icon: 'fas fa-inbox' },
   { id: 'Active', label: 'Active Cases', icon: 'fas fa-gavel' },
   { id: 'Hearing', label: 'Hearings', icon: 'fas fa-calendar-alt' },
   { id: 'Settled', label: 'Settled', icon: 'fas fa-handshake' },
@@ -28,9 +30,9 @@ const Community_blotter: React.FC<BlotterProps> = ({
 
   // ── 🛡️ TAB NORMALIZATION ──
   useEffect(() => {
-    const validTabs = STATUS_TABS.map(t => t.id);
-    if (!validTabs.includes(activeTab as any)) {
-      setActiveTab('Active');
+    const validTabs = STATUS_TABS.map(t => t.id.toLowerCase());
+    if (!validTabs.includes(activeTab.toLowerCase())) {
+      setActiveTab('Pending'); // Default to Pending now
     }
   }, [activeTab, setActiveTab]);
 
@@ -39,7 +41,7 @@ const Community_blotter: React.FC<BlotterProps> = ({
     const query = searchQuery.toLowerCase().trim();
     
     return data.filter(item => {
-      const docStatus = (item.status || 'Active').toLowerCase();
+      const docStatus = (item.status || 'Pending').toLowerCase();
       const tabStatus = activeTab.toLowerCase();
       
       const matchesTab = docStatus === tabStatus || 
@@ -50,18 +52,18 @@ const Community_blotter: React.FC<BlotterProps> = ({
       if (!query) return true;
 
       // Safe search checking
-      const searchName = item.resident_name || item.residents?.resident_name || item.complainant || item.full_name || '';
-      return String(item.case_no || '').toLowerCase().includes(query) || 
+      const searchName = item.complainant_name || item.resident_name || item.residents?.resident_name || item.complainant || item.full_name || '';
+      return String(item.case_no || item.case_number || '').toLowerCase().includes(query) || 
              String(item.incident_type || '').toLowerCase().includes(query) ||
              String(searchName).toLowerCase().includes(query);
 
     }).map(item => {
       
-      // 1. EXTRACT NAME (Aggressively check every possible database column)
-      let rawName = item.resident_name 
+      // 1. EXTRACT NAME (Aggressively check every possible database column including the new complainant_name)
+      let rawName = item.complainant_name
+                 || item.resident_name 
                  || (item.residents && item.residents.resident_name) 
                  || item.complainant 
-                 || item.complainant_name 
                  || item.full_name 
                  || item.reporter 
                  || 'RESIDENT';
@@ -69,7 +71,7 @@ const Community_blotter: React.FC<BlotterProps> = ({
       // 2. CONVERT TO STRING FOR SAFETY
       let nameStr = String(rawName).trim();
 
-      // 3. THE KILL SWITCH: If the database literally saved "Anonymous", wipe it out.
+      // 3. THE KILL SWITCH
       if (!nameStr || nameStr.toLowerCase().includes('anonymous')) {
           nameStr = 'RESIDENT';
       }
@@ -80,12 +82,12 @@ const Community_blotter: React.FC<BlotterProps> = ({
       return {
         ...item,
         id: item.id || item.record_id,
-        case_no: String(item.case_no || item.case_number || 'PENDING').toUpperCase(),
+        case_no: String(item.case_number || item.case_no || 'PENDING').toUpperCase(),
         complainant: finalDisplayName, 
         incident_type: String(item.incident_type || 'GENERAL COMPLAINT').toUpperCase(),
-        incident_date: item.incident_date || item.date_filed || new Date().toISOString(),
-        status: String(item.status || 'Active').toUpperCase(),
-        narrative: String(item.narrative || item.incident_narrative || "NO ADDITIONAL NARRATIVE PROVIDED.").toUpperCase()
+        incident_date: item.date_filed || item.incident_date || item.created_at || new Date().toISOString(),
+        status: String(item.status || 'Pending').toUpperCase(),
+        narrative: String(item.narrative || item.incident_narrative || "NO ADDITIONAL NARRATIVE PROVIDED.")
       };
     });
   }, [data, activeTab, searchQuery]);
@@ -95,7 +97,7 @@ const Community_blotter: React.FC<BlotterProps> = ({
       
       <header className="DOC_HEADER_CARD">
         <div className="HEADER_TEXT">
-          <h1>Incedent Report</h1>
+          <h1>Incident Report</h1>
           <p>Confidential records and incident tracking for Engineer's Hill.</p>
         </div>
         <button className="BTN_REQUEST_NEW" onClick={() => setIsModalOpen(true)}>
@@ -113,7 +115,7 @@ const Community_blotter: React.FC<BlotterProps> = ({
         <div className="DOC_TABS_WRAPPER">
           {STATUS_TABS.map((tab) => {
             const count = data.filter(item => {
-              const docStatus = (item.status || 'Active').toLowerCase();
+              const docStatus = (item.status || 'Pending').toLowerCase();
               const tabStatus = tab.id.toLowerCase();
               return docStatus === tabStatus || 
                      (tabStatus === 'dismissed' && ['dismissed', 'rejected'].includes(docStatus)) ||
@@ -123,7 +125,7 @@ const Community_blotter: React.FC<BlotterProps> = ({
             return (
               <button
                 key={tab.id}
-                className={`DOC_TAB_ITEM ${activeTab === tab.id ? 'ACTIVE' : ''}`}
+                className={`DOC_TAB_ITEM ${activeTab.toLowerCase() === tab.id.toLowerCase() ? 'ACTIVE' : ''}`}
                 onClick={() => setActiveTab(tab.id)}
               >
                 <i className={tab.icon} />
@@ -219,7 +221,8 @@ const Community_blotter: React.FC<BlotterProps> = ({
               <div className="INFO_GROUP">
                 <label>Incident Narrative / Summary</label>
                 <div className="SUMMARY_BOX">
-                  <p>{selectedCase.narrative}</p>
+                  {/* 🛡️ THE FIX: Render HTML tags from the database correctly instead of literal string */}
+                  <p dangerouslySetInnerHTML={{ __html: selectedCase.narrative }}></p>
                 </div>
               </div>
             </div>

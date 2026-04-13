@@ -194,7 +194,7 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
                   <i className="fas fa-user"></i>
                   <input
                     type="text"
-                    placeholder="Username"
+                    placeholder="Username@role.officials.eng-hill.brg.ph"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     disabled={loading || isLocked}

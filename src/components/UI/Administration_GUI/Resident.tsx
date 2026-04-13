@@ -22,15 +22,21 @@ export default function ResidentsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
 
+  // 🛡️ BLOCKCHAIN LEDGER STATES
+  const [isVerifyingChain, setIsVerifyingChain] = useState(false);
+  const [chainLogs, setChainLogs] = useState<string[]>([]);
+  const [chainStatus, setChainStatus] = useState<'hidden' | 'scanning' | 'valid' | 'compromised'>('hidden');
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const terminalRef = useRef<HTMLDivElement>(null);
 
   // ==========================================================
-  // SYSTEM GUARD: PREVENT DATA INTERRUPTION (Crucial for Imports)
+  // SYSTEM GUARD: PREVENT DATA INTERRUPTION
   // ==========================================================
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (importProgress !== null) {
-        const msg = "Warning: Data restoration is in progress. Closing the site now may lead to incomplete records.";
+      if (importProgress !== null || isVerifyingChain) {
+        const msg = "Warning: Critical system operation in progress. Closing now is unsafe.";
         e.preventDefault();
         e.returnValue = msg;
         return msg;
@@ -38,7 +44,14 @@ export default function ResidentsPage() {
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [importProgress]);
+  }, [importProgress, isVerifyingChain]);
+
+  // Auto-scroll terminal
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+    }
+  }, [chainLogs]);
 
   /**
    * REFACTORED FETCH: Uses the Universal Handshake
@@ -47,11 +60,14 @@ export default function ResidentsPage() {
     if (!silent) setIsSyncing(true);
     try {
       const data = await ApiService.getResidents(signal);
-
-      // Handshake Check
       if (data === null) return;
 
-      const mappedData = data.map((row: any) => ResidentMapper.toUI(row));
+      // Ensure we keep the raw genesis_hash during mapping for verification
+      const mappedData = data.map((row: any) => ({
+          ...ResidentMapper.toUI(row),
+          genesisHash: row.genesis_hash // Explicitly attach the ledger hash
+      }));
+      
       setResidents(mappedData);
       setError(''); 
     } catch (err: any) {
@@ -68,7 +84,6 @@ export default function ResidentsPage() {
     const valve = new AbortController();
     fetchResidents(false, valve.signal); 
     
-    // Background Sync every 5 minutes
     const autoLoader = setInterval(() => fetchResidents(true, valve.signal), 300000); 
     return () => {
         valve.abort();
@@ -80,33 +95,111 @@ export default function ResidentsPage() {
     if (!id) return;
     if (!window.confirm('Archive this resident identity? This action is logged.')) return;
 
-    // Cache the previous state in case the API call fails
     const previousResidents = [...residents];
 
     try {
-      // 1. Optimistic UI Update: Hide the resident immediately to make the app feel fast
       setResidents(prev => prev.filter(r => r.id !== id));
       
-      // 🛡️ THE FIX: Use deleteResident to hit the dedicated DELETE endpoint on the backend.
-      // Our backend intercepts this DELETE call and securely converts it into an 'Archived' status update.
       const response = await ApiService.deleteResident(id); 
       
       if (!response.success) {
           throw new Error(response.error || 'Server rejected archive request');
       }
       
-      // 3. Sync the exact final state from the database
       fetchResidents(true); 
-
     } catch (err: any) {
       console.error("[ARCHIVE ERROR]:", err.message);
       alert(`Archive failed: ${err.message}. Check connection.`);
-      // Rollback the optimistic UI update if the server failed
       setResidents(previousResidents);
     }
   };
 
-  // --- FILTER & SEARCH ENGINE (RBIM Compliant) ---
+  // ==========================================================
+  // 🛡️ THE IMMUTABLE LEDGER SCANNER (CLIENT-SIDE VERIFICATION)
+  // ==========================================================
+  const verifyChainIntegrity = async () => {
+      // 1. Force the terminal open immediately so the user sees activity
+      setChainStatus('scanning');
+      setIsVerifyingChain(true);
+      setChainLogs(['[SYSTEM] Initializing Blockchain Integrity Engine...']);
+
+      // 2. Check for Data
+      if (residents.length === 0) {
+          setChainLogs(prev => [...prev, '❌ [ERROR] No resident records found in memory. Scan aborted.']);
+          setIsVerifyingChain(false);
+          setChainStatus('compromised');
+          return;
+      }
+
+      // 3. Check for Secure Context (WebCrypto requirement)
+      if (!window.isSecureContext || !crypto.subtle) {
+          setChainLogs(prev => [
+              ...prev, 
+              '❌ [CRITICAL] WebCrypto API is disabled.',
+              'ℹ️ [REASON] This feature requires a Secure Context (HTTPS or localhost).',
+              '⚠️ Verification cannot proceed over insecure HTTP.'
+          ]);
+          setIsVerifyingChain(false);
+          setChainStatus('compromised');
+          return;
+      }
+
+      try {
+          let compromisedCount = 0;
+          let tempLogs = [...chainLogs, `[SYSTEM] Auditing ${residents.length} identity blocks...` ];
+          
+          await new Promise(resolve => setTimeout(resolve, 800));
+
+          for (let i = 0; i < residents.length; i++) {
+              const res = residents[i] as any;
+              
+              if (!res.genesisHash) {
+                  tempLogs.push(`⚠️ [SKIPPED] Block ${res.id?.substring(0,8)} is a Legacy Record (No Hash).`);
+                  continue;
+              }
+
+              // Normalization Logic (Must match backend EXACTLY)
+              const normalized = `${res.firstName?.trim().toLowerCase()}|${res.middleName?.trim().toLowerCase()}|${res.lastName?.trim().toLowerCase()}|${res.dob}`.replace(/\s+/g, '');
+              
+              // Generate Local Hash
+              const msgBuffer = new TextEncoder().encode(normalized);
+              const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+              const hashArray = Array.from(new Uint8Array(hashBuffer));
+              const computedHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+              // Integrity Check
+              if (computedHash !== res.genesisHash) {
+                  compromisedCount++;
+                  tempLogs.push(`❌ [TAMPER DETECTED] Block ${res.id?.substring(0,8)}: Hash Mismatch!`);
+                  tempLogs.push(`   > Expected: ${res.genesisHash.substring(0,10)}...`);
+                  tempLogs.push(`   > Actual:   ${computedHash.substring(0,10)}...`);
+              } else if (i % 20 === 0 || i === residents.length - 1) {
+                  tempLogs.push(`✅ [OK] Block ${res.id?.substring(0,8)} verified.`);
+              }
+
+              // Periodic UI Update to prevent freezing
+              if (i % 10 === 0) setChainLogs([...tempLogs]);
+          }
+
+          if (compromisedCount === 0) {
+              tempLogs.push(`\n[RESULT] 🟢 CHAIN SECURE. All blocks match their cryptographic signatures.`);
+              setChainStatus('valid');
+          } else {
+              tempLogs.push(`\n[RESULT] 🔴 COMPROMISED. Found ${compromisedCount} tampered records.`);
+              setChainStatus('compromised');
+          }
+          setChainLogs(tempLogs);
+
+      } catch (err: any) {
+          setChainLogs(prev => [...prev, `❌ [RUNTIME ERROR] ${err.message}`]);
+          setChainStatus('compromised');
+      } finally {
+          setIsVerifyingChain(false);
+      }
+  };
+
+
+  // --- FILTER & SEARCH ENGINE ---
   const filteredResidents = useMemo(() => {
     return residents.filter((res) => {
       const currentStatus = (res.activityStatus || '').toUpperCase();
@@ -220,6 +313,11 @@ export default function ResidentsPage() {
                 </button>
                 <input type="file" accept=".csv" style={{display: 'none'}} ref={fileInputRef} onChange={(e) => importResidentsFromCSV(e, fileInputRef, setImportProgress, () => { fetchResidents(true); setImportProgress(null); })} />
                 
+                {/* 🛡️ Verify Ledger Button */}
+                <button className="RES_BTN_ALT" onClick={verifyChainIntegrity} disabled={isVerifyingChain} style={{ color: '#10b981', borderColor: '#10b981' }}>
+                  <i className={`fas fa-link ${isVerifyingChain ? 'fa-spin' : ''}`}></i> Verify Chain
+                </button>
+
                 <button className="RES_BTN_ALT BTN_EXPORT" onClick={() => exportResidentsToCSV(residents)}>
                   <i className="fas fa-database"></i> Export Backup
                 </button>
@@ -234,14 +332,14 @@ export default function ResidentsPage() {
                <table className="RES_TABLE_MAIN">
                  <thead>
                    <tr>
-                     <th>NAME</th><th>AGE</th><th>PUROK</th><th>OCCUPATION</th><th>STATUS</th><th style={{textAlign:'right'}}>ACTIONS</th>
+                     <th>IDENTITY BLOCK</th><th>AGE</th><th>PUROK</th><th>OCCUPATION</th><th>STATUS</th><th style={{textAlign:'right'}}>ACTIONS</th>
                    </tr>
                  </thead>
                  <tbody>
                    {error ? (
                      <tr><td colSpan={6} className="RES_ERROR_MSG">{error}</td></tr>
                    ) : paginatedResidents.length > 0 ? (
-                     paginatedResidents.map((res) => {
+                     paginatedResidents.map((res: any) => {
                        const age = res.dob ? new Date().getFullYear() - new Date(res.dob).getFullYear() : '-';
                        return (
                          <tr key={res.id}>
@@ -250,8 +348,11 @@ export default function ResidentsPage() {
                                    <div className="RES_AVATAR">{res.firstName?.charAt(0)}</div>
                                    <div className="RES_PROF_NAME">
                                       {res.lastName}, {res.firstName}
-                                      {/* 🛡️ Optional: Visual cue for Genesis Hash protection could go here */}
-                                      <span>{res.sex}</span>
+                                      {/* 🛡️ THE VISUAL CHAIN: Display the first part of the hash under the name */}
+                                      <span style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontFamily: 'monospace', letterSpacing: '1px', marginTop: '2px' }}>
+                                        <i className="fas fa-fingerprint" style={{ marginRight: '4px' }}></i>
+                                        {res.genesisHash ? `0x${res.genesisHash.substring(0, 12)}...` : 'UNVERIFIED_LEGACY'}
+                                      </span>
                                    </div>
                                </div>
                              </td>
@@ -287,6 +388,27 @@ export default function ResidentsPage() {
                   </div>
                </div>
            </div>
+
+           {/* 🛡️ BLOCKCHAIN TERMINAL UI */}
+           {chainStatus !== 'hidden' && (
+              <div style={{ 
+                margin: '20px', background: '#0f172a', borderRadius: '8px', border: `1px solid ${chainStatus === 'valid' ? '#10b981' : chainStatus === 'compromised' ? '#ef4444' : '#334155'}`,
+                overflow: 'hidden', fontFamily: 'monospace', boxShadow: '0 10px 25px rgba(0,0,0,0.1)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', background: '#1e293b', padding: '8px 15px', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                  <span><i className="fas fa-terminal"></i> LEDGER INTEGRITY SCANNER</span>
+                  <button onClick={() => setChainStatus('hidden')} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><i className="fas fa-times"></i></button>
+                </div>
+                <div ref={terminalRef} style={{ padding: '15px', height: '200px', overflowY: 'auto', color: '#10b981', fontSize: '0.8rem', lineHeight: '1.6' }}>
+                  {chainLogs.map((log, index) => (
+                    <div key={index} style={{ color: log.includes('❌') || log.includes('🔴') ? '#ef4444' : log.includes('⚠️') ? '#f59e0b' : '#10b981' }}>
+                      {log}
+                    </div>
+                  ))}
+                </div>
+              </div>
+           )}
+
         </div>
 
         {isModalOpen && (
