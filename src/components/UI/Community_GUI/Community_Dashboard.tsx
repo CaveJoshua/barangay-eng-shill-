@@ -26,6 +26,7 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
     blotters, 
     documents, 
     newsList, 
+    notifications, // 🛡️ THE FIX: Extracting the real notifications here!
     loading, 
     fetchData, 
     activeTab, 
@@ -33,7 +34,6 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   } = useDashboardLogic(onLogout);
 
   const [currentView, setCurrentView] = useState<DashboardView>('Announcements');
-  // 🛡️ FIXED TYPO HERE: Changed 'useState' to 'setIsProfileOpen'
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [mustResetPassword, setMustResetPassword] = useState(false);
   const [bulletinCategory, setBulletinCategory] = useState<string>('All');
@@ -249,7 +249,9 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                 {resident?.record_id ? 'CONNECTED' : 'OFFLINE'}
               </div>
 
+              {/* 🛡️ THE FIX: Pass the real notifications array into the component! */}
               <Community_Notification 
+                notifications={notifications}
                 blotters={blotters} 
                 documents={documents} 
               />

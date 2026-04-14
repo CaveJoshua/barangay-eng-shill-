@@ -2,11 +2,12 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import "./C-Styles/Community_Notification.css";
 
 interface NotificationProps {
+  notifications?: any[]; // 🛡️ THE FIX: Tell TypeScript this prop exists!
   blotters: any[];
   documents: any[];
 }
 
-const Community_Notification: React.FC<NotificationProps> = ({ blotters, documents }) => {
+const Community_Notification: React.FC<NotificationProps> = ({ notifications: dbNotifications = [], blotters, documents }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -22,14 +23,41 @@ const Community_Notification: React.FC<NotificationProps> = ({ blotters, documen
   }, []);
 
   // ── 🔍 GENERATE NOTIFICATIONS FROM DATA ──
-  const notifications = useMemo(() => {
+  const notificationsList = useMemo(() => {
     const list: any[] = [];
 
-    // 1. Check for Documents Ready for Pickup
+    // 1. 🛡️ REAL DATABASE NOTIFICATIONS (From the Backend)
+    dbNotifications?.forEach((notif) => {
+      let icon = 'fas fa-bell';
+      let color = '#3b82f6'; // Default blue
+
+      // Match the icon/color to the type
+      if (notif.type === 'document') {
+        icon = 'fas fa-file-alt';
+        color = '#10b981'; // Green
+      } else if (notif.type === 'blotter') {
+        icon = 'fas fa-shield-alt';
+        color = '#f59e0b'; // Orange
+      }
+
+      // Only show unread notifications in the bell
+      if (!notif.is_read) {
+        list.push({
+          id: `db-${notif.id}`,
+          type: notif.type,
+          title: notif.title,
+          message: notif.message,
+          time: notif.created_at ? new Date(notif.created_at).toLocaleDateString() : 'New',
+          icon: icon,
+          color: color
+        });
+      }
+    });
+
+    // 2. CHECK DOCUMENTS (Fallback for Ready Pickup)
     documents?.forEach((doc, index) => {
       if (doc.status?.toLowerCase() === 'ready') {
         list.push({
-          // 🛡️ FIX: Added fallback to index so it never becomes undefined
           id: `doc-${doc.id || doc.reference_no || index}`, 
           type: 'document',
           title: 'Document Ready',
@@ -41,11 +69,10 @@ const Community_Notification: React.FC<NotificationProps> = ({ blotters, documen
       }
     });
 
-    // 2. Check for Blotter Hearings
+    // 3. CHECK BLOTTERS (Fallback for Hearings)
     blotters?.forEach((caseItem, index) => {
       if (caseItem.status?.toLowerCase() === 'hearing') {
         list.push({
-          // 🛡️ FIX: Falls back to case_no, case_number, or index to ensure a unique key
           id: `blot-${caseItem.id || caseItem.case_no || caseItem.case_number || index}`, 
           type: 'blotter',
           title: 'Hearing Scheduled',
@@ -58,9 +85,9 @@ const Community_Notification: React.FC<NotificationProps> = ({ blotters, documen
     });
 
     return list;
-  }, [blotters, documents]);
+  }, [dbNotifications, blotters, documents]);
 
-  const unreadCount = notifications.length;
+  const unreadCount = notificationsList.length;
 
   return (
     <div className="CM_NOTIF_CONTAINER" ref={dropdownRef}>
@@ -81,8 +108,8 @@ const Community_Notification: React.FC<NotificationProps> = ({ blotters, documen
         </header>
 
         <div className="NOTIF_LIST_AREA">
-          {notifications.length > 0 ? (
-            notifications.map((notif) => (
+          {notificationsList.length > 0 ? (
+            notificationsList.map((notif) => (
               <div key={notif.id} className="NOTIF_ITEM">
                 <div className="NOTIF_ICON_BOX" style={{ backgroundColor: `${notif.color}15`, color: notif.color }}>
                   <i className={notif.icon} />

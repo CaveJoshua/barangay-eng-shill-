@@ -103,7 +103,6 @@ export const documentRouter = (router, supabase, authenticateToken) => {
         try {
             let query = supabase.from('document_requests').select('*');
             
-            // SECURITY: Residents can ONLY pull their own records
             if (req.validatedRole === 'resident') {
                 const residentId = req.user?.record_id || req.user?.resident_id || req.user?.sub; 
                 if (!residentId) return res.status(400).json({ error: "Missing resident identity in token." });
@@ -113,7 +112,6 @@ export const documentRouter = (router, supabase, authenticateToken) => {
             const { data: docs, error: docError } = await query.order('date_requested', { ascending: false });
             if (docError) throw docError;
 
-            // Optional: Attach resident emails/names if fetching for admins
             const { data: residents, error: resError } = await supabase.from('residents_records').select('record_id, first_name, last_name, email');
             if (resError) throw resError;
 
@@ -133,6 +131,24 @@ export const documentRouter = (router, supabase, authenticateToken) => {
         }
     });
 
+    // ── 2.5 THE RESIDENT ROUTING POINT (FIXES THE 404 ERROR) ──
+    router.get('/documents/resident/:id', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff', 'resident']), async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { data, error } = await supabase
+                .from('document_requests')
+                .select('*')
+                .eq('resident_id', id)
+                .order('date_requested', { ascending: false });
+
+            if (error) throw error;
+            res.status(200).json(data || []);
+        } catch (err) {
+            console.error(`[DOC_ROUTER] Resident ${req.params.id} Fetch Error:`, err.message);
+            res.status(500).json({ error: "Failed to retrieve your document history." });
+        }
+    });
+
     // ── 3. POST: SAVE REQUEST (THE ID FACTORY) ──
     router.post('/documents/save', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff', 'resident']), async (req, res) => {
         try {
@@ -140,11 +156,9 @@ export const documentRouter = (router, supabase, authenticateToken) => {
             const actor = req.user?.username || req.user?.sub || 'Resident';
             const userRole = req.validatedRole;
 
-            // 🛡️ SMART SOURCE INDICATOR & PREFIX SELECTOR
             const requestMethod = userRole === 'resident' ? 'Online' : 'Walk-in';
             const prefix = userRole === 'resident' ? 'ON-LN' : 'WK-IN';
 
-            // 🛡️ THE IDENTITY LOCK
             const secureResidentId = (userRole === 'resident') 
                 ? (req.user?.record_id || req.user?.resident_id || req.user?.sub) 
                 : r.resident_id;
@@ -153,10 +167,8 @@ export const documentRouter = (router, supabase, authenticateToken) => {
                 return res.status(403).json({ success: false, error: "Cannot verify resident identity." });
             }
 
-            // Step 1: Generate a temporary unique ID to avoid UNIQUE constraint clashes
             const tempRef = `TEMP-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 
-            // Step 2: Insert the record
             const { data: initialDoc, error: insertError } = await supabase.from('document_requests').insert([{
                 resident_id: secureResidentId,
                 resident_name: r.resident_name,
@@ -172,10 +184,8 @@ export const documentRouter = (router, supabase, authenticateToken) => {
 
             if (insertError) throw insertError;
 
-            // Step 3: Format the official "Pretty ID" padding with zeros
             const prettyId = `${prefix}-${String(initialDoc.id).padStart(4, '0')}`;
 
-            // Step 4: Update the row with the official ID
             const { data: finalDoc, error: updateError } = await supabase
                 .from('document_requests')
                 .update({ reference_no: prettyId })
@@ -187,7 +197,6 @@ export const documentRouter = (router, supabase, authenticateToken) => {
 
             logActivity(supabase, actor, 'DOCUMENT_REQUEST_CREATED', `Request for ${r.type} filed by ${r.resident_name} (${requestMethod}). ID: ${prettyId}`);
 
-            // 🔔 ETHICAL NOTIFICATION LOGIC
             if (userRole === 'resident' && requestMethod === 'Online') {
                 await createNotification(supabase, secureResidentId, "Request Received", `Your online request for ${r.type} is pending review.`, 'document');
             } else if (requestMethod === 'Walk-in') {
@@ -205,7 +214,6 @@ export const documentRouter = (router, supabase, authenticateToken) => {
                 ).catch(e => console.error("[ADMIN_EMAIL_DISPATCH_ERROR]", e.message));
             }
 
-            // Return the finalized document so the frontend can read the new reference_no
             res.status(201).json({ success: true, data: finalDoc });
         } catch (err) {
             console.error("[DOCUMENT_SAVE_ERROR] Failed to create document request:", err.message);
@@ -291,5 +299,5 @@ export const documentRouter = (router, supabase, authenticateToken) => {
             console.error("[DOCUMENT_DELETE_ERROR] Failed to execute database purge:", err.message);
             res.status(500).json({ error: err.message });
         }
-    });
+    }); 
 };

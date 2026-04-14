@@ -383,6 +383,10 @@ export const ApiService = {
   getResidents: (signal?: AbortSignal) =>
     valveFetch(RESIDENTS_API, signal),
 
+  // 🛡️ NEW: Exposed Ledger Backfill Route
+  triggerLedgerBackfill: () =>
+    triggerAction(`${RESIDENTS_API}/ledger/backfill`, 'POST'),
+
   saveResident: (id: string | undefined, payload: any) =>
     triggerAction(
       id ? `${RESIDENTS_API}/${id}` : RESIDENTS_API,
@@ -439,24 +443,32 @@ export const ApiService = {
   getDocuments: (signal?: AbortSignal) =>
     valveFetch(DOCUMENTS_API, signal),
 
+  // 🛡️ NEW: Document Fetcher specifically for Community_Document.tsx
+  getResidentDocuments: (residentId: string, signal?: AbortSignal) =>
+    valveFetch(`${DOCUMENTS_API}/resident/${residentId}`, signal),
+
   getDocumentTypes: (signal?: AbortSignal) =>
     valveFetch(`${DOCUMENTS_API}/types`, signal),
 
   updateDocumentStatus: (id: string, status: string) =>
     triggerAction(`${DOCUMENTS_API}/${id}/status`, 'PATCH', { status }),
 
- saveDocumentRecord: (payload: any) => {
+  saveDocumentRecord: (payload: any) => {
     const url    = payload.id ? `${DOCUMENTS_API}/${payload.id}` : `${DOCUMENTS_API}/save`;
     const method = (payload.id ? 'PUT' : 'POST') as 'PUT' | 'POST';
     return triggerAction(url, method, payload);
-},
+  },
 
   deleteDocument: (id: string) =>
     triggerAction(`${DOCUMENTS_API}/${id}`, 'DELETE'),
 
   // ── BLOTTER ─────────────────────────────────────────────────────────────────
-  getBlotters: (signal?: AbortSignal) =>
+getBlotters: (signal?: AbortSignal) =>
     valveFetch(BLOTTER_API, signal),
+
+  // 🛡️ THE MISSING FIX: Put this line back in so the Resident Dashboard can fetch incidents!
+  getResidentBlotters: (residentId: string, signal?: AbortSignal) =>
+    valveFetch(`${BLOTTER_API}/resident/${residentId}`, signal),
 
   saveBlotter: (id: string | null, payload: any) =>
     triggerAction(
@@ -478,30 +490,26 @@ export const ApiService = {
   getAnalytics: (signal?: AbortSignal) =>
     valveFetch(ANALYTICS_API, signal),
 
-  // 🛡️ CAPTCHA VERIFICATION METHODS (NEW & UPDATED)
+  // 🛡️ CAPTCHA VERIFICATION METHODS
   getCaptchaChallenge: (signal?: AbortSignal) =>
     valveFetch(CAPTCHA_CHALLENGE_API, signal),
 
   verifyCaptcha: (payload: { challenge_id: string; answer: string }) =>
     triggerAction(CAPTCHA_VERIFY_API, 'POST', payload),
 
-// ── NOTIFICATIONS ───────────────────────────────────────────────────────────
+  // ── NOTIFICATIONS ───────────────────────────────────────────────────────────
   getNotifications: (signal?: AbortSignal) =>
     valveFetch(NOTIF_LIVE_API, signal),
 
-  // 🛡️ UPDATED: Matches the new /alerts/read/:id endpoint
   markNotificationRead: (id: string) =>
     triggerAction(`${API_BASE_URL}/alerts/read/${id}`, 'PUT'),
 
-  // 🛡️ UPDATED: Matches the new /alerts/read-all endpoint
   markAllNotificationsRead: () =>
     triggerAction(`${API_BASE_URL}/alerts/read-all`, 'PUT'),
 
-  // 🛡️ NEW: Matches the /alerts/clear/:id endpoint for the Trash Can button
   deleteNotification: (id: string) =>
     triggerAction(`${API_BASE_URL}/alerts/clear/${id}`, 'DELETE'),
 
-  // 🛡️ NEW: Matches the /alerts/clear-all endpoint for wiping history
   clearAllNotifications: () =>
     triggerAction(`${API_BASE_URL}/alerts/clear-all`, 'DELETE'),
 

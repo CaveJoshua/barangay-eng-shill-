@@ -6,6 +6,7 @@ export const useDashboardLogic = (onLogout: () => void) => {
   const [blotters, setBlotters] = useState<any[]>([]);
   const [documents, setDocuments] = useState<any[]>([]);
   const [newsList, setNewsList] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]); // 🛡️ NEW: Notification State
   const [loading, setLoading] = useState(true);
   
   const initialLoadDone = useRef(false);
@@ -18,6 +19,7 @@ export const useDashboardLogic = (onLogout: () => void) => {
 
     const sessionStr = localStorage.getItem('resident_session');
     const sessionData = sessionStr ? JSON.parse(sessionStr) : {};
+    
     // Safely check all possible ID locations
     const targetId = residentId || sessionData?.profile?.record_id || sessionData?.record_id || sessionData?.profile?.RECORD_ID;
 
@@ -28,10 +30,13 @@ export const useDashboardLogic = (onLogout: () => void) => {
     try {
       if (!initialLoadDone.current) setLoading(true);
 
-      const [blotterData, docData, newsData] = await Promise.all([
-        ApiService.getBlotters(),    
-        ApiService.getDocuments(),   
-        ApiService.getAnnouncements()
+      // 🛡️ THE FIX: Call the Resident-Specific endpoints to bypass the 403 RBAC Admin Block
+      // 🛡️ THE ADDITION: Call getNotifications to wake up the alert system
+      const [blotterData, docData, newsData, notifData] = await Promise.all([
+      ApiService.getResidentBlotters(targetId),     // 👈 THIS MUST BE getResidentBlotters
+      ApiService.getResidentDocuments(targetId),    
+      ApiService.getAnnouncements(),
+      ApiService.getNotifications()
       ]);
 
       if (blotterData === null || docData === null) {
@@ -39,19 +44,15 @@ export const useDashboardLogic = (onLogout: () => void) => {
          return; 
       }
 
+      // We no longer need to .filter() here because the backend already filtered it!
       setBlotters(
-        blotterData
-          // 1. Added more fallback ID checks just in case the DB column is named differently
-          .filter((b: any) => b.complainant_id === targetId || b.resident_id === targetId || b.user_id === targetId)
-          .map((b: any) => {
-            // 2. Extract the true name from the database before it gets lost
+        (blotterData || []).map((b: any) => {
             const rawName = b.resident_name || b.complainant_name || b.full_name || b.complainant || 'RESIDENT';
             
             return {
               record_id: b.id || b.record_id,
               case_no: b.case_number || b.case_no,
               incident_type: b.incident_type,
-              // 3. Pass the true name to the UI in strict uppercase
               complainant: rawName.toUpperCase(),
               incident_date: b.date_filed || b.incident_date,
               status: b.status,
@@ -66,10 +67,9 @@ export const useDashboardLogic = (onLogout: () => void) => {
           })
       );
       
+      // We no longer need to .filter() here because the backend already filtered it!
       setDocuments(
-        docData
-          .filter((d: any) => (d.residentId || d.resident_id) === targetId)
-          .map((d: any) => {
+        (docData || []).map((d: any) => {
             const isPending = (d.status || 'Pending').toLowerCase() === 'pending';
             const displayPrice = isPending
               ? 'To be assessed'
@@ -93,6 +93,8 @@ export const useDashboardLogic = (onLogout: () => void) => {
       );
 
       setNewsList(newsData || []);
+      setNotifications(notifData || []); // 🛡️ Load the notifications into state
+
       initialLoadDone.current = true;
     } catch (err) {
       console.error('Dashboard Sync Error:', err);
@@ -122,13 +124,11 @@ export const useDashboardLogic = (onLogout: () => void) => {
       }
 
       // 🛡️ Safe Name Extraction & CAPSLOCK ENFORCEMENT
-      // Checks multiple key variations so it never fails.
       const firstName = profile.first_name || profile.FIRST_NAME || profile.firstName || '';
       const lastName = profile.last_name || profile.LAST_NAME || profile.lastName || '';
       
       let safeName = `${firstName} ${lastName}`.trim().toUpperCase();
       
-      // The ultimate fallback: If it's completely blank or contains undefined
       if (!safeName || safeName.includes('UNDEFINED')) {
           safeName = 'UNKNOWN RESIDENT';
       }
@@ -147,7 +147,8 @@ export const useDashboardLogic = (onLogout: () => void) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { resident, blotters, documents, newsList, loading, fetchData, activeTab, setActiveTab };
+  // 🛡️ Export the notifications so the UI can use them!
+  return { resident, blotters, documents, newsList, notifications, loading, fetchData, activeTab, setActiveTab };
 };
 
 export default useDashboardLogic;

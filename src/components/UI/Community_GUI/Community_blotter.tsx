@@ -36,6 +36,13 @@ const Community_blotter: React.FC<BlotterProps> = ({
     }
   }, [activeTab, setActiveTab]);
 
+  // ── 🔄 AUTO-FETCH TRIGGER ──
+  // Forces the component to ask the parent for data the moment it loads
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── 🔍 DATA TRANSFORMATION LOGIC (BULLETPROOFED) ──
   const processedData = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
