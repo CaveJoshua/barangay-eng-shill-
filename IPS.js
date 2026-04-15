@@ -1,17 +1,4 @@
-/**
- * ============================================================
- *  IPS.js — Intrusion Prevention System  [HARDENED v2.0]
- * ============================================================
- *  AUDIT FIXES APPLIED:
- *  [CRITICAL] lockedIPs Set replaced with TTL-Map (auto-expiry per IP)
- *  [CRITICAL] Duplicate code block removed (was pasted twice in original)
- *  [HIGH]     Graduated lockout tiers: 5min → 30min → 24hr per IP
- *  [HIGH]     Persistent ban escalation stored in Supabase (survives restart)
- *  [MEDIUM]   CHALLENGE response now includes Retry-After header (RFC 7231)
- *  [MEDIUM]   IP extracted from IDS report (single source of truth)
- *  [INFO]     All Supabase writes wrapped in non-fatal try/catch
- * ============================================================
- */
+
 
 import chalk from 'chalk';
 import { logActivity } from './Auditlog.js';
