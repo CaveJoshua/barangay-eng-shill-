@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@emnapi/core": "^1.9.2",
+    "@emnapi/runtime": "^1.9.2",
     "@supabase/supabase-js": "2.96.0",
     "axios": "^1.15.0",
     "bcryptjs": "3.0.3",
@@ -52,6 +54,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "babel-plugin-react-compiler": "^1.0.0",
+    "emnapi": "^1.9.2",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
