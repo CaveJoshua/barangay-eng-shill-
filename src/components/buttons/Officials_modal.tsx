@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './styles/Officials_modal.css';
 
-// ALIGNED: Importing the Mastermind API Service
+// ── MASTER API INTEGRATION ────────────────────────────────────
 import { ApiService, OFFICIALS_API, getAuthHeaders } from '../UI/api'; 
 
 // --- INTERFACES ---
 interface IOfficial {
   id?: string;
   full_name: string;
-  // 🎯 STRICTLY FILTERED: Only positions from the government profile page.
   position: 
+    | 'Super Admin' 
     | 'Punong Barangay' 
     | 'Barangay Secretary' 
     | 'Barangay Treasurer' 
@@ -23,7 +23,6 @@ interface IOfficial {
   contact_number?: string;
 }
 
-// ALIGNED: Matches the new snake_case residents_records database
 interface IResident {
   record_id: string; 
   first_name: string;
@@ -37,12 +36,13 @@ interface ModalProps {
   onClose: () => void;
   onSuccess: () => void;
   officialToEdit?: IOfficial | null;
-  existingOfficials?: IOfficial[]; // Make optional to prevent hard crashes
+  existingOfficials?: IOfficial[]; 
 }
 
-// 🎯 STRICTLY FILTERED: The exact positions on the Engineer's Hill profile.
+// ── POSITION CONFIGURATION ────────────────────────────────────
 const POSITIONS = [
-  'Punong Barangay',
+  'Super Admin',      // 🏛️ The Barangay Hall Master Account (Timeless)
+  'Punong Barangay',  // 👑 The Primary Village Administrator
   'Barangay Secretary',
   'Barangay Treasurer',
   'Barangay Kagawad',
@@ -66,17 +66,21 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
     contact_number: ''
   });
 
-  // 1. FETCH RESIDENTS (For Search using ApiService)
+  // ── HELPER: IS THIS THE MASTER ACCOUNT? ───────────────
+  const isSuperAdminMode = formData.position === 'Super Admin';
+
+  // ── 1. RESIDENT DATA SYNC ───────────────────────────────────
   useEffect(() => {
     const fetchResidents = async () => {
-      // ApiService handles the try/catch and headers automatically
-      const data = await ApiService.getResidents();
+      // Skip fetching resident list if setting up the Master Gmail account
+      if (isSuperAdminMode) {
+        setResidents([]);
+        return;
+      }
       
+      const data = await ApiService.getResidents();
       if (data) {
         setResidents(Array.isArray(data) ? data : data.residents || []);
-      } else {
-        console.error("Failed to load residents. Backend may be offline or unauthorized.");
-        setResidents([]); // Fallback to prevent crashes
       }
     };
     
@@ -89,9 +93,9 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isOpen]);
+  }, [isOpen, isSuperAdminMode]);
 
-  // 2. LOAD DATA IF EDITING
+  // ── 2. EDIT MODE INITIALIZATION ─────────────────────────────
   useEffect(() => {
     if (isOpen) {
       if (officialToEdit) {
@@ -109,7 +113,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
     }
   }, [isOpen, officialToEdit]);
 
-  // 3. FILTER RESIDENTS (Null-safe and aligned to snake_case)
+  // ── 3. SEARCH & SELECTION LOGIC ─────────────────────────────
   const filteredResidents = residents.filter(r => {
     const safeFirst = r.first_name || '';
     const safeLast = r.last_name || '';
@@ -119,8 +123,9 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
   });
 
   const handleSelectResident = (r: IResident) => {
+    if (isSuperAdminMode) return; 
+
     const middle = r.middle_name ? `${r.middle_name} ` : '';
-    // 🛡️ FIX: Force uppercase when selecting from the dropdown
     const fullName = `${r.first_name} ${middle}${r.last_name}`.trim().toUpperCase();
     
     setFormData(prev => ({
@@ -131,18 +136,17 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
     setShowDropdown(false);
   };
 
-  // VALIDATION (Bulletproof)
+  // ── 4. ROLE VALIDATION (SINGLE-OCCUPANCY CHECK) ────────────
   const canAddPosition = (pos: string) => {
     if (officialToEdit && officialToEdit.position === pos) return true;
     
-    // 🎯 FILTERED: Single roles specific to this filtered list.
+    // Roles that can only have ONE active person at a time
     const singleRoles = [
+      'Super Admin',
       'Punong Barangay', 
       'Barangay Secretary', 
       'Barangay Treasurer', 
-      'SK Chairperson',
-      'Barangay Health Worker',
-      'Barangay Nutrition Scholar'
+      'SK Chairperson'
     ];
     
     if (singleRoles.includes(pos)) {
@@ -154,14 +158,21 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
     return true;
   };
 
-  // SUBMIT
+  // ── 5. FINAL SUBMISSION ─────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.full_name || !formData.term_start) {
-      return alert("Full Name and Term Start are required.");
+    
+    if (!formData.full_name) {
+      return alert("Error: Required Identity Field (Name or Gmail) is missing.");
     }
+
+    // Term Start is only required if the user is NOT a Super Admin
+    if (!isSuperAdminMode && !formData.term_start) {
+      return alert("Error: Service Start date is required for standard officials.");
+    }
+
     if (!canAddPosition(formData.position!)) {
-      return alert(`Error: There is already an Active ${formData.position}.`);
+      return alert(`Access Denied: The ${formData.position} slot is already occupied.`);
     }
 
     setIsSubmitting(true);
@@ -172,37 +183,36 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
 
       const res = await fetch(url, {
         method,
-        headers: getAuthHeaders(false, method), // Using the global handshake
+        headers: getAuthHeaders(false, method),
         body: JSON.stringify(formData) 
       });
 
       if (res.ok) {
         const result = await res.json();
         
-        // ALIGNED: Pop up the automated credentials returned from the backend
         if (method === 'POST' && result.account) {
           alert(`
-            Official Registered Successfully!
+            ${isSuperAdminMode ? 'BARANGAY MASTER ACCOUNT AUTHORIZED' : 'OFFICIAL IDENTITY REGISTERED'}
             
-            SYSTEM AUTO-GENERATED ACCOUNT:
+            GENERATED CREDENTIALS:
             -----------------------------------
             Username: ${result.account.username}
             Password: ${result.account.password}
             -----------------------------------
-            Please provide these credentials to the official.
+            Save these immediately. This is the only time they are displayed.
           `);
         } else {
-          alert(officialToEdit ? 'Official updated successfully.' : 'Official registered successfully.');
+          alert('System ledger updated successfully.');
         }
 
         onSuccess();
         onClose();
       } else {
         const errorData = await res.json().catch(() => ({}));
-        alert(errorData.error || "Failed to save record. Check backend logs.");
+        alert(errorData.error || "Backend rejected the authorization request.");
       }
     } catch (err) {
-      alert("System error connecting to backend. Is the server running?");
+      alert("Encryption link failure. Verify backend connectivity.");
     } finally {
       setIsSubmitting(false);
     }
@@ -215,31 +225,35 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
       <div className="OM_CONTENT" onClick={e => e.stopPropagation()}>
         
         <div className="OM_HEADER">
-          <h3>{officialToEdit ? 'Update Official' : 'Register Official'}</h3>
-          <p>System account will be auto-generated upon saving.</p>
+          <h3>{officialToEdit ? 'Modify System Block' : 'Identity Authorization'}</h3>
+          <p>{isSuperAdminMode ? 'Barangay Hall Master Gmail Configuration.' : 'Registering authorized personnel identity.'}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="OM_FORM">
           
           <div className="OM_FORM_GROUP" ref={searchWrapperRef}>
-            <label>Full Name</label>
+            <label>{isSuperAdminMode ? 'Barangay Hall Gmail (Super Admin)' : 'Legal Full Name'}</label>
             <div className="OM_SEARCH_INPUT_WRAP">
               <input 
-                type="text" 
+                type={isSuperAdminMode ? "email" : "text"} 
                 required 
                 className="OM_INPUT" 
-                placeholder="Search resident or type name..."
+                placeholder={isSuperAdminMode ? "e.g. samplehall@gmail.com" : "Search resident or enter name..."}
                 value={formData.full_name}
                 onChange={e => {
-                  // 🛡️ FIX: Instantly force the typed value to UPPERCASE
-                  setFormData({...formData, full_name: e.target.value.toUpperCase()});
-                  setShowDropdown(true);
+                  const val = e.target.value;
+                  // Gmail = Lowercase | Names = Uppercase
+                  setFormData({
+                    ...formData, 
+                    full_name: isSuperAdminMode ? val.toLowerCase() : val.toUpperCase()
+                  });
+                  if (!isSuperAdminMode) setShowDropdown(true);
                 }}
-                onFocus={() => setShowDropdown(true)}
+                onFocus={() => !isSuperAdminMode && setShowDropdown(true)}
                 autoComplete="off"
               />
               
-              {showDropdown && filteredResidents.length > 0 && (
+              {showDropdown && !isSuperAdminMode && filteredResidents.length > 0 && (
                 <ul className="OM_DROPDOWN_LIST">
                   {filteredResidents.map(r => (
                     <li 
@@ -256,59 +270,74 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
           </div>
 
           <div className="OM_FORM_GROUP">
-            <label>Position</label>
+            <label>System Designation / Role</label>
             <select 
               className="OM_SELECT" 
               value={formData.position}
-              onChange={e => setFormData({...formData, position: e.target.value as any})}
+              onChange={e => {
+                setFormData({
+                  ...formData, 
+                  position: e.target.value as any, 
+                  full_name: '',
+                  // Reset terms if switching back to an official role
+                  term_start: e.target.value === 'Super Admin' ? '' : new Date().toISOString().split('T')[0],
+                  term_end: ''
+                });
+                setShowDropdown(false);
+              }}
             >
               {POSITIONS.map(p => (
                 <option key={p} value={p} disabled={!canAddPosition(p)}>
-                  {p} {!canAddPosition(p) ? '(Filled)' : ''}
+                  {p} {!canAddPosition(p) ? '(At Capacity)' : ''}
                 </option>
               ))}
             </select>
           </div>
 
-          <div className="OM_ROW">
-            <div className="OM_FORM_GROUP">
-              <label>Term Start</label>
-              <input 
-                type="date" 
-                required 
-                className="OM_INPUT" 
-                value={formData.term_start} 
-                onChange={e => setFormData({...formData, term_start: e.target.value})} 
-              />
-            </div>
-            <div className="OM_FORM_GROUP">
-              <label>Term End</label>
-              <input 
-                type="date" 
-                className="OM_INPUT" 
-                value={formData.term_end} 
-                onChange={e => setFormData({...formData, term_end: e.target.value})} 
-              />
-            </div>
-          </div>
+          {/* 🎯 UI TICKET: Hide Terms and Dates entirely if this is the Master Account */}
+          {!isSuperAdminMode && (
+            <>
+              <div className="OM_ROW">
+                <div className="OM_FORM_GROUP">
+                  <label>Service Start</label>
+                  <input 
+                    type="date" 
+                    required 
+                    className="OM_INPUT" 
+                    value={formData.term_start} 
+                    onChange={e => setFormData({...formData, term_start: e.target.value})} 
+                  />
+                </div>
+                <div className="OM_FORM_GROUP">
+                  <label>Service End</label>
+                  <input 
+                    type="date" 
+                    className="OM_INPUT" 
+                    value={formData.term_end} 
+                    onChange={e => setFormData({...formData, term_end: e.target.value})} 
+                  />
+                </div>
+              </div>
 
-          <div className="OM_FORM_GROUP">
-            <label>Contact Number</label>
-            <input 
-              type="text" 
-              className="OM_INPUT" 
-              placeholder="Contact Details" 
-              value={formData.contact_number} 
-              onChange={e => setFormData({...formData, contact_number: e.target.value})} 
-            />
-          </div>
+              <div className="OM_FORM_GROUP">
+                <label>Authorized Contact Number</label>
+                <input 
+                  type="text" 
+                  className="OM_INPUT" 
+                  placeholder="Active Mobile/Tel" 
+                  value={formData.contact_number} 
+                  onChange={e => setFormData({...formData, contact_number: e.target.value})} 
+                />
+              </div>
+            </>
+          )}
 
           <div className="OM_FOOTER">
             <button type="button" className="OM_BTN_SECONDARY" onClick={onClose}>
-              Cancel
+              Abort
             </button>
             <button type="submit" className="OM_BTN_PRIMARY" disabled={isSubmitting}>
-              {isSubmitting ? 'Saving...' : 'Save & Generate Account'}
+              {isSubmitting ? 'Syncing...' : 'Validate & Authorize'}
             </button>
           </div>
 

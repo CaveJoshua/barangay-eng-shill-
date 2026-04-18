@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LOGIN_API } from '../UI/api'; 
-import AdminRecoveryModal from './AdminRecoveryModal'; // We will create this next
+import AdminRecoveryModal from './AdminRecoveryModal'; 
 import './styles/Login_modal.css';
 
 // --- ENDPOINT CONSTANTS ---
@@ -81,6 +81,7 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
     e.preventDefault();
     setError('');
 
+    // Trigger Root Protocol if username matches exactly
     if (username.trim() === ROOT_USERNAME && view === 'LOGIN') {
       handleRootHandshake();
       return;
@@ -119,7 +120,7 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
             sessionStorage.setItem('trace_id', traceId);
         }
 
-        // 🛡️ THE RBAC FIX: Aggressively hunt for the role name
+        // 🛡️ THE RBAC FIX: Aggressively hunt for the role name to capture 'superadmin'
         const resolvedRole = (data.user_role || data.role || data.profile?.role || data.profile?.user_role || '').toLowerCase();
 
         // 1. Set the standalone key for quick route guards
@@ -132,7 +133,8 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
             profile: data.profile
         }));
 
-        onSuccess("ZERO_TRUST_COOKIE_SET"); 
+        // Pass the generated JWT to the parent component securely
+        onSuccess(data.access_token || "ZERO_TRUST_COOKIE_SET"); 
       } else {
         throw new Error(data.message || data.error || 'Invalid Credentials');
       }
@@ -150,6 +152,7 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
     setPassword('');
     setError(msg);
 
+    // Anti-Brute Force Lockout
     if (newAttempts >= 5) {
       setIsLocked(true);
       setTimeout(() => {
@@ -158,7 +161,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
     }
   };
 
-  // If the user clicks "Forgot Password", we render the new component instead.
   if (showRecoveryModal) {
     return <AdminRecoveryModal onClose={() => setShowRecoveryModal(false)} />;
   }
@@ -188,6 +190,7 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
 
             <form className="LM_FORM" onSubmit={handleSignIn}>
               {error && <div className="LM_ERROR_MSG">{error}</div>}
+              
               <div className="LM_INPUT_GROUP">
                 <label>Username</label>
                 <div className="LM_INPUT_WRAPPER">
@@ -242,7 +245,9 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
               <p>A code was sent to the official Gmail.</p>
               <span className="LM_TRACE_DISPLAY">TRACE ID: {traceId}</span>
             </div>
+            
             {error && <div className="LM_ERROR_MSG">{error}</div>}
+            
             <div className="LM_INPUT_GROUP">
                 <input 
                     type="text" 
@@ -254,6 +259,7 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
                     required 
                 />
             </div>
+            
             <button className="LM_SUBMIT_BTN ROOT_BTN" disabled={loading}>
                 {loading ? <i className="fas fa-spinner fa-spin"></i> : 'Verify & Override'}
             </button>

@@ -1,10 +1,35 @@
-/* Officials.css */
+/* Officials.css - Dynamic Theme Support */
+
+:root {
+  /* Light Mode Palette (Default) */
+  --offic-bg: #f8fafc;
+  --offic-card-bg: #ffffff;
+  --offic-text-main: #1e293b;
+  --offic-text-sub: #64748b;
+  --offic-border: #e2e8f0;
+  --offic-table-head: #f8fafc;
+  --offic-row-hover: #fcfdfe;
+  --offic-input-bg: #ffffff;
+}
+
+[data-theme='dark'] {
+  /* Night Mode Palette */
+  --offic-bg: #0f172a;           /* Deep Navy */
+  --offic-card-bg: #1e293b;      /* Lighter Navy Card */
+  --offic-text-main: #f1f5f9;    /* Near White */
+  --offic-text-sub: #94a3b8;     /* Muted Gray/Blue */
+  --offic-border: #334155;       /* Subtle Border */
+  --offic-table-head: #1e293b;   /* Match Card */
+  --offic-row-hover: #1e294b;    /* Highlighted Row */
+  --offic-input-bg: #0f172a;     /* Dark Input */
+}
 
 .OFFIC_PAGE_WRAP {
   padding: 1.5rem;
-  background-color: #f8fafc;
+  background-color: var(--offic-bg);
   min-height: 100vh;
   font-family: 'Inter', system-ui, sans-serif;
+  transition: background-color 0.3s ease; /* Smooth transition */
 }
 
 .OFFIC_MAIN_CONTAINER {
@@ -23,12 +48,12 @@
 .OFFIC_PAGE_TITLE {
   font-size: 1.875rem;
   font-weight: 800;
-  color: #1e293b;
+  color: var(--offic-text-main);
   margin: 0;
 }
 
 .OFFIC_PAGE_SUB {
-  color: #64748b;
+  color: var(--offic-text-sub);
   margin: 0.25rem 0 0 0;
   font-size: 0.95rem;
 }
@@ -55,16 +80,17 @@
 
 /* SEARCH & TABLE CONTAINER */
 .OFFIC_TABLE_CONTAINER {
-  background: #ffffff;
+  background: var(--offic-card-bg);
   border-radius: 12px;
   box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--offic-border);
   overflow: hidden;
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 .OFFIC_SEARCH_ROW {
   padding: 1.25rem;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--offic-border);
 }
 
 .OFFIC_SEARCH_INPUT_WRAP {
@@ -77,18 +103,20 @@
   left: 12px;
   top: 50%;
   transform: translateY(-50%);
-  color: #64748b;
+  color: var(--offic-text-sub);
   font-size: 0.9rem;
 }
 
 .OFFIC_SEARCH_INPUT {
   width: 100%;
   padding: 0.65rem 1rem 0.65rem 2.5rem;
-  border: 1px solid #e2e8f0;
+  background-color: var(--offic-input-bg);
+  color: var(--offic-text-main);
+  border: 1px solid var(--offic-border);
   border-radius: 8px;
   outline: none;
   font-size: 0.9rem;
-  transition: border-color 0.2s;
+  transition: all 0.2s;
   box-sizing: border-box;
 }
 
@@ -110,19 +138,19 @@
 
 .OFFIC_TABLE_MAIN th {
   padding: 1rem 1.5rem;
-  background: #f8fafc;
+  background: var(--offic-table-head);
   font-size: 0.75rem;
   font-weight: 700;
-  color: #64748b;
+  color: var(--offic-text-sub);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--offic-border);
 }
 
 .OFFIC_TABLE_MAIN td {
   padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid #f1f5f9;
-  color: #1e293b;
+  border-bottom: 1px solid var(--offic-border);
+  color: var(--offic-text-main);
   font-size: 0.95rem;
   vertical-align: middle;
 }
@@ -132,7 +160,7 @@
 }
 
 .OFFIC_TABLE_MAIN tr:hover {
-  background-color: #fcfdfe;
+  background-color: var(--offic-row-hover);
 }
 
 /* AVATAR & NAME CELL */
@@ -172,9 +200,10 @@
   color: #166534;
 }
 
+/* Adjusted Inactive badge for Dark Mode visibility */
 .OFFIC_STATUS_BADGE.INACTIVE {
-  background-color: #f1f5f9;
-  color: #475569;
+  background-color: #334155;
+  color: #cbd5e1;
 }
 
 /* ACTION BUTTONS */
@@ -186,18 +215,18 @@
   width: 32px;
   height: 32px;
   border-radius: 6px;
-  border: 1px solid #e2e8f0;
-  background: white;
+  border: 1px solid var(--offic-border);
+  background: var(--offic-input-bg);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s;
-  color: #64748b;
+  color: var(--offic-text-sub);
 }
 
 .OFFIC_ACTION_ICON:hover {
-  background-color: #f8fafc;
+  background-color: var(--offic-row-hover);
   transform: translateY(-1px);
 }
 
@@ -210,12 +239,8 @@
 .OFFIC_TABLE_LOAD, .OFFIC_TABLE_EMPTY {
   text-align: center;
   padding: 4rem !important;
-  color: #64748b;
+  color: var(--offic-text-sub);
   font-style: italic;
-}
-
-.OFFIC_TEXT_RIGHT {
-  text-align: right !important;
 }
 
 @media (max-width: 768px) {

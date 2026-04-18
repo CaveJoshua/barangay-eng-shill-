@@ -1,127 +1,98 @@
 import { type IResident } from '../../Resident_modal';
-import { PGSU } from './location';
 
 /**
- * P.G.S.U. DATA TRANSFORMATION & AUTO-MAPPER ENGINE
- * Purpose: Bridges Supabase (snake_case) and React UI (camelCase).
- * Features: Automatic String Dissection, Self-Healing Location Logic, 
- * and Data Miner Normalization.
+ * P.G.S.U. DATA TRANSFORMATION — STRICT MODE (V14.6)
+ * Resolved TypeScript interface errors (Removed unregistered birthBarangay and unused PGSU).
  */
 export const ResidentMapper = {
   
   /**
    * AUTO-LOADER: DB -> UI
-   * Transforms raw database rows into intelligent UI objects.
    */
   toUI(dbRow: any): IResident {
-    // 1. Initial Identity Mapping (DB snake_case to UI camelCase)
-    const resident: IResident = {
+    return {
       id: dbRow.record_id || dbRow.id,
-      lastName: (dbRow.last_name || '').toUpperCase().trim(),
-      firstName: (dbRow.first_name || '').toUpperCase().trim(),
-      middleName: (dbRow.middle_name || '').toUpperCase().trim(),
+      lastName: (dbRow.lastName || dbRow.last_name || '').toUpperCase().trim(),
+      firstName: (dbRow.firstName || dbRow.first_name || '').toUpperCase().trim(),
+      middleName: (dbRow.middleName || dbRow.middle_name || '').toUpperCase().trim(),
       sex: dbRow.sex || 'Male',
       dob: dbRow.dob || '',
-      birthPlace: (dbRow.birth_place || '').toUpperCase().trim(),
-      birthCountry: (dbRow.birth_country || 'PHILIPPINES').toUpperCase().trim(),
-      birthProvince: (dbRow.birth_province || '').toUpperCase().trim(),
-      birthCity: (dbRow.birth_city || '').toUpperCase().trim(),
+      birthCountry: (dbRow.birthCountry || dbRow.birth_country || 'PHILIPPINES').toUpperCase().trim(),
+      birthProvince: (dbRow.birthProvince || dbRow.birth_province || '').toUpperCase().trim(),
+      birthCity: (dbRow.birthCity || dbRow.birth_city || '').toUpperCase().trim(),
+      birthPlace: (dbRow.birthPlace || dbRow.birth_place || '').toUpperCase().trim(),
       nationality: (dbRow.nationality || 'FILIPINO').toUpperCase().trim(),
       religion: (dbRow.religion || 'ROMAN CATHOLIC').toUpperCase().trim(),
-      contact_number: dbRow.contact_number || '',
+      contact_number: dbRow.contact_number || dbRow.contactNumber || '',
       email: dbRow.email || '',
-      currentAddress: (dbRow.current_address || '').toUpperCase().trim(),
+      currentAddress: (dbRow.currentAddress || dbRow.current_address || '').toUpperCase().trim(),
       purok: dbRow.purok || '',
-      civilStatus: dbRow.civil_status || 'Single',
+      civilStatus: dbRow.civilStatus || dbRow.civil_status || 'Single',
       education: dbRow.education || 'None',
       employment: (dbRow.employment || '').toUpperCase().trim(),
-      employmentStatus: dbRow.employment_status || 'Unemployed',
+      employmentStatus: dbRow.employmentStatus || dbRow.employment_status || 'Unemployed',
       occupation: (dbRow.occupation || '').toUpperCase().trim(),
-      activityStatus: dbRow.activity_status || 'Active',
-      isVoter: dbRow.is_voter || false,
-      isPWD: dbRow.is_pwd || false,
-      is4Ps: dbRow.is_4ps || false,
-      isSoloParent: dbRow.is_solo_parent || false,
-      isSeniorCitizen: dbRow.is_senior_citizen || false,
-      isIP: dbRow.is_ip || false,
-      voterIdNumber: dbRow.voter_id_number || '',
-      pwdIdNumber: dbRow.pwd_id_number || '',
-      soloParentIdNumber: dbRow.solo_parent_id_number || '',
-      seniorIdNumber: dbRow.senior_id_number || '',
-      fourPsIdNumber: dbRow.four_ps_id_number || ''
+      isVoter: !!(dbRow.isVoter || dbRow.is_voter),
+      isPWD: !!(dbRow.isPWD || dbRow.is_pwd),
+      is4Ps: !!(dbRow.is4Ps || dbRow.is_4ps),
+      isSoloParent: !!(dbRow.isSoloParent || dbRow.is_solo_parent),
+      isSeniorCitizen: !!(dbRow.isSeniorCitizen || dbRow.is_senior_citizen),
+      isIP: !!(dbRow.isIP || dbRow.is_ip),
+      voterIdNumber: dbRow.voterIdNumber || dbRow.voter_id_number || '',
+      pwdIdNumber: dbRow.pwdIdNumber || dbRow.pwd_id_number || '',
+      soloParentIdNumber: dbRow.soloParentIdNumber || dbRow.solo_parent_id_number || '',
+      seniorIdNumber: dbRow.seniorIdNumber || dbRow.senior_id_number || '',
+      fourPsIdNumber: dbRow.fourPsIdNumber || dbRow.four_ps_id_number || '',
+      activityStatus: dbRow.activityStatus || dbRow.activity_status || 'Active'
     };
-
-    // 2. AUTO-DISSECTION LOGIC
-    // If the individual DB columns for location are empty but the birth_place string exists,
-    // the mapper automatically slices the string to populate the UI dropdowns.
-    if (resident.birthPlace && (!resident.birthProvince || !resident.birthCity)) {
-      const parts = resident.birthPlace.split(',').map(part => part.trim().toUpperCase());
-      if (parts.length >= 4) {
-        resident.birthCountry = parts[0];
-        resident.birthProvince = parts[1];
-        resident.birthCity = parts[2];
-      }
-    }
-
-    // 3. SELF-HEALING ENGINE (The Baguio Fix)
-    // Checks if the "Province" slot contains a known City name.
-    // If it does, the engine shifts the city into the correct slot and looks up the real Province.
-    const correctedProvince = PGSU.findProvinceOfCity(resident.birthProvince);
-    if (correctedProvince && resident.birthProvince !== correctedProvince) {
-      // Re-align the data chain
-      resident.birthCity = resident.birthProvince; // e.g. "BAGUIO"
-      resident.birthProvince = correctedProvince; // e.g. "BENGUET"
-    }
-
-    return resident;
   },
 
   /**
    * PREPARATION LAYER: UI -> DB
-   * Prepares the UI state for Supabase insertion using strict snake_case naming.
    */
   toDB(ui: IResident) {
-    // Standardize all text data to Uppercase for the database miner consistency
-    const bProv = (ui.birthProvince || '').toUpperCase().trim();
-    const bCity = (ui.birthCity || '').toUpperCase().trim();
-    const bCountry = (ui.birthCountry || 'PHILIPPINES').toUpperCase().trim();
+    // Helper to ensure empty strings are null (Postgres friendly)
+    const clean = (val: any) => (val === undefined || val === null || val === '') ? null : String(val).trim();
 
-    // Construct the legacy birth_place string for older report compatibility
-    const combinedPlace = `${bCountry}, ${bProv}, ${bCity}, `;
+    // Standardize Booleans (Postgres strict)
+    const bool = (val: any) => {
+        if (typeof val === 'boolean') return val;
+        return String(val).toLowerCase() === 'true';
+    };
 
     return {
-      first_name: ui.firstName.toUpperCase().trim(),
-      middle_name: ui.middleName.toUpperCase().trim(),
-      last_name: ui.lastName.toUpperCase().trim(),
-      sex: ui.sex,
-      dob: ui.dob,
-      birth_country: bCountry,
-      birth_province: bProv,
-      birth_city: bCity,
-      birth_place: combinedPlace,
-      nationality: ui.nationality.toUpperCase().trim(),
-      religion: ui.religion.toUpperCase().trim(),
-      contact_number: ui.contact_number,
-      email: ui.email,
-      current_address: ui.currentAddress.toUpperCase().trim(),
-      purok: ui.purok,
-      civil_status: ui.civilStatus,
-      education: ui.education,
-      employment: ui.employment.toUpperCase().trim(),
-      employment_status: ui.employmentStatus,
-      occupation: ui.occupation.toUpperCase().trim(),
-      is_voter: ui.isVoter,
-      is_pwd: ui.isPWD,
-      is_4ps: ui.is4Ps,
-      is_solo_parent: ui.isSoloParent,
-      is_senior_citizen: ui.isSeniorCitizen,
-      is_ip: ui.isIP,
-      voter_id_number: ui.voterIdNumber || '',
-      pwd_id_number: ui.pwdIdNumber || '',
-      solo_parent_id_number: ui.soloParentIdNumber || '',
-      senior_id_number: ui.seniorIdNumber || '',
-      four_ps_id_number: ui.fourPsIdNumber || '',
-      activity_status: ui.activityStatus
+      lastName: clean(ui.lastName?.toUpperCase()),
+      firstName: clean(ui.firstName?.toUpperCase()),
+      middleName: clean(ui.middleName?.toUpperCase()),
+      sex: ui.sex || 'Male',
+      dob: clean(ui.dob), 
+      birthCountry: clean(ui.birthCountry?.toUpperCase()) || 'PHILIPPINES',
+      birthProvince: clean(ui.birthProvince?.toUpperCase()),
+      birthCity: clean(ui.birthCity?.toUpperCase()),
+      birthPlace: clean(ui.birthPlace?.toUpperCase()),
+      nationality: clean(ui.nationality?.toUpperCase()) || 'FILIPINO',
+      religion: clean(ui.religion?.toUpperCase()) || 'ROMAN CATHOLIC',
+      contact_number: clean(ui.contact_number),
+      email: clean(ui.email),
+      currentAddress: clean(ui.currentAddress?.toUpperCase()),
+      purok: clean(ui.purok),
+      civilStatus: ui.civilStatus || 'Single',
+      education: ui.education || 'None',
+      employment: clean(ui.employment?.toUpperCase()),
+      employmentStatus: ui.employmentStatus || 'Unemployed',
+      occupation: clean(ui.occupation?.toUpperCase()),
+      isVoter: bool(ui.isVoter),
+      isPWD: bool(ui.isPWD),
+      is4Ps: bool(ui.is4Ps),
+      isSoloParent: bool(ui.isSoloParent),
+      isSeniorCitizen: bool(ui.isSeniorCitizen),
+      isIP: bool(ui.isIP),
+      voterIdNumber: clean(ui.voterIdNumber),
+      pwdIdNumber: clean(ui.pwdIdNumber),
+      soloParentIdNumber: clean(ui.soloParentIdNumber),
+      seniorIdNumber: clean(ui.seniorIdNumber),
+      fourPsIdNumber: clean(ui.fourPsIdNumber),
+      activityStatus: ui.activityStatus || 'Active'
     };
   }
 };

@@ -1,68 +1,107 @@
 import bcrypt from 'bcryptjs';
-import crypto from 'crypto'; // 🛡️ Native Node module for SHA-256 Hashing
+import crypto from 'crypto';
 import { z } from 'zod';
-import { logActivity } from './Auditlog.js'; 
+import { logActivity } from './Auditlog.js';
 
 // =========================================================
-// 🛡️ 1. ZOD SCHEMA VALIDATION (STRICT IMMUTABILITY)
+// 🛡️ 1. UNIVERSAL PAYLOAD NORMALIZER
 // =========================================================
+const normalizePayload = (val) => {
+    if (typeof val !== 'object' || !val) return val;
+    return {
+        ...val,
+        firstName: val.firstName || val.first_name || val.FIRST_NAME,
+        lastName: val.lastName || val.last_name || val.LAST_NAME,
+        middleName: val.middleName || val.middle_name || val.MIDDLE_NAME,
+        dob: val.dob || val.DOB,
+        sex: val.sex || val.SEX,
+        email: val.email || val.EMAIL,
+        contact_number: val.contact_number || val.contactNumber || val.CONTACT_NUMBER,
+        purok: val.purok || val.PUROK,
+        civilStatus: val.civilStatus || val.civil_status || val.CIVIL_STATUS,
+        education: val.education || val.EDUCATION,
+        employment: val.employment || val.EMPLOYMENT,
+        employmentStatus: val.employmentStatus || val.employment_status || val.EMPLOYMENT_STATUS,
+        occupation: val.occupation || val.OCCUPATION,
+        religion: val.religion || val.RELIGION,
+        isVoter: val.isVoter ?? val.is_voter ?? val.IS_VOTER,
+        isPWD: val.isPWD ?? val.is_pwd ?? val.IS_PWD,
+        is4Ps: val.is4Ps ?? val.is_4ps ?? val.IS_4PS,
+        isSoloParent: val.isSoloParent ?? val.is_solo_parent ?? val.IS_SOLO_PARENT,
+        isSeniorCitizen: val.isSeniorCitizen ?? val.is_senior_citizen ?? val.IS_SENIOR_CITIZEN,
+        isIP: val.isIP ?? val.is_ip ?? val.IS_IP,
+        birthCountry: val.birthCountry || val.birth_country || val.BIRTH_COUNTRY,
+        birthProvince: val.birthProvince || val.birth_province || val.BIRTH_PROVINCE,
+        birthCity: val.birthCity || val.birth_city || val.BIRTH_CITY,
+        birthPlace: val.birthPlace || val.birth_place || val.BIRTH_PLACE,
+        nationality: val.nationality || val.NATIONALITY,
+    };
+};
 
-// GENESIS SCHEMA: Used only for Initial Registration
-const residentCreationSchema = z.object({
-    FIRST_NAME: z.string().min(2, "First name must be at least 2 characters"),
-    LAST_NAME: z.string().min(2, "Last name must be at least 2 characters"),
-    MIDDLE_NAME: z.string().optional().nullable(),
-    DOB: z.string().refine((date) => !isNaN(Date.parse(date)), { message: "Invalid date format" }),
-    SEX: z.enum(['Male', 'Female', 'Other']).optional(),
-    // Temporal fields allowed on creation
-    EMAIL: z.string().email("Invalid email format").optional().nullable(),
-    CONTACT_NUMBER: z.string().transform(val => val.replace(/\D/g, '')).optional().nullable(),
-}).passthrough();
+const csvBoolean = z.preprocess((val) => {
+    if (typeof val === 'string') return val.trim().toLowerCase() === 'true';
+    return Boolean(val);
+}, z.boolean().optional());
 
-// TEMPORAL SCHEMA: Used for Updates. 
-// 🚨 CORE IDENTITY FIELDS (Name, DOB, Sex) ARE OMITTED TO ENSURE IMMUTABILITY.
-const residentUpdateSchema = z.object({
-    EMAIL: z.string().email("Invalid email format").optional().nullable(),
-    CONTACT_NUMBER: z.string().transform(val => val.replace(/\D/g, '')).optional().nullable(),
-    CURRENT_ADDRESS: z.string().optional().nullable(),
-    PUROK: z.string().optional().nullable(),
-    CIVIL_STATUS: z.string().optional().nullable(),
-    EDUCATION: z.string().optional().nullable(),
-    EMPLOYMENT: z.string().optional().nullable(),
-    EMPLOYMENT_STATUS: z.string().optional().nullable(),
-    OCCUPATION: z.string().optional().nullable(),
-    RELIGION: z.string().optional().nullable(),
-    IS_VOTER: z.boolean().optional(),
-    IS_PWD: z.boolean().optional(),
-    IS_4PS: z.boolean().optional(),
-    IS_SOLO_PARENT: z.boolean().optional(),
-    IS_SENIOR_CITIZEN: z.boolean().optional(),
-    IS_IP: z.boolean().optional(),
-}).passthrough();
+// Helper to handle messy CSV strings gracefully
+const safeString = z.coerce.string().trim().optional().nullable().or(z.literal(''));
+
+// =========================================================
+// 🛡️ 2. ZOD SCHEMA (BULK IMPORT SAFE)
+// =========================================================
+const residentSchema = z.preprocess(normalizePayload, z.object({
+    // Coerce to string to prevent crashes on numbers, relaxed min constraint
+    firstName: z.coerce.string().trim().min(1, "First name is required"),
+    lastName: z.coerce.string().trim().min(1, "Last name is required"),
+    middleName: safeString,
+    
+    // If it's not a valid date, just make it null instead of crashing
+    dob: z.preprocess((val) => {
+        if (!val || typeof val !== 'string' || val.trim() === '') return null;
+        return !isNaN(Date.parse(val)) ? val : null;
+    }, z.string().nullable().optional()),
+    
+    sex: safeString,
+    
+    // Strip out "N/A" or invalid emails without crashing
+    email: z.preprocess((val) => {
+        if (typeof val === 'string' && !val.includes('@')) return null;
+        return val;
+    }, z.string().email().nullable().optional().or(z.literal(''))),
+    
+    contact_number: safeString,
+    purok: safeString,
+    civilStatus: safeString,
+    education: safeString,
+    employmentStatus: safeString,
+    occupation: safeString,
+    religion: safeString,
+    
+    isVoter: csvBoolean,
+    isPWD: csvBoolean,
+    is4Ps: csvBoolean,
+    isSoloParent: csvBoolean,
+    isSeniorCitizen: csvBoolean,
+    isIP: csvBoolean,
+}).passthrough());
 
 const validatePayload = (schema) => (req, res, next) => {
     try {
         req.body = schema.parse(req.body);
         next();
     } catch (error) {
-        return res.status(400).json({
-            error: "Validation Failed",
-            details: error.errors.map(e => `${e.path.join('.')}: ${e.message}`)
-        });
+        return res.status(400).json({ error: "Validation Failed", details: error.errors });
     }
 };
 
 // =========================================================
-// 🛡️ 2. CRYPTOGRAPHIC IDENTITY UTILITIES
+// 🛡️ 3. CRYPTOGRAPHIC UTILITIES
 // =========================================================
-
-// Generates a SHA-256 fingerprint of the resident's biological data
 const generateGenesisHash = (fName, mName, lName, dob) => {
     const normalizedString = `${fName?.trim().toLowerCase()}|${mName?.trim().toLowerCase()}|${lName?.trim().toLowerCase()}|${dob}`.replace(/\s+/g, '');
     return crypto.createHash('sha256').update(normalizedString).digest('hex');
 };
 
-// Validates existing record against its stored hash
 const verifyIntegrity = (record) => {
     if (!record.genesis_hash) return 'unverified';
     const currentHash = generateGenesisHash(record.first_name, record.middle_name, record.last_name, record.dob);
@@ -70,231 +109,153 @@ const verifyIntegrity = (record) => {
 };
 
 // =========================================================
-// 🛡️ 3. RBAC MIDDLEWARE
+// 🛡️ 4. STRICT AUTHENTICATION MIDDLEWARE
 // =========================================================
-const checkSessionRole = (allowedRoles) => {
+const secure = (allowedRoles, authenticateToken) => {
     return (req, res, next) => {
-        const userRole = req.user?.user_role || req.user?.role;
-        if (!userRole || !allowedRoles.includes(userRole.toLowerCase())) {
-            return res.status(403).json({ error: 'Forbidden', message: 'Insufficient Permissions.' });
-        }
-        next();
+        authenticateToken(req, res, () => {
+            const role = (req.user?.user_role || req.user?.role || '').toLowerCase();
+            if (!allowedRoles.includes(role)) {
+                return res.status(403).json({ error: 'Forbidden', message: 'Insufficient clearance.' });
+            }
+            next();
+        });
     };
 };
 
 export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
     
-    // 🧠 4. ANTI-DUPLICATE ENGINE (Preserved)
-    const checkDuplicates = async (payload, excludeRecordId = null) => {
-        const email = payload.EMAIL?.trim().toLowerCase();
-        const phone = payload.CONTACT_NUMBER; 
-        const fName = payload.FIRST_NAME?.trim().toLowerCase();
-        const lName = payload.LAST_NAME?.trim().toLowerCase();
-        const mName = payload.MIDDLE_NAME?.trim().toLowerCase() || '';
-
-        const orConditions = [];
-        if (email) orConditions.push(`email.ilike.${email}`);
-        if (phone) orConditions.push(`contact_number.eq.${phone}`);
-        if (fName && lName) orConditions.push(`and(first_name.ilike.${fName},last_name.ilike.${lName})`);
-
-        if (orConditions.length === 0) return null; 
-
-        let query = supabase.from('residents_records').select('*').neq('activity_status', 'Archived').or(orConditions.join(','));
-        if (excludeRecordId) query = query.neq('record_id', excludeRecordId);
-
-        const { data, error } = await query;
-        if (error) throw new Error(`Database Error: ${error.message}`);
-        if (!data || data.length === 0) return null; 
-
-        for (const record of data) {
-            if (email && record.email?.toLowerCase() === email) return `Email '${payload.EMAIL}' already in use.`;
-            if (phone && record.contact_number?.replace(/\D/g, '') === phone) return `Phone '${payload.CONTACT_NUMBER}' already registered.`;
-            if (fName && lName && record.first_name?.toLowerCase() === fName && record.last_name?.toLowerCase() === lName) {
-                if ((record.middle_name?.toLowerCase() || '') === mName) return `Resident ${payload.FIRST_NAME} ${payload.LAST_NAME} already exists.`;
-            }
-        }
-        return null;
-    };
-
-    // =========================================================
-    // 🚀 INTEGRATED ROUTES
-    // =========================================================
-
-    // 🛠️ LEDGER BACKFILL: Secures legacy records that have no hash
-    router.post('/residents/ledger/backfill', authenticateToken, checkSessionRole(['admin', 'superadmin']), async (req, res) => {
+    // 🔗 GLOBAL REBUILD
+    router.post('/residents/ledger/rebuild', secure(['admin', 'superadmin'], authenticateToken), async (req, res) => {
         try {
-            const { data: legacy, error: fetchError } = await supabase.from('residents_records').select('*').is('genesis_hash', null);
-            if (fetchError) throw fetchError;
-            if (!legacy || legacy.length === 0) return res.json({ message: "Chain is already up to date." });
-
-            for (const r of legacy) {
-                const hash = generateGenesisHash(r.first_name, r.middle_name, r.last_name, r.dob);
-                await supabase.from('residents_records').update({ genesis_hash: hash }).eq('record_id', r.record_id);
-            }
-            res.json({ message: `Successfully secured ${legacy.length} legacy blocks.` });
-        } catch (err) {
-            res.status(500).json({ error: "Backfill failed: " + err.message });
-        }
-    });
-
-    // GET ALL: With Server-Side Integrity Audit
-    router.get('/residents', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff']), async (req, res) => {
-        try {
-            const { data, error } = await supabase.from('residents_records').select('*').neq('activity_status', 'Archived').order('created_at', { ascending: false });
+            const { data: all, error } = await supabase.from('residents_records').select('*');
             if (error) throw error;
-
-            const auditedData = data.map(record => ({
-                ...record,
-                integrity_status: verifyIntegrity(record) // 🛡️ Server-side audit result
-            }));
-            
-            res.status(200).json(auditedData);
-        } catch (err) {
-            res.status(500).json({ error: "Failed to retrieve residents list." });
-        }
-    });
-
-    // GET SINGLE: With Real-time Tamper Detection
-    router.get('/residents/:id', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff', 'resident']), async (req, res) => {
-        try {
-            const { data, error } = await supabase.from('residents_records').select('*').eq('record_id', req.params.id).single(); 
-            if (error) throw error;
-
-            const status = verifyIntegrity(data);
-            if (status === 'compromised') {
-                console.error(`[SECURITY BREACH] Tamper detected on record: ${data.record_id}`);
+            for (const r of all) {
+                const h = generateGenesisHash(r.first_name, r.middle_name, r.last_name, r.dob);
+                await supabase.from('residents_records').update({ genesis_hash: h }).eq('record_id', r.record_id);
             }
-
-            res.status(200).json({ ...data, integrity_status: status });
-        } catch (err) {
-            res.status(404).json({ error: 'Identity not found.' });
-        }
+            res.json({ message: "Global chain re-signed successfully." });
+        } catch (err) { res.status(500).json({ error: err.message }); }
     });
 
-    // POST: Create Resident with Genesis Block Hashing
-    router.post('/residents', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff']), validatePayload(residentCreationSchema), async (req, res) => {
+    // GET ALL
+    router.get('/residents', secure(['admin', 'superadmin', 'staff'], authenticateToken), async (req, res) => {
+        try {
+            const { data, error } = await supabase.from('residents_records').select('*').neq('activity_status', 'Archived').order('last_name', { ascending: true });
+            if (error) throw error;
+            res.status(200).json(data.map(r => ({ ...r, integrity_status: verifyIntegrity(r) })));
+        } catch (err) { res.status(500).json({ error: "Data retrieval failed." }); }
+    });
+
+    // POST: Create Resident + Account (FORMAT: jcb981@residents...)
+    router.post('/residents', secure(['admin', 'superadmin', 'staff'], authenticateToken), validatePayload(residentSchema), async (req, res) => {
         try {
             const r = req.body;
-            const duplicateError = await checkDuplicates(r);
-            if (duplicateError) return res.status(409).json({ error: duplicateError });
+            const hash = generateGenesisHash(r.firstName, r.middleName, r.lastName, r.dob);
 
-            // 🛡️ Create the Immutable Identity Hash
-            const genesisHash = generateGenesisHash(r.FIRST_NAME, r.MIDDLE_NAME, r.LAST_NAME, r.DOB);
-
-            const { data: profile, error: profileError } = await supabase.from('residents_records').insert([{
-                first_name: r.FIRST_NAME, 
-                middle_name: r.MIDDLE_NAME,
-                last_name: r.LAST_NAME,
-                sex: r.SEX,
-                dob: r.DOB,
-                genesis_hash: genesisHash, // 👈 Locked forever
-                birth_country: r.BIRTH_COUNTRY || 'PHILIPPINES',
-                birth_province: r.BIRTH_PROVINCE,
-                birth_city: r.BIRTH_CITY,
-                birth_place: r.BIRTH_PLACE, 
-                nationality: r.NATIONALITY,
-                religion: r.RELIGION,
-                contact_number: r.CONTACT_NUMBER, 
-                email: r.EMAIL,
-                current_address: r.CURRENT_ADDRESS,
-                purok: r.PUROK,
-                civil_status: r.CIVIL_STATUS, 
-                education: r.EDUCATION,
-                employment: r.EMPLOYMENT,
-                employment_status: r.EMPLOYMENT_STATUS,
-                occupation: r.OCCUPATION,
-                is_voter: r.IS_VOTER,
-                is_pwd: r.IS_PWD,
-                is_4ps: r.IS_4PS,
-                is_solo_parent: r.IS_SOLO_PARENT,
-                is_senior_citizen: r.IS_SENIOR_CITIZEN,
-                is_ip: r.IS_IP,
-                voter_id_number: r.VOTER_ID_NUMBER, 
-                pwd_id_number: r.PWD_ID_NUMBER,
-                solo_parent_id_number: r.SOLO_PARENT_ID_NUMBER,
-                senior_id_number: r.SENIOR_ID_NUMBER,
-                four_ps_id_number: r.FOUR_PS_ID_NUMBER,
+            const { data: profile, error: pErr } = await supabase.from('residents_records').insert([{
+                first_name: r.firstName, 
+                middle_name: r.middleName || '',
+                last_name: r.lastName,
+                sex: r.sex || 'Other',
+                dob: r.dob,
+                genesis_hash: hash,
+                birth_country: r.birthCountry || 'PHILIPPINES',
+                birth_province: r.birthProvince || '',
+                birth_city: r.birthCity || '',
+                birth_place: r.birthPlace || '',
+                nationality: r.nationality || 'FILIPINO',
+                religion: r.religion || '',
+                contact_number: r.contact_number || '', 
+                email: r.email || '',
+                current_address: r.currentAddress || '',
+                purok: r.purok || '',
+                civil_status: r.civilStatus || 'Single', 
+                education: r.education || '',
+                employment_status: r.employmentStatus || 'Unemployed',
+                occupation: r.occupation || '',
+                is_voter: !!r.isVoter,
+                is_pwd: !!r.isPWD,
+                is_4ps: !!r.is4Ps,
+                is_solo_parent: !!r.isSoloParent,
+                is_senior_citizen: !!r.isSeniorCitizen,
+                is_ip: !!r.isIP,
                 activity_status: 'Active'
             }]).select().single();
 
-            if (profileError) throw profileError;
+            if (pErr) throw pErr;
 
-            // Step B: Auto-Account Generation
-            const username = `${profile.first_name[0]}${(profile.middle_name?.[0] || '')}${profile.last_name[0]}${Math.floor(100+Math.random()*900)}@residents.eng-hill.brg.ph`.toLowerCase();
-            const rawPassword = `${profile.first_name.toLowerCase().replace(/\s/g, '')}123456`;
-            const hashedPassword = bcrypt.hashSync(rawPassword, 10);
-
-            await supabase.from('residents_account').insert([{
-                resident_id: profile.record_id,
-                username: username,
-                password: hashedPassword,
-                role: 'resident',
-                status: 'Active'
-            }]);
-
-            logActivity(supabase, req.user.username, 'RESIDENT_CREATED', `Block Secured: ${profile.first_name} ${profile.last_name}`).catch(console.error);
-
-            res.status(201).json({ profile, account: { username, password: rawPassword } });
-        } catch (err) {
-            res.status(500).json({ error: err.message || "Registration Failure." });
-        }
+            try {
+                // 🎯 FORMAT: jcb981@residents (Initials: John Celino Bocoboc)
+                const f = profile.first_name[0] || '';
+                const m = profile.middle_name ? profile.middle_name[0] : '';
+                const l = profile.last_name[0] || '';
+                const rand = Math.floor(100 + Math.random() * 899);
+                
+                const username = `${f}${m}${l}${rand}@residents.eng-hill.brg.ph`.toLowerCase();
+                const pass = bcrypt.hashSync(`${profile.first_name.toLowerCase()}123456`, 10);
+                
+                await supabase.from('residents_account').insert([{ 
+                    resident_id: profile.record_id, username, password: pass, role: 'resident', status: 'Active' 
+                }]);
+                
+                logActivity(supabase, req.user.username, 'RESIDENT_CREATED', profile.record_id).catch(() => {});
+                res.status(201).json(profile);
+            } catch (aErr) {
+                await supabase.from('residents_records').delete().eq('record_id', profile.record_id);
+                throw new Error("Rollback: Account creation failed.");
+            }
+        } catch (err) { res.status(500).json({ error: err.message }); }
     });
 
-    // PUT: Update Temporal Data Only
-    router.put('/residents/:id', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff']), validatePayload(residentUpdateSchema), async (req, res) => {
+    // PUT: BREAK AND REPLACE THE BLOCK
+    router.put('/residents/:id', secure(['admin', 'superadmin', 'staff'], authenticateToken), validatePayload(residentSchema), async (req, res) => {
         try {
-            const { id } = req.params;
             const r = req.body;
-            const duplicateError = await checkDuplicates(r, id);
-            if (duplicateError) return res.status(409).json({ error: duplicateError });
+            // 🛡️ ENTIRE BLOCK REPLACED: New hash for the modified identity
+            const newHash = generateGenesisHash(r.firstName, r.middleName, r.lastName, r.dob);
 
-            // 🛡️ Filter updates to keep biological data immutable
             const updates = {
-                contact_number: r.CONTACT_NUMBER,
-                email: r.EMAIL,
-                current_address: r.CURRENT_ADDRESS,
-                purok: r.PUROK,
-                civil_status: r.CIVIL_STATUS,
-                education: r.EDUCATION,
-                employment: r.EMPLOYMENT,
-                employment_status: r.EMPLOYMENT_STATUS,
-                occupation: r.OCCUPATION,
-                religion: r.RELIGION,
-                is_voter: r.IS_VOTER,
-                is_pwd: r.IS_PWD,
-                is_4ps: r.IS_4PS,
-                is_solo_parent: r.IS_SOLO_PARENT,
-                is_senior_citizen: r.IS_SENIOR_CITIZEN,
-                is_ip: r.IS_IP,
-                voter_id_number: r.VOTER_ID_NUMBER,
-                pwd_id_number: r.PWD_ID_NUMBER,
-                solo_parent_id_number: r.SOLO_PARENT_ID_NUMBER,
-                senior_id_number: r.SENIOR_ID_NUMBER,
-                four_ps_id_number: r.FOUR_PS_ID_NUMBER,
+                first_name: r.firstName,
+                middle_name: r.middleName,
+                last_name: r.lastName,
+                sex: r.sex,
+                dob: r.dob,
+                genesis_hash: newHash, // 👈 THE NEW SIGNATURE
+                contact_number: r.contact_number,
+                email: r.email,
+                current_address: r.currentAddress,
+                purok: r.purok,
+                civil_status: r.civilStatus,
+                education: r.education,
+                employment_status: r.employmentStatus,
+                occupation: r.occupation,
+                religion: r.religion,
+                is_voter: r.isVoter,
+                is_pwd: r.isPWD,
+                is_4ps: r.is4Ps,
+                is_solo_parent: r.isSoloParent,
+                is_senior_citizen: r.isSeniorCitizen,
+                is_ip: r.isIP,
+                birth_country: r.birthCountry,
+                birth_province: r.birthProvince,
+                birth_city: r.birthCity,
+                birth_place: r.birthPlace,
+                nationality: r.nationality
             };
 
-            Object.keys(updates).forEach(key => updates[key] === undefined && delete updates[key]);
-
-            const { data, error } = await supabase.from('residents_records').update(updates).eq('record_id', id).select();
+            const { data, error } = await supabase.from('residents_records').update(updates).eq('record_id', req.params.id).select();
             if (error) throw error;
             
-            logActivity(supabase, req.user.username, 'RESIDENT_UPDATED', `Temporal sync: ${id}`).catch(console.error);
+            logActivity(supabase, req.user.username, 'IDENTITY_REPLACED', req.params.id).catch(() => {});
             res.json(data[0]);
-        } catch (err) {
-            res.status(500).json({ error: "Failed to update record." });
-        }
+        } catch (err) { res.status(500).json({ error: "Identity replacement failed." }); }
     });
 
-    // DELETE: Soft Archive
-    router.delete('/residents/:id', authenticateToken, checkSessionRole(['admin', 'superadmin']), async (req, res) => {
+    router.delete('/residents/:id', secure(['admin', 'superadmin'], authenticateToken), async (req, res) => {
         try {
-            const { error } = await supabase.from('residents_records').update({ activity_status: 'Archived' }).eq('record_id', req.params.id);
-            if (error) throw error;
-
-            logActivity(supabase, req.user.username, 'RESIDENT_ARCHIVED', `Identity Frozen: ${req.params.id}`).catch(console.error);
-            res.json({ message: 'Identity Archived Successfully' });
-        } catch (err) {
-            res.status(500).json({ error: "Archive failed." });
-        }
+            await supabase.from('residents_records').update({ activity_status: 'Archived' }).eq('record_id', req.params.id);
+            res.json({ success: true });
+        } catch (err) { res.status(500).json({ error: "Archiving failed." }); }
     });
 };

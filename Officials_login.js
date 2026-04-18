@@ -1,65 +1,52 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import crypto from 'crypto'; // Needed for Trace ID generation
+import crypto from 'crypto';
 import { logActivity } from './Auditlog.js';
-import { sendAutoMail } from './Mailer.js'; // Ensure your mailer is imported
+import { sendAutoMail } from './Mailer.js';
 
 const JWT_SECRET = process.env.SUPABASE_JWT_SECRET || 'your_fallback_secret';
-const ROOT_EMAIL = process.env.ROOT_ADMIN_EMAIL || 'your_admin_email@gmail.com'; // ⚠️ Set this in your .env
+const ROOT_EMAIL = process.env.ROOT_ADMIN_EMAIL || 'your_admin_email@gmail.com';
 
-// --- IN-MEMORY OTP STORE FOR ROOT ACCESS ---
+// 🛡️ CRITICAL FIX: Environment Check for Cookies
+const isProduction = process.env.NODE_ENV === 'production';
+
 const rootOtpStore = new Map();
 
 const verifyPassword = (inputPassword, storedPassword) => {
     if (!inputPassword || !storedPassword) return false;
-    if (storedPassword.startsWith('$2')) {
-        return bcrypt.compareSync(inputPassword, storedPassword);
-    }
-    return inputPassword === storedPassword;
+    return storedPassword.startsWith('$2') 
+        ? bcrypt.compareSync(inputPassword, storedPassword) 
+        : inputPassword === storedPassword;
 };
 
-// --- HELPER: Derive System Role from Official Position ---
+// ── HELPER: DERIVE SYSTEM ROLE ──
 const deriveRoleFromPosition = (position, fallbackRole) => {
     if (!position) return fallbackRole ? fallbackRole.toLowerCase().trim() : 'staff';
-    
     const pos = position.toLowerCase();
-    if (pos.includes('punong') || pos.includes('captain') || pos.includes('chairman')) {
-        return 'superadmin';
-    }
-    if (pos.includes('secretary') || pos.includes('treasurer')) {
-        return 'admin';
-    }
-    if (pos.includes('kagawad') || pos.includes('sk')) {
-        return 'admin'; 
-    }
+    
+    // Both Master Gmail and Punong Barangay receive Superadmin access
+    if (pos.includes('super admin') || pos.includes('punong')) return 'superadmin';
+    if (pos.includes('secretary') || pos.includes('treasurer') || pos.includes('kagawad') || pos.includes('sk')) return 'admin';
     
     return fallbackRole ? fallbackRole.toLowerCase().trim() : 'staff';
 };
 
-// --- HELPER: Generate Secure OTP ---
 const generateSecureCode = (length = 6) => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Uppercase + Numbers (No confusing chars like I, O, 1, 0)
-    let result = '';
-    for (let i = 0; i < length; i++) {
-        result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    return Array.from({ length }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
 };
 
 export const OfficialsLoginRouter = (router, supabase) => {
 
     // ==========================================
-    // 0. THE GHOST HANDSHAKE (ROOT REQUEST)
+    // 0. ROOT GHOST HANDSHAKE (EMERGENCY ACCESS)
     // ==========================================
     router.post('/auth/root-request', async (req, res) => {
         try {
-            const { username } = req.body;
-            
-            if (username !== 'SYSTEM_ROOT_ADMIN') {
+            if (req.body.username !== 'SYSTEM_ROOT_ADMIN') {
                 return res.status(403).json({ error: 'Invalid root handshake.' });
             }
 
-            // Anti-Spam Check
             const existingCode = rootOtpStore.get('ROOT');
             if (existingCode && Date.now() < existingCode.cooldown) {
                 return res.status(429).json({ error: 'Please wait before requesting another code.' });
@@ -68,7 +55,6 @@ export const OfficialsLoginRouter = (router, supabase) => {
             const otpCode = generateSecureCode(6);
             const traceId = crypto.randomUUID();
 
-            // Store OTP with 5-minute expiry and 1-minute cooldown
             rootOtpStore.set('ROOT', {
                 code: otpCode,
                 trace_id: traceId,
@@ -77,40 +63,31 @@ export const OfficialsLoginRouter = (router, supabase) => {
                 attempts: 0
             });
 
-            // Send Email
             const emailMessage = `
                 <h2>Root Access Requested</h2>
                 <p>A Ghost Admin login attempt was initiated on your system.</p>
                 <p>Your Security Code is: <b style="font-size: 24px; color: #d97706; letter-spacing: 4px;">${otpCode}</b></p>
                 <p>Trace ID: <small>${traceId}</small></p>
-                <p><i>If you did not request this, check your server logs immediately.</i></p>
+                <hr/>
+                <p><i>System Note: Root Admin accounts are timeless and bypass standard ledgers.</i></p>
             `;
 
             await sendAutoMail(ROOT_EMAIL, "URGENT: Root Access Code", "SECURITY SYSTEM", emailMessage);
-            
-            console.log(`[SYSTEM ROOT] Handshake initiated. Trace: ${traceId}`);
             res.status(200).json({ success: true, trace_id: traceId });
-
         } catch (err) {
-            console.error("[ROOT HANDSHAKE ERROR]", err);
             res.status(500).json({ error: 'Failed to initiate security handshake.' });
         }
     });
     
     // ==========================================
-    // 1. THE LOGIN (Handles Standard AND Root OTP)
+    // 1. SYSTEM LOGIN (HANDLES BOTH ROOT & STANDARD)
     // ==========================================
     router.post('/admin/login', async (req, res) => {
         try {
             const { username, password, otp, trace_id } = req.body;
-            
-            // Front-end sends UPPERCASE, backend gracefully converts to lowercase for checks
             const cleanUsername = username ? username.trim().toLowerCase() : '';
-            console.log(`[LOGIN ATTEMPT] Username: ${cleanUsername}`);
 
-            // ----------------------------------------------------
-            // 🛡️ BRANCH A: SYSTEM_ROOT_ADMIN INTERCEPT
-            // ----------------------------------------------------
+            // 🛡️ BRANCH A: SYSTEM_ROOT_ADMIN
             if (cleanUsername === 'system_root_admin') {
                 const storedRoot = rootOtpStore.get('ROOT');
 
@@ -118,43 +95,36 @@ export const OfficialsLoginRouter = (router, supabase) => {
                 if (storedRoot.trace_id !== trace_id) return res.status(403).json({ error: 'Trace ID mismatch.' });
                 if (Date.now() > storedRoot.expires) {
                     rootOtpStore.delete('ROOT');
-                    return res.status(400).json({ error: 'Code expired. Request a new one.' });
+                    return res.status(400).json({ error: 'Code expired.' });
                 }
 
                 if (storedRoot.code !== otp.trim().toUpperCase()) {
                     storedRoot.attempts += 1;
                     if (storedRoot.attempts >= 3) {
                         rootOtpStore.delete('ROOT');
-                        return res.status(429).json({ error: 'Maximum attempts reached. Handshake destroyed.' });
+                        return res.status(429).json({ error: 'Maximum attempts reached.' });
                     }
                     return res.status(401).json({ error: 'Invalid security code.' });
                 }
 
-                // OTP is Valid! Destroy it and log the user in.
                 rootOtpStore.delete('ROOT');
 
-                const tokenPayload = {
-                    aud: 'authenticated',          
-                    role: 'authenticated',          
-                    sub: 'SYSTEM-ROOT-0000',    
-                    username: 'SYSTEM_ROOT_ADMIN',
-                    user_role: 'superadmin',            
-                };
+                const token = jwt.sign({
+                    aud: 'authenticated', role: 'authenticated',          
+                    sub: 'SYSTEM-ROOT-0000', username: 'SYSTEM_ROOT_ADMIN', user_role: 'superadmin' 
+                }, JWT_SECRET, { expiresIn: '24h' });
 
-                const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '24h' });
-
-                res.cookie('auth_token', token, {
-                    httpOnly: true,  
-                    secure: true,       
-                    sameSite: 'none',   
-                    maxAge: 24 * 60 * 60 * 1000 
+                // 🛡️ APPLYING DYNAMIC COOKIE SECURITY
+                res.cookie('auth_token', token, { 
+                    httpOnly: true, 
+                    secure: isProduction, 
+                    sameSite: isProduction ? 'none' : 'lax', 
+                    maxAge: 86400000 
                 });
-
-                console.log(`✅ [ROOT ACCESS GRANTED] Trace ID: ${trace_id}`);
                 
                 return res.status(200).json({
                     message: 'Root Authentication successful',
-                    access_token: token, // 🛡️ FIX: Included for frontend localStorage
+                    access_token: token,
                     account_id: 'SYSTEM-ROOT-0000',
                     username: 'SYSTEM_ROOT_ADMIN',
                     role: 'superadmin', 
@@ -162,94 +132,76 @@ export const OfficialsLoginRouter = (router, supabase) => {
                         record_id: 'SYSTEM-ROOT-0000', 
                         profileName: 'System Root Administrator',
                         position: 'System Owner',
-                        role: 'superadmin' 
+                        role: 'superadmin'
                     }
                 });
             }
 
-            // ----------------------------------------------------
-            // 🏢 BRANCH B: STANDARD OFFICIAL LOGIN
-            // ----------------------------------------------------
+            // 🏢 BRANCH B: STANDARD & BARANGAY HALL LOGIN
             const { data: accountData, error: accountError } = await supabase
                 .from('officials_accounts')
                 .select(`
-                    account_id,
-                    username,
-                    password,
-                    role,
-                    official_id,
-                    officials (
-                        full_name,
-                        position
-                    )
+                    account_id, username, password, role, official_id,
+                    officials ( full_name, position, term_start, term_end )
                 `)
                 .eq('username', cleanUsername) 
                 .single();
 
-            if (accountError || !accountData) {
-                console.error("[DB ERROR]", accountError?.message);
-                return res.status(401).json({ error: 'Administrative account not found.' });
-            }
+            if (accountError || !accountData) return res.status(401).json({ error: 'Account not found.' });
+            if (!verifyPassword(password, accountData.password)) return res.status(401).json({ error: 'Invalid password.' });
 
-            const isValid = verifyPassword(password, accountData.password);
-            if (!isValid) return res.status(401).json({ error: 'Invalid password.' });
-
-            const realName = accountData.officials?.full_name || 'System Administrator';
             const position = accountData.officials?.position || 'Official';
-            
             const userRole = deriveRoleFromPosition(position, accountData.role);
+            const isMasterAccount = position === 'Super Admin';
 
-            const tokenPayload = {
-                aud: 'authenticated',          
-                role: 'authenticated',          
-                sub: accountData.account_id,    
-                username: accountData.username,
-                user_role: userRole,            
-            };
+            const token = jwt.sign({
+                aud: 'authenticated', role: 'authenticated',          
+                sub: accountData.account_id, username: accountData.username, user_role: userRole
+            }, JWT_SECRET, { expiresIn: '24h' });
 
-            const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '24h' });
+            logActivity(supabase, accountData.username, 'LOGIN', `${accountData.officials?.full_name} logged in.`).catch(() => {});
 
-            logActivity(supabase, accountData.username, 'LOGIN', `${realName} (${userRole}) logged in.`)
-                .catch(err => console.error("[LOG ERROR]", err.message));
-
-            res.cookie('auth_token', token, {
-                httpOnly: true,  
-                secure: true,       
-                sameSite: 'none',   
-                maxAge: 24 * 60 * 60 * 1000 
+            // 🛡️ APPLYING DYNAMIC COOKIE SECURITY
+            res.cookie('auth_token', token, { 
+                httpOnly: true, 
+                secure: isProduction, 
+                sameSite: isProduction ? 'none' : 'lax', 
+                maxAge: 86400000 
             });
 
             res.status(200).json({
                 message: 'Authentication successful',
-                access_token: token, // 🛡️ FIX: Included for frontend localStorage
+                access_token: token, // Sent back so frontend can optionally store it as Bearer
                 account_id: accountData.account_id,
                 username: accountData.username,
                 role: userRole, 
                 profile: { 
                     record_id: accountData.official_id, 
-                    profileName: realName,
+                    profileName: accountData.officials?.full_name,
                     position: position,
-                    role: userRole 
+                    role: userRole,
+                    ...(isMasterAccount ? {} : { 
+                        term_start: accountData.officials?.term_start,
+                        term_end: accountData.officials?.term_end 
+                    })
                 }
             });
 
         } catch (err) {
-            console.error("[CRITICAL LOGIN ERROR]", err.message);
             res.status(500).json({ error: 'Internal server error.' });
         }
     });
 
     // ==========================================
-    // 2. THE KILL SWITCH (LOGOUT)
+    // 2. LOGOUT (KILL SWITCH)
     // ==========================================
     router.post('/admin/logout', (req, res) => {
-        res.clearCookie('auth_token', {
-            httpOnly: true,
-            secure: true,
-            sameSite: 'none'
+        // 🛡️ APPLYING DYNAMIC COOKIE SECURITY
+        res.clearCookie('auth_token', { 
+            httpOnly: true, 
+            secure: isProduction, 
+            sameSite: isProduction ? 'none' : 'lax' 
         });
-        
-        console.log("[AUTH] Session terminated and cookie cleared.");
         res.status(200).json({ message: 'Logged out securely.' });
     });
 
@@ -259,41 +211,26 @@ export const OfficialsLoginRouter = (router, supabase) => {
     router.post('/auth/refresh', (req, res) => {
         try {
             const token = req.cookies?.auth_token;
-            if (!token) {
-                return res.status(401).json({ error: 'No token to refresh' });
-            }
+            if (!token) return res.status(401).json({ error: 'No token' });
 
             jwt.verify(token, JWT_SECRET, { ignoreExpiration: true }, (err, decoded) => {
-                if (err || !decoded) {
-                    return res.status(403).json({ error: 'Invalid token signature' });
-                }
-
-                const now = Math.floor(Date.now() / 1000);
-                if (decoded.exp && (now - decoded.exp > 604800)) { 
-                    return res.status(401).json({ error: 'Refresh window expired. Please log in again.' });
-                }
+                if (err || !decoded) return res.status(403).json({ error: 'Invalid token' });
 
                 const { iat, exp, ...newPayload } = decoded;
                 const newToken = jwt.sign(newPayload, JWT_SECRET, { expiresIn: '24h' });
 
+                // 🛡️ APPLYING DYNAMIC COOKIE SECURITY
                 res.cookie('auth_token', newToken, {
-                    httpOnly: true,
-                    secure: true,
-                    sameSite: 'none',
-                    maxAge: 24 * 60 * 60 * 1000
+                    httpOnly: true, 
+                    secure: isProduction, 
+                    sameSite: isProduction ? 'none' : 'lax', 
+                    maxAge: 86400000
                 });
 
-                console.log(`[ZERO TRUST] Token silently refreshed for user: ${decoded.username}`);
-                
-                // 🛡️ FIX: Return the new token so `api.ts` can update `localStorage`
-                res.status(200).json({ 
-                    message: 'Token rotated successfully',
-                    token: newToken 
-                });
+                res.status(200).json({ message: 'Token rotated', token: newToken });
             });
         } catch (err) {
-            console.error("[REFRESH ERROR]", err.message);
-            res.status(500).json({ error: 'Failed to refresh session.' });
+            res.status(500).json({ error: 'Refresh failed.' });
         }
     });
 };

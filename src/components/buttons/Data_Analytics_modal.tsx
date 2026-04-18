@@ -4,13 +4,11 @@ import {
   LineElement, BarElement, ArcElement, Title, Tooltip, Legend, Filler,
 } from 'chart.js';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 
 import './styles/Data_Anaytics_modal.css';
 import { RESIDENTS_API, DOCUMENTS_API } from '../UI/api'; 
+import Data_Analytics_pdf from './Tools/Data_Analytics/Data_Analytics_pdf';
 
-// Import data processing modules
 import { fmtDay, fmtMonth } from './Tools/Data_Analytics/Data_Math';
 import { type Resident, createResidentMap, calculateSexDistribution, calculateAgeDistribution, calculateSpecialCategories } from './Tools/Data_Analytics/Resident_data';
 import { type DocRecord, enrichDocuments, calculateMonthlyStats, calculateDailyStats, calculateTypeStats, calculatePurokStats, calculateTopResidents } from './Tools/Data_Analytics/Document_data';
@@ -90,26 +88,31 @@ const Section = ({ label }: { label: string }) => (
   </div>
 );
 
-// UPDATED: Added `meaning` prop to render an explanation below the chart
+// UPDATED: Added flex styling so charts dynamically fill vertical whitespace
 const ChartBlock = ({
-  title, sub, height = 230, meaning, children,
+  title, sub, chartClass, meaning, dropdown, children,
 }: {
-  title: string; sub?: string; height?: number; meaning?: string; children: React.ReactNode;
+  title: string; sub?: string; chartClass?: string; meaning?: string; dropdown?: React.ReactNode; children: React.ReactNode;
 }) => (
-  <div className="da-block" style={{ display: 'flex', flexDirection: 'column' }}>
-    <div className="da-chart-title">{title}</div>
-    {sub && <div className="da-chart-sub">{sub}</div>}
-    <div style={{ height }}>{children}</div>
+  <div className="da-block da-flex-col" style={{ height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+      <div>
+        <div className="da-chart-title">{title}</div>
+        {sub && <div className="da-chart-sub" style={{ margin: 0 }}>{sub}</div>}
+      </div>
+      {dropdown && <div style={{ width: '100%' }}>{dropdown}</div>}
+    </div>
+    
+    <div 
+      className={`da-chart-canvas-wrap ${chartClass || ''}`} 
+      style={{ flexGrow: 1, position: 'relative', minHeight: chartClass ? undefined : '180px' }}
+    >
+      {children}
+    </div>
+
     {meaning && (
-      <div style={{
-        marginTop: 'auto',
-        paddingTop: '12px',
-        borderTop: '1px dashed #cbd5e1',
-        fontSize: '0.8rem',
-        color: '#475569',
-        lineHeight: 1.5,
-      }}>
-        <strong style={{ color: '#0f172a' }}>Meaning:</strong> {meaning}
+      <div className="da-chart-meaning" style={{ marginTop: 'auto', paddingTop: '16px' }}>
+        <strong className="da-chart-meaning-label">Meaning:</strong> {meaning}
       </div>
     )}
   </div>
@@ -122,16 +125,22 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
   const [allDocs, setAllDocs] = useState<DocRecord[]>([]);
   const [loading, setLoading] = useState(true);
   
+  // Local states for the three specific distribution charts
+  const [localPurok, setLocalPurok] = useState<string>('All');
+  const [localDocType, setLocalDocType] = useState<string>('All');
+  const [localSex, setLocalSex] = useState<string>('All');
+
+  const [showPDF, setShowPDF] = useState(false);
+  
   const reportRef = useRef<HTMLDivElement>(null);
 
-  // ─── Data Fetching (Zero Trust Handshake Fix) ───────────────────────
   useEffect(() => {
     if (!isOpen) return;
     setLoading(true);
     
     const fetchOptions = {
         method: 'GET',
-        credentials: 'include' as RequestCredentials // Enables secure cookie/session transfer
+        credentials: 'include' as RequestCredentials
     };
 
     Promise.all([
@@ -146,10 +155,12 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
       .finally(() => setLoading(false));
   }, [isOpen]);
 
-  // ─── Analytics Engine ─────────────────────────────────────────────────────
   const E = useMemo(() => {
     const resMap = createResidentMap(residents);
     const enrichedDocs = enrichDocuments(allDocs, resMap);
+
+    const baseTypeStats = calculateTypeStats(enrichedDocs);
+    const availableDocTypes = Object.keys(baseTypeStats.typeCounts || {});
 
     const monthlyStats = calculateMonthlyStats(enrichedDocs);
     const dailyStats = calculateDailyStats(enrichedDocs);
@@ -161,7 +172,6 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
     const ageDist = calculateAgeDistribution(residents);
     const specialCats = calculateSpecialCategories(residents);
 
-    // ─── Dynamic Suggestion Logic ───
     const suggestions = [];
     if (monthlyStats.mTrend > 0.5) {
         suggestions.push({ 
@@ -195,46 +205,11 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
       specials: specialCats,
       topResidents,
       suggestions,
+      availableDocTypes,
       totalResidents: residents.length,
       totalDocs: enrichedDocs.length,
     };
   }, [residents, allDocs]);
-
-  // ─── PDF Export ───────────────────────────────────────────────────────────
-  const exportPDF = async () => {
-    const el = reportRef.current;
-    if (!el) return;
-
-    const canvas = await html2canvas(el, { 
-      scale: 3, 
-      backgroundColor: '#f8fafc', 
-      useCORS: true 
-    });
-
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const a4Width = 210;
-    const a4Height = 297;
-    const imgHeight = (canvas.height * a4Width) / canvas.width;
-    const imgData = canvas.toDataURL('image/jpeg', 1.0);
-
-    let heightLeft = imgHeight;
-    let position = 0;
-
-    pdf.addImage(imgData, 'JPEG', 0, position, a4Width, imgHeight);
-    heightLeft -= a4Height;
-
-    while (heightLeft > 0) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, 'JPEG', 0, position, a4Width, imgHeight);
-      heightLeft -= a4Height;
-    }
-
-    const dateStr = new Date().toISOString().split('T')[0];
-    pdf.save(`Intelligence_Report_${dateStr}.pdf`);
-  };
-
-  // ─── Render ───────────────────────────────────────────────────────────────
 
   if (!isOpen) return null;
 
@@ -245,16 +220,64 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
   const TYPE_PAL = ['#3b82f6', '#14b8a6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6'];
   const typeKeys = Object.keys(E.typeCounts || {});
 
+  // ─── Dynamic Data for Filtered Charts ───────────────────────────────────────
+  
+  // 1. Purok Chart Data
+  const purokLabels = localPurok === 'All' ? Object.keys(E.purokCounts || {}) : [localPurok];
+  const purokData = localPurok === 'All' 
+    ? Object.values(E.purokCounts || {}) 
+    : [E.purokCounts?.[localPurok] || 0];
+
+  // 2. Doc Type Chart Data
+  const docLabels = localDocType === 'All' ? typeKeys : [localDocType];
+  const docData = localDocType === 'All' 
+    ? typeKeys.map(k => (E.typeCounts as Record<string, number>)[k]) 
+    : [(E.typeCounts as Record<string, number>)?.[localDocType] || 0];
+
+  // 3. Sex Chart Data (UPDATED: Removed "Other")
+  const sexMap: Record<string, number> = { 'Male': E.male || 0, 'Female': E.female || 0 };
+  const sexLabels = localSex === 'All' ? ['Male', 'Female'] : [localSex];
+  const sexData = localSex === 'All' 
+    ? [E.male || 0, E.female || 0] 
+    : [sexMap[localSex] || 0];
+
+  // ─── Dropdown Components ────────────────────────────────────────────────────
+  
+  const DropdownPurok = (
+    <select className="da-filter-select" style={{ width: '100%', padding: '6px' }} value={localPurok} onChange={(e) => setLocalPurok(e.target.value)}>
+      <option value="All">All Puroks</option>
+      {[1, 2, 3, 4, 5, 6, 7].map(num => (
+        <option key={num} value={`Purok ${num}`}>Purok {num}</option>
+      ))}
+    </select>
+  );
+
+  const DropdownDoc = (
+    <select className="da-filter-select" style={{ width: '100%', padding: '6px' }} value={localDocType} onChange={(e) => setLocalDocType(e.target.value)}>
+      <option value="All">All Documents</option>
+      {E.availableDocTypes?.map((type: string) => (
+        <option key={type} value={type}>{type}</option>
+      ))}
+    </select>
+  );
+
+  const DropdownSex = (
+    <select className="da-filter-select" style={{ width: '100%', padding: '6px' }} value={localSex} onChange={(e) => setLocalSex(e.target.value)}>
+      <option value="All">All Genders</option>
+      <option value="Male">Male</option>
+      <option value="Female">Female</option>
+    </select>
+  );
+
   return (
     <div className="da-overlay" onClick={onClose}>
       <div className="da-sheet" onClick={e => e.stopPropagation()}>
 
-        {/* ── Header ──────────────────────────────────────────────────── */}
         <div className="da-header">
           <div>
             <div className="da-header__tag">
               <div className="da-header__bar" />
-              <span className="da-header__id">Analytics Engine · v4.2</span>
+              <span className="da-header__id">Analytics Engine · v4.3</span>
               <div className="da-live-badge">
                 <div className="da-live-dot" />
                 <span className="da-live-text">LIVE DB</span>
@@ -266,13 +289,14 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
               total_records: {E.totalDocs}r · n_res: {E.totalResidents}
             </p>
           </div>
-          <div className="da-header__controls">
-            <button className="da-btn-pdf" onClick={exportPDF}>↓ Export PDF</button>
+          <div className="da-header-controls">
+            <button className="da-btn-pdf" onClick={() => setShowPDF(true)}>
+              ↓ Export PDF
+            </button>
             <button className="da-btn-close" onClick={onClose}>×</button>
           </div>
         </div>
 
-        {/* ── Body ────────────────────────────────────────────────────── */}
         <div className="da-body" ref={reportRef}>
 
           {loading ? (
@@ -282,17 +306,15 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
             </div>
           ) : (<>
 
-            {/* ══ PREDICTIVE FORECAST ════════════════════════════════════ */}
             <Section label="Predictive Forecast" />
 
             <div className="da-grid-4">
-
               <div className="da-block da-block--blue">
                 <div className="da-label">Tomorrow's Requests</div>
                 <div className="da-big da-big--blue">~{E.tomorrowP || 0}</div>
                 <div className="da-sub">
                   Daily trend:{' '}
-                  <span style={{ color: dUp ? '#16a34a' : '#ef4444', fontWeight: 600 }}>
+                  <span className={`da-trend-text ${dUp ? 'da-trend-up' : 'da-trend-down'}`}>
                     {dUp ? '↑' : '↓'} {Math.abs(E.dTrend || 0).toFixed(2)} /day
                   </span>
                 </div>
@@ -302,15 +324,12 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
 
               <div className="da-block da-block--teal">
                 <div className="da-label">Most Likely Next Type</div>
-                <div style={{
-                  fontSize: '15px', fontWeight: 600,
-                  color: '#0f766e', lineHeight: 1.3, marginBottom: '6px',
-                }}>
+                <div className="da-pred-type">
                   {E.predType || 'N/A'}
                 </div>
                 <div className="da-sub">
                   Probability:{' '}
-                  <span style={{ fontWeight: 600, color: '#14b8a6' }}>
+                  <span className="da-pred-pct">
                     {E.predTypePct || 0}%
                   </span>
                 </div>
@@ -321,7 +340,7 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
                       <div key={t}>
                         <div className="da-prob-row">
                           <span>{t}</span>
-                          <span style={{ fontWeight: 500 }}>{p}%</span>
+                          <span className="da-prob-val">{p}%</span>
                         </div>
                         <div className="da-prob-track">
                           <div className="da-prob-fill" style={{ width: `${p}%` }} />
@@ -330,7 +349,7 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
                     );
                   })}
                 </div>
-                <div className="da-basis" style={{ marginTop: 12 }}>
+                <div className="da-basis da-mt-12">
                   exp-decay · λ=0.025 · 28d half-life
                 </div>
               </div>
@@ -339,7 +358,7 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
                 <div className="da-label">Next Month Projection</div>
                 <div className="da-big da-big--green">~{E.mF1 || 0}</div>
                 <div className="da-sub">
-                  Month +2: <span style={{ fontWeight: 600 }}>~{E.mF2 || 0}</span>
+                  Month +2: <span className="da-fw-600">~{E.mF2 || 0}</span>
                 </div>
                 <div className="da-rule-thin" />
                 <div className="da-basis">
@@ -361,7 +380,6 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
               </div>
             </div>
 
-            {/* ══ STRATEGIC INSIGHTS & MEANING ════════════════════════════ */}
             <Section label="Strategic Insights & Meaning" />
             <div className="da-grid-2">
                 <div className="da-block da-block--insight">
@@ -406,14 +424,12 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
                 </div>
             </div>
 
-            {/* ══ TREND ANALYSIS ══════════════════════════════════════════ */}
             <Section label="Trend Analysis" />
             <div className="da-grid-trend">
-
               <ChartBlock
                 title="Monthly Volume + Forecast"
                 sub={`Holt's DES · trend=${mUp ? '+' : ''}${Number(E.mTrend || 0).toFixed(2)} Δ/mo · ${(E.mKeys || []).length} months data`}
-                height={230}
+                chartClass="da-chart-tall"
                 meaning="Tracks the total number of document requests month over month. The dashed green line projects the expected volume for the next two months based on historical momentum."
               >
                 <Line data={{
@@ -452,7 +468,7 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
               <ChartBlock
                 title="Daily Requests (14d) + Tomorrow"
                 sub={`Holt's DES · predicted_tomorrow=~${E.tomorrowP || 0}`}
-                height={230}
+                chartClass="da-chart-tall"
                 meaning="Shows the daily volume of requests over the last two weeks. The final dashed point represents the statistically expected number of requests for tomorrow."
               >
                 <Line data={{
@@ -489,23 +505,21 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
               </ChartBlock>
             </div>
 
-            {/* ══ DISTRIBUTION ════════════════════════════════════════════ */}
-            <Section label="Distribution" />
+            <Section label="Distribution Filtered Reports" />
             <div className="da-grid-3">
-
               <ChartBlock
                 title="Purok Demand"
                 sub="doc → resident_id → purok"
-                height={190}
+                chartClass="da-chart-short"
+                dropdown={DropdownPurok}
                 meaning="Compares the total volume of requests originating from each Purok. Useful for identifying which local areas require the most administrative attention."
               >
                 <Bar data={{
-                  labels: Object.keys(E.purokCounts || {}),
+                  labels: purokLabels,
                   datasets: [{
                     label: 'Requests',
-                    data: Object.values(E.purokCounts || {}),
-                    backgroundColor: Object.keys(E.purokCounts || {})
-                      .map((_, i) => BLUES[i % BLUES.length]),
+                    data: purokData,
+                    backgroundColor: purokLabels.map((_, i) => BLUES[i % BLUES.length]),
                     borderRadius: 4,
                     borderSkipped: false,
                   }],
@@ -515,14 +529,15 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
               <ChartBlock
                 title="Document Types"
                 sub="all records mapped"
-                height={190}
+                chartClass="da-chart-short"
+                dropdown={DropdownDoc}
                 meaning="Displays the proportion of each document type requested. Helps identify the most frequently processed clearances or certificates."
               >
                 <Doughnut data={{
-                  labels: typeKeys,
+                  labels: docLabels,
                   datasets: [{
-                    data: typeKeys.map(k => (E.typeCounts as Record<string, number>)[k]),
-                    backgroundColor: TYPE_PAL.slice(0, typeKeys.length),
+                    data: docData,
+                    backgroundColor: TYPE_PAL.slice(0, docLabels.length),
                     borderColor: '#ffffff',
                     borderWidth: 2,
                     hoverOffset: 4,
@@ -533,14 +548,15 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
               <ChartBlock
                 title="Sex Distribution"
                 sub="residents_records.sex"
-                height={190}
+                chartClass="da-chart-short"
+                dropdown={DropdownSex}
                 meaning="Shows the demographic breakdown of residents by sex, based on the total registered population in the system."
               >
                 <Doughnut data={{
-                  labels: ['Male', 'Female', 'Other'],
+                  labels: sexLabels,
                   datasets: [{
-                    data: [E.male || 0, E.female || 0, E.otherSex || 0],
-                    backgroundColor: ['#3b82f6', '#ec4899', '#94a3b8'],
+                    data: sexData,
+                    backgroundColor: ['#3b82f6', '#ec4899'].slice(0, sexLabels.length),
                     borderColor: '#ffffff',
                     borderWidth: 2,
                     hoverOffset: 4,
@@ -549,14 +565,12 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
               </ChartBlock>
             </div>
 
-            {/* ══ DEMOGRAPHICS ════════════════════════════════════════════ */}
             <Section label="Demographics" />
             <div className="da-grid-2">
-
+              {/* REMOVED chartClass="da-chart-mini" so it dynamically grows to fill the vertical gap */}
               <ChartBlock
                 title="Age Group Spread"
                 sub="residents_records.dob → computed_age"
-                height={160}
                 meaning="Categorizes the registered population into specific age brackets to help visualize the demographic makeup of the barangay."
               >
                 <Bar data={{
@@ -571,10 +585,12 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
                 }} options={chartOpts()} />
               </ChartBlock>
 
-              <div className="da-block" style={{ display: 'flex', flexDirection: 'column' }}>
-                <div className="da-chart-title">Special Categories</div>
-                <div className="da-chart-sub">residents_records → boolean flags</div>
-                <div className="da-cat-list" style={{ flexGrow: 1 }}>
+              <div className="da-block da-flex-col">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+                  <div className="da-chart-title">Special Categories</div>
+                  <div className="da-chart-sub" style={{ margin: 0 }}>residents_records → boolean flags</div>
+                </div>
+                <div className="da-cat-list da-flex-grow">
                   {Object.entries(E.specials || {}).map(([label, count]) => {
                     const c = count as number;
                     const pct = E.totalResidents > 0
@@ -595,23 +611,14 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
                     );
                   })}
                 </div>
-                <div style={{
-                  marginTop: '16px',
-                  paddingTop: '12px',
-                  borderTop: '1px dashed #cbd5e1',
-                  fontSize: '0.8rem',
-                  color: '#475569',
-                  lineHeight: 1.5,
-                }}>
-                  <strong style={{ color: '#0f172a' }}>Meaning:</strong> Highlights vulnerable or specialized groups (e.g., Senior Citizens, PWDs) within the population to guide targeted community programs.
+                <div className="da-chart-meaning" style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px dashed #cbd5e1' }}>
+                  <strong className="da-chart-meaning-label">Meaning:</strong> Highlights vulnerable or specialized groups (e.g., Senior Citizens, PWDs) within the population to guide targeted community programs.
                 </div>
               </div>
             </div>
 
-            {/* ══ RESIDENT ID ACTIVITY ════════════════════════════════════ */}
             <Section label="Resident ID Activity" />
             <div className="da-table">
-
               <div className="da-table__head">
                 {['#', 'Resident ID', 'Purok', 'Document Count'].map(h => (
                   <span key={h} className="da-table__col">{h}</span>
@@ -642,14 +649,13 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
               ))}
             </div>
 
-            {/* ══ SUMMARY ═════════════════════════════════════════════════ */}
             <div className="da-summary">
               <p className="da-summary__text">
                 <strong>SUMMARY — </strong>
                 n_doc={E.totalDocs} (100% sourced from Live DB) ·
                 n_res={E.totalResidents} ·
                 monthly_trend=
-                <span style={{ color: mUp ? '#16a34a' : '#ef4444', fontWeight: 600 }}>
+                <span className={`da-trend-text ${mUp ? 'da-trend-up' : 'da-trend-down'}`}>
                   {mUp ? 'EXPANDING' : 'CONTRACTING'} ({mUp ? '+' : ''}{Number(E.mTrend || 0).toFixed(2)} Δ/mo)
                 </span>
                 {' '}· top_purok={E.topPurok || 'N/A'} ·
@@ -662,6 +668,13 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
           </>)}
         </div>
       </div>
+      
+      {showPDF && (
+        <Data_Analytics_pdf 
+          onClose={() => setShowPDF(false)} 
+          initialFilter={'All'} 
+        />
+      )}
     </div>
   );
 }

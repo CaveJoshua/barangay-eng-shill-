@@ -1,11 +1,12 @@
 import { type IResident } from '../../Resident_modal';
 import { ResidentMapper } from './DataMapper';
 import { API_BASE_URL } from '../../../UI/api';
-// FIXED TYPO: Auuthentication -> Authentication
-import { getAuthHeaders } from './Auuthentication';
+import { getAuthHeaders, verifyActionSecurity } from './Authentication';
 
 /**
- * P.G.S.U. ADVANCED DATA RECOVERY & MASS ACCOUNT ENGINE
+ * P.G.S.U. DATA RECOVERY ENGINE
+ * Updated: Replaced regex with strict CSV parser, patched silent HTTP failures, 
+ * and added credentials to fix the 401 Unauthorized cookie rejection.
  */
 
 export const exportResidentsToCSV = (residents: IResident[]) => {
@@ -40,18 +41,38 @@ export const exportResidentsToCSV = (residents: IResident[]) => {
   link.click();
 };
 
-/**
- * SILENT MASS IMPORT ENGINE
- * Triggers bulk Identity + Account creation with progress tracking.
- */
-export const importResidentsFromCSV = (
+const parseCSVRow = (row: string): string[] => {
+  const values: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < row.length; i++) {
+    if (row[i] === '"' && row[i + 1] === '"') { 
+      current += '"'; 
+      i++; 
+    } else if (row[i] === '"') { 
+      inQuotes = !inQuotes; 
+    } else if (row[i] === ',' && !inQuotes) { 
+      values.push(current); 
+      current = ''; 
+    } else { 
+      current += row[i]; 
+    }
+  }
+  values.push(current);
+  return values;
+};
+
+export const importResidentsFromCSV = async (
   event: React.ChangeEvent<HTMLInputElement>,
   fileInputRef: React.RefObject<HTMLInputElement | null>,
-  onProgress: (percent: number) => void, // For the Progress Bar
+  onProgress: (percent: number) => void,
   onComplete: () => void
 ) => {
   const file = event.target.files?.[0];
   if (!file) return;
+
+  const isAuthorized = await verifyActionSecurity();
+  if (!isAuthorized) return;
 
   const reader = new FileReader();
   reader.onload = async (e) => {
@@ -63,43 +84,65 @@ export const importResidentsFromCSV = (
       const headers = lines[0].split(",").map(h => h.replace(/"/g, '').trim());
       const dataRows = lines.slice(1).filter(line => line.trim() !== "");
 
-      if (!window.confirm(`Restore Engine: Create ${dataRows.length} identities and accounts?`)) return;
+      let failedRows = 0;
 
       for (let i = 0; i < dataRows.length; i++) {
-        // Robust CSV split for quoted strings
         const row = dataRows[i];
-        const values = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g)?.map(v => v.replace(/^"|"$/g, '')) || [];
+        
+        // Use proper CSV parsing to prevent breaking on internal commas
+        const values = parseCSVRow(row);
         
         const tempObj: any = {};
-        headers.forEach((h, idx) => { tempObj[h] = values[idx]; });
+        headers.forEach((h, idx) => { tempObj[h] = values[idx]?.trim() || ""; });
 
-        // Boolean Normalization
-        const bools = ['isVoter', 'isPWD', 'is4Ps', 'isSoloParent', 'isSeniorCitizen', 'isIP'];
-        bools.forEach(k => tempObj[k] = String(tempObj[k]).toLowerCase() === 'true');
+        // Force Boolean conversion before mapping
+        const boolKeys = ['isVoter', 'isPWD', 'is4Ps', 'isSoloParent', 'isSeniorCitizen', 'isIP'];
+        boolKeys.forEach(k => {
+            tempObj[k] = String(tempObj[k]).toLowerCase() === 'true';
+        });
 
+        // Use your original Mapper
         const dbPayload = ResidentMapper.toDB(tempObj as IResident);
 
-        // SILENT POST: Backend generates the account automatically
-        await fetch(`${API_BASE_URL}/residents`, {
+        const authHeaders = getAuthHeaders();
+        
+        const response = await fetch(`${API_BASE_URL}/residents`, {
           method: 'POST',
-          headers: getAuthHeaders(),
+          headers: authHeaders,
+          credentials: 'include', // 🛡️ CRITICAL FIX: Ensures the auth cookie travels with the request
           body: JSON.stringify(dbPayload)
         });
 
-        // Update Progress Bar
-        onProgress(Math.round(((i + 1) / dataRows.length) * 100));
+        // Strict HTTP Error Checking
+        if (!response.ok) {
+          const errBody = await response.json().catch(() => ({}));
+          console.error(`[ROW ${i + 2}] Import Failed: HTTP ${response.status}`, errBody);
+          
+          if (response.status === 401) {
+              console.error("Critical: 401 Unauthorized. Token rejected by backend.");
+              alert("Your session expired. Please log out and log back in before trying again.");
+              break; 
+          }
+          
+          failedRows++;
+          continue; // Skip to next row instead of silently halting
+        }
 
-        // Throttle: Small pause every 5 records to keep the database stable
-        if (i % 5 === 0) await new Promise(r => setTimeout(r, 40));
+        onProgress(Math.round(((i + 1) / dataRows.length) * 100));
+        if (i % 5 === 0) await new Promise(r => setTimeout(r, 30));
       }
 
-      alert(`Sync Complete: ${dataRows.length} records restored to database.`);
       onComplete();
       if (fileInputRef.current) fileInputRef.current.value = '';
 
+      if (failedRows > 0) {
+        console.warn(`${failedRows} rows failed to import. Check console for details.`);
+        alert(`Import complete, but ${failedRows} records failed to save. Check developer console.`);
+      }
+
     } catch (err) {
       console.error("[RESTORE_FAILED]", err);
-      alert("Critical Error during restoration. Check CSV integrity.");
+      alert("Error during restoration. Check console.");
     }
   };
   reader.readAsText(file);

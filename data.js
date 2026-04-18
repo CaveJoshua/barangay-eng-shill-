@@ -103,10 +103,7 @@ export const authenticateToken = (req, res, next) => {
 // ==========================================
 // 2. GLOBAL MIDDLEWARE & SECURITY HEADERS
 // ==========================================
-router.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }, 
-  contentSecurityPolicy: false, 
-}));
+
 
 // 🛡️ DYNAMIC CORS REPLACEMENT 🛡️
 const corsOptions = {
