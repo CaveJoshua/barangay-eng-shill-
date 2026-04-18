@@ -53,6 +53,11 @@ const POSITIONS = [
 
 export default function Officials_modal({ isOpen, onClose, onSuccess, officialToEdit, existingOfficials = [] }: ModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [traceId, setTraceId] = useState(''); // 🛡️ Stores the session ID for OTP
+  const [verificationCode, setVerificationCode] = useState('');
+  
   const [residents, setResidents] = useState<IResident[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const searchWrapperRef = useRef<HTMLDivElement>(null);
@@ -66,13 +71,11 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
     contact_number: ''
   });
 
-  // ── HELPER: IS THIS THE MASTER ACCOUNT? ───────────────
   const isSuperAdminMode = formData.position === 'Super Admin';
 
   // ── 1. RESIDENT DATA SYNC ───────────────────────────────────
   useEffect(() => {
     const fetchResidents = async () => {
-      // Skip fetching resident list if setting up the Master Gmail account
       if (isSuperAdminMode) {
         setResidents([]);
         return;
@@ -110,6 +113,10 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
           contact_number: ''
         });
       }
+      // Reset OTP states when opening modal
+      setOtpSent(false);
+      setVerificationCode('');
+      setTraceId('');
     }
   }, [isOpen, officialToEdit]);
 
@@ -136,17 +143,12 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
     setShowDropdown(false);
   };
 
-  // ── 4. ROLE VALIDATION (SINGLE-OCCUPANCY CHECK) ────────────
   const canAddPosition = (pos: string) => {
     if (officialToEdit && officialToEdit.position === pos) return true;
     
-    // Roles that can only have ONE active person at a time
     const singleRoles = [
-      'Super Admin',
-      'Punong Barangay', 
-      'Barangay Secretary', 
-      'Barangay Treasurer', 
-      'SK Chairperson'
+      'Super Admin', 'Punong Barangay', 'Barangay Secretary', 
+      'Barangay Treasurer', 'SK Chairperson'
     ];
     
     if (singleRoles.includes(pos)) {
@@ -158,6 +160,36 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
     return true;
   };
 
+  // ── 4. REQUEST OTP LOGIC ────────────────────────────────────
+  const handleRequestOTP = async () => {
+    if (!formData.full_name || !formData.full_name.includes('@')) {
+      return alert("Please enter a valid Barangay Hall Gmail first.");
+    }
+
+    setIsSendingOtp(true);
+    try {
+      const response = await fetch(`${OFFICIALS_API}/request-otp`, {
+        method: 'POST',
+        headers: getAuthHeaders(false, 'POST'),
+        credentials: 'include', // 🛡️ CRITICAL: Forces cookie inclusion to bypass 401 error
+        body: JSON.stringify({ email: formData.full_name })
+      });
+
+      const result = await response.json();
+      if (response.ok) {
+        setTraceId(result.trace_id);
+        setOtpSent(true);
+        alert("Verification code successfully dispatched to Gmail.");
+      } else {
+        alert(result.error || "Failed to send verification code.");
+      }
+    } catch (err) {
+      alert("Connectivity error. Check backend logs.");
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
   // ── 5. FINAL SUBMISSION ─────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -166,9 +198,12 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
       return alert("Error: Required Identity Field (Name or Gmail) is missing.");
     }
 
-    // Term Start is only required if the user is NOT a Super Admin
     if (!isSuperAdminMode && !formData.term_start) {
       return alert("Error: Service Start date is required for standard officials.");
+    }
+
+    if (isSuperAdminMode && (!verificationCode || !traceId)) {
+      return alert("Error: You must request and verify the Gmail code before authorizing.");
     }
 
     if (!canAddPosition(formData.position!)) {
@@ -181,10 +216,17 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
       const method = officialToEdit ? 'PUT' : 'POST';
       const url = officialToEdit ? `${OFFICIALS_API}/${officialToEdit.id}` : OFFICIALS_API;
 
+      // Pack the payload exactly as the backend expects it
+      const payload = {
+        ...formData,
+        ...(isSuperAdminMode && { otp: verificationCode, trace_id: traceId })
+      };
+
       const res = await fetch(url, {
         method,
         headers: getAuthHeaders(false, method),
-        body: JSON.stringify(formData) 
+        credentials: 'include', // 🛡️ CRITICAL: Sends secure cookies (fixes 401 Unauthorized)
+        body: JSON.stringify(payload) 
       });
 
       if (res.ok) {
@@ -226,14 +268,14 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
         
         <div className="OM_HEADER">
           <h3>{officialToEdit ? 'Modify System Block' : 'Identity Authorization'}</h3>
-          <p>{isSuperAdminMode ? 'Barangay Hall Master Gmail Configuration.' : 'Registering authorized personnel identity.'}</p>
+          <p>{isSuperAdminMode ? 'Master Gmail Handshake Required.' : 'Registering authorized personnel identity.'}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="OM_FORM">
           
           <div className="OM_FORM_GROUP" ref={searchWrapperRef}>
             <label>{isSuperAdminMode ? 'Barangay Hall Gmail (Super Admin)' : 'Legal Full Name'}</label>
-            <div className="OM_SEARCH_INPUT_WRAP">
+            <div style={{ display: 'flex', gap: '8px', position: 'relative' }}>
               <input 
                 type={isSuperAdminMode ? "email" : "text"} 
                 required 
@@ -242,7 +284,6 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
                 value={formData.full_name}
                 onChange={e => {
                   const val = e.target.value;
-                  // Gmail = Lowercase | Names = Uppercase
                   setFormData({
                     ...formData, 
                     full_name: isSuperAdminMode ? val.toLowerCase() : val.toUpperCase()
@@ -251,8 +292,22 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
                 }}
                 onFocus={() => !isSuperAdminMode && setShowDropdown(true)}
                 autoComplete="off"
+                style={{ flex: 1 }}
               />
               
+              {/* 🛡️ THE NEW TRIGGER BUTTON */}
+              {isSuperAdminMode && !otpSent && (
+                <button 
+                  type="button" 
+                  onClick={handleRequestOTP}
+                  className="OM_BTN_SECONDARY"
+                  disabled={isSendingOtp}
+                  style={{ whiteSpace: 'nowrap', padding: '0 16px', height: 'auto' }}
+                >
+                  {isSendingOtp ? 'Sending...' : 'Send Code'}
+                </button>
+              )}
+
               {showDropdown && !isSuperAdminMode && filteredResidents.length > 0 && (
                 <ul className="OM_DROPDOWN_LIST">
                   {filteredResidents.map(r => (
@@ -275,14 +330,17 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
               className="OM_SELECT" 
               value={formData.position}
               onChange={e => {
+                const newPos = e.target.value as any;
                 setFormData({
                   ...formData, 
-                  position: e.target.value as any, 
+                  position: newPos, 
                   full_name: '',
-                  // Reset terms if switching back to an official role
-                  term_start: e.target.value === 'Super Admin' ? '' : new Date().toISOString().split('T')[0],
+                  term_start: newPos === 'Super Admin' ? '' : new Date().toISOString().split('T')[0],
                   term_end: ''
                 });
+                // Reset OTP flow if they switch away and come back
+                setOtpSent(false);
+                setVerificationCode('');
                 setShowDropdown(false);
               }}
             >
@@ -294,7 +352,26 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
             </select>
           </div>
 
-          {/* 🎯 UI TICKET: Hide Terms and Dates entirely if this is the Master Account */}
+          {/* 🛡️ CONDITIONAL AUTHENTICATION CODE INPUT */}
+          {isSuperAdminMode && otpSent && (
+            <div className="OM_FORM_GROUP">
+              <label style={{ color: '#d97706' }}>Gmail Verification Code</label>
+              <input 
+                type="text" 
+                required 
+                className="OM_INPUT" 
+                placeholder="Enter 6-digit code"
+                value={verificationCode}
+                onChange={e => setVerificationCode(e.target.value.toUpperCase())}
+                maxLength={6}
+                style={{ letterSpacing: '4px', fontWeight: 'bold', borderColor: '#d97706' }}
+              />
+              <small style={{ display: 'block', marginTop: '6px', color: '#64748b', fontSize: '12px' }}>
+                Check the provided Gmail inbox for the setup code.
+              </small>
+            </div>
+          )}
+
           {!isSuperAdminMode && (
             <>
               <div className="OM_ROW">
@@ -336,7 +413,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
             <button type="button" className="OM_BTN_SECONDARY" onClick={onClose}>
               Abort
             </button>
-            <button type="submit" className="OM_BTN_PRIMARY" disabled={isSubmitting}>
+            <button type="submit" className="OM_BTN_PRIMARY" disabled={isSubmitting || (isSuperAdminMode && !otpSent)}>
               {isSubmitting ? 'Syncing...' : 'Validate & Authorize'}
             </button>
           </div>
