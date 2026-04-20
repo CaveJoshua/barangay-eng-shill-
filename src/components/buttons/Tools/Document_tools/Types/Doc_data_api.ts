@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
-// Import the Mastermind Service
 import { ApiService } from '../../../../UI/api'; 
 
-// --- INTERFACES ---
 export interface IResident {
   record_id: string;
   first_name: string;
@@ -19,27 +17,25 @@ export interface IOfficial {
   status: string;
 }
 
-/**
- * Hook to handle API interactions with RBAC Handshake.
- */
 export const useDocumentDataAPI = (initialResidentName: string, initialResidentId?: string) => {
   const [residents, setResidents] = useState<IResident[]>([]);
-  const [captainName, setCaptainName] = useState('AMADO M. FELIZARDO');
+  
+  // STRICTLY DYNAMIC: No hardcoded names. 
+  const [captainName, setCaptainName] = useState('');
+  const [kagawadName, setKagawadName] = useState('');
+  
   const [autoFilledAddress, setAutoFilledAddress] = useState('');
 
   useEffect(() => {
-    // The "Valve" to prevent memory leaks if the modal closes mid-fetch
     const valve = new AbortController();
 
     const fetchData = async () => {
       try {
-        // Use the Universal Handshake to fetch both simultaneously
         const [residentList, officialsData] = await Promise.all([
           ApiService.getResidents(valve.signal),
           ApiService.getOfficials(valve.signal)
         ]);
 
-        // 1. PROCESS RESIDENTS (If Handshake wasn't rejected)
         if (residentList !== null) {
           const safeResidentList = Array.isArray(residentList) ? residentList : (residentList.residents || []);
           setResidents(safeResidentList);
@@ -63,19 +59,21 @@ export const useDocumentDataAPI = (initialResidentName: string, initialResidentI
           }
         }
 
-        // 2. PROCESS OFFICIALS (If Handshake wasn't rejected)
+        // FETCH STRICTLY BY POSITION
         if (officialsData !== null) {
           const safeOfficialsList = Array.isArray(officialsData) ? officialsData : (officialsData.officials || []);
           
-          // Looks for the Punong Barangay / Captain
           const activeCaptain = safeOfficialsList.find((o: IOfficial) => 
             (o.position.toLowerCase().includes('captain') || o.position.toLowerCase().includes('punong')) && 
             o.status === 'Active'
           );
-          
-          if (activeCaptain) {
-            setCaptainName(activeCaptain.full_name.toUpperCase());
-          }
+          if (activeCaptain) setCaptainName(activeCaptain.full_name.toUpperCase());
+
+          const activeKagawad = safeOfficialsList.find((o: IOfficial) => 
+            o.position.toLowerCase().includes('kagawad') && 
+            o.status === 'Active'
+          );
+          if (activeKagawad) setKagawadName(activeKagawad.full_name.toUpperCase());
         }
       } catch (err: any) {
         if (err.name !== 'AbortError') {
@@ -85,26 +83,14 @@ export const useDocumentDataAPI = (initialResidentName: string, initialResidentI
     };
 
     fetchData();
-
     return () => valve.abort();
   }, [initialResidentName, initialResidentId]);
 
-  return { residents, captainName, autoFilledAddress };
+  return { residents, captainName, kagawadName, autoFilledAddress };
 };
 
-/**
- * Save document record using the Mastermind Trigger
- */
 export const saveDocumentRecord = async (payload: any) => {
-  // We don't need customHeaders anymore, ApiService handles it.
-  
-  // Use the universal triggerAction we mapped in api.ts
   const result = await ApiService.saveDocumentRecord(payload);
-
-  if (!result.success) {
-    // If the trigger failed (e.g. 403 Denied), throw the error so the UI can catch it
-    throw new Error(result.error || 'Database save failed');
-  }
-  
+  if (!result.success) throw new Error(result.error || 'Database save failed');
   return result.data;
 };

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import './styles/Document_modal.css';
-import { Document_File } from './Tools/Document_tools/Document_Files'; 
+// Make sure this path exactly matches your folder structure
+import { DocumentFile } from './Tools/Document_tools/Document_Files'; 
 
 interface Props {
   isOpen: boolean;
@@ -10,10 +11,8 @@ interface Props {
 }
 
 export default function Document_modal({ isOpen, onClose, onSuccess, requestData }: Props) {
-  // 1. Memoize officials (Optional: Pwedeng palitan ito ng fetch officials logic sa future)
-  const officials = useMemo(() => [
-    { position: 'Punong Barangay', full_name: '' }
-  ], []);
+  // 1. DELETED the manual 'officials' memo. 
+  // The Engine now fetches the active Captain and Kagawad natively via the API!
 
   // 2. Memoize initialData
   const initialData = useMemo(() => {
@@ -24,12 +23,12 @@ export default function Document_modal({ isOpen, onClose, onSuccess, requestData
         id: requestData.id,
         referenceNo: requestData.referenceNo,
         residentName: requestData.residentName,
-        resident_id: requestData.resident_id, // Sinigurado nating kasama ang ID para sa handshake
+        residentId: requestData.resident_id, // Normalized to camelCase to match DocumentFile state
         type: requestData.type,
         purpose: requestData.purpose === 'Other' ? requestData.otherPurpose : requestData.purpose,
         dateRequested: requestData.dateRequested,
         status: requestData.status,
-        price: requestData.price
+        feesPaid: requestData.price?.toString() || '200.00'
       };
     }
 
@@ -41,7 +40,7 @@ export default function Document_modal({ isOpen, onClose, onSuccess, requestData
       purpose: '',
       dateRequested: new Date().toISOString(),
       status: 'Pending',
-      price: 200 // Default price updated to match your new rates
+      feesPaid: '200.00' // Default price updated
     };
   }, [requestData, isOpen]);
 
@@ -52,12 +51,11 @@ export default function Document_modal({ isOpen, onClose, onSuccess, requestData
     <div className="STUDIO_MODAL_OVERLAY">
       <div className="STUDIO_CONTAINER">
         <div className="STUDIO_EDITOR_WRAPPER">
-          {/* HANDSHAKE APPLIED: Ipinapasa na natin ang officials list dito */}
-          <Document_File 
+          {/* FIXED: Changed from Document_File to DocumentFile */}
+          <DocumentFile 
             onClose={onClose} 
             onSuccess={onSuccess} 
-            data={initialData}
-            officials={officials} 
+            initialData={initialData}
           />
         </div>
       </div>

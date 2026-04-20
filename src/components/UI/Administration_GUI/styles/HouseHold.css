@@ -8,6 +8,7 @@
    - Strict layout alignment applied to Table Grid columns.
    - Flexbox vertical & horizontal centering optimized.
    - Code indentation and formatting perfectly standardized.
+   - 🛡️ App.css Sync: Fixed double-scrollbars and double-table-borders.
    ========================================================================== */
 
 /* ── 0. EXTERNAL RESOURCES ── */
@@ -193,7 +194,9 @@ body {
 /* ── 4. LAYOUT WRAPPERS ── */
 .HH_PAGE_WRAP {
     padding: var(--HH-space-8);
-    min-height: 100vh;
+    /* 🛡️ FIX: Syncs with app.css so you don't get double scrollbars */
+    min-height: 100%; 
+    box-sizing: border-box;
     transition: background-color var(--HH-transition-slow);
     display: flex;
     flex-direction: column;
@@ -490,11 +493,15 @@ body {
     z-index: var(--HH-z-base);
 }
 
+/* 🛡️ FIX: Move bottom border from TD to TR to avoid double-thickness lines with app.css */
+.HH_GRID tbody tr {
+    border-bottom: 1px solid var(--HH-border-base);
+}
+
 /* Table Body Cells & Strict Alignment */
 .HH_GRID tbody td {
     height: 84px; /* Fixed Height enforcing Enterprise layout */
     padding: 0 var(--HH-space-6);
-    border-bottom: 1px solid var(--HH-border-base);
     color: var(--HH-text-secondary);
     font-size: 0.95rem;
     font-weight: 600;
@@ -524,7 +531,8 @@ body {
     text-align: right; 
 }
 
-.HH_GRID tbody tr:last-child td {
+/* 🛡️ FIX: Use TR to clean the bottom of the table */
+.HH_GRID tbody tr:last-child {
     border-bottom: none;
 }
 

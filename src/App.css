@@ -1,14 +1,13 @@
 /* --- 1. GLOBAL ROOT RESET --- */
-/* Ensures no hidden gaps or unwanted margins at the edges of the screen */
 html, body, #root {
   margin: 0;
   padding: 0;
   width: 100vw;
   height: 100vh;
-  background-color: var(--CONTENT-bg); /* Theme-aware background */
+  background-color: var(--CONTENT-bg);
   color: var(--TEXT-main);
   font-family: 'Inter', -apple-system, sans-serif;
-  overflow: hidden; /* Only internal areas should scroll */
+  overflow: hidden;
   transition: background-color 0.3s ease;
 }
 
@@ -21,7 +20,6 @@ html, body, #root {
 }
 
 /* --- 3. THEME VARIABLES (Engineers Hill Standard) --- */
-/* These variables control every text and background color in the app */
 :root {
   --L-bg: #ffffff;
   --L-border: #e2e8f0;
@@ -40,7 +38,6 @@ html, body, #root {
 }
 
 /* --- 4. THE GAP FIX (CRITICAL) --- */
-/* Forces every portal to take up 100% of the horizontal space */
 .LG_PAGE_WRAPPER, 
 .FRAME_WRAPPER, 
 .CM_PAGE_WRAPPER {
@@ -52,7 +49,6 @@ html, body, #root {
 }
 
 /* --- 5. PREMIUM SCROLLBARS --- */
-/* Custom thin scrollbars for a clean, modern look */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -72,18 +68,15 @@ html, body, #root {
 }
 
 /* --- 6. UTILITY REPAIRS --- */
-/* Fixes the text clumping bug in the Topbar */
 .FRAME_USER_TEXT {
   display: flex;
   flex-direction: column;
 }
 
-/* Prevents icons and avatars from shrinking inside flex containers */
 i, img, .PF_AVATAR_WRAPPER {
   flex-shrink: 0;
 }
 
-/* Smooth fade-in when switching between Portals */
 @keyframes portalFade {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -91,4 +84,26 @@ i, img, .PF_AVATAR_WRAPPER {
 
 .APP_ROOT > div {
   animation: portalFade 0.3s ease-in-out;
+}
+
+/* --- 7. GLOBAL TABLE REPAIR (FIXES BROKEN BORDERS) --- */
+/* This ensures table rows across the whole app have connected lines */
+table {
+  width: 100%;
+  border-collapse: collapse !important; /* Forces borders to snap together */
+  border-spacing: 0;
+}
+
+th, td {
+  box-sizing: border-box;
+}
+
+/* Standardizes the subtle line under every row in the app */
+tr {
+  border-bottom: 1px solid var(--L-border);
+}
+
+/* Clean finish: removes the bottom line from the very last entry in any list */
+tr:last-child {
+  border-bottom: none;
 }

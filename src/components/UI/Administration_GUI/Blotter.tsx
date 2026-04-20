@@ -206,69 +206,69 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
   };
 
   return (
-    <div className="BLOT_PAGE_WRAP">
-      <div className="BLOT_MAIN_CONTAINER">
+    <div className="AD-BLOT_PAGE_WRAP">
+      <div className="AD-BLOT_MAIN_CONTAINER">
 
         {/* HEADER SECTION */}
-        <header className="BLOT_HEADER_FLEX">
+        <header className="AD-BLOT_HEADER_FLEX">
           <div>
-            <h1 className="BLOT_PAGE_TITLE">Incident Reports</h1>
-            <p className="BLOT_PAGE_SUB">Manage incident workflows and official hearings.</p>
+            <h1 className="AD-BLOT_PAGE_TITLE">Incident Reports</h1>
+            <p className="AD-BLOT_PAGE_SUB">Manage incident workflows and official hearings.</p>
           </div>
-          <button className="BLOT_ADD_BTN" onClick={() => { setSelectedCase(null); setIsModalOpen(true); }}>
+          <button className="AD-BLOT_ADD_BTN" onClick={() => { setSelectedCase(null); setIsModalOpen(true); }}>
             <i className="fas fa-file-signature"></i> File Report
           </button>
         </header>
 
         {/* TOP STAT CARDS */}
-        <section className="BLOT_STATS_GRID">
-          <div className={`BLOT_STAT_CARD clickable ${activeTab === 'Pending' ? 'ACTIVE_CARD' : ''}`} onClick={() => setActiveTab('Pending')}>
-            <div className="BLOT_STAT_INFO">
-              <span className="BLOT_STAT_NUM">{stats.pending}</span>
-              <span className="BLOT_STAT_LABEL">Requests</span>
+        <section className="AD-BLOT_STATS_GRID">
+          <div className={`AD-BLOT_STAT_CARD AD-BLOT_CLICKABLE ${activeTab === 'Pending' ? 'AD-BLOT_ACTIVE_CARD' : ''}`} onClick={() => setActiveTab('Pending')}>
+            <div className="AD-BLOT_STAT_INFO">
+              <span className="AD-BLOT_STAT_NUM">{stats.pending}</span>
+              <span className="AD-BLOT_STAT_LABEL">Requests</span>
             </div>
-            <div className="BLOT_STAT_ICON_WRAP ICON_YELLOW"><i className="fas fa-clock"></i></div>
+            <div className="AD-BLOT_STAT_ICON_WRAP AD-BLOT_ICON_YELLOW"><i className="fas fa-clock"></i></div>
           </div>
 
-          <div className={`BLOT_STAT_CARD clickable ${activeTab === 'Active' ? 'ACTIVE_CARD' : ''}`} onClick={() => setActiveTab('Active')}>
-            <div className="BLOT_STAT_INFO">
-              <span className="BLOT_STAT_NUM">{stats.active}</span>
-              <span className="BLOT_STAT_LABEL">Active Cases</span>
+          <div className={`AD-BLOT_STAT_CARD AD-BLOT_CLICKABLE ${activeTab === 'Active' ? 'AD-BLOT_ACTIVE_CARD' : ''}`} onClick={() => setActiveTab('Active')}>
+            <div className="AD-BLOT_STAT_INFO">
+              <span className="AD-BLOT_STAT_NUM">{stats.active}</span>
+              <span className="AD-BLOT_STAT_LABEL">Active Cases</span>
             </div>
-            <div className="BLOT_STAT_ICON_WRAP ICON_RED"><i className="fas fa-exclamation-circle"></i></div>
+            <div className="AD-BLOT_STAT_ICON_WRAP AD-BLOT_ICON_RED"><i className="fas fa-exclamation-circle"></i></div>
           </div>
 
-          <div className={`BLOT_STAT_CARD clickable ${activeTab === 'Hearing' ? 'ACTIVE_CARD' : ''}`} onClick={() => setActiveTab('Hearing')}>
-            <div className="BLOT_STAT_INFO">
-              <span className="BLOT_STAT_NUM">{stats.hearing}</span>
-              <span className="BLOT_STAT_LABEL">Scheduled</span>
+          <div className={`AD-BLOT_STAT_CARD AD-BLOT_CLICKABLE ${activeTab === 'Hearing' ? 'AD-BLOT_ACTIVE_CARD' : ''}`} onClick={() => setActiveTab('Hearing')}>
+            <div className="AD-BLOT_STAT_INFO">
+              <span className="AD-BLOT_STAT_NUM">{stats.hearing}</span>
+              <span className="AD-BLOT_STAT_LABEL">Scheduled</span>
             </div>
-            <div className="BLOT_STAT_ICON_WRAP ICON_BLUE"><i className="fas fa-calendar-alt"></i></div>
+            <div className="AD-BLOT_STAT_ICON_WRAP AD-BLOT_ICON_BLUE"><i className="fas fa-calendar-alt"></i></div>
           </div>
 
-          <div className={`BLOT_STAT_CARD clickable ${activeTab === 'Settled' ? 'ACTIVE_CARD' : ''}`} onClick={() => setActiveTab('Settled')}>
-            <div className="BLOT_STAT_INFO">
-              <span className="BLOT_STAT_NUM">{stats.settled}</span>
-              <span className="BLOT_STAT_LABEL">Settled</span>
+          <div className={`AD-BLOT_STAT_CARD AD-BLOT_CLICKABLE ${activeTab === 'Settled' ? 'AD-BLOT_ACTIVE_CARD' : ''}`} onClick={() => setActiveTab('Settled')}>
+            <div className="AD-BLOT_STAT_INFO">
+              <span className="AD-BLOT_STAT_NUM">{stats.settled}</span>
+              <span className="AD-BLOT_STAT_LABEL">Settled</span>
             </div>
-            <div className="BLOT_STAT_ICON_WRAP ICON_GREEN"><i className="fas fa-check-circle"></i></div>
+            <div className="AD-BLOT_STAT_ICON_WRAP AD-BLOT_ICON_GREEN"><i className="fas fa-check-circle"></i></div>
           </div>
         </section>
 
         {/* TABS & SEARCH BAR */}
-        <section className="BLOT_SEARCH_ROW">
-          <div className="BLOT_TABS_ROW">
+        <section className="AD-BLOT_SEARCH_ROW">
+          <div className="AD-BLOT_TABS_ROW">
             {(['Pending', 'Active', 'Hearing', 'Settled', 'Rejected'] as const).map(tab => (
-              <button key={tab} className={`BLOT_TAB_BTN ${activeTab === tab ? 'ACTIVE' : ''}`} onClick={() => setActiveTab(tab)}>
+              <button key={tab} className={`AD-BLOT_TAB_BTN ${activeTab === tab ? 'AD-BLOT_ACTIVE' : ''}`} onClick={() => setActiveTab(tab)}>
                 {tab}
               </button>
             ))}
           </div>
 
-          <div className="BLOT_SEARCH_WRAP">
-             <i className="fas fa-search BLOT_SEARCH_ICON"></i>
+          <div className="AD-BLOT_SEARCH_WRAP">
+             <i className="fas fa-search AD-BLOT_SEARCH_ICON"></i>
              <input
-              className="BLOT_SEARCH_INPUT"
+              className="AD-BLOT_SEARCH_INPUT"
               placeholder="Search by name or case #..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -277,9 +277,9 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
         </section>
 
         {/* MAIN DATA TABLE */}
-        <main className="BLOT_TABLE_CONTAINER">
-          <div className="BLOT_TABLE_WRAP">
-            <table className="BLOT_TABLE_MAIN">
+        <main className="AD-BLOT_TABLE_CONTAINER">
+          <div className="AD-BLOT_TABLE_WRAP">
+            <table className="AD-BLOT_TABLE_MAIN">
               <thead>
                 <tr>
                   <th>Case #</th>
@@ -293,11 +293,11 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
               </thead>
               <tbody>
                 {loading && cases.length === 0 ? (
-                  <tr><td colSpan={7} className="BLOT_TABLE_EMPTY"><div className="SYNC_SPINNER"></div>Syncing records from database...</td></tr>
+                  <tr><td colSpan={7} className="AD-BLOT_TABLE_EMPTY"><div className="AD-BLOT_SYNC_SPINNER"></div>Syncing records from database...</td></tr>
                 ) : error ? (
-                  <tr><td colSpan={7} className="BLOT_TABLE_EMPTY" style={{color: 'red'}}>{error}</td></tr>
+                  <tr><td colSpan={7} className="AD-BLOT_TABLE_EMPTY" style={{color: 'red'}}>{error}</td></tr>
                 ) : paginatedCases.length === 0 ? (
-                  <tr><td colSpan={7} className="BLOT_TABLE_EMPTY" style={{ textAlign: 'center', padding: '4rem' }}>No {activeTab.toLowerCase()} records found.</td></tr>
+                  <tr><td colSpan={7} className="AD-BLOT_TABLE_EMPTY" style={{ textAlign: 'center', padding: '4rem' }}>No {activeTab.toLowerCase()} records found.</td></tr>
                 ) : (
                   paginatedCases.map((c) => {
                     const isFinalized = ['Settled', 'Archived', 'Rejected'].includes(c.status);
@@ -308,32 +308,32 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
                     return (
                       <tr 
                         key={c.id} 
-                        className={isGlowing ? 'HINT_HIGHLIGHT' : ''} 
+                        className={isGlowing ? 'AD-BLOT_HINT_HIGHLIGHT' : ''} 
                       >
-                        <td><span className="BLOT_CASE_NUMBER">{c.case_number}</span></td>
+                        <td><span className="AD-BLOT_CASE_NUMBER">{c.case_number}</span></td>
                         <td>{c.complainant_name}</td>
                         <td>{c.respondent}</td>
                         <td>{c.incident_type}</td>
-                        <td className="BLOT_DATE_CELL">
+                        <td className="AD-BLOT_DATE_CELL">
                           {activeTab === 'Hearing'
                             ? `${c.hearing_date ? new Date(c.hearing_date).toLocaleDateString() : 'N/A'} @ ${c.hearing_time || ''}`
                             : new Date(c.date_filed).toLocaleDateString()
                           }
                         </td>
-                        <td><span className={`BLOT_STATUS_BADGE STATUS_${c.status.toUpperCase()}`}>{c.status}</span></td>
+                        <td><span className={`AD-BLOT_STATUS_BADGE AD-BLOT_STATUS_${c.status.toUpperCase()}`}>{c.status}</span></td>
                         <td style={{ textAlign: 'right' }}>
                           {/* 🛡️ ADDED GAP & FLEX HERE */}
                           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
                             {(c.status === 'Active' || c.status === 'Pending') && (
-                              <button className="BLOT_ACTION_ICON" onClick={() => setHearingModal({ isOpen: true, caseId: c.id, date: '', time: '09:00' })} title="Schedule"><i className="fas fa-calendar-plus"></i></button>
+                              <button className="AD-BLOT_ACTION_ICON" onClick={() => setHearingModal({ isOpen: true, caseId: c.id, date: '', time: '09:00' })} title="Schedule"><i className="fas fa-calendar-plus"></i></button>
                             )}
                             {(c.status === 'Active' || c.status === 'Pending') && (
-                              <button className="BLOT_ACTION_ICON" onClick={() => setRejectModal({ isOpen: true, caseId: c.id, reason: '' })} title="Reject"><i className="fas fa-ban" style={{ color: '#ef4444' }}></i></button>
+                              <button className="AD-BLOT_ACTION_ICON" onClick={() => setRejectModal({ isOpen: true, caseId: c.id, reason: '' })} title="Reject"><i className="fas fa-ban" style={{ color: '#ef4444' }}></i></button>
                             )}
                             {c.status === 'Hearing' && (
-                              <button className="BLOT_ACTION_ICON" onClick={() => handleStatusUpdate(c.id, { status: 'Settled' })} title="Mark Settled"><i className="fas fa-handshake" style={{ color: '#10b981' }}></i></button>
+                              <button className="AD-BLOT_ACTION_ICON" onClick={() => handleStatusUpdate(c.id, { status: 'Settled' })} title="Mark Settled"><i className="fas fa-handshake" style={{ color: '#10b981' }}></i></button>
                             )}
-                            <button className="BLOT_ACTION_ICON" onClick={() => { setSelectedCase(c); setIsModalOpen(true); }} title="View Details">
+                            <button className="AD-BLOT_ACTION_ICON" onClick={() => { setSelectedCase(c); setIsModalOpen(true); }} title="View Details">
                               {isFinalized ? <i className="fas fa-eye"></i> : <i className="fas fa-edit"></i>}
                             </button>
                           </div>
@@ -347,21 +347,21 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
           </div>
 
           {/* PAGINATION CONTROLS */}
-          <div className="BLOT_PAGINATION_BAR">
-            <div className="BLOT_PAGINATION_INFO">
+          <div className="AD-BLOT_PAGINATION_BAR">
+            <div className="AD-BLOT_PAGINATION_INFO">
               Showing {paginatedCases.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredCases.length)} of {filteredCases.length} entries
             </div>
-            <div className="BLOT_NAV_GROUP">
+            <div className="AD-BLOT_NAV_GROUP">
               <button 
-                className="BLOT_NAV_BTN" 
+                className="AD-BLOT_NAV_BTN" 
                 disabled={currentPage === 1} 
                 onClick={() => setCurrentPage(p => p - 1)}
               >
                 <i className="fas fa-chevron-left"></i> Previous
               </button>
-              <span className="BLOT_PAGE_INDICATOR">Page {currentPage} of {totalPages || 1}</span>
+              <span className="AD-BLOT_PAGE_INDICATOR">Page {currentPage} of {totalPages || 1}</span>
               <button 
-                className="BLOT_NAV_BTN" 
+                className="AD-BLOT_NAV_BTN" 
                 disabled={currentPage >= totalPages} 
                 onClick={() => setCurrentPage(p => p + 1)}
               >
@@ -384,18 +384,18 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
 
       {/* HEARING MODAL */}
       {hearingModal.isOpen && (
-        <div className="BLOT_MODAL_OVERLAY" onClick={() => setHearingModal(p => ({ ...p, isOpen: false }))}>
-          <div className="BLOT_SIMPLE_MODAL" onClick={e => e.stopPropagation()}>
-            <h3 className="BLOT_MODAL_TITLE">Schedule Hearing</h3>
-            <label className="BLOT_MODAL_LABEL">Date</label>
+        <div className="AD-BLOT_MODAL_OVERLAY" onClick={() => setHearingModal(p => ({ ...p, isOpen: false }))}>
+          <div className="AD-BLOT_SIMPLE_MODAL" onClick={e => e.stopPropagation()}>
+            <h3 className="AD-BLOT_MODAL_TITLE">Schedule Hearing</h3>
+            <label className="AD-BLOT_MODAL_LABEL">Date</label>
             <input type="date" value={hearingModal.date} onChange={e => setHearingModal(p => ({ ...p, date: e.target.value }))} />
-            <label className="BLOT_MODAL_LABEL">Time</label>
+            <label className="AD-BLOT_MODAL_LABEL">Time</label>
             <input type="time" value={hearingModal.time} onChange={e => setHearingModal(p => ({ ...p, time: e.target.value }))} />
             
             {/* 🛡️ ADDED GAP HERE */}
-            <div className="BLOT_MODAL_ACTIONS" style={{ display: 'flex', gap: '10px' }}>
-              <button className="BLOT_PAGE_BTN" onClick={() => setHearingModal(p => ({ ...p, isOpen: false }))}>Cancel</button>
-              <button className="BLOT_ADD_BTN" onClick={submitHearing}>Confirm</button>
+            <div className="AD-BLOT_MODAL_ACTIONS" style={{ display: 'flex', gap: '10px' }}>
+              <button className="AD-BLOT_PAGE_BTN" onClick={() => setHearingModal(p => ({ ...p, isOpen: false }))}>Cancel</button>
+              <button className="AD-BLOT_ADD_BTN" onClick={submitHearing}>Confirm</button>
             </div>
           </div>
         </div>
@@ -403,16 +403,16 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
 
       {/* REJECTION MODAL */}
       {rejectModal.isOpen && (
-        <div className="BLOT_MODAL_OVERLAY" onClick={() => setRejectModal(p => ({ ...p, isOpen: false }))}>
-          <div className="BLOT_SIMPLE_MODAL" onClick={e => e.stopPropagation()}>
-            <h3 className="BLOT_MODAL_TITLE" style={{ color: '#ef4444' }}>Reject Complaint</h3>
-            <label className="BLOT_MODAL_LABEL">Provide reason for rejection</label>
+        <div className="AD-BLOT_MODAL_OVERLAY" onClick={() => setRejectModal(p => ({ ...p, isOpen: false }))}>
+          <div className="AD-BLOT_SIMPLE_MODAL" onClick={e => e.stopPropagation()}>
+            <h3 className="AD-BLOT_MODAL_TITLE" style={{ color: '#ef4444' }}>Reject Complaint</h3>
+            <label className="AD-BLOT_MODAL_LABEL">Provide reason for rejection</label>
             <textarea rows={3} value={rejectModal.reason} onChange={e => setRejectModal(p => ({ ...p, reason: e.target.value }))} />
             
             {/* 🛡️ ADDED GAP HERE */}
-            <div className="BLOT_MODAL_ACTIONS" style={{ display: 'flex', gap: '10px' }}>
-              <button className="BLOT_PAGE_BTN" onClick={() => setRejectModal(p => ({ ...p, isOpen: false }))}>Cancel</button>
-              <button className="BLOT_ADD_BTN" onClick={submitRejection} style={{ backgroundColor: '#ef4444' }}>Confirm Reject</button>
+            <div className="AD-BLOT_MODAL_ACTIONS" style={{ display: 'flex', gap: '10px' }}>
+              <button className="AD-BLOT_PAGE_BTN" onClick={() => setRejectModal(p => ({ ...p, isOpen: false }))}>Cancel</button>
+              <button className="AD-BLOT_ADD_BTN" onClick={submitRejection} style={{ backgroundColor: '#ef4444' }}>Confirm Reject</button>
             </div>
           </div>
         </div>

@@ -89,19 +89,28 @@ const Household: React.FC = () => {
     setActiveMenuId(activeMenuId === id ? null : id);
   };
 
-  const handleDelete = async (id: string, hhNum: string) => {
-    if (!window.confirm(`Dissolve Household Block ${hhNum}? Identity records will be uncoupled.`)) return;
+  const handleArchive = async (id: string, hhNum: string) => {
+    if (!window.confirm(`Archive Household Block ${hhNum}? Identity records will be moved to the archive.`)) return;
     try {
+      // 🛡️ THE FIX: Changed from DELETE to PATCH to safely update status instead of wiping data
       const res = await fetch(`${HOUSEHOLDS_API}/${id}`, { 
-        method: 'DELETE', 
+        method: 'PATCH', 
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: 'Archived', is_archived: true }),
         credentials: 'include' 
       });
+      
       if (res.ok) {
+        // Remove from current active view
         setHouseholds(prev => prev.filter(h => h.id !== id));
         setActiveMenuId(null);
+      } else {
+        alert("Action failed. The server rejected the archive request.");
       }
     } catch (err) {
-      alert("Handshake error during block dissolution.");
+      alert("Handshake error during block archival.");
     }
   };
 
@@ -203,8 +212,8 @@ const Household: React.FC = () => {
                               <i className="fas fa-pen-nib"></i> Modify Block
                             </button>
                             <div className="HH_MENU_DIVIDER" />
-                            <button className="HH_MENU_ITEM is-danger" onClick={() => handleDelete(hh.id, hh.household_number)}>
-                              <i className="fas fa-trash-alt"></i> Dissolve
+                            <button className="HH_MENU_ITEM is-danger" onClick={() => handleArchive(hh.id, hh.household_number)}>
+                              <i className="fas fa-archive"></i> Archive
                             </button>
                           </div>
                         )}

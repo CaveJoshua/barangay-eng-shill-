@@ -72,7 +72,6 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
 
             const existingCode = otpStore.get(targetEmail);
             if (existingCode && Date.now() < existingCode.cooldownLimit) {
-                console.log(`⏳ [ANTI-SPAM] Blocked rapid request from ${targetEmail}`);
                 return res.status(429).json({ error: 'Please wait 60 seconds before requesting another code.' });
             }
 
@@ -97,7 +96,6 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
             const isSent = await sendAutoMail(userData.email, "Password Reset Request", "ACCOUNT RECOVERY", emailMessage);
 
             if (isSent) {
-                console.log(`✅ [OTP SYSTEM] Secure code sent to ${targetEmail}`);
                 return res.status(200).json({ success: true, message: 'Security code dispatched.' });
             } else {
                 return res.status(500).json({ error: 'Failed to dispatch email.' });
@@ -145,64 +143,62 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
     });
 
   // =========================================================
-// 3. CORE: PASSWORD RESET (Restricted: SUPERADMIN OR THE USER THEMSELVES)
-// =========================================================
-router.patch('/accounts/reset/:accountId', authenticateToken, async (req, res) => {
-    try {
-        const userRole = (req.user?.user_role || req.user?.role || '').toLowerCase().trim();
-        const loggedInUserId = req.user?.account_id || req.user?.sub; // ID from the JWT
-        const targetId = req.params.accountId;
+  // 3. CORE: PASSWORD RESET (Restricted: SUPERADMIN OR THE USER THEMSELVES)
+  // =========================================================
+  router.patch('/accounts/reset/:accountId', authenticateToken, async (req, res) => {
+      try {
+          const userRole = (req.user?.user_role || req.user?.role || '').toLowerCase().trim();
+          const loggedInUserId = req.user?.account_id || req.user?.sub; // ID from the JWT
+          const targetId = req.params.accountId;
 
-        // 🛡️ SECURITY GATEKEEPER:
-        // Allow if the user is a Superadmin OR if the user is changing THEIR OWN password
-        const isSuperAdmin = userRole === 'superadmin';
-        const isSelf = String(loggedInUserId) === String(targetId);
+          // 🛡️ SECURITY GATEKEEPER:
+          // Allow if the user is a Superadmin OR if the user is changing THEIR OWN password
+          const isSuperAdmin = userRole === 'superadmin';
+          const isSelf = String(loggedInUserId) === String(targetId);
 
-        if (!isSuperAdmin && !isSelf) {
-            console.warn(`[SECURITY] Blocked unauthorized password reset attempt. Actor: ${loggedInUserId}, Target: ${targetId}`);
-            return res.status(403).json({ error: 'Access Denied. You can only reset your own password.' });
-        }
+          if (!isSuperAdmin && !isSelf) {
+              return res.status(403).json({ error: 'Access Denied. You can only reset your own password.' });
+          }
 
-        const { password } = req.body;
-        if (!password) return res.status(400).json({ error: 'New password is required.' });
+          const { password } = req.body;
+          if (!password) return res.status(400).json({ error: 'New password is required.' });
 
-        const securePass = hashPassword(password);
+          const securePass = hashPassword(password);
 
-        // Update the Residents Account
-        const { data: resData, error: resErr } = await supabase
-            .from('residents_account')
-            .update({ 
-                password: securePass,
-                requires_reset: false // Automatically clear the first-time login flag
-            }) 
-            .or(`account_id.eq.${targetId},resident_id.eq.${targetId}`)
-            .select();
+          // Update the Residents Account
+          const { data: resData, error: resErr } = await supabase
+              .from('residents_account')
+              .update({ 
+                  password: securePass,
+                  requires_reset: false // Automatically clear the first-time login flag
+              }) 
+              .or(`account_id.eq.${targetId},resident_id.eq.${targetId}`)
+              .select();
 
-        if (resData && resData.length > 0) {
-            console.log(`✅ Password updated for resident: ${targetId}`);
-            return res.json({ success: true, message: 'Password updated successfully.' });
-        }
+          if (resData && resData.length > 0) {
+              return res.json({ success: true, message: 'Password updated successfully.' });
+          }
 
-        // If not a resident, try Officials (only if Superadmin)
-        if (isSuperAdmin) {
-            const { data: offData } = await supabase
-                .from('officials_accounts')
-                .update({ password: securePass })
-                .eq('account_id', targetId)
-                .select();
-            
-            if (offData && offData.length > 0) {
-                return res.json({ success: true, message: 'Official password updated successfully.' });
-            }
-        }
+          // If not a resident, try Officials (only if Superadmin)
+          if (isSuperAdmin) {
+              const { data: offData } = await supabase
+                  .from('officials_accounts')
+                  .update({ password: securePass })
+                  .eq('account_id', targetId)
+                  .select();
+              
+              if (offData && offData.length > 0) {
+                  return res.json({ success: true, message: 'Official password updated successfully.' });
+              }
+          }
 
-        return res.status(404).json({ error: 'Account not found.' });
+          return res.status(404).json({ error: 'Account not found.' });
 
-    } catch (err) {
-        console.error("❌ [CRITICAL RESET ERROR]:", err.message);
-        res.status(500).json({ error: 'Database synchronization failed.' });
-    }
-});
+      } catch (err) {
+          console.error("❌ [CRITICAL RESET ERROR]:", err.message);
+          res.status(500).json({ error: 'Database synchronization failed.' });
+      }
+  });
 
     // =========================================================
     // 4. PUBLIC: RESET PASSWORD VIA OTP (Public / Residents)
@@ -244,10 +240,9 @@ router.patch('/accounts/reset/:accountId', authenticateToken, async (req, res) =
                 await supabase.from('residents_account')
                     .update({ requires_reset: false })
                     .eq('resident_id', userData.accountId);
-            } catch(ignoreErr) { console.warn("Reset flag ignore"); }
+            } catch(ignoreErr) {}
 
             otpStore.delete(targetEmail);
-            console.log(`✅ [PUBLIC RESET] Password successfully updated for ${targetEmail}`);
 
             res.status(200).json({ success: true, message: 'Password reset successful.' });
 

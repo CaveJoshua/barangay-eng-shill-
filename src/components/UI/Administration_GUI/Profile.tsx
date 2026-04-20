@@ -7,6 +7,9 @@ const Profile: React.FC = () => {
   const [theme, setTheme] = useState(() => localStorage.getItem('sb_theme') || 'light');
   const [formData, setFormData] = useState({ fullName: '', email: '', role: '', phone: '' });
   
+  // ✅ Validation State
+  const [formErrors, setFormErrors] = useState({ email: '', phone: '' });
+
   // ✅ Changed initial state to TRUE so it blocks rendering immediately
   const [loading, setLoading]   = useState(true); 
   const [isSaving, setIsSaving] = useState(false);
@@ -18,7 +21,7 @@ const Profile: React.FC = () => {
   // ── 1. INITIALIZE THEME ON MOUNT ──
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-  }, []);
+  }, [theme]);
 
   // ── 2. FETCH PROFILE & THEME ──
   const fetchProfileData = useCallback(async (signal?: AbortSignal) => {
@@ -56,10 +59,36 @@ const Profile: React.FC = () => {
     }
   }, []);
 
-  // ── 3. SAVE PROFILE DATA ──
+  // ── 3. STRICT VALIDATION ENGINE ──
+  const validateForm = () => {
+    let isValid = true;
+    const newErrors = { email: '', phone: '' };
+
+    // Strict Email Format Validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!formData.email || !emailRegex.test(formData.email)) {
+      newErrors.email = 'Please provide a valid email format (e.g., example@gmail.com).';
+      isValid = false;
+    }
+
+    // Strict Phone Format Validation (Exactly 11 digits, starts with 09)
+    const phoneRegex = /^09\d{9}$/;
+    if (!formData.phone || !phoneRegex.test(formData.phone)) {
+      newErrors.phone = 'Phone number must be exactly 11 digits and start with "09".';
+      isValid = false;
+    }
+
+    setFormErrors(newErrors);
+    return isValid;
+  };
+
+  // ── 4. SAVE PROFILE DATA ──
   const handleSave = async () => {
+    if (!validateForm()) return; // Block save if validation fails
+
     const targetId = getActiveId();
     if (!targetId) return alert('Session lost. Please log in again.');
+    
     setIsSaving(true);
     try {
       const result = await ApiService.updateProfile(targetId, {
@@ -67,6 +96,7 @@ const Profile: React.FC = () => {
         email:          formData.email,
         contact_number: formData.phone,
       });
+      
       if (result.success) {
         alert('Profile updated successfully!');
         setIsEditing(false);
@@ -81,7 +111,7 @@ const Profile: React.FC = () => {
     }
   };
 
-  // ── 4. TOGGLE & SAVE THEME TO DATABASE ──
+  // ── 5. TOGGLE & SAVE THEME TO DATABASE ──
   const handleThemeChange = async (newTheme: 'light' | 'dark') => {
     if (theme === newTheme) return; 
 
@@ -112,11 +142,30 @@ const Profile: React.FC = () => {
     return () => valve.abort();
   }, [fetchProfileData]);
 
+  // ── INPUT HANDLER WITH REAL-TIME TYPING ENFORCEMENT ──
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+
+    if (name === 'phone') {
+      // Physically block typing anything except numbers, max length 11
+      const onlyNumbers = value.replace(/\D/g, '');
+      if (onlyNumbers.length <= 11) {
+        setFormData({ ...formData, phone: onlyNumbers });
+        if (formErrors.phone) setFormErrors({ ...formErrors, phone: '' }); // Clear error while typing
+      }
+    } else {
+      setFormData({ ...formData, [name]: value });
+      if (name === 'email' && formErrors.email) setFormErrors({ ...formErrors, email: '' });
+    }
   };
 
-  // ── 5. THE "FETCH FIRST" GUARDS ──
+  const handleCancel = () => {
+    setIsEditing(false);
+    setFormErrors({ email: '', phone: '' });
+    fetchProfileData(); // Reset to database values
+  };
+
+  // ── 6. THE "FETCH FIRST" GUARDS ──
 
   // Guard 1: Still fetching initial data
   if (loading && !formData.fullName) {
@@ -139,7 +188,7 @@ const Profile: React.FC = () => {
     );
   }
 
-  // ── 6. MAIN RENDER ──
+  // ── 7. MAIN RENDER ──
   const avatarLetter = (formData.fullName || '?').charAt(0).toUpperCase();
 
   return (
@@ -201,8 +250,10 @@ const Profile: React.FC = () => {
                 value={formData.email}
                 onChange={handleChange}
                 disabled={!isEditing || loading}
-                className={`PF_CLEAN_INPUT ${(!isEditing || loading) ? 'PF_DISABLED' : ''}`}
+                className={`PF_CLEAN_INPUT ${(!isEditing || loading) ? 'PF_DISABLED' : ''} ${formErrors.email ? 'PF_INPUT_ERROR' : ''}`}
+                style={formErrors.email ? { borderColor: '#ef4444' } : {}}
               />
+              {formErrors.email && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{formErrors.email}</span>}
             </div>
             <div className="PF_INPUT_GROUP">
               <label>Phone Number</label>
@@ -212,8 +263,11 @@ const Profile: React.FC = () => {
                 value={formData.phone}
                 onChange={handleChange}
                 disabled={!isEditing || loading}
-                className={`PF_CLEAN_INPUT ${(!isEditing || loading) ? 'PF_DISABLED' : ''}`}
+                placeholder="09XXXXXXXXX"
+                className={`PF_CLEAN_INPUT ${(!isEditing || loading) ? 'PF_DISABLED' : ''} ${formErrors.phone ? 'PF_INPUT_ERROR' : ''}`}
+                style={formErrors.phone ? { borderColor: '#ef4444' } : {}}
               />
+              {formErrors.phone && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{formErrors.phone}</span>}
             </div>
             <div className="PF_INPUT_GROUP">
               <label>System Role</label>
@@ -232,7 +286,7 @@ const Profile: React.FC = () => {
               <>
                 <button
                   className="PF_BTN_CANCEL"
-                  onClick={() => { setIsEditing(false); fetchProfileData(); }}
+                  onClick={handleCancel}
                   disabled={isSaving}
                 >Discard</button>
                 <button

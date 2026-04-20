@@ -40,7 +40,9 @@
 
 /* ── LAYOUT & CONTAINERS ── */
 .RES_PAGE_WRAP {
-  min-height: 100vh;
+  /* 🛡️ FIX: Changed from 100vh to 100% to stop double-scrollbar conflict with app.css */
+  min-height: 100%; 
+  box-sizing: border-box; /* 🛡️ FIX: Keeps padding internal */
   background-color: var(--res-bg-main);
   padding: var(--res-pad-base);
   font-family: 'Inter', -apple-system, sans-serif;
@@ -384,12 +386,22 @@
   white-space: nowrap;
 }
 
+/* 🛡️ FIX: Moved border to TR to sync with App.css and stop fragmented lines */
+.RES_TABLE_MAIN tr {
+  border-bottom: 1px solid var(--res-border);
+}
+
 .RES_TABLE_MAIN td {
   padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid var(--res-border);
   vertical-align: middle;
   font-size: 0.9rem;
   transition: background-color 0.2s;
+  /* border-bottom removed here so it doesn't clash with TR */
+}
+
+/* 🛡️ FIX: Clean finish for the bottom of the table */
+.RES_TABLE_MAIN tr:last-child {
+  border-bottom: none;
 }
 
 .RES_TABLE_MAIN tr:hover td {
@@ -643,6 +655,7 @@
   .RES_TABLE_WRAP {
     margin: 0 -1rem; 
     padding: 0 1rem;
+    width: calc(100% + 2rem); /* 🛡️ FIX: Prevents the horizontal wobble on mobile */
   }
 
   .RES_TABLE_MAIN td,

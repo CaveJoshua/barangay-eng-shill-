@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import './styles/Archive.css';
+import styles from './styles/Archive.module.css';
 import { ApiService } from '../api';
 
 type ArchiveTab = 'Documents' | 'Blotter' | 'Residents' | 'Officials' | 'Households';
@@ -170,55 +170,55 @@ export default function Archive() {
   };
 
   return (
-    <div className="ARC_PAGE_WRAP">
-      <div className="ARC_MAIN_CONTAINER">
+    <div className={styles.ARC_PAGE_WRAP}>
+      <div className={styles.ARC_MAIN_CONTAINER}>
         
-        <div className="ARC_STATS_PANEL">
-           <div className="ARC_STAT_COL">
-              <div className="ARC_STAT_TITLE">VAULT STATUS</div>
-              <div className="ARC_STAT_SUB">Historical Records</div>
-              <div className="ARC_STAT_HIGHLIGHT"><i className="fas fa-lock"></i> Read-Only</div>
+        <div className={styles.ARC_STATS_PANEL}>
+           <div className={styles.ARC_STAT_COL}>
+              <div className={styles.ARC_STAT_TITLE}>VAULT STATUS</div>
+              <div className={styles.ARC_STAT_SUB}>Historical Records</div>
+              <div className={styles.ARC_STAT_HIGHLIGHT}><i className="fas fa-lock"></i> Read-Only</div>
            </div>
-           <div className="ARC_STAT_COL ARC_STAT_WIDE">
-              <div className="ARC_STAT_TITLE">ARCHIVE DIRECTORY</div>
-              <div className="ARC_STAT_SUB">Access permanently closed cases and finalized records. Categories are loaded individually to ensure speed.</div>
+           <div className={`${styles.ARC_STAT_COL} ${styles.ARC_STAT_WIDE}`}>
+              <div className={styles.ARC_STAT_TITLE}>ARCHIVE DIRECTORY</div>
+              <div className={styles.ARC_STAT_SUB}>Access permanently closed cases and finalized records. Categories are loaded individually to ensure speed.</div>
            </div>
-           <div className="ARC_TOTAL_COL">
-              <div className="ARC_BIG_NUMBER">{filteredData.length}</div>
-              <div className="ARC_STAT_TITLE">TOTAL {activeTab.toUpperCase()}</div>
+           <div className={styles.ARC_TOTAL_COL}>
+              <div className={styles.ARC_BIG_NUMBER}>{filteredData.length}</div>
+              <div className={styles.ARC_STAT_TITLE}>TOTAL {activeTab.toUpperCase()}</div>
            </div>
         </div>
 
-        <div className="ARC_TABS_CONTAINER">
+        <div className={styles.ARC_TABS_CONTAINER}>
           {(['Documents', 'Blotter', 'Residents', 'Officials', 'Households'] as ArchiveTab[]).map((tab) => (
-            <button key={tab} className={`ARC_TAB_BTN ${activeTab === tab ? 'ACTIVE' : ''}`} onClick={() => setActiveTab(tab)}>
+            <button key={tab} className={`${styles.ARC_TAB_BTN} ${activeTab === tab ? styles.ACTIVE : ''}`} onClick={() => setActiveTab(tab)}>
               {tab}
             </button>
           ))}
         </div>
 
-        <div className="ARC_SEARCH_ROW">
-           <div style={{display:'flex', alignItems:'center', gap:'10px', flex: 1, position: 'relative', minWidth: '250px'}}>
-             <i className="fas fa-search" style={{position:'absolute', left:'16px', color:'#64748b'}}></i>
-             <input className="ARC_SEARCH_INPUT" placeholder={`Search ${activeTab.toLowerCase()} archive...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+        <div className={styles.ARC_SEARCH_ROW}>
+           <div className={styles.ARC_SEARCH_WRAPPER}>
+             <i className={`fas fa-search ${styles.ARC_SEARCH_ICON}`}></i>
+             <input className={styles.ARC_SEARCH_INPUT} placeholder={`Search ${activeTab.toLowerCase()} archive...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
            </div>
-           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-             <label style={{ fontSize: '0.85rem', fontWeight: 600 }}>Status:</label>
-             <select className="ARC_FILTER_SELECT" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+           <div className={styles.ARC_FILTER_WRAPPER}>
+             <label className={styles.ARC_FILTER_LABEL}>Status:</label>
+             <select className={styles.ARC_FILTER_SELECT} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
                {getFilterOptions().map(opt => <option key={opt} value={opt}>{opt}</option>)}
              </select>
            </div>
-           <button className="ARC_REFRESH_BTN" onClick={() => { loadedTabs.current.delete(activeTab); fetchSpecificArchive(activeTab); }} title="Reload Current Tab">
+           <button className={styles.ARC_REFRESH_BTN} onClick={() => { loadedTabs.current.delete(activeTab); fetchSpecificArchive(activeTab); }} title="Reload Current Tab">
               <i className={`fas fa-sync-alt ${loading ? 'fa-spin' : ''}`}></i>
            </button>
         </div>
 
-        <div className="ARC_TABLE_CARD">
-           <div className="ARC_TABLE_WRAP">
+        <div className={styles.ARC_TABLE_CARD}>
+           <div className={styles.ARC_TABLE_WRAP}>
                {loading ? (
-                  <div className="ARC_LOADING_STATE"><i className="fas fa-circle-notch fa-spin"></i><p>Loading {activeTab}...</p></div>
+                  <div className={styles.ARC_LOADING_STATE}><i className="fas fa-circle-notch fa-spin"></i><p>Loading {activeTab}...</p></div>
                ) : (
-                 <table className="ARC_TABLE_MAIN">
+                 <table className={styles.ARC_TABLE_MAIN}>
                    <thead>
                      <tr>
                        {activeTab === 'Documents' && (<><th>REF NO.</th><th>RESIDENT</th><th>TYPE</th><th>FINALIZED</th></>)}
@@ -226,44 +226,48 @@ export default function Archive() {
                        {activeTab === 'Residents' && (<><th>ID</th><th>FULL NAME</th><th>SEX</th><th>DOB</th></>)}
                        {activeTab === 'Officials' && (<><th>NAME</th><th>POSITION</th><th>TERM START</th><th>TERM END</th></>)}
                        {activeTab === 'Households' && (<><th>HH NO.</th><th>HEAD</th><th>ZONE</th><th>STATUS</th></>)}
-                       <th style={{textAlign:'right'}}>STATUS</th>
+                       <th className={styles.ARC_ALIGN_RIGHT}>STATUS</th>
                      </tr>
                    </thead>
                    <tbody>
                      {paginatedData.length === 0 ? (
-                        <tr><td colSpan={5} className="ARC_EMPTY_STATE"><i className="fas fa-box-open"></i><br/>No archived records found.</td></tr>
-                     ) : paginatedData.map((item, index) => (
+                        <tr><td colSpan={6} className={styles.ARC_EMPTY_STATE}><i className="fas fa-box-open"></i><br/>No archived records found.</td></tr>
+                     ) : paginatedData.map((item, index) => {
+                       const currentStatus = (item.status || item.activity_status || 'Archived').toUpperCase();
+                       const badgeClass = styles[`STATUS_${currentStatus}`] || styles.STATUS_DEFAULT;
+
+                       return (
                        <tr key={item.id || index}>
                          {activeTab === 'Documents' && (
-                           <><td className="ARC_ID_CELL">{item.reference_no || 'N/A'}</td><td className="ARC_NAME_CELL">{item.resident_name}</td><td>{item.type}</td><td>{formatDate(item.created_at)}</td></>
+                           <><td className={styles.ARC_ID_CELL}>{item.reference_no || 'N/A'}</td><td className={styles.ARC_NAME_CELL}>{item.resident_name}</td><td>{item.type}</td><td>{formatDate(item.created_at)}</td></>
                          )}
                          {activeTab === 'Blotter' && (
-                           <><td className="ARC_ID_CELL">{item.case_number}</td><td className="ARC_NAME_CELL">{item.complainant_name}</td><td>{item.respondent}</td><td>{formatDate(item.date_filed)}</td></>
+                           <><td className={styles.ARC_ID_CELL}>{item.case_number}</td><td className={styles.ARC_NAME_CELL}>{item.complainant_name}</td><td>{item.respondent}</td><td>{formatDate(item.date_filed)}</td></>
                          )}
                          {activeTab === 'Residents' && (
-                           <><td className="ARC_ID_CELL">{item.record_id}</td><td className="ARC_NAME_CELL">{item.first_name} {item.last_name}</td><td>{item.sex}</td><td>{formatDate(item.dob)}</td></>
+                           <><td className={styles.ARC_ID_CELL}>{item.record_id}</td><td className={styles.ARC_NAME_CELL}>{item.first_name} {item.last_name}</td><td>{item.sex}</td><td>{formatDate(item.dob)}</td></>
                          )}
                          {activeTab === 'Officials' && (
-                           <><td className="ARC_NAME_CELL">{item.full_name}</td><td>{item.position}</td><td>{formatDate(item.term_start)}</td><td>{formatDate(item.term_end)}</td></>
+                           <><td className={styles.ARC_NAME_CELL}>{item.full_name}</td><td>{item.position}</td><td>{formatDate(item.term_start)}</td><td>{formatDate(item.term_end)}</td></>
                          )}
                          {activeTab === 'Households' && (
-                           <><td className="ARC_ID_CELL">{item.household_number}</td><td className="ARC_NAME_CELL">{item.head}</td><td>{item.zone}</td><td>{item.status}</td></>
+                           <><td className={styles.ARC_ID_CELL}>{item.household_number}</td><td className={styles.ARC_NAME_CELL}>{item.head}</td><td>{item.zone}</td><td>{item.status}</td></>
                          )}
-                         <td style={{textAlign:'right'}}>
-                           <span className={`ARC_BADGE STATUS_${(item.status || 'Archived').toUpperCase()}`}>{(item.status || 'Archived').toUpperCase()}</span>
+                         <td className={styles.ARC_ALIGN_RIGHT}>
+                           <span className={`${styles.ARC_BADGE} ${badgeClass}`}>{currentStatus}</span>
                          </td>
                        </tr>
-                     ))}
+                     )})}
                    </tbody>
                  </table>
                )}
            </div>
 
-           <div className="ARC_PAGINATION">
-             <span className="ARC_PAGE_INFO">Page {currentPage} of {totalPages || 1}</span>
-             <div className="ARC_NAV_GROUP">
-               <button className="ARC_NAV_BTN" disabled={currentPage === 1 || loading} onClick={() => setCurrentPage(p => p - 1)}><i className="fas fa-chevron-left"></i></button>
-               <button className="ARC_NAV_BTN" disabled={currentPage === totalPages || totalPages === 0 || loading} onClick={() => setCurrentPage(p => p + 1)}><i className="fas fa-chevron-right"></i></button>
+           <div className={styles.ARC_PAGINATION}>
+             <span className={styles.ARC_PAGE_INFO}>Page {currentPage} of {totalPages || 1}</span>
+             <div className={styles.ARC_NAV_GROUP}>
+               <button className={styles.ARC_NAV_BTN} disabled={currentPage === 1 || loading} onClick={() => setCurrentPage(p => p - 1)}><i className="fas fa-chevron-left"></i></button>
+               <button className={styles.ARC_NAV_BTN} disabled={currentPage === totalPages || totalPages === 0 || loading} onClick={() => setCurrentPage(p => p + 1)}><i className="fas fa-chevron-right"></i></button>
              </div>
            </div>
         </div>

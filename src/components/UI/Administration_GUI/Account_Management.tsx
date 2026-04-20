@@ -56,8 +56,6 @@ export default function AccountManagement() {
       // 3. Normalize the text
       const userRole = rawRole.toLowerCase().replace(/\s+/g, '');
 
-      console.log("🔍 [RBAC DEBUG] Found Role:", userRole || "NONE"); 
-
       // 4. The Gatekeeper: STRICTLY Superadmin Only
       if (userRole === 'superadmin') {
         setIsSuperAdmin(true);
@@ -65,11 +63,9 @@ export default function AccountManagement() {
       }
       
       // If we get here, they failed the check
-      console.warn("🚫 [RBAC DEBUG] Access Denied. Superadmin clearance required.");
       setIsSuperAdmin(false);
       
     } catch (err) {
-      console.error("RBAC Parse Error", err);
       setIsSuperAdmin(false);
     }
   }, []);
@@ -91,7 +87,6 @@ export default function AccountManagement() {
       }
     } catch (err: any) {
       if (err.name !== 'AbortError' && isMounted.current) {
-        console.error('[ACC] fetchAccounts:', err.message);
         if (accounts.length === 0) setError('Cannot reach server. Sync failed.');
       }
     } finally {
