@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 
 // 1. THE MATH & DRAWING ALGORITHM
 import { calculatePagination, generateVectorPDF, type DocumentPayload, type RenderInstruction } from './PDF_Algorithm';
@@ -25,7 +25,7 @@ interface EngineConfig {
   orNo: string;
   feesPaid: string;
   certificateNo: string;
-  [key: string]: any; // 👈 SPECIFIC UPDATE: Allows dynamic keys for tables and Jobseeker fields
+  [key: string]: any; 
 }
 
 export interface DocumentSchema {
@@ -35,13 +35,20 @@ export interface DocumentSchema {
 export const useDocumentEngine = (
   docConfig: EngineConfig,
   captainName: string,
-  kagawadName: string, // Dynamically passed from the API hook
-  onEdit?: (key: string, value: string) => void // 👈 SPECIFIC UPDATE: Catches surface edits
+  kagawadName: string, 
+  onEdit?: (key: string, value: string) => void 
 ) => {
   // --- ENGINE STATE ---
   const [pages, setPages] = useState<React.ReactNode[]>([]);
   const [wordCount, setWordCount] = useState<number>(0);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+
+  // 👇 ARCHITECTURE FIX: Stabilize the onEdit callback using a Ref.
+  // This completely stops the infinite performance loop that was destroying the contentEditable focus.
+  const onEditRef = useRef(onEdit);
+  useEffect(() => {
+    onEditRef.current = onEdit;
+  }, [onEdit]);
 
   // --- SCHEMA ROUTER ---
   const activeSchema = useMemo((): DocumentSchema => {
@@ -63,24 +70,31 @@ export const useDocumentEngine = (
 
   // --- THE VIRTUAL RENDERER (Screen Preview) ---
   useEffect(() => {
-    // Inject the dynamic names into the payload
     const payload: DocumentPayload = { 
       ...docConfig, 
       captainName, 
       kagawadName 
     };
 
-    // Calculate the virtual map for the browser viewport
-    // 👈 SPECIFIC UPDATE: Pass the onEdit function down to the pagination algorithm
-    const virtualDocumentMap = calculatePagination(activeSchema, payload, onEdit);
+    // Pass a stable wrapper function so the Engine doesn't rapidly re-render
+    const virtualDocumentMap = calculatePagination(
+      activeSchema, 
+      payload, 
+      (key, value) => {
+        if (onEditRef.current) {
+          onEditRef.current(key, value);
+        }
+      }
+    );
 
     setPages(virtualDocumentMap.pages);
     setWordCount(virtualDocumentMap.totalWords);
-  }, [docConfig, captainName, kagawadName, activeSchema, onEdit]); // 👈 SPECIFIC UPDATE: Added onEdit to dependencies
+    
+    // 👇 ARCHITECTURE FIX: Notice 'onEdit' is REMOVED from this array. The loop is dead.
+  }, [docConfig, captainName, kagawadName, activeSchema]); 
 
   // --- THE COMPILER (Final Vector PDF & Save) ---
   const handleSaveAndDownload = useCallback(async () => {
-    // Safety check for critical data
     if (!docConfig.residentName || !docConfig.address) {
       alert('Missing critical resident information.');
       return;
@@ -95,14 +109,11 @@ export const useDocumentEngine = (
         kagawadName 
       };
 
-      // 1. Generate Vector PDF (Coordinate-based, high precision)
       const pdfInstance = await generateVectorPDF(activeSchema, payload);
 
-      // 2. Trigger browser download
       const fileName = `${docConfig.type.replace(/\s+/g, '_')}_${docConfig.residentName}.pdf`;
       pdfInstance.save(fileName);
 
-      // 3. Persist record to Database
       await saveDocumentRecord({
         resident_id: docConfig.residentId || 'MANUAL_ENTRY',
         resident_name: docConfig.residentName,
@@ -114,7 +125,7 @@ export const useDocumentEngine = (
         date_requested: new Date().toISOString(),
       });
 
-      return true; // Return success for the UI to handle
+      return true; 
     } catch (error: any) {
       console.error('Engine Compilation Error:', error);
       alert(`Document Engine Error: ${error.message}`);

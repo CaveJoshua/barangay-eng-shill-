@@ -27,17 +27,9 @@ export interface DocumentPayload {
 
 export interface RenderInstruction {
   type:
-    | 'text'
-    | 'title'
-    | 'line'
-    | 'spacer'
-    | 'page_break'
-    | 'image_banner'
-    | 'columns'
-    | 'stamp_box'
-    | 'watermark'
-    | 'logo_text_header'
-    | 'table';
+    | 'text' | 'title' | 'line' | 'spacer' | 'page_break'
+    | 'image_banner' | 'columns' | 'stamp_box' | 'watermark'
+    | 'logo_text_header' | 'table';
     
   color?: string; 
   content?: string;
@@ -188,9 +180,26 @@ export const calculatePagination = (
 
       case 'table': {
         const headers = inst.tableHeaders || [];
-        // Safely fallback to schema rows if payload rows are empty
-        const rows: string[][] = (payload.tableRows && payload.tableRows.length > 0) ? payload.tableRows : (inst.tableRows || []);
+        const baseRows = inst.tableRows || [];
+        const dynamicRows = payload.tableRows || [];
+        
+        // 👇 THE FIX: Mathematically merge user rows with schema rows so it NEVER shrinks.
+        const maxRows = Math.max(baseRows.length, dynamicRows.length);
         const numCols = headers.length || 1;
+        const rows: string[][] = [];
+        
+        for (let r = 0; r < maxRows; r++) {
+          const newRow: string[] = [];
+          for (let c = 0; c < numCols; c++) {
+            const bCell = (baseRows[r] && baseRows[r][c]) ? baseRows[r][c] : '';
+            const dCell = (dynamicRows[r] && dynamicRows[r][c] !== undefined && dynamicRows[r][c] !== '') 
+              ? dynamicRows[r][c] 
+              : bCell;
+            newRow.push(dCell);
+          }
+          rows.push(newRow);
+        }
+
         const colFracs = inst.columnWidths || headers.map(() => 1 / numCols);
 
         currentPageElements.push(
@@ -203,7 +212,7 @@ export const calculatePagination = (
               </tr>
             </thead>
             <tbody>
-              {/* EXPLICIT TYPES ADDED HERE TO FIX TS(7006) ERRORS */}
+              {/* Explicit TypeScript mappings to fix the TS(7006) errors */}
               {rows.map((row: string[], rIdx: number) => (
                 <tr key={rIdx}>
                   {row.map((cell: string, cIdx: number) => (
@@ -328,7 +337,7 @@ export const calculatePagination = (
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2. VECTOR PDF COMPILER 
+// 2. VECTOR PDF COMPILER (Flawless PDF Output)
 // ─────────────────────────────────────────────────────────────────────────────
 export const generateVectorPDF = async (
   schema: DocumentSchema,
@@ -431,7 +440,26 @@ export const generateVectorPDF = async (
 
       case 'table': {
         const tHeaders = inst.tableHeaders || [];
-        const tRows: string[][] = (payload.tableRows && payload.tableRows.length > 0) ? payload.tableRows : (inst.tableRows || []);
+        const baseRows = inst.tableRows || [];
+        const dynamicRows = payload.tableRows || [];
+        
+        // Exact same strict merge logic for the printer
+        const maxRows = Math.max(baseRows.length, dynamicRows.length);
+        const numCols = tHeaders.length || 1;
+        const tRows: string[][] = [];
+        
+        for (let r = 0; r < maxRows; r++) {
+          const newRow: string[] = [];
+          for (let c = 0; c < numCols; c++) {
+            const bCell = (baseRows[r] && baseRows[r][c]) ? baseRows[r][c] : '';
+            const dCell = (dynamicRows[r] && dynamicRows[r][c] !== undefined && dynamicRows[r][c] !== '') 
+              ? dynamicRows[r][c] 
+              : bCell;
+            newRow.push(dCell);
+          }
+          tRows.push(newRow);
+        }
+
         const tColFracs = inst.columnWidths || tHeaders.map(() => 1 / Math.max(tHeaders.length, 1));
         
         pdf.setLineWidth(0.3);
@@ -446,7 +474,6 @@ export const generateVectorPDF = async (
         currentY += 8;
 
         pdf.setFont('times', 'normal');
-        // EXPLICIT TYPES ADDED HERE TO FIX TS(7006) ERRORS
         tRows.forEach((row: string[]) => {
           let maxLines = 1;
           const parsedRow = row.map((cell: string, cIdx: number) => {
@@ -523,6 +550,7 @@ export const generateVectorPDF = async (
         inst.columns.forEach((col, cIdx) => {
           let colY = currentY;
           const startX = MARGIN.left + colWidth * cIdx;
+
           col.lines.forEach(line => {
             const lineAlign = line.align || col.align || 'left';
             let alignX = startX;

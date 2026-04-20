@@ -28,6 +28,7 @@ export const AffidavitSchema: DocumentSchema = {
       // 2. Logo + stacked text header (matches photo exactly — no green banner)
       {
         type: 'logo_text_header',
+        alignOffset: -13, // Keep this at 0 since we're not trying to center under a second logo
         logoSrc: brgyLogo,
         logoSize: 22,
         heightInMm: 26,
