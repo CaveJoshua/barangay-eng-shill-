@@ -9,7 +9,7 @@ interface IOfficial {
   id?: string;
   full_name: string;
   position: 
-    | 'Super Admin' 
+    | 'Barangay Hall' 
     | 'Punong Barangay' 
     | 'Barangay Secretary' 
     | 'Barangay Treasurer' 
@@ -41,7 +41,7 @@ interface ModalProps {
 
 // ── POSITION CONFIGURATION ────────────────────────────────────
 const POSITIONS = [
-  'Super Admin',      // 🏛️ The Barangay Hall Master Account (Timeless)
+  'Barangay Hall',      // 🏛️ The Barangay Hall Master Account (Timeless)
   'Punong Barangay',  // 👑 The Primary Village Administrator
   'Barangay Secretary',
   'Barangay Treasurer',
@@ -71,12 +71,12 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
     contact_number: ''
   });
 
-  const isSuperAdminMode = formData.position === 'Super Admin';
+  const isBarangayHallMode = formData.position === 'Barangay Hall';
 
   // ── 1. RESIDENT DATA SYNC ───────────────────────────────────
   useEffect(() => {
     const fetchResidents = async () => {
-      if (isSuperAdminMode) {
+      if (isBarangayHallMode) {
         setResidents([]);
         return;
       }
@@ -96,7 +96,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isOpen, isSuperAdminMode]);
+  }, [isOpen, isBarangayHallMode]);
 
   // ── 2. EDIT MODE INITIALIZATION ─────────────────────────────
   useEffect(() => {
@@ -130,7 +130,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
   });
 
   const handleSelectResident = (r: IResident) => {
-    if (isSuperAdminMode) return; 
+    if (isBarangayHallMode) return; 
 
     const middle = r.middle_name ? `${r.middle_name} ` : '';
     const fullName = `${r.first_name} ${middle}${r.last_name}`.trim().toUpperCase();
@@ -147,7 +147,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
     if (officialToEdit && officialToEdit.position === pos) return true;
     
     const singleRoles = [
-      'Super Admin', 'Punong Barangay', 'Barangay Secretary', 
+      'Barangay Hall', 'Punong Barangay', 'Barangay Secretary', 
       'Barangay Treasurer', 'SK Chairperson'
     ];
     
@@ -198,11 +198,11 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
       return alert("Error: Required Identity Field (Name or Gmail) is missing.");
     }
 
-    if (!isSuperAdminMode && !formData.term_start) {
+    if (!isBarangayHallMode && !formData.term_start) {
       return alert("Error: Service Start date is required for standard officials.");
     }
 
-    if (isSuperAdminMode && (!verificationCode || !traceId)) {
+    if (isBarangayHallMode && (!verificationCode || !traceId)) {
       return alert("Error: You must request and verify the Gmail code before authorizing.");
     }
 
@@ -219,7 +219,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
       // Pack the payload exactly as the backend expects it
       const payload = {
         ...formData,
-        ...(isSuperAdminMode && { otp: verificationCode, trace_id: traceId })
+        ...(isBarangayHallMode && { otp: verificationCode, trace_id: traceId })
       };
 
       const res = await fetch(url, {
@@ -234,7 +234,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
         
         if (method === 'POST' && result.account) {
           alert(`
-            ${isSuperAdminMode ? 'BARANGAY MASTER ACCOUNT AUTHORIZED' : 'OFFICIAL IDENTITY REGISTERED'}
+            ${isBarangayHallMode ? 'BARANGAY MASTER ACCOUNT AUTHORIZED' : 'OFFICIAL IDENTITY REGISTERED'}
             
             GENERATED CREDENTIALS:
             -----------------------------------
@@ -268,35 +268,35 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
         
         <div className="OM_HEADER">
           <h3>{officialToEdit ? 'Modify System Block' : 'Identity Authorization'}</h3>
-          <p>{isSuperAdminMode ? 'Master Gmail Handshake Required.' : 'Registering authorized personnel identity.'}</p>
+          <p>{isBarangayHallMode ? 'Master Gmail Handshake Required.' : 'Registering authorized personnel identity.'}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="OM_FORM">
           
           <div className="OM_FORM_GROUP" ref={searchWrapperRef}>
-            <label>{isSuperAdminMode ? 'Barangay Hall Gmail (Super Admin)' : 'Legal Full Name'}</label>
+            <label>{isBarangayHallMode ? 'Barangay Hall Gmail' : 'Legal Full Name'}</label>
             <div style={{ display: 'flex', gap: '8px', position: 'relative' }}>
               <input 
-                type={isSuperAdminMode ? "email" : "text"} 
+                type={isBarangayHallMode ? "email" : "text"} 
                 required 
                 className="OM_INPUT" 
-                placeholder={isSuperAdminMode ? "e.g. samplehall@gmail.com" : "Search resident or enter name..."}
+                placeholder={isBarangayHallMode ? "e.g. samplehall@gmail.com" : "Search resident or enter name..."}
                 value={formData.full_name}
                 onChange={e => {
                   const val = e.target.value;
                   setFormData({
                     ...formData, 
-                    full_name: isSuperAdminMode ? val.toLowerCase() : val.toUpperCase()
+                    full_name: isBarangayHallMode ? val.toLowerCase() : val.toUpperCase()
                   });
-                  if (!isSuperAdminMode) setShowDropdown(true);
+                  if (!isBarangayHallMode) setShowDropdown(true);
                 }}
-                onFocus={() => !isSuperAdminMode && setShowDropdown(true)}
+                onFocus={() => !isBarangayHallMode && setShowDropdown(true)}
                 autoComplete="off"
                 style={{ flex: 1 }}
               />
               
               {/* 🛡️ THE NEW TRIGGER BUTTON */}
-              {isSuperAdminMode && !otpSent && (
+              {isBarangayHallMode && !otpSent && (
                 <button 
                   type="button" 
                   onClick={handleRequestOTP}
@@ -308,7 +308,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
                 </button>
               )}
 
-              {showDropdown && !isSuperAdminMode && filteredResidents.length > 0 && (
+              {showDropdown && !isBarangayHallMode && filteredResidents.length > 0 && (
                 <ul className="OM_DROPDOWN_LIST">
                   {filteredResidents.map(r => (
                     <li 
@@ -335,7 +335,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
                   ...formData, 
                   position: newPos, 
                   full_name: '',
-                  term_start: newPos === 'Super Admin' ? '' : new Date().toISOString().split('T')[0],
+                  term_start: newPos === 'Barangay Hall' ? '' : new Date().toISOString().split('T')[0],
                   term_end: ''
                 });
                 // Reset OTP flow if they switch away and come back
@@ -353,7 +353,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
           </div>
 
           {/* 🛡️ CONDITIONAL AUTHENTICATION CODE INPUT */}
-          {isSuperAdminMode && otpSent && (
+          {isBarangayHallMode && otpSent && (
             <div className="OM_FORM_GROUP">
               <label style={{ color: '#d97706' }}>Gmail Verification Code</label>
               <input 
@@ -372,7 +372,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
             </div>
           )}
 
-          {!isSuperAdminMode && (
+          {!isBarangayHallMode && (
             <>
               <div className="OM_ROW">
                 <div className="OM_FORM_GROUP">
@@ -413,7 +413,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
             <button type="button" className="OM_BTN_SECONDARY" onClick={onClose}>
               Abort
             </button>
-            <button type="submit" className="OM_BTN_PRIMARY" disabled={isSubmitting || (isSuperAdminMode && !otpSent)}>
+            <button type="submit" className="OM_BTN_PRIMARY" disabled={isSubmitting || (isBarangayHallMode && !otpSent)}>
               {isSubmitting ? 'Syncing...' : 'Validate & Authorize'}
             </button>
           </div>

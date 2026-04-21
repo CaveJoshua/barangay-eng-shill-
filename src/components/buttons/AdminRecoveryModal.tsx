@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ApiService } from '../UI/api'; // Connects to our fixed API methods
-import './styles/Login_modal.css'; // Reusing the exact same styles
+import { ApiService } from '../UI/api'; 
+import './styles/Login_modal.css'; 
 
 interface AdminRecoveryModalProps {
   onClose: () => void;
@@ -15,6 +15,8 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
   
+  // UI State matching Login Modal
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -92,7 +94,6 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
     setError('');
 
     try {
-      // Passes the email, OTP, and the new password to the public-reset endpoint
       const response = await ApiService.updatePassword(email, otp, newPassword);
       if (!isMounted.current) return;
 
@@ -134,15 +135,21 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
             {error && <div className="LM_ERROR_MSG">{error}</div>}
             
             <div className="LM_INPUT_GROUP">
-              <input 
-                type="email" 
-                placeholder="official@example.com" 
-                value={email} 
-                onChange={(e) => setEmail(e.target.value)} 
-                disabled={loading}
-                required 
-              />
+              <label>Email Address</label>
+              {/* 👇 THE FIX: Wrapped the input in LM_INPUT_WRAPPER and added the icon */}
+              <div className="LM_INPUT_WRAPPER">
+                <i className="fas fa-at"></i>
+                <input 
+                  type="email" 
+                  placeholder="official@example.com" 
+                  value={email} 
+                  onChange={(e) => setEmail(e.target.value)} 
+                  disabled={loading}
+                  required 
+                />
+              </div>
             </div>
+
             <button className="LM_SUBMIT_BTN" disabled={loading}>
               {loading ? <i className="fas fa-spinner fa-spin"></i> : 'Send Reset Link'}
             </button>
@@ -164,6 +171,7 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
             {error && <div className="LM_ERROR_MSG">{error}</div>}
             
             <div className="LM_INPUT_GROUP">
+              <label style={{ textAlign: 'center' }}>6-Digit Code</label>
               <input 
                 type="text" 
                 className="LM_OTP_INPUT" 
@@ -175,6 +183,7 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
                 required 
               />
             </div>
+
             <button className="LM_SUBMIT_BTN" disabled={loading}>
               {loading ? <i className="fas fa-spinner fa-spin"></i> : 'Verify Code'}
             </button>
@@ -193,16 +202,25 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
             {error && <div className="LM_ERROR_MSG">{error}</div>}
             
             <div className="LM_INPUT_GROUP">
-              <input 
-                type="password" 
-                placeholder="New Password (min 8 chars)" 
-                value={newPassword} 
-                onChange={(e) => setNewPassword(e.target.value)} 
-                disabled={loading}
-                required 
-                minLength={8}
-              />
+              <label>New Password</label>
+              {/* 👇 THE FIX: Wrapped the input and added the show/hide eye toggle */}
+              <div className="LM_INPUT_WRAPPER">
+                <i className="fas fa-lock"></i>
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  placeholder="Minimum 8 characters" 
+                  value={newPassword} 
+                  onChange={(e) => setNewPassword(e.target.value)} 
+                  disabled={loading}
+                  required 
+                  minLength={8}
+                />
+                <button type="button" className="LM_EYE_TOGGLE" onClick={() => setShowPassword(!showPassword)}>
+                    <i className={showPassword ? "fas fa-eye-slash" : "fas fa-eye"}></i>
+                </button>
+              </div>
             </div>
+
             <button className="LM_SUBMIT_BTN" disabled={loading}>
               {loading ? <i className="fas fa-spinner fa-spin"></i> : 'Update Password'}
             </button>
@@ -212,10 +230,10 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
         {/* --- STEP 4: SUCCESS --- */}
         {view === 'SUCCESS' && (
           <div className="LM_SUCCESS_AREA">
-            <i className="fas fa-check-circle" style={{fontSize: '3rem', color: '#27ae60', marginBottom: '15px'}}></i>
+            <i className="fas fa-check-circle" style={{fontSize: '3rem', color: '#10b981', margin: '0 auto 1.5rem', display: 'block'}}></i>
             <h2>Password Updated</h2>
-            <p>Your account has been successfully secured.</p>
-            <button className="LM_SUBMIT_BTN" onClick={onClose} style={{marginTop: '20px'}}>
+            <p style={{ color: '#64748b', marginTop: '10px' }}>Your account has been successfully secured.</p>
+            <button className="LM_SUBMIT_BTN" onClick={onClose} style={{marginTop: '30px', width: '100%'}}>
               Return to Login
             </button>
           </div>

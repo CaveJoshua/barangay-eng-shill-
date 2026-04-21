@@ -1,10 +1,8 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { FileComponent } from '../../buttons/Tools/Blotter_File'; 
 import './styles/Blotter.css';
-// 🛡️ ZERO TRUST: Use the Mastermind Service
 import { ApiService } from '../api'; 
 
-// 1. Data Structure for Incident Cases matching the SQL Schema
 interface IIncidentCase {
   id: string;
   case_number: string;
@@ -23,56 +21,45 @@ interface IIncidentCase {
 
 const ITEMS_PER_PAGE = 10;
 
-// ─── 🛡️ THE FIX: Define the props so TypeScript knows to expect highlightId ───
 interface IncidentPageProps {
   highlightId?: string;
 }
 
 export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
-  // --- STATE MANAGEMENT ---
   const [cases, setCases] = useState<IIncidentCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Tab State
   const [activeTab, setActiveTab] = useState<'Pending' | 'Active' | 'Hearing' | 'Settled' | 'Rejected'>('Pending');
   
-  // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Modal Controls
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCase, setSelectedCase] = useState<IIncidentCase | null>(null);
 
-  // Scheduling Modal State
   const [hearingModal, setHearingModal] = useState({
     isOpen: false, caseId: '', date: '', time: '09:00'
   });
 
-  // Rejection Modal State
   const [rejectModal, setRejectModal] = useState({
     isOpen: false, caseId: '', reason: ''
   });
 
-  // ─── 🛡️ THE FIX: State for the Glowing Highlight ───
   const [activeHighlight, setActiveHighlight] = useState<string | null>(null);
 
-  // ── SAFE REFS FOR THE HANDSHAKE ──
   const isFetchingCases = useRef(false);
   const isMounted = useRef(true);
 
-  // ─── 🛡️ THE FIX: Effect to trigger and remove the highlight glow ───
+  // ─── THE FIX: Keep the highlight active for 3 seconds ───
   useEffect(() => {
     if (highlightId) {
       setActiveHighlight(highlightId);
-      // Automatically clear the highlight after 2.5 seconds
-      const timer = setTimeout(() => setActiveHighlight(null), 2500);
+      const timer = setTimeout(() => setActiveHighlight(null), 3000);
       return () => clearTimeout(timer);
     }
   }, [highlightId]);
 
-  // --- DATA FETCHING (The Smart Pulse Handshake) ---
   const fetchCases = useCallback(async (silent = false, signal?: AbortSignal) => {
     if (!isMounted.current || isFetchingCases.current) return;
     
@@ -100,9 +87,9 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
         setCases(mappedData);
         setError('');
       }
-    } catch (err: any) {
-      if (err.name !== 'AbortError' && isMounted.current) {
-        console.error("[INCIDENT REPORT] Sync Error:", err);
+    } catch (fetchError: any) {
+      if (fetchError.name !== 'AbortError' && isMounted.current) {
+        console.error("[INCIDENT REPORT] Sync Error:", fetchError);
         setError("Database Sync Failed. Please check your connection.");
       }
     } finally {
@@ -139,12 +126,10 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
     };
   }, [fetchCases]);
 
-  // --- RESET PAGE ON FILTER CHANGE ---
   useEffect(() => {
     setCurrentPage(1);
   }, [activeTab, searchTerm]);
 
-  // --- FILTERING & SEARCH ---
   const stats = useMemo(() => ({
     pending: cases.filter(c => c.status === 'Pending').length,
     active: cases.filter(c => c.status === 'Active').length,
@@ -159,25 +144,23 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
     });
   }, [cases, activeTab, searchTerm]);
 
-  // --- PAGINATION CALCULATION ---
   const totalPages = Math.ceil(filteredCases.length / ITEMS_PER_PAGE);
   const paginatedCases = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     return filteredCases.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [filteredCases, currentPage]);
 
-  // ─── 🛡️ THE FIX: PURE PARTIAL UPDATES ───
   const handleStatusUpdate = async (caseId: string, payloadUpdates: any) => {
     try {
-      // Send only the exact fields that need to change directly to the API
       const result = await ApiService.saveBlotter(caseId, payloadUpdates);
       
       if (result.success) {
-        fetchCases(true); // Silently refresh the table to move the row to the new tab
+        fetchCases(true); 
       } else {
         alert(`Action failed: ${result.error || 'Backend rejected the update.'}`);
       }
-    } catch { 
+    } catch (updateError) { 
+      console.error("Status Update Error:", updateError);
       alert("Network error. Please try again."); 
     }
   };
@@ -209,7 +192,6 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
     <div className="AD-BLOT_PAGE_WRAP">
       <div className="AD-BLOT_MAIN_CONTAINER">
 
-        {/* HEADER SECTION */}
         <header className="AD-BLOT_HEADER_FLEX">
           <div>
             <h1 className="AD-BLOT_PAGE_TITLE">Incident Reports</h1>
@@ -220,7 +202,6 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
           </button>
         </header>
 
-        {/* TOP STAT CARDS */}
         <section className="AD-BLOT_STATS_GRID">
           <div className={`AD-BLOT_STAT_CARD AD-BLOT_CLICKABLE ${activeTab === 'Pending' ? 'AD-BLOT_ACTIVE_CARD' : ''}`} onClick={() => setActiveTab('Pending')}>
             <div className="AD-BLOT_STAT_INFO">
@@ -255,7 +236,6 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
           </div>
         </section>
 
-        {/* TABS & SEARCH BAR */}
         <section className="AD-BLOT_SEARCH_ROW">
           <div className="AD-BLOT_TABS_ROW">
             {(['Pending', 'Active', 'Hearing', 'Settled', 'Rejected'] as const).map(tab => (
@@ -271,12 +251,11 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
               className="AD-BLOT_SEARCH_INPUT"
               placeholder="Search by name or case #..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(searchEvent) => setSearchTerm(searchEvent.target.value)}
             />
           </div>
         </section>
 
-        {/* MAIN DATA TABLE */}
         <main className="AD-BLOT_TABLE_CONTAINER">
           <div className="AD-BLOT_TABLE_WRAP">
             <table className="AD-BLOT_TABLE_MAIN">
@@ -302,8 +281,8 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
                   paginatedCases.map((c) => {
                     const isFinalized = ['Settled', 'Archived', 'Rejected'].includes(c.status);
                     
-                    // ─── 🛡️ THE FIX: Check if this row matches the hint ID ───
-                    const isGlowing = activeHighlight === String(c.id);
+                    // 👇 THE FIX: The string now correctly matches BOTH the id or the case_number
+                    const isGlowing = activeHighlight === String(c.id) || activeHighlight === String(c.case_number);
 
                     return (
                       <tr 
@@ -322,7 +301,6 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
                         </td>
                         <td><span className={`AD-BLOT_STATUS_BADGE AD-BLOT_STATUS_${c.status.toUpperCase()}`}>{c.status}</span></td>
                         <td style={{ textAlign: 'right' }}>
-                          {/* 🛡️ ADDED GAP & FLEX HERE */}
                           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
                             {(c.status === 'Active' || c.status === 'Pending') && (
                               <button className="AD-BLOT_ACTION_ICON" onClick={() => setHearingModal({ isOpen: true, caseId: c.id, date: '', time: '09:00' })} title="Schedule"><i className="fas fa-calendar-plus"></i></button>
@@ -346,7 +324,6 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
             </table>
           </div>
 
-          {/* PAGINATION CONTROLS */}
           <div className="AD-BLOT_PAGINATION_BAR">
             <div className="AD-BLOT_PAGINATION_INFO">
               Showing {paginatedCases.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredCases.length)} of {filteredCases.length} entries
@@ -372,7 +349,6 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
         </main>
       </div>
 
-      {/* RENDER DYNAMIC MODALS */}
       {isModalOpen && (
         <FileComponent
           onClose={() => setIsModalOpen(false)}
@@ -382,17 +358,15 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
         />
       )}
 
-      {/* HEARING MODAL */}
       {hearingModal.isOpen && (
         <div className="AD-BLOT_MODAL_OVERLAY" onClick={() => setHearingModal(p => ({ ...p, isOpen: false }))}>
-          <div className="AD-BLOT_SIMPLE_MODAL" onClick={e => e.stopPropagation()}>
+          <div className="AD-BLOT_SIMPLE_MODAL" onClick={clickEvent => clickEvent.stopPropagation()}>
             <h3 className="AD-BLOT_MODAL_TITLE">Schedule Hearing</h3>
             <label className="AD-BLOT_MODAL_LABEL">Date</label>
-            <input type="date" value={hearingModal.date} onChange={e => setHearingModal(p => ({ ...p, date: e.target.value }))} />
+            <input type="date" value={hearingModal.date} onChange={dateEvent => setHearingModal(p => ({ ...p, date: dateEvent.target.value }))} />
             <label className="AD-BLOT_MODAL_LABEL">Time</label>
-            <input type="time" value={hearingModal.time} onChange={e => setHearingModal(p => ({ ...p, time: e.target.value }))} />
+            <input type="time" value={hearingModal.time} onChange={timeEvent => setHearingModal(p => ({ ...p, time: timeEvent.target.value }))} />
             
-            {/* 🛡️ ADDED GAP HERE */}
             <div className="AD-BLOT_MODAL_ACTIONS" style={{ display: 'flex', gap: '10px' }}>
               <button className="AD-BLOT_PAGE_BTN" onClick={() => setHearingModal(p => ({ ...p, isOpen: false }))}>Cancel</button>
               <button className="AD-BLOT_ADD_BTN" onClick={submitHearing}>Confirm</button>
@@ -401,15 +375,13 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
         </div>
       )}
 
-      {/* REJECTION MODAL */}
       {rejectModal.isOpen && (
         <div className="AD-BLOT_MODAL_OVERLAY" onClick={() => setRejectModal(p => ({ ...p, isOpen: false }))}>
-          <div className="AD-BLOT_SIMPLE_MODAL" onClick={e => e.stopPropagation()}>
+          <div className="AD-BLOT_SIMPLE_MODAL" onClick={clickEvent => clickEvent.stopPropagation()}>
             <h3 className="AD-BLOT_MODAL_TITLE" style={{ color: '#ef4444' }}>Reject Complaint</h3>
             <label className="AD-BLOT_MODAL_LABEL">Provide reason for rejection</label>
-            <textarea rows={3} value={rejectModal.reason} onChange={e => setRejectModal(p => ({ ...p, reason: e.target.value }))} />
+            <textarea rows={3} value={rejectModal.reason} onChange={reasonEvent => setRejectModal(p => ({ ...p, reason: reasonEvent.target.value }))} />
             
-            {/* 🛡️ ADDED GAP HERE */}
             <div className="AD-BLOT_MODAL_ACTIONS" style={{ display: 'flex', gap: '10px' }}>
               <button className="AD-BLOT_PAGE_BTN" onClick={() => setRejectModal(p => ({ ...p, isOpen: false }))}>Cancel</button>
               <button className="AD-BLOT_ADD_BTN" onClick={submitRejection} style={{ backgroundColor: '#ef4444' }}>Confirm Reject</button>

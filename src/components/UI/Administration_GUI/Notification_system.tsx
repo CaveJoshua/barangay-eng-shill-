@@ -38,7 +38,6 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ onNavigate }) =
     controllerRef.current = new AbortController();
 
     try {
-      // Backend automatically applies the "Online Sensor" filter for Admin/Staff
       const data = await ApiService.getNotifications(controllerRef.current.signal);
       if (data && Array.isArray(data)) {
         setNotifications(data);
@@ -69,51 +68,58 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ onNavigate }) =
 
   // ─── EVENT HANDLERS ───────────────────────────────────────────────
   
-  const handleNotificationClick = async (n: DatabaseNotification) => {
-    if (!n.is_read) {
-      try {
-        setNotifications(prev => prev.map(notif => notif.id === n.id ? { ...notif, is_read: true } : notif));
-        await ApiService.markNotificationRead(String(n.id));
-      } catch (err) {
-        console.error("Failed to mark read", err);
-      }
-    }
-
+  const handleNotificationClick = (n: DatabaseNotification) => {
     if (onNavigate) {
       const normalizedType = (n.type || '').toLowerCase();
-      // 🛡️ SYNC: Corrected destination names to match your Sidebar tabs
-      const destination = normalizedType === 'document' ? 'Document' : 'Incident Reports';
+      const caseMatch = n.message.match(/(BLTR|BL|INCD|TMP|BLT|ON-LN|WK-IN|REF)-[A-Z0-9]+/i);
+      const extractedRef = caseMatch ? caseMatch[0] : undefined;
+
+      let destination = 'Notification Center';
+      if (normalizedType === 'document') {
+        destination = 'Document';
+      } else if (normalizedType === 'blotter' || normalizedType === 'incident') {
+        destination = 'Incident Reports';
+      }
       
-      // 🛡️ SYNC: Pass the reference number hint if it exists in the message
-      const refMatch = n.message.match(/Ref:\s*([A-Z0-9-]+)/i);
-      onNavigate(destination, refMatch ? refMatch[1] : undefined); 
+      onNavigate(destination, extractedRef); 
+    }
+
+    if (!n.is_read) {
+      setNotifications(prev => prev.map(notif => notif.id === n.id ? { ...notif, is_read: true } : notif));
+      if (ApiService.markNotificationRead) {
+        ApiService.markNotificationRead(String(n.id)).catch(() => 
+          console.error("Failed to mark read")
+        );
+      }
     }
   };
 
-  const handleMarkAllRead = async () => {
+  const handleMarkAllRead = () => {
     const unreadVisible = filteredNotifs.filter(n => !n.is_read);
     if (unreadVisible.length === 0) return;
 
     const unreadIds = unreadVisible.map(n => n.id);
+    
     setNotifications(prev => prev.map(n => unreadIds.includes(n.id) ? { ...n, is_read: true } : n));
 
-    try {
-      await ApiService.markAllNotificationsRead();
-    } catch (err) {
-      console.error("Failed to mark all as read");
+    if (ApiService.markAllNotificationsRead) {
+      ApiService.markAllNotificationsRead().catch(() => 
+        console.error("Failed to mark all as read")
+      );
     }
   };
 
-  const handleDelete = async (e: React.MouseEvent, id: number | string) => {
+  const handleDelete = (e: React.MouseEvent, id: number | string) => {
     e.stopPropagation(); 
     if (!window.confirm("Permanently delete this notification record?")) return;
 
-    try {
-      setNotifications(prev => prev.filter(n => n.id !== id));
-      await ApiService.deleteNotification(String(id));
-    } catch (err) {
-      alert("Database error: Record could not be removed.");
-      fetchData();
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    
+    if (ApiService.deleteNotification) {
+      ApiService.deleteNotification(String(id)).catch(() => {
+        alert("Database error: Record could not be removed.");
+        fetchData(); 
+      });
     }
   };
 
@@ -130,7 +136,7 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ onNavigate }) =
   const getIconClass = (type: string) => {
     const t = (type || '').toLowerCase();
     if (t === 'document') return "fas fa-file-alt";
-    if (t === 'blotter') return "fas fa-balance-scale";
+    if (t === 'blotter' || t === 'incident') return "fas fa-balance-scale";
     return "fas fa-info-circle";
   };
 

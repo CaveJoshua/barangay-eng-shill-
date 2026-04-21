@@ -73,16 +73,14 @@ const AdministratorNotification: React.FC<AdminNotifProps> = ({ onNavigate }) =>
       const liveData = await ApiService.getNotifications(notifsControllerRef.current.signal);
       
       if (liveData && Array.isArray(liveData)) {
-        // 🛡️ THE SMART SENSOR: Map backend fields and extract Case/Ref numbers for highlighting
         const mappedNotifs: LiveNotification[] = liveData.map((item: any) => {
           const msg = item.message || '';
           
           /**
            * 📡 ENHANCED REGEX SENSOR
-           * Automatically detects all your case prefixes: BLTR, BL, INCD, TMP, ON-LN, WK-IN, or REF
-           * This allows the "Highlight Glow" to work even if the message format changes slightly.
+           * 👇 THE FIX: Added a hyphen inside the brackets [A-Z0-9-]+ so it doesn't cut off INCD-2026-6508-Y5N7
            */
-          const caseMatch = msg.match(/(BLTR|BL|INCD|TMP|BLT|ON-LN|WK-IN|REF)-[A-Z0-9]+/i);
+          const caseMatch = msg.match(/(BLTR|BL|INCD|TMP|BLT|ON-LN|WK-IN|REF)-[A-Z0-9-]+/i);
           const extractedRef = caseMatch ? caseMatch[0] : String(item.id);
 
           return {
@@ -105,7 +103,7 @@ const AdministratorNotification: React.FC<AdminNotifProps> = ({ onNavigate }) =>
         }
       }
     } catch (err: any) {
-      if (err.name !== 'AbortError') console.error("[NOTIFS] Sync Failure:", err.message);
+      if (err.name !== 'AbortError') console.error("[NOTIFS] Sync Failure");
     } finally {
       if (document.visibilityState === 'visible') {
         notifsTimer.current = setTimeout(fetchLiveNotifs, NOTIF_POLL_INTERVAL);
@@ -132,42 +130,37 @@ const AdministratorNotification: React.FC<AdminNotifProps> = ({ onNavigate }) =>
     };
   }, [fetchLiveNotifs]);
 
-  // 🛡️ Hide cleared items
   const visibleNotifications = notifications.filter(n => !clearedIds.includes(n.id));
-  
-  // Count only unread visible items
   const unreadCount = visibleNotifications.filter(n => !readIds.includes(n.id)).length;
 
-  // 🚀 HANDSHAKE: Mark read locally and navigate with Highlight Hint
-  const handleNotificationClick = async (n: LiveNotification) => {
-    if (!readIds.includes(n.id)) {
-      setReadIds(prev => [...prev, n.id]);
-      try { 
-        if (ApiService.markNotificationRead) await ApiService.markNotificationRead(n.id); 
-      } catch(e) { console.error("Could not update read status on server"); }
-    }
-
+  const handleNotificationClick = (n: LiveNotification) => {
     setShowNotifs(false);
 
-    // 🛡️ Pipeline Routing
     const normalizedType = n.type.toLowerCase();
     if (normalizedType === 'document') {
       onNavigate('Document', n.originalId); 
     } else if (normalizedType === 'blotter' || normalizedType === 'incident') {
       onNavigate('Incident Reports', n.originalId); 
+    } else {
+      onNavigate('Notification Center'); 
+    }
+
+    if (!readIds.includes(n.id)) {
+      setReadIds(prev => Array.from(new Set([...prev, n.id])));
+      if (ApiService.markNotificationRead) {
+        ApiService.markNotificationRead(n.id).catch(() => console.error("Could not update read status"));
+      }
     }
   };
 
-  // 🛡️ Clear entire feed for the current session
-  const handleClearAll = async () => {
+  const handleClearAll = () => {
     const allVisibleIds = visibleNotifications.map(n => n.id);
-    
     setReadIds(prev => Array.from(new Set([...prev, ...allVisibleIds])));
     setClearedIds(prev => Array.from(new Set([...prev, ...allVisibleIds])));
 
-    try { 
-      if (ApiService.clearAllNotifications) await ApiService.clearAllNotifications(); 
-    } catch(e) { console.error("Global clear failed"); }
+    if (ApiService.clearAllNotifications) {
+      ApiService.clearAllNotifications().catch(() => console.error("Global clear failed")); 
+    }
   };
 
   const getIconClass = (type: string) => {
@@ -178,32 +171,54 @@ const AdministratorNotification: React.FC<AdminNotifProps> = ({ onNavigate }) =>
   };
 
   return (
-    <div className="FRAME_NOTIF_WRAP" ref={notifRef}>
-      <button className="FRAME_NOTIF_BTN" onClick={() => setShowNotifs(!showNotifs)}>
-        <i className="fas fa-bell"></i>
+    <div className="FRAME_NOTIF_WRAP" ref={notifRef} style={{ position: 'relative', display: 'inline-block' }}>
+      
+      <button 
+        className="FRAME_NOTIF_BTN" 
+        onClick={() => setShowNotifs(!showNotifs)}
+        style={{ background: 'transparent', border: 'none', cursor: 'pointer', position: 'relative', padding: '8px' }}
+      >
+        <i className="fas fa-bell" style={{ fontSize: '1.4rem', color: '#475569' }}></i>
         {unreadCount > 0 && (
-          <span className="FRAME_NOTIF_BADGE animate-pulse">
+          <span 
+            className="FRAME_NOTIF_BADGE animate-pulse" 
+            style={{ position: 'absolute', top: '0', right: '0', background: '#ef4444', color: 'white', fontSize: '0.7rem', fontWeight: 'bold', padding: '2px 6px', borderRadius: '50%' }}
+          >
             {unreadCount}
           </span>
         )}
       </button>
 
       {showNotifs && (
-        <div className="FRAME_NOTIF_DROPDOWN">
-          <div className="FRAME_NOTIF_HEADER">
-            <h4>Notification Feed</h4>
+        <div 
+          className="FRAME_NOTIF_DROPDOWN"
+          style={{
+            position: 'absolute',
+            top: '120%',
+            right: '0',
+            width: '360px',
+            backgroundColor: '#ffffff',
+            boxShadow: '0px 10px 40px rgba(0, 0, 0, 0.15)',
+            borderRadius: '8px',
+            border: '1px solid #e2e8f0',
+            zIndex: 9999,
+            overflow: 'hidden'
+          }}
+        >
+          <div className="FRAME_NOTIF_HEADER" style={{ display: 'flex', justifyContent: 'space-between', padding: '15px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+            <h4 style={{ margin: 0, fontSize: '1rem', color: '#1e293b' }}>Notification Feed</h4>
             {visibleNotifications.length > 0 && (
-              <button onClick={handleClearAll} className="FRAME_NOTIF_MARKALL">
+              <button onClick={handleClearAll} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: '0.85rem' }}>
                 Clear All
               </button>
             )}
           </div>
           
-          <div className="FRAME_NOTIF_BODY">
+          <div className="FRAME_NOTIF_BODY" style={{ maxHeight: '400px', overflowY: 'auto' }}>
             {visibleNotifications.length === 0 ? (
-              <div className="FRAME_NOTIF_EMPTY">
-                <i className="fas fa-satellite-dish"></i>
-                <p>No active online requests.</p>
+              <div className="FRAME_NOTIF_EMPTY" style={{ padding: '40px 20px', textAlign: 'center', color: '#94a3b8' }}>
+                <i className="fas fa-satellite-dish" style={{ fontSize: '3rem', marginBottom: '15px', opacity: 0.5 }}></i>
+                <p style={{ margin: 0, fontSize: '0.95rem' }}>No active online requests.</p>
               </div>
             ) : (
               visibleNotifications.slice(0, 8).map((n) => {
@@ -213,26 +228,34 @@ const AdministratorNotification: React.FC<AdminNotifProps> = ({ onNavigate }) =>
                     key={n.id} 
                     className={`FRAME_NOTIF_ITEM ${isRead ? 'read' : 'unread'}`}
                     onClick={() => handleNotificationClick(n)}
+                    style={{ 
+                      display: 'flex', 
+                      padding: '15px', 
+                      borderBottom: '1px solid #f1f5f9', 
+                      cursor: 'pointer',
+                      backgroundColor: isRead ? '#ffffff' : '#f0f9ff',
+                      transition: 'background-color 0.2s'
+                    }}
                   >
-                    <div className={`FRAME_NOTIF_ICON ${n.type}`}>
+                    <div className="FRAME_NOTIF_ICON" style={{ marginRight: '15px', fontSize: '1.2rem', color: isRead ? '#94a3b8' : '#3b82f6', paddingTop: '2px' }}>
                       <i className={getIconClass(n.type)}></i>
                     </div>
-                    <div className="FRAME_NOTIF_CONTENT">
-                      <p className="FRAME_NOTIF_TITLE">{n.title}</p>
-                      <p className="FRAME_NOTIF_MSG">{n.message}</p>
-                      <span className="FRAME_NOTIF_TIME">
+                    <div className="FRAME_NOTIF_CONTENT" style={{ flex: 1 }}>
+                      <p className="FRAME_NOTIF_TITLE" style={{ margin: '0 0 5px 0', fontSize: '0.95rem', fontWeight: isRead ? 'normal' : 'bold', color: '#0f172a' }}>{n.title}</p>
+                      <p className="FRAME_NOTIF_MSG" style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: '#475569', lineHeight: 1.4 }}>{n.message}</p>
+                      <span className="FRAME_NOTIF_TIME" style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
                         {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
-                    {!isRead && <div className="FRAME_NOTIF_DOT"></div>}
+                    {!isRead && <div className="FRAME_NOTIF_DOT" style={{ width: '8px', height: '8px', backgroundColor: '#3b82f6', borderRadius: '50%', marginTop: '5px' }}></div>}
                   </div>
                 );
               })
             )}
           </div>
           
-          <div className="FRAME_NOTIF_FOOTER">
-            <button onClick={() => { setShowNotifs(false); onNavigate('Notification Center'); }}>
+          <div className="FRAME_NOTIF_FOOTER" style={{ padding: '10px', textAlign: 'center', borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+            <button onClick={() => { setShowNotifs(false); onNavigate('Notification Center'); }} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold' }}>
               View Archive <i className="fas fa-history" style={{ marginLeft: '5px' }}></i>
             </button>
           </div>

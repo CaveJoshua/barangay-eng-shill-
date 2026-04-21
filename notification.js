@@ -180,7 +180,9 @@ export const NotificationRouter = (router, supabase, authenticateToken) => {
             if (userRole === 'resident') {
                 query = query.eq('user_id', String(authId));
             } else {
-                query = query.neq('id', 0); // Admins wipe the entire board
+                // 🛡️ ARCHITECTURE FIX: Admins only wipe the notifications they actually see (Online requests).
+                // This prevents them from accidentally deleting internal walk-in records they aren't meant to see.
+                query = query.not('message', 'ilike', '%(Walk-in)%'); 
             }
 
             const { error } = await query;
