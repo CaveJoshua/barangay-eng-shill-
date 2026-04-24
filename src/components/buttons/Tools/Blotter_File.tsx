@@ -19,9 +19,10 @@ interface IFileProps {
   onClose: () => void;
   onRefresh: () => void;
   selectedCase: any;
+  officials?: any[]; // 🛡️ THE FIX: Added this back so TypeScript stops panicking
 }
 
-// 🛡️ ENHANCED EXTRACTOR: Safely extracts up to 6 images cleanly
+// 🛡️ MULTI-EVIDENCE EXTRACTOR: Safely extracts up to 5 images
 const parseEvidence = (text: string) => {
   if (!text) return { cleanText: '', evidenceUrls: [] as string[] };
   
@@ -36,10 +37,10 @@ const parseEvidence = (text: string) => {
     const urlRegex = /(https?:\/\/[^\s]+|data:image\/[a-zA-Z]*;base64,[^\s]+)/g;
     const matchedUrls = urlSection.match(urlRegex) || [];
     
-    // Cap at a maximum of 6 photos
+    // Cap at a maximum of 5 photos
     return { 
       cleanText, 
-      evidenceUrls: matchedUrls.slice(0, 6) 
+      evidenceUrls: matchedUrls.slice(0, 5) 
     };
   }
   
@@ -148,9 +149,9 @@ export const FileComponent: React.FC<IFileProps> = ({ onClose, onRefresh, select
 
   // --- 📸 LOGIC: MULTI-IMAGE ATTACHMENT IN SIDEBAR ---
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []); // Fixed TypeScript Array fallback
-    if (evidenceList.length + files.length > 6) {
-      alert("System error: A maximum of 6 images are allowed.");
+    const files = Array.from(e.target.files || []); 
+    if (evidenceList.length + files.length > 5) {
+      alert("System error: A maximum of 5 images are allowed.");
       return;
     }
     
@@ -158,8 +159,8 @@ export const FileComponent: React.FC<IFileProps> = ({ onClose, onRefresh, select
       const reader = new FileReader();
       reader.onloadend = () => {
         setEvidenceList(prev => {
-          if (prev.length >= 6) return prev; 
-          return [...prev, reader.result as string]; // Fixed array spreading
+          if (prev.length >= 5) return prev; 
+          return [...prev, reader.result as string]; 
         });
       };
       reader.readAsDataURL(file); 
@@ -293,13 +294,13 @@ export const FileComponent: React.FC<IFileProps> = ({ onClose, onRefresh, select
 
             {/* 📸 SMART ATTACHMENT AREA */}
             <div className="BLOT_INPUT_GROUP" style={{ marginTop: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '15px' }}>
-              <label>Attach Evidence (Max 6)</label>
+              <label>Attach Evidence (Max 5)</label>
               <input 
                 type="file" 
                 multiple 
                 accept="image/*" 
                 onChange={handleImageUpload} 
-                disabled={evidenceList.length >= 6}
+                disabled={evidenceList.length >= 5}
                 style={{ fontSize: '0.8rem', padding: '6px' }}
               />
               
@@ -368,7 +369,6 @@ export const FileComponent: React.FC<IFileProps> = ({ onClose, onRefresh, select
                       style={{ 
                         minHeight: evidenceList.length === 1 ? '150px' : '300px', 
                         outline: 'none', 
-                        border: '1px dashed #eee', 
                         padding: '10px' 
                       }}
                     ></div>
@@ -392,9 +392,9 @@ export const FileComponent: React.FC<IFileProps> = ({ onClose, onRefresh, select
                           style={{ 
                             width: '100%', 
                             height: 'auto', 
-                            objectFit: 'contain', 
-                            border: '1px solid #1e293b'
+                            objectFit: 'contain'
                           }} 
+                          crossOrigin="anonymous" 
                         />
                       </div>
                     )}
@@ -406,7 +406,7 @@ export const FileComponent: React.FC<IFileProps> = ({ onClose, onRefresh, select
               {evidenceList.length > 1 && (
                 <div className="BLOT_A4_PAGE" style={{ margin: 0, marginTop: '40px', pageBreakBefore: 'always' }}>
                   
-                  <h3 style={{ fontFamily: 'Arial, sans-serif', fontWeight: 'bold', fontSize: '14pt', marginBottom: '20px' }}>
+                  <h3 style={{ fontFamily: 'Arial, sans-serif', fontWeight: 'bold', fontSize: '14pt', marginBottom: '20px', color: '#000' }}>
                     ATTACHED EVIDENCE:
                   </h3>
 
@@ -422,7 +422,8 @@ export const FileComponent: React.FC<IFileProps> = ({ onClose, onRefresh, select
                           fontFamily: 'Arial, sans-serif', 
                           fontWeight: 'bold',
                           fontSize: '10pt', 
-                          marginBottom: '8px' 
+                          marginBottom: '8px',
+                          color: '#000'
                         }}>
                           EVIDENCE {index + 1}
                         </span>
@@ -434,6 +435,7 @@ export const FileComponent: React.FC<IFileProps> = ({ onClose, onRefresh, select
                             height: 'auto', 
                             border: '1px solid #1e293b' 
                           }} 
+                          crossOrigin="anonymous" 
                         />
                       </div>
                     ))}
