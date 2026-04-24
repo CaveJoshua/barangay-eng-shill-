@@ -25,7 +25,7 @@
     --c--p--transition-fast: all 0.2s ease;
 }
 
-/* ── 🌑 DARK THEME OVERRIDES (FIXED ROOT INDICATOR) ── */
+/* ── 🌑 DARK THEME OVERRIDES ── */
 :root[data-resident-theme='dark'] {
     --c--p--bg-main: #0f172a;
     --c--p--bg-card: #1e293b;
@@ -39,10 +39,9 @@
 .CM_PAGE_WRAPPER {
     display: flex;
     flex-direction: column;
-    /* 🚨 LAYOUT FIX: Changed to min-height and 100% to ensure it never cuts off early */
     min-height: 100vh;
     width: 100%;
-    background-color: var(--c--p--bg-main) !important; /* Force override global leaks */
+    background-color: var(--c--p--bg-main) !important; 
     color: var(--c--p--text-primary);
     font-family: 'Inter', sans-serif;
     overflow-x: hidden;
@@ -52,7 +51,7 @@
 /* ── 1. TOP NAVIGATION ── */
 .CM_NAV_MAIN {
     height: var(--c--p--nav-h);
-    flex-shrink: 0; /* 🚨 LAYOUT FIX: Prevents nav from getting squished */
+    flex-shrink: 0; 
     background: var(--c--p--bg-card);
     border-bottom: 1px solid var(--c--p--border-subtle);
     display: flex;
@@ -67,11 +66,17 @@
     display: flex;
     align-items: center;
     gap: 1.5rem;
+    min-width: 0; /* Prevents flex children from blowing out container width */
 }
 
 .CM_LOGO_SHIELD {
     font-size: 1.6rem;
     color: var(--c--p--brand-blue);
+    flex-shrink: 0;
+}
+
+.CM_BRAND_INFO {
+    min-width: 0; /* Critical for ellipsis text truncation */
 }
 
 .CM_BRAND_INFO strong {
@@ -80,6 +85,9 @@
     font-weight: 800;
     letter-spacing: -0.02em;
     display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .CM_BRAND_INFO span {
@@ -87,6 +95,8 @@
     font-weight: 700;
     color: var(--c--p--text-secondary);
     letter-spacing: 0.1em;
+    display: block;
+    white-space: nowrap;
 }
 
 /* ── 2. VIEW SWITCHER (Tabs) ── */
@@ -126,6 +136,7 @@
     display: flex;
     align-items: center;
     gap: 1rem;
+    flex-shrink: 0;
 }
 
 .CM_ONLINE_BADGE {
@@ -165,6 +176,7 @@
     font-weight: 800;
     border: 1px solid var(--c--p--brand-danger);
     animation: pulse-alert 2s infinite;
+    white-space: nowrap;
 }
 
 @keyframes pulse-alert {
@@ -201,6 +213,7 @@
     justify-content: center;
     font-weight: 800;
     font-size: 0.8rem;
+    flex-shrink: 0;
 }
 
 .CM_LOGOUT_BTN {
@@ -215,6 +228,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
 }
 
 .CM_LOGOUT_BTN:hover {
@@ -225,7 +239,7 @@
 
 /* ── 5. MAIN STAGE ── */
 .CM_PAGE_STAGE {
-    flex: 1 1 auto; /* 🚨 LAYOUT FIX: Actively forces the stage to stretch down */
+    flex: 1 1 auto;
     display: flex;
     flex-direction: column;
     overflow-y: auto;
@@ -237,7 +251,7 @@
 }
 
 .DASH_LOADER {
-    flex: 1; /* Pushes loader to true center of available space */
+    flex: 1; 
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -247,7 +261,7 @@
     color: var(--c--p--text-secondary);
 }
 
-/* ── 6. MOBILE NAVIGATION (PROPORTIONS FIXED) ── */
+/* ── 6. MOBILE NAVIGATION ── */
 .MOBILE_BOTTOM_NAV {
     display: none;
     background: var(--c--p--bg-card);
@@ -259,7 +273,7 @@
     justify-content: space-around;
     align-items: center;
     z-index: 1000;
-    padding: 0 5px; /* Slight edge padding */
+    padding: 0 5px; 
 }
 
 .MOBILE_BOTTOM_NAV button {
@@ -272,23 +286,21 @@
     gap: 4px;
     color: var(--c--p--text-secondary);
     cursor: pointer;
-    flex: 1; /* Ensures each button takes equal width */
+    flex: 1; 
     height: 100%;
 }
 
-/* Keep the icons large and readable */
 .MOBILE_BOTTOM_NAV button i {
     font-size: 1.25rem;
 }
 
-/* Shrink the text to fit neatly underneath without stretching */
 .MOBILE_BOTTOM_NAV button span {
     font-size: 0.65rem;
     font-weight: 700;
-    white-space: nowrap; /* Prevents text from breaking into two lines */
+    white-space: nowrap; 
     text-overflow: ellipsis;
     overflow: hidden;
-    max-width: 100%; /* Keeps text constrained inside its button area */
+    max-width: 100%; 
 }
 
 .MOBILE_BOTTOM_NAV button.ACTIVE {
@@ -307,12 +319,74 @@
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ── RESPONSIVENESS ── */
+/* ── RESPONSIVENESS (MOBILE OPTIMIZATION) ── */
 @media (max-width: 768px) {
     .DESKTOP_ONLY { display: none !important; }
     .MOBILE_ONLY { display: flex !important; }
-    .CM_NAV_MAIN { padding: 0 1rem; }
-    .CM_PAGE_STAGE { padding: 1rem; padding-bottom: calc(var(--c--p--mob-nav-h) + 20px); }
-    .CM_BRAND_INFO strong { font-size: 0.9rem; }
-    .MOBILE_BOTTOM_NAV { display: flex !important; }
+    
+    /* 🛡️ FIX: Remove heavy edge padding on mobile */
+    .CM_NAV_MAIN { 
+        padding: 0 0.5rem; 
+        gap: 6px; 
+    }
+    
+    /* 🛡️ FIX: Bring the shield and text closer together */
+    .CM_NAV_LEFT { 
+        gap: 8px; 
+        flex: 1; /* Pushes the right-side icons away */
+    }
+    
+    .CM_LOGO_SHIELD { 
+        font-size: 1.3rem; 
+    }
+    
+    /* 🛡️ FIX: Prevent the 4-line word wrap by forcing ellipsis (...) */
+    .CM_BRAND_INFO strong { 
+        font-size: 0.85rem; 
+    }
+    
+    /* 🛡️ FIX: Hide the subtitle on mobile to give the title more vertical space */
+    .CM_BRAND_INFO span { 
+        display: none; 
+    }
+
+    /* 🛡️ FIX: Shrink the huge red alert badge */
+    .CM_SECURITY_ALERT {
+        padding: 4px 8px;
+        font-size: 0.6rem;
+        gap: 4px;
+    }
+    
+    .CM_NAV_RIGHT { 
+        gap: 6px; 
+    }
+    
+    /* 🛡️ FIX: Strip the bulky borders from the profile block on mobile */
+    .CM_USER_DISPLAY_SIMPLE { 
+        padding: 0; 
+        border: none; 
+        background: transparent; 
+        gap: 6px;
+    }
+    
+    .AVATAR_CIRCLE_SMALL { 
+        width: 30px; 
+        height: 30px; 
+        font-size: 0.75rem; 
+    }
+    
+    .CM_LOGOUT_BTN { 
+        width: 30px; 
+        height: 30px; 
+        font-size: 0.85rem; 
+    }
+    
+    .CM_PAGE_STAGE { 
+        padding: 1rem; 
+        padding-bottom: calc(var(--c--p--mob-nav-h) + 20px); 
+    }
+    
+    .MOBILE_BOTTOM_NAV { 
+        display: flex !important; 
+    }
 }
