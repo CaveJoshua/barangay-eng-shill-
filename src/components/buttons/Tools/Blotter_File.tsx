@@ -15,23 +15,40 @@ interface IResident {
   purok: string;
 }
 
-interface IOfficial {
-  id: string;
-  full_name: string;
-  position: string;
-  status: string;
-}
-
 interface IFileProps {
   onClose: () => void;
   onRefresh: () => void;
   selectedCase: any;
-  officials?: any[]; 
 }
+
+// 🛡️ ENHANCED EXTRACTOR: Safely extracts up to 6 images cleanly
+const parseEvidence = (text: string) => {
+  if (!text) return { cleanText: '', evidenceUrls: [] as string[] };
+  
+  const marker = '[ATTACHED EVIDENCE]';
+  const markerIndex = text.indexOf(marker);
+  
+  if (markerIndex !== -1) {
+    const cleanText = text.substring(0, markerIndex).trim();
+    const urlSection = text.substring(markerIndex);
+    
+    // Regex to find all valid URLs or Base64 strings
+    const urlRegex = /(https?:\/\/[^\s]+|data:image\/[a-zA-Z]*;base64,[^\s]+)/g;
+    const matchedUrls = urlSection.match(urlRegex) || [];
+    
+    // Cap at a maximum of 6 photos
+    return { 
+      cleanText, 
+      evidenceUrls: matchedUrls.slice(0, 6) 
+    };
+  }
+  
+  return { cleanText: text, evidenceUrls: [] as string[] };
+};
 
 export const FileComponent: React.FC<IFileProps> = ({ onClose, onRefresh, selectedCase }) => {
   
-  // --- 1. CORE FORMATTER: Converts "ranni luirnia carian" to "Ranni L. Carian" ---
+  // --- 1. CORE FORMATTER ---
   const formatToProperName = useCallback((first: string = '', middle: string = '', last: string = '') => {
     const toTitleCase = (str: string) => 
       str.toLowerCase().trim().split(/\s+/).map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
@@ -52,13 +69,19 @@ export const FileComponent: React.FC<IFileProps> = ({ onClose, onRefresh, select
     return `BL-${year}${month}${day}-${random}`;
   };
 
+  // 🛡️ EXTRACT EVIDENCE ON LOAD
+  const { cleanText, evidenceUrls: currentEvidence } = useMemo(() => {
+    return parseEvidence(selectedCase?.narrative || '');
+  }, [selectedCase?.narrative]);
+
   // --- STATE ---
   const [residents, setResidents] = useState<IResident[]>([]);
-  const [captainName, setCaptainName] = useState(''); 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
-  
   const [searchQuery, setSearchQuery] = useState(selectedCase?.complainant_name || '');
+  
+  // 📸 DYNAMIC EVIDENCE STATE FOR THE SIDEBAR
+  const [evidenceList, setEvidenceList] = useState<string[]>(currentEvidence);
 
   const [formData, setFormData] = useState({
     id: selectedCase?.id || null,
@@ -69,7 +92,7 @@ export const FileComponent: React.FC<IFileProps> = ({ onClose, onRefresh, select
     type: selectedCase?.incident_type || 'Noise Complaint',
     dateFiled: selectedCase?.date_filed || new Date().toISOString().split('T')[0],
     timeFiled: selectedCase?.time_filed || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-    narrative: selectedCase?.narrative || '',
+    narrative: cleanText, 
   });
 
   const previewRef = useRef<HTMLDivElement>(null);
@@ -80,28 +103,9 @@ export const FileComponent: React.FC<IFileProps> = ({ onClose, onRefresh, select
 
     const fetchData = async () => {
       try {
-        // USING THE NEW SECURE API HANDSHAKE CALLS
-        const [resData, offData] = await Promise.all([
-          ApiService.getResidents(valve.signal),
-          ApiService.getOfficials(valve.signal)
-        ]);
-
-        // Handshake rejection check
-        if (resData === null || offData === null) return;
-
+        const resData = await ApiService.getResidents(valve.signal);
+        if (resData === null) return;
         setResidents(Array.isArray(resData) ? resData : []);
-        
-        const captain = offData.find((o: IOfficial) => 
-            (o.position.toLowerCase().includes('captain') || o.position.toLowerCase().includes('punong')) && 
-            o.status === 'Active'
-        );
-        
-        if (captain) {
-            setCaptainName(`HON. ${captain.full_name.toUpperCase()}`);
-        } else {
-            setCaptainName("AMADO M. FELIZARDO"); // Fallback
-        }
-        
       } catch (err: any) { 
         if (err.name !== 'AbortError') {
             console.error("Blotter Sync Error:", err); 
@@ -130,54 +134,93 @@ export const FileComponent: React.FC<IFileProps> = ({ onClose, onRefresh, select
     if (!query || query === formData.complainantName.toLowerCase()) return [];
     
     return residents.filter(r => {
-      // Matches against raw and formatted names
       const searchPool = `${r.first_name} ${r.last_name} ${r.middle_name || ''}`.toLowerCase();
       return searchPool.includes(query);
     });
   }, [residents, searchQuery, formData.complainantName]);
 
   const handleSelectResident = (r: IResident) => {
-    // AUTOMATED FORMATTING: Apply "Ranni L. Carian" style
     const fullName = formatToProperName(r.first_name, r.middle_name, r.last_name);
     setFormData(prev => ({ ...prev, complainantId: r.record_id, complainantName: fullName }));
     setSearchQuery(fullName);
     setShowDropdown(false);
   };
 
+  // --- 📸 LOGIC: MULTI-IMAGE ATTACHMENT IN SIDEBAR ---
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []); // Fixed TypeScript Array fallback
+    if (evidenceList.length + files.length > 6) {
+      alert("System error: A maximum of 6 images are allowed.");
+      return;
+    }
+    
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEvidenceList(prev => {
+          if (prev.length >= 6) return prev; 
+          return [...prev, reader.result as string]; // Fixed array spreading
+        });
+      };
+      reader.readAsDataURL(file); 
+    });
+  };
+
+  const removeEvidence = (indexToRemove: number) => {
+    setEvidenceList(prev => prev.filter((_, i) => i !== indexToRemove));
+  };
+
   /**
-   * REFACTORED SUBMIT: Pure Handshake Trigger
+   * REFACTORED SUBMIT: PDF Capture fixes
    */
   const handleFinalSubmit = async () => {
     if (!formData.complainantName.trim()) return alert("Complainant name missing!");
     if (!formData.respondent.trim()) return alert("Respondent name missing!");
 
     setIsSubmitting(true);
-    const finalNarrative = previewRef.current?.innerHTML || formData.narrative;
+    let finalNarrative = previewRef.current?.innerHTML || formData.narrative;
+    
+    // 🛡️ RE-ATTACH ALL EVIDENCE
+    if (evidenceList.length > 0) {
+      const formattedUrls = evidenceList.map(url => `[ATTACHED EVIDENCE] ${url}`).join(' ');
+      finalNarrative += ` ${formattedUrls}`;
+    }
     
     const submissionData = { 
       ...formData,
       complainant_id: formData.complainantId || 'WALK-IN', 
       complainant_name: formData.complainantName,
       incident_type: formData.type,
-      narrative: finalNarrative,
+      narrative: finalNarrative, 
       date_filed: formData.dateFiled,
       time_filed: formData.timeFiled
     };
 
     try {
-      // USING THE UNIVERSAL TRIGGER FROM MASTERMIND API
       const result = await ApiService.saveBlotter(formData.id, submissionData);
       
       if (result.success) {
-        await generateBlotterPDF('blotter-capture-area', result.data); 
+        // Remove scroll boundaries so HTML2Canvas captures everything
+        const captureArea = document.getElementById('blotter-capture-area') as HTMLElement;
+        if (captureArea) {
+            captureArea.style.overflow = 'visible';
+            captureArea.style.height = 'max-content'; 
+            
+            await new Promise(resolve => setTimeout(resolve, 800));
+            await generateBlotterPDF('blotter-capture-area', result.data); 
+            
+            captureArea.style.overflow = 'visible';
+            captureArea.style.height = ''; 
+        }
+
         onRefresh();
         onClose();
       } else {
-        alert(`System error: ${result.error}`);
+        alert(`System error: Server error.`);
       }
     } catch (err: any) { 
       console.error("Blotter Save Error:", err);
-      alert('Handshake failed. Check your connection.'); 
+      alert('Handshake failed. Check your connection or payload size.'); 
     } finally { 
       setIsSubmitting(false); 
     }
@@ -247,53 +290,157 @@ export const FileComponent: React.FC<IFileProps> = ({ onClose, onRefresh, select
                 <option value="Threats">Threats</option>
               </select>
             </div>
+
+            {/* 📸 SMART ATTACHMENT AREA */}
+            <div className="BLOT_INPUT_GROUP" style={{ marginTop: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '15px' }}>
+              <label>Attach Evidence (Max 6)</label>
+              <input 
+                type="file" 
+                multiple 
+                accept="image/*" 
+                onChange={handleImageUpload} 
+                disabled={evidenceList.length >= 6}
+                style={{ fontSize: '0.8rem', padding: '6px' }}
+              />
+              
+              {evidenceList.length > 0 && (
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '12px' }}>
+                  {evidenceList.map((url, i) => (
+                    <div key={i} style={{ position: 'relative', width: '70px', height: '70px' }}>
+                      <img 
+                        src={url} 
+                        alt="preview" 
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '4px', border: '1px solid #cbd5e1' }} 
+                      />
+                      <button 
+                        onClick={() => removeEvidence(i)} 
+                        title="Remove"
+                        style={{
+                          position: 'absolute', top: -8, right: -8, background: '#dc2626', color: 'white',
+                          borderRadius: '50%', width: '20px', height: '20px', fontSize: '11px', fontWeight: 'bold',
+                          border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}>
+                        X
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </aside>
 
           <section className="BLOT_PREVIEW_AREA">
-            <div className="BLOT_A4_PAGE" id="blotter-capture-area">
-              <div className="BLOT_A4_HEADER">
-                <div className="BLOT_HEADER_TEXT">
-                  <p>Republic of the Philippines</p>
-                  <p>Province of Benguet</p>
-                  <p>City of Baguio</p>
-                  <h4>BARANGAY ENGINEER'S HILL</h4>
-                  <p className="OFFICE">OFFICE OF THE LUPONG TAGAPAMAYAPA</p>
+            <div id="blotter-capture-area" style={{ display: 'flex', flexDirection: 'column', height: 'max-content', paddingBottom: '2rem' }}>
+              
+              {/* ================= PAGE 1 ================= */}
+              <div className="BLOT_A4_PAGE" style={{ margin: 0 }}>
+                <div className="BLOT_A4_HEADER">
+                  <div className="BLOT_HEADER_TEXT">
+                    <p>Republic of the Philippines</p>
+                    <p>Province of Benguet</p>
+                    <p>City of Baguio</p>
+                    <h4>BARANGAY ENGINEER'S HILL</h4>
+                    <p className="OFFICE">OFFICE OF THE LUPONG TAGAPAMAYAPA</p>
+                  </div>
+                </div>
+
+                <div className="BLOT_A4_LINE"></div>
+                <h2 className="BLOT_DOC_TITLE">INCIDENT REPORT</h2>
+
+                <div className="BLOT_A4_CONTENT">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+                    <span><b>Date/Time:</b> {formData.dateFiled} : {formData.timeFiled}</span>
+                    <span><b>Case No:</b> {formData.caseNumber}</span>
+                  </div>
+
+                  <p><b>COMPLAINANT:</b> <span style={{ textDecoration: 'underline' }}>{formData.complainantName || "____________________"}</span></p>
+                  <p><b>RESPONDENT:</b> <span style={{ textDecoration: 'underline' }}>{formData.respondent || "____________________"}</span></p>
+                  
+                  <div style={{ marginTop: '30px' }}>
+                    <p><b>NARRATIVE OF INCIDENT:</b></p>
+                    <div 
+                      className="BLOT_EDITABLE_CONTENT"
+                      contentEditable
+                      ref={previewRef}
+                      dangerouslySetInnerHTML={{ __html: formData.narrative }}
+                      suppressContentEditableWarning={true}
+                      onBlur={(e) => setFormData({...formData, narrative: e.currentTarget.innerHTML})}
+                      style={{ 
+                        minHeight: evidenceList.length === 1 ? '150px' : '300px', 
+                        outline: 'none', 
+                        border: '1px dashed #eee', 
+                        padding: '10px' 
+                      }}
+                    ></div>
+
+                    {/* 🛡️ SINGLE PHOTO: Renders inline on Page 1. Fixed string[] assignment. */}
+                    {evidenceList.length === 1 && (
+                      <div style={{ marginTop: '20px', border: '1px solid #1e293b', padding: '15px', position: 'relative', pageBreakInside: 'avoid' }}>
+                         <span style={{ 
+                          fontFamily: 'Arial, sans-serif', 
+                          fontWeight: 'bold',
+                          fontSize: '10pt', 
+                          marginBottom: '8px',
+                          color: '#000',
+                          display: 'block'
+                        }}>
+                          ATTACHED EVIDENCE:
+                        </span>
+                        <img 
+                          src={evidenceList[0]} 
+                          alt="Evidence" 
+                          style={{ 
+                            width: '100%', 
+                            height: 'auto', 
+                            objectFit: 'contain', 
+                            border: '1px solid #1e293b'
+                          }} 
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div className="BLOT_A4_LINE"></div>
-              <h2 className="BLOT_DOC_TITLE">INCIDENT REPORT</h2>
+              {/* ================= PAGE 2 (Adaptive Multi-Grid) ================= */}
+              {evidenceList.length > 1 && (
+                <div className="BLOT_A4_PAGE" style={{ margin: 0, marginTop: '40px', pageBreakBefore: 'always' }}>
+                  
+                  <h3 style={{ fontFamily: 'Arial, sans-serif', fontWeight: 'bold', fontSize: '14pt', marginBottom: '20px' }}>
+                    ATTACHED EVIDENCE:
+                  </h3>
 
-              <div className="BLOT_A4_CONTENT">
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
-                  <span><b>Date/Time:</b> {formData.dateFiled} : {formData.timeFiled}</span>
-                  <span><b>Case No:</b> {formData.caseNumber}</span>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(2, 1fr)',
+                    gap: '20px',
+                    alignItems: 'start' 
+                  }}>
+                    {evidenceList.map((url, index) => (
+                      <div key={index} style={{ display: 'flex', flexDirection: 'column', pageBreakInside: 'avoid' }}>
+                        <span style={{ 
+                          fontFamily: 'Arial, sans-serif', 
+                          fontWeight: 'bold',
+                          fontSize: '10pt', 
+                          marginBottom: '8px' 
+                        }}>
+                          EVIDENCE {index + 1}
+                        </span>
+                        <img 
+                          src={url} 
+                          alt={`Evidence ${index + 1}`} 
+                          style={{ 
+                            width: '100%', 
+                            height: 'auto', 
+                            border: '1px solid #1e293b' 
+                          }} 
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
+              )}
 
-                <p><b>COMPLAINANT:</b> <span style={{ textDecoration: 'underline' }}>{formData.complainantName || "____________________"}</span></p>
-                <p><b>RESPONDENT:</b> <span style={{ textDecoration: 'underline' }}>{formData.respondent || "____________________"}</span></p>
-                
-                <div style={{ marginTop: '30px' }}>
-                  <p><b>NARRATIVE OF INCIDENT:</b></p>
-                  <div 
-                    className="BLOT_EDITABLE_CONTENT"
-                    contentEditable
-                    ref={previewRef}
-                    dangerouslySetInnerHTML={{ __html: formData.narrative }}
-                    suppressContentEditableWarning={true}
-                    onBlur={(e) => setFormData({...formData, narrative: e.currentTarget.innerHTML})}
-                    style={{ minHeight: '400px', outline: 'none', border: '1px dashed #eee', padding: '10px' }}
-                  ></div>
-                </div>
-              </div>
-
-              <div className="BLOT_A4_FOOTER">
-                <div className="BLOT_SIG_BLOCK">
-                  <p className="BLOT_SIG_NAME">{captainName}</p>
-                  <div className="BLOT_SIG_LINE"></div>
-                  <p className="BLOT_SIG_ROLE">Punong Barangay</p>
-                </div>
-              </div>
             </div>
           </section>
         </div>

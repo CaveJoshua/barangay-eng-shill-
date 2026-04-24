@@ -15,12 +15,11 @@ cloudinary.config({
 });
 
 // =========================================================
-// ⚡ SURGICAL MULTER CONFIG: Disk Storage (Zero RAM Blocking)
+// ⚡ SURGICAL MULTER CONFIG: Disk Storage
 // =========================================================
-// Routes binary streams directly to the OS temp drive to keep the Node.js event loop completely free.
 const upload = multer({ 
     dest: os.tmpdir(), 
-    limits: { fileSize: 5 * 1024 * 1024 } // Strict 5MB kill-switch
+    limits: { fileSize: 10 * 1024 * 1024 } // Bumped limit to 10MB just in case
 });
 
 // =========================================================
@@ -84,47 +83,72 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
     });
 
     // ── 3. POST: CREATE REPORT (HIGH PERFORMANCE) ──
-    router.post('/blotter', authenticateToken, checkRole(['admin', 'superadmin', 'staff', 'resident']), upload.array('evidence', 5), async (req, res) => {
+    router.post('/blotter', authenticateToken, checkRole(['admin', 'superadmin', 'staff', 'resident']), upload.array('evidence', 6), async (req, res) => {
         try {
             const r = req.body;
             const userRole = req.validatedRole;
             const tokenResidentId = req.user?.record_id || req.user?.resident_id || req.user?.id || req.user?.sub;
             const secureComplainantId = (userRole === 'resident') ? (tokenResidentId || r.complainant_id) : (r.complainant_id || 'WALK-IN');
 
-            // ⚡ 1. PARALLEL CLOUDINARY UPLOADS & GHOST CLEANUP
+            let finalNarrative = r.narrative || "";
+
+            // ⚡ 1. THE EXTRACTOR: Hunt down frontend Base64 strings embedded in the narrative
+            const base64Regex = /(data:image\/[^;]+;base64,[^\s]+)/g;
+            const matchedBase64 = finalNarrative.match(base64Regex) || [];
+
+            if (matchedBase64.length > 0) {
+                // Upload them to Cloudinary in parallel
+                const uploadPromises = matchedBase64.map(async (base64Str) => {
+                    try {
+                        const result = await cloudinary.uploader.upload(base64Str, { folder: 'blotter_evidence' });
+                        return { oldString: base64Str, newUrl: result.secure_url };
+                    } catch (uploadErr) {
+                        console.error("[CLOUDINARY ERROR]", uploadErr.message);
+                        return null;
+                    }
+                });
+
+                const uploadResults = await Promise.all(uploadPromises);
+                
+                // Replace the massive Base64 text blocks with clean, short URLs
+                uploadResults.forEach(item => {
+                    if (item) {
+                        finalNarrative = finalNarrative.replace(item.oldString, item.newUrl);
+                    }
+                });
+            }
+
+            // ⚡ 1.5. FALLBACK: Handle traditional multipart/form-data uploads if sent that way
             let uploadedImageLinks = [];
             if (req.files && req.files.length > 0) {
-                const uploadPromises = req.files.map(async (file) => {
+                const formUploadPromises = req.files.map(async (file) => {
                     try {
                         const result = await cloudinary.uploader.upload(file.path, { folder: 'blotter_evidence' });
-                        // Ghost Cleanup: Delete the temp file off the OS hard drive immediately
                         fs.unlink(file.path).catch(e => console.warn("[CLEANUP WARNING]", e.message));
                         return result.secure_url;
                     } catch (uploadErr) {
                         console.error("[CLOUDINARY ERROR]", uploadErr.message);
-                        return null; // Skip failed uploads gracefully without crashing the app
+                        return null; 
                     }
                 });
 
-                // Wait for all 5 images to upload simultaneously
-                const results = await Promise.all(uploadPromises);
-                uploadedImageLinks = results.filter(url => url !== null);
+                const formResults = await Promise.all(formUploadPromises);
+                uploadedImageLinks = formResults.filter(url => url !== null);
+                
+                if (uploadedImageLinks.length > 0) {
+                    const formattedUrls = uploadedImageLinks.map(url => `[ATTACHED EVIDENCE] ${url}`).join(' ');
+                    finalNarrative += ` ${formattedUrls}`;
+                }
             }
 
-            // ⚡ 2. INJECT EVIDENCE LINKS INTO NARRATIVE
-            let finalNarrative = r.narrative || "";
-            if (uploadedImageLinks.length > 0) {
-                finalNarrative += `\n\n[ATTACHED EVIDENCE]\n` + uploadedImageLinks.join('\n');
-            }
-
-            // ⚡ 3. DATABASE COMMIT
+            // ⚡ 2. DATABASE COMMIT
             const dbPayload = {
                 case_number: r.case_number || `INC-${Date.now()}`,
                 complainant_name: r.complainant_name,
                 complainant_id: secureComplainantId,
                 respondent: r.respondent,
                 incident_type: r.incident_type,
-                narrative: finalNarrative,
+                narrative: finalNarrative, // Cleaned narrative with proper URLs
                 date_filed: r.date_filed || new Date().toISOString().split('T')[0],
                 time_filed: r.time_filed || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
                 status: 'Pending'
@@ -133,7 +157,7 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
             const { data, error } = await supabase.from('blotter_cases').insert([dbPayload]).select().single();
             if (error) throw error;
 
-            // ⚡ 4. INSTANT RESPONSE (Fire-and-Forget background tasks)
+            // ⚡ 3. INSTANT RESPONSE (Fire-and-Forget background tasks)
             res.status(201).json({ success: true, data });
 
             // --- Everything below this line happens IN THE BACKGROUND without forcing the user to wait ---
@@ -174,7 +198,7 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
             const { data } = await supabase.from('blotter_cases').update({ status, hearing_date, hearing_time, rejection_reason }).eq('id', req.params.id).select().single();
             if (data.complainant_id && data.complainant_id !== 'WALK-IN') {
                 let msg = `Case #${data.case_number} is now ${status}.`;
-                createNotification(supabase, data.complainant_id, "Status update", msg, 'blotter').catch(() => {}); // Fire and forget
+                createNotification(supabase, data.complainant_id, "Status update", msg, 'blotter').catch(() => {}); 
             }
             res.json({ success: true, data });
         } catch (err) { res.status(500).json({ error: "Patch failed." }); }

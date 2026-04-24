@@ -1,5 +1,5 @@
 /* =========================================
-   BLOTTER FILE EDITOR (Professional Theme)
+   BLOTTER FILE EDITOR (Professional Light Theme)
    Scoped Prefix: BLOT_
    ========================================= */
 
@@ -10,18 +10,19 @@
   left: 0;
   width: 100vw; 
   height: 100vh;
-  background-color: #f1f5f9; /* Slate-100: Professional UI Gray */
+  background-color: #f1f5f9 !important; /* Strictly light gray */
+  color: #0f172a !important; /* Strictly dark text */
   z-index: 5000;
   display: flex;
   flex-direction: column;
-  animation: blotFileFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1); /* Smooth Apple-like easing */
+  animation: blotFileFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   overflow: hidden;
 }
 
 /* --- 2. TOP TOOLBAR --- */
 .BLOT_FILE_TOOLBAR {
   height: 64px;
-  background-color: #ffffff;
+  background-color: #ffffff !important;
   border-bottom: 1px solid #e2e8f0;
   display: flex;
   justify-content: space-between;
@@ -32,7 +33,6 @@
   z-index: 50;
 }
 
-/* Toolbar Buttons */
 .BLOT_TOOL_GROUP {
   display: flex;
   gap: 8px;
@@ -76,23 +76,23 @@
 .BLOT_FILE_CONTENT {
   flex: 1;
   display: flex;
-  flex-direction: row; /* Sidebar Left | Preview Right */
+  flex-direction: row; 
   height: 100%;
   overflow: hidden;
 }
 
-/* --- 4. SIDEBAR (Form Controls) --- */
+/* --- 4. SIDEBAR (Form Controls & Uploads) --- */
 .BLOT_SIDE_PANEL {
   width: 380px;
   min-width: 380px;
   max-width: 380px;
-  background-color: #ffffff;
+  background-color: #ffffff !important;
   border-right: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
   padding: 2rem;
   gap: 1.5rem;
-  overflow-y: auto; /* Scroll ONLY the form */
+  overflow-y: auto; 
   z-index: 20;
 }
 
@@ -136,6 +136,13 @@
   box-sizing: border-box;
 }
 
+/* Specific styling to make the new file uploader match the theme */
+.BLOT_INPUT_GROUP input[type="file"] {
+  padding: 6px;
+  background-color: #ffffff;
+  cursor: pointer;
+}
+
 .BLOT_INPUT_GROUP input:focus,
 .BLOT_INPUT_GROUP select:focus {
   border-color: #2563eb;
@@ -176,32 +183,32 @@
 /* --- 5. PREVIEW AREA (The "Desk") --- */
 .BLOT_PREVIEW_AREA {
   flex: 1;
-  background-color: #94a3b8; /* Contrast Gray */
+  background-color: #94a3b8; 
   display: flex;
   justify-content: center;
   padding: 3rem 2rem;
-  overflow-y: auto; /* Scroll ONLY the paper */
+  overflow-y: auto; 
   scroll-behavior: smooth;
 }
 
 /* --- 6. A4 PAPER SHEET --- */
 .BLOT_A4_PAGE {
   width: 210mm;
-  min-height: 297mm; /* Exact A4 Height */
-  background-color: #ffffff;
+  min-height: 297mm; /* Standard A4 height */
+  background-color: #ffffff !important;
+  color: #000000 !important;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
   padding: 25mm;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  margin-bottom: 4rem; /* Bottom spacing */
   position: relative;
 }
 
 /* Document Typography */
 .BLOT_A4_HEADER { text-align: center; margin-bottom: 15px; }
-.BLOT_HEADER_TEXT p { margin: 2px 0; font-family: 'Times New Roman', serif; font-size: 11pt; }
-.BLOT_HEADER_TEXT h4 { margin: 10px 0; font-size: 14pt; font-weight: 900; font-family: 'Arial', sans-serif; }
+.BLOT_HEADER_TEXT p { margin: 2px 0; font-family: 'Times New Roman', serif; font-size: 11pt; color: #000; }
+.BLOT_HEADER_TEXT h4 { margin: 10px 0; font-size: 14pt; font-weight: 900; font-family: 'Arial', sans-serif; color: #000; }
 .OFFICE { font-weight: bold; font-size: 10pt; letter-spacing: 0.5px; }
 
 .BLOT_A4_LINE { border-top: 2px solid black; margin: 10px 0 30px 0; }
@@ -214,10 +221,11 @@
   text-transform: uppercase;
   font-family: 'Arial', sans-serif;
   margin-bottom: 40px;
+  color: #000;
 }
 
 .BLOT_A4_CONTENT {
-  flex: 1; /* Pushes footer down */
+  flex: 1; 
   font-family: 'Times New Roman', serif;
   font-size: 12pt;
   line-height: 1.6;
@@ -227,43 +235,17 @@
 .BLOT_EDITABLE_CONTENT {
   margin-top: 15px;
   outline: none;
-  min-height: 400px;
   white-space: pre-wrap;
   cursor: text;
+  
+  /* 🛡️ PDF SAFETY: Forces any stray URLs to break instead of bleeding off the page */
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  color: #000;
 }
 
-/* --- 7. SIGNATURE ALIGNMENT (The Fix) --- */
-.BLOT_A4_FOOTER {
-  margin-top: auto; /* Pushes signature to absolute bottom of printable area */
-  padding-top: 50px;
-  display: flex;
-  justify-content: flex-end;
-  width: 100%;
-}
-
-.BLOT_SIG_BLOCK {
-  width: 240px;
-  text-align: center;
-}
-
-.BLOT_SIG_NAME {
-  font-weight: 700;
-  text-transform: uppercase;
-  margin: 0;
-  font-size: 11pt;
-  font-family: 'Arial', sans-serif;
-  border-bottom: 1.5px solid #000;
-  padding-bottom: 4px;
-}
-
-.BLOT_SIG_ROLE {
-  margin-top: 5px;
-  font-size: 10pt;
-  font-style: italic;
-  font-family: 'Times New Roman', serif;
-}
-
-/* --- 8. ACTION BUTTONS --- */
+/* --- 7. ACTION BUTTONS --- */
 .BLOT_BTN_CANCEL {
   background: transparent;
   border: 1px solid #cbd5e1;
@@ -277,14 +259,13 @@
 .BLOT_BTN_CANCEL:hover { background-color: #f8fafc; color: #0f172a; }
 
 .BLOT_BTN_SAVE {
-  background-color: #dc2626; /* Blotter Red */
+  background-color: #dc2626; 
   color: white;
   padding: 8px 18px;
   border-radius: 6px;
   font-weight: 600;
   border: none;
   cursor: pointer;
-  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);
   transition: background-color 0.2s;
 }
 .BLOT_BTN_SAVE:hover { background-color: #b91c1c; }
@@ -294,4 +275,33 @@
 @keyframes blotFileFadeIn {
   from { opacity: 0; transform: scale(0.99); }
   to { opacity: 1; transform: scale(1); }
+}
+
+/* --- 8. PRINT/PDF OPTIMIZATION --- */
+@media print {
+  /* Hide the UI, only keep the paper */
+  .BLOT_FILE_TOOLBAR, 
+  .BLOT_SIDE_PANEL {
+    display: none !important;
+  }
+  
+  /* Reset backgrounds and overlaps for clean printing */
+  .BLOT_FILE_OVERLAY {
+    position: static;
+    background: white !important;
+    overflow: visible !important;
+  }
+  
+  .BLOT_PREVIEW_AREA {
+    padding: 0;
+    background: white !important;
+    overflow: visible !important;
+  }
+  
+  /* Guarantee the second page snaps to a new sheet */
+  .BLOT_A4_PAGE {
+    box-shadow: none;
+    margin: 0;
+    page-break-after: always;
+  }
 }
