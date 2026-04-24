@@ -79,17 +79,17 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
     }
   };
 
-  // ── STEP 2: VERIFY OTP ──
+  // ── STEP 2: VERIFY OTP / SECURITY TOKEN ──
   const handleVerifyOTP = async () => {
-    if (otp.length !== 6 || !/^\d+$/.test(otp)) {
-      setError("Invalid format. OTP must be strictly 6 digits.");
+    if (otp.trim().length === 0) {
+      setError("Please enter the verification code.");
       return;
     }
 
     setLoading(true);
     setError('');
     try {
-      const result = await ApiService.verifyOTP(resident?.email || '', otp);
+      const result = await ApiService.verifyOTP(resident?.email || '', otp.trim());
       if (result.success) {
         setStep('UPDATE_PASSWORD');
         setOtp(''); 
@@ -202,7 +202,6 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
             <h2>Verify Authorization</h2>
             <p>A security code will be sent to your registered email.</p>
             
-            {/* CLEAN CSS CLASS INSTEAD OF INLINE STYLES */}
             <div className="CM_INFO_NOTICE">
               <strong><i className="fas fa-info-circle"></i> Identity Protection Notice:</strong><br/>
               To protect your Barangay Engineer's Hill account from unauthorized alterations, Multi-Factor Authentication (MFA) is strictly enforced.
@@ -219,9 +218,8 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
           <div className="CM_RESET_HEADER">
             <div className="CM_RESET_ICON"><i className="fas fa-fingerprint"></i></div>
             <h2>Input Security Token</h2>
-            <p>Enter the 6-digit code sent to your linked address.</p>
+            <p>Enter the security code sent to your linked address.</p>
             
-            {/* CLEAN CSS CLASS INSTEAD OF INLINE STYLES */}
             <div className="CM_WARN_NOTICE">
               <strong><i className="fas fa-exclamation-triangle"></i> Official Warning:</strong><br/>
               Do not share this code with anyone. Barangay personnel, IT staff, and administrators will NEVER ask for your OTP.
@@ -229,22 +227,15 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
 
             <input 
               type="text" 
-              maxLength={6} 
               value={otp}
-              onChange={(e) => {
-                // THE FIX: Bulletproof integer parsing that won't freeze the input
-                const numericValue = e.target.value.replace(/[^0-9]/g, '');
-                setOtp(numericValue);
-              }} 
+              onChange={(e) => setOtp(e.target.value)} 
               placeholder="••••••"
               className="CM_OTP_DISPLAY_INPUT"
               disabled={loading}
               autoComplete="one-time-code"
-              inputMode="numeric"
-              pattern="\d*"
             />
             {error && <div className="CM_RESET_ERROR">{error}</div>}
-            <button className="CM_RESET_SUBMIT" onClick={handleVerifyOTP} disabled={otp.length !== 6 || loading}>
+            <button className="CM_RESET_SUBMIT" onClick={handleVerifyOTP} disabled={otp.trim().length === 0 || loading}>
               {loading ? 'AUTHENTICATING...' : 'AUTHORIZE REQUEST'}
             </button>
           </div>
@@ -258,7 +249,6 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
               <p>Hello <strong>{resident?.first_name || 'Resident'}</strong>, establish your new encrypted access key.</p>
             </div>
 
-            {/* CLEAN CSS CLASS INSTEAD OF INLINE STYLES */}
             <div className="CM_SUCCESS_NOTICE">
               <strong><i className="fas fa-check-shield"></i> Cryptographic Standard:</strong><br/>
               Your new password will be heavily hashed via bcrypt before transmission. We recommend utilizing a unique passphrase.
