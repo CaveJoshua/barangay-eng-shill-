@@ -19,8 +19,42 @@ cloudinary.config({
 // =========================================================
 const upload = multer({ 
     dest: os.tmpdir(), 
-    limits: { fileSize: 10 * 1024 * 1024 } // Bumped limit to 10MB just in case
+    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
+
+// =========================================================
+// 🛡️ IMAGE PROCESSOR ENGINE
+// Scans narrative for Base64 strings, uploads them to Cloudinary, 
+// and replaces the massive text with short, secure URLs.
+// =========================================================
+const processNarrativeImages = async (narrative) => {
+    let finalNarrative = narrative || "";
+    // Matches data:image/...;base64,... 
+    const base64Regex = /(data:image\/[^;]+;base64,[^\s]+)/g;
+    const matchedBase64 = finalNarrative.match(base64Regex) || [];
+
+    if (matchedBase64.length > 0) {
+        const uploadPromises = matchedBase64.map(async (base64Str) => {
+            try {
+                const result = await cloudinary.uploader.upload(base64Str, { folder: 'blotter_evidence' });
+                return { oldString: base64Str, newUrl: result.secure_url };
+            } catch (uploadErr) {
+                console.error("[CLOUDINARY ERROR]", uploadErr.message);
+                return null;
+            }
+        });
+
+        const uploadResults = await Promise.all(uploadPromises);
+        
+        // Swap out the massive strings for clean URLs
+        uploadResults.forEach(item => {
+            if (item) {
+                finalNarrative = finalNarrative.replace(item.oldString, item.newUrl);
+            }
+        });
+    }
+    return finalNarrative;
+};
 
 // =========================================================
 // INTERNAL HELPERS (Notifications & RBAC)
@@ -48,7 +82,6 @@ const notifyAllAdmins = async (supabase, title, message, type = 'blotter') => {
     } catch (err) { console.error("[ADMIN_NOTIF_ERROR]:", err.message); }
 };
 
-// 🛡️ THE SMART BOUNCER
 const checkRole = (allowedRoles) => {
     return (req, res, next) => {
         let userRole = req.user?.user_role || req.user?.role || req.user?.account_type || req.user?.type;
@@ -82,43 +115,18 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
         } catch (err) { res.status(500).json({ error: "Fetch failed." }); }
     });
 
-    // ── 3. POST: CREATE REPORT (HIGH PERFORMANCE) ──
-    router.post('/blotter', authenticateToken, checkRole(['admin', 'superadmin', 'staff', 'resident']), upload.array('evidence', 6), async (req, res) => {
+    // ── 3. POST: CREATE REPORT ──
+    router.post('/blotter', authenticateToken, checkRole(['admin', 'superadmin', 'staff', 'resident']), upload.array('evidence', 5), async (req, res) => {
         try {
             const r = req.body;
             const userRole = req.validatedRole;
             const tokenResidentId = req.user?.record_id || req.user?.resident_id || req.user?.id || req.user?.sub;
             const secureComplainantId = (userRole === 'resident') ? (tokenResidentId || r.complainant_id) : (r.complainant_id || 'WALK-IN');
 
-            let finalNarrative = r.narrative || "";
+            // ⚡ 1. Process Base64 images from frontend payload
+            let finalNarrative = await processNarrativeImages(r.narrative);
 
-            // ⚡ 1. THE EXTRACTOR: Hunt down frontend Base64 strings embedded in the narrative
-            const base64Regex = /(data:image\/[^;]+;base64,[^\s]+)/g;
-            const matchedBase64 = finalNarrative.match(base64Regex) || [];
-
-            if (matchedBase64.length > 0) {
-                // Upload them to Cloudinary in parallel
-                const uploadPromises = matchedBase64.map(async (base64Str) => {
-                    try {
-                        const result = await cloudinary.uploader.upload(base64Str, { folder: 'blotter_evidence' });
-                        return { oldString: base64Str, newUrl: result.secure_url };
-                    } catch (uploadErr) {
-                        console.error("[CLOUDINARY ERROR]", uploadErr.message);
-                        return null;
-                    }
-                });
-
-                const uploadResults = await Promise.all(uploadPromises);
-                
-                // Replace the massive Base64 text blocks with clean, short URLs
-                uploadResults.forEach(item => {
-                    if (item) {
-                        finalNarrative = finalNarrative.replace(item.oldString, item.newUrl);
-                    }
-                });
-            }
-
-            // ⚡ 1.5. FALLBACK: Handle traditional multipart/form-data uploads if sent that way
+            // ⚡ 1.5. Fallback: Handle traditional form-data uploads just in case
             let uploadedImageLinks = [];
             if (req.files && req.files.length > 0) {
                 const formUploadPromises = req.files.map(async (file) => {
@@ -148,7 +156,7 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
                 complainant_id: secureComplainantId,
                 respondent: r.respondent,
                 incident_type: r.incident_type,
-                narrative: finalNarrative, // Cleaned narrative with proper URLs
+                narrative: finalNarrative, 
                 date_filed: r.date_filed || new Date().toISOString().split('T')[0],
                 time_filed: r.time_filed || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
                 status: 'Pending'
@@ -157,18 +165,14 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
             const { data, error } = await supabase.from('blotter_cases').insert([dbPayload]).select().single();
             if (error) throw error;
 
-            // ⚡ 3. INSTANT RESPONSE (Fire-and-Forget background tasks)
             res.status(201).json({ success: true, data });
 
-            // --- Everything below this line happens IN THE BACKGROUND without forcing the user to wait ---
+            // Background Tasks
             logActivity(supabase, req.user.username || 'System', 'INCIDENT_REPORTED', `Case ${dbPayload.case_number} filed.`).catch(() => {});
-            
             if (userRole === 'resident') {
                 createNotification(supabase, secureComplainantId, "Report Received", `Under review.`, 'blotter').catch(() => {});
             }
-            
             notifyAllAdmins(supabase, "New Incident", `Case ${dbPayload.case_number} filed.`, 'blotter').catch(() => {});
-
             if (process.env.SMTP_USER) {
                 sendAutoMail(
                     process.env.SMTP_USER, 
@@ -184,14 +188,27 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
         }
     });
 
-    // ── 4, 5, 6. PUT, PATCH, DELETE (Fast Updates) ──
+    // ── 4. PUT: UPDATE REPORT (THE FIX FOR YOUR 500 ERROR) ──
     router.put('/blotter/:id', authenticateToken, checkRole(['admin', 'superadmin', 'staff']), async (req, res) => {
         try {
-            const { data } = await supabase.from('blotter_cases').update(req.body).eq('id', req.params.id).select().single();
+            const r = req.body;
+
+            // 🚨 Crucial Fix: Process any NEW Base64 images added during an edit before saving!
+            if (r.narrative) {
+                r.narrative = await processNarrativeImages(r.narrative);
+            }
+
+            const { data, error } = await supabase.from('blotter_cases').update(r).eq('id', req.params.id).select().single();
+            if (error) throw error;
+            
             res.json({ success: true, data });
-        } catch (err) { res.status(500).json({ error: "Update failed." }); }
+        } catch (err) { 
+            console.error("[BLOTTER PUT ERROR]:", err);
+            res.status(500).json({ error: "Update failed.", details: err.message }); 
+        }
     });
 
+    // ── 5, 6. PATCH, DELETE ──
     router.patch('/blotter/:id/status', authenticateToken, checkRole(['admin', 'superadmin', 'staff']), async (req, res) => {
         try {
             const { status, hearing_date, hearing_time, rejection_reason } = req.body;

@@ -184,7 +184,7 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
 
   return (
     <div className="CM_RESET_OVERLAY">
-      <div className="CM_RESET_CARD" style={{ position: 'relative' }}>
+      <div className="CM_RESET_CARD">
         
         {onClose && (
           <button 
@@ -197,12 +197,13 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
         )}
 
         {step === 'REQUEST_OTP' && (
-          <div className="CM_RESET_HEADER" style={{ textAlign: 'center', paddingTop: '20px' }}>
+          <div className="CM_RESET_HEADER">
             <div className="CM_RESET_ICON"><i className="fas fa-shield-alt"></i></div>
             <h2>Verify Authorization</h2>
             <p>A security code will be sent to your registered email.</p>
             
-            <div style={{ background: '#f0f9ff', color: '#1e3a8a', padding: '14px', borderRadius: '10px', fontSize: '0.85rem', marginTop: '20px', marginBottom: '20px', textAlign: 'left', border: '1px solid #bfdbfe', lineHeight: '1.5' }}>
+            {/* CLEAN CSS CLASS INSTEAD OF INLINE STYLES */}
+            <div className="CM_INFO_NOTICE">
               <strong><i className="fas fa-info-circle"></i> Identity Protection Notice:</strong><br/>
               To protect your Barangay Engineer's Hill account from unauthorized alterations, Multi-Factor Authentication (MFA) is strictly enforced.
             </div>
@@ -215,12 +216,13 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
         )}
 
         {step === 'VERIFY_OTP' && (
-          <div className="CM_RESET_HEADER" style={{ textAlign: 'center', paddingTop: '20px' }}>
+          <div className="CM_RESET_HEADER">
             <div className="CM_RESET_ICON"><i className="fas fa-fingerprint"></i></div>
             <h2>Input Security Token</h2>
             <p>Enter the 6-digit code sent to your linked address.</p>
             
-            <div style={{ background: '#fffbeb', color: '#92400e', padding: '14px', borderRadius: '10px', fontSize: '0.85rem', marginTop: '20px', marginBottom: '20px', textAlign: 'left', border: '1px solid #fde68a', lineHeight: '1.5' }}>
+            {/* CLEAN CSS CLASS INSTEAD OF INLINE STYLES */}
+            <div className="CM_WARN_NOTICE">
               <strong><i className="fas fa-exclamation-triangle"></i> Official Warning:</strong><br/>
               Do not share this code with anyone. Barangay personnel, IT staff, and administrators will NEVER ask for your OTP.
             </div>
@@ -229,9 +231,17 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
               type="text" 
               maxLength={6} 
               value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))} 
+              onChange={(e) => {
+                // THE FIX: Bulletproof integer parsing that won't freeze the input
+                const numericValue = e.target.value.replace(/[^0-9]/g, '');
+                setOtp(numericValue);
+              }} 
               placeholder="••••••"
               className="CM_OTP_DISPLAY_INPUT"
+              disabled={loading}
+              autoComplete="one-time-code"
+              inputMode="numeric"
+              pattern="\d*"
             />
             {error && <div className="CM_RESET_ERROR">{error}</div>}
             <button className="CM_RESET_SUBMIT" onClick={handleVerifyOTP} disabled={otp.length !== 6 || loading}>
@@ -248,7 +258,8 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
               <p>Hello <strong>{resident?.first_name || 'Resident'}</strong>, establish your new encrypted access key.</p>
             </div>
 
-            <div style={{ background: '#f0fdf4', color: '#065f46', padding: '14px', borderRadius: '10px', fontSize: '0.85rem', marginBottom: '20px', border: '1px solid #bbf7d0', lineHeight: '1.5' }}>
+            {/* CLEAN CSS CLASS INSTEAD OF INLINE STYLES */}
+            <div className="CM_SUCCESS_NOTICE">
               <strong><i className="fas fa-check-shield"></i> Cryptographic Standard:</strong><br/>
               Your new password will be heavily hashed via bcrypt before transmission. We recommend utilizing a unique passphrase.
             </div>
@@ -297,8 +308,8 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
 
         {/* ── GLOBAL SECURITY FOOTER ── */}
         <div className="CM_RESET_FOOTER">
-          <i className="fas fa-lock" style={{ marginRight: '6px' }}></i> Secured by End-to-End Encryption <br/>
-          <span style={{ fontSize: '0.75rem', opacity: 0.8, display: 'inline-block', marginTop: '6px' }}>
+          <i className="fas fa-lock"></i> Secured by End-to-End Encryption <br/>
+          <span>
             Unauthorized access is strictly prohibited. IP and activity are logged.
           </span>
         </div>
