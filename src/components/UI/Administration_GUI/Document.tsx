@@ -15,7 +15,7 @@ export interface IDocRequest {
   dateRequested: string;
   status: 'Pending' | 'Processing' | 'Ready' | 'Completed' | 'Rejected';
   price: number;
-  requestMethod?: 'Online' | 'Walk-in'; // 🛡️ THE FIX: Made optional (?) to prevent TS errors from older components
+  requestMethod?: 'Online' | 'Walk-in'; 
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -53,7 +53,10 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
   useEffect(() => {
     if (highlightId) {
       setActiveHighlight(highlightId);
-      const timer = setTimeout(() => setActiveHighlight(null), 2500);
+      if (highlightId.toUpperCase().includes('WK-IN')) {
+          setActiveTab('History');
+      }
+      const timer = setTimeout(() => setActiveHighlight(null), 3000);
       return () => clearTimeout(timer);
     }
   }, [highlightId]);
@@ -66,18 +69,34 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
       const rawData = await ApiService.getDocuments(signal);
       if (rawData === null) return; 
 
-      const mappedData: IDocRequest[] = rawData.map((d: any) => ({
-        id: d.id || d.record_id, 
-        referenceNo: d.reference_no || d.referenceNo || 'REF-N/A',
-        residentName: d.resident_name || d.residentName || 'Unknown Resident',
-        type: d.type,
-        purpose: d.purpose,
-        otherPurpose: d.other_purpose || d.otherPurpose,
-        dateRequested: d.date_requested || d.dateRequested || new Date().toISOString(),
-        status: d.status,
-        price: d.price || 0,
-        requestMethod: d.request_method || 'Online' 
-      }));
+      const mappedData: IDocRequest[] = rawData.map((d: any) => {
+        const ref = d.reference_no || d.referenceNo || 'REF-N/A';
+        const methodStr = d.request_method || d.requestMethod || '';
+        
+        const isWalkIn = methodStr.toLowerCase() === 'walk-in' || ref.toUpperCase().includes('WK-IN');
+        
+        let currentStatus = d.status || 'Pending';
+
+        // 🛡️ WALK-IN OVERRIDE
+        if (isWalkIn && currentStatus.toLowerCase() !== 'rejected') {
+          currentStatus = 'Completed';
+        }
+
+        const normalizedStatus = currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1).toLowerCase();
+
+        return {
+          id: d.id || d.record_id, 
+          referenceNo: ref,
+          residentName: d.resident_name || d.residentName || 'Unknown Resident',
+          type: d.type,
+          purpose: d.purpose,
+          otherPurpose: d.other_purpose || d.otherPurpose,
+          dateRequested: d.date_requested || d.dateRequested || new Date().toISOString(),
+          status: normalizedStatus,
+          price: d.price || 0,
+          requestMethod: isWalkIn ? 'Walk-in' : 'Online' 
+        };
+      });
 
       // Sort by newest first
       const sortedData = mappedData.sort((a, b) => 
@@ -86,7 +105,6 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
 
       setRequests(sortedData);
 
-      // Trigger Notification Toast if new requests arrived
       if (sortedData.length > prevCountRef.current && prevCountRef.current !== 0) {
         const diff = sortedData.length - prevCountRef.current;
         if (diff > 0) {
@@ -119,7 +137,7 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
     setCurrentPage(1);
   }, [activeTab, searchTerm]);
 
-  // ── FILTERING ──
+  // ── FILTERING LOGIC ──
   const filteredDocs = useMemo(() => {
     return requests.filter(doc => {
       const searchMatch = 
@@ -128,13 +146,11 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
 
       if (!searchMatch) return false;
 
-      const isWalkIn = doc.requestMethod?.toLowerCase() === 'walk-in';
-
       if (activeTab === 'History') {
-        return (doc.status === 'Completed' || doc.status === 'Rejected') || isWalkIn;
+        return doc.status === 'Completed' || doc.status === 'Rejected';
+      } else {
+        return doc.status === activeTab;
       }
-      
-      return !isWalkIn && doc.status === activeTab;
     });
   }, [requests, activeTab, searchTerm]);
 
@@ -172,7 +188,7 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
       {/* KPI STATS PANEL */}
       <div className="DOC_STATS_GRID">
         {['Pending', 'Processing', 'Ready'].map(status => {
-          const count = requests.filter(r => r.status === status && r.requestMethod?.toLowerCase() !== 'walk-in').length;
+          const count = requests.filter(r => r.status === status).length;
           return (
             <div key={status} className="DOC_STAT_CARD">
               <span className="DOC_STAT_VAL">{count}</span>
@@ -223,25 +239,32 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
                 <th>DOCUMENT TYPE</th>
                 <th>DATE REQUESTED</th>
                 <th>PIPELINE STAGE</th>
-                <th style={{textAlign: 'right'}}>ACTION</th>
+                {/* 🛡️ CONDITION: Only show ACTION column if NOT in History */}
+                {activeTab !== 'History' && <th style={{textAlign: 'right'}}>ACTION</th>}
               </tr>
             </thead>
             <tbody>
               {loading && !requests.length ? (
-                <tr><td colSpan={6} className="MSG_ROW">Syncing records...</td></tr>
+                <tr><td colSpan={activeTab === 'History' ? 5 : 6} className="MSG_ROW">Syncing records...</td></tr>
               ) : error ? (
-                <tr><td colSpan={6} className="MSG_ROW ERROR">{error}</td></tr>
+                <tr><td colSpan={activeTab === 'History' ? 5 : 6} className="MSG_ROW ERROR">{error}</td></tr>
               ) : paginatedDocs.length === 0 ? (
-                <tr><td colSpan={6} className="MSG_ROW">No records found for this stage.</td></tr>
+                <tr><td colSpan={activeTab === 'History' ? 5 : 6} className="MSG_ROW">No records found for this stage.</td></tr>
               ) : (
                 paginatedDocs.map(doc => {
-                  const isGlowing = activeHighlight === String(doc.id);
+                  const isGlowing = activeHighlight === doc.referenceNo;
 
                   return (
                     <tr 
                       key={doc.id} 
-                      className={`DOC_ROW_CLICK ${isGlowing ? 'HINT_HIGHLIGHT' : ''}`}
-                      onClick={() => { setSelectedDoc(doc); setIsViewModalOpen(true); }} 
+                      // 🛡️ CONDITION: Remove hover/click effects if in History
+                      className={`${activeTab !== 'History' ? 'DOC_ROW_CLICK' : ''} ${isGlowing ? 'HINT_HIGHLIGHT' : ''}`}
+                      onClick={() => { 
+                        if (activeTab !== 'History') {
+                          setSelectedDoc(doc); 
+                          setIsViewModalOpen(true); 
+                        }
+                      }} 
                     >
                       <td>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -259,11 +282,15 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
                       <td>{doc.type}</td>
                       <td>{new Date(doc.dateRequested).toLocaleDateString()}</td>
                       <td><span className={`DOC_STATUS_PILL STATUS_${doc.status.toUpperCase()}`}>{doc.status}</span></td>
-                      <td style={{textAlign: 'right'}}>
-                          <button className="DOC_ACTION_BTN">
-                              <i className="fas fa-chevron-right"></i>
-                          </button>
-                      </td>
+                      
+                      {/* 🛡️ CONDITION: Hide the chevron action button in History */}
+                      {activeTab !== 'History' && (
+                        <td style={{textAlign: 'right'}}>
+                            <button className="DOC_ACTION_BTN">
+                                <i className="fas fa-chevron-right"></i>
+                            </button>
+                        </td>
+                      )}
                     </tr>
                   )
                 })
@@ -272,7 +299,7 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
           </table>
         </div>
 
-        {/* 10-ENTITY PAGINATION BAR */}
+        {/* PAGINATION BAR */}
         <div className="DOC_PAGINATION_BAR">
           <div className="DOC_PAGINATION_INFO">
             Showing {filteredDocs.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredDocs.length)} of {filteredDocs.length} entries
@@ -303,7 +330,6 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
           isOpen={isViewModalOpen} 
           onClose={() => setIsViewModalOpen(false)} 
           onUpdate={handleRefresh} 
-          // 🛡️ THE FIX: Cast docData to `any` to prevent strict TS mismatches from older components
           onGenerate={(docData: any) => {
             setSelectedDoc({
               ...docData,

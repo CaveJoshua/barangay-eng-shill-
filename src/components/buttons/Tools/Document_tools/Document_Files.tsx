@@ -30,15 +30,16 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
     guardianAge: '',
     guardianAddress: '',
     guardianResidency: '',
-    // 👇 NEW: Default state for table rows
-    tableRows: [['', '', '']] 
+    tableRows: [['', '', '']],
+    // 🛡️ THE FIX: Force manual creations and newly opened Pending requests straight to 'Processing'
+    status: (!initialData?.status || initialData?.status === 'Pending') ? 'Processing' : initialData.status,
+    requestMethod: initialData?.requestMethod || 'Walk-in' 
   });
 
   const refNumber = useRef(initialData?.referenceNo || `WALK-IN-${Date.now().toString().slice(-6)}`).current;
 
   const { residents, captainName, kagawadName, autoFilledAddress } = useDocumentDataAPI(docConfig.residentName, docConfig.residentId);
 
-  // 👇 NEW: The function that catches edits from the PDF surface
   const handleSurfaceEdit = (key: string, value: string) => {
     setDocConfig(prev => {
       // Special logic to handle table cell edits (table-index-row-col)
@@ -51,7 +52,7 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
         newTableRows[rIdx][cIdx] = value;
         return { ...prev, tableRows: newTableRows };
       }
-      // Standard text edits (like captainName, feesPaid)
+      // Standard text edits
       return { ...prev, [key]: value };
     });
   };
@@ -259,7 +260,6 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
               </div>
             )}
 
-            {/* 👇 NEW: TABLE CONTROLS */}
             <div className="dynamic-fade-in" style={{ marginTop: '20px' }}>
               <div className="section-label text-blue">📊 TABLE CONTROLS</div>
               <button 

@@ -114,6 +114,7 @@ export const useDashboardLogic = (onLogout: () => void) => {
     try {
       const parsed = JSON.parse(savedSession);
       const profile = parsed.profile || parsed;
+      const userNode = parsed.user || {}; // 🛡️ Ensure we grab the user node
 
       // 🛡️ Safe ID Extraction
       const recordId = profile.record_id || profile.RECORD_ID || parsed.record_id;
@@ -133,9 +134,18 @@ export const useDashboardLogic = (onLogout: () => void) => {
           safeName = 'UNKNOWN RESIDENT';
       }
 
+      // 🛡️ THE FIX: Deep Identity Extraction
+      // Actively hunt for the email and username across the entire session object
+      const extractedEmail = profile.email || userNode.email || parsed.email || '';
+      const extractedUsername = userNode.username || profile.username || parsed.username || '';
+
       setResident({
-        ...profile,
-        record_id: recordId, // Normalize ID
+        ...parsed,         // Keep the root payload intact
+        ...profile,        // Prioritize profile data
+        user: userNode,    // Explicitly attach the user node so it isn't dropped
+        email: extractedEmail,       // Force email to the surface
+        username: extractedUsername, // Force username to the surface
+        record_id: recordId, 
         formattedName: safeName,
       });
 

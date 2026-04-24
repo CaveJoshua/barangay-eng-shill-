@@ -206,8 +206,40 @@ const Community_Document: React.FC<DocumentProps> = ({
               </div>
             </div>
 
-            <footer className="DRAWER_FOOTER">
-               <button className="FOOTER_BTN" onClick={() => setSelectedDoc(null)}>Close View</button>
+            {/* 🛡️ NEW STYLED FOOTER BUTTON */}
+            <footer className="DRAWER_FOOTER" style={{ padding: '20px', borderTop: '1px solid var(--c--p--border-subtle)', background: 'var(--c--p--bg-card)' }}>
+               <button 
+                 className="FOOTER_BTN" 
+                 onClick={() => setSelectedDoc(null)}
+                 style={{
+                   width: '100%',
+                   padding: '12px 20px',
+                   borderRadius: '10px',
+                   border: '1px solid var(--c--p--border-subtle)',
+                   backgroundColor: 'var(--c--p--bg-switcher)',
+                   color: 'var(--c--p--text-primary)',
+                   fontSize: '0.95rem',
+                   fontWeight: 700,
+                   cursor: 'pointer',
+                   transition: 'all 0.2s',
+                   display: 'flex',
+                   alignItems: 'center',
+                   justifyContent: 'center',
+                   gap: '8px'
+                 }}
+                 onMouseEnter={(e) => {
+                   e.currentTarget.style.backgroundColor = '#ef4444'; 
+                   e.currentTarget.style.color = '#ffffff';
+                   e.currentTarget.style.borderColor = '#ef4444';
+                 }}
+                 onMouseLeave={(e) => {
+                   e.currentTarget.style.backgroundColor = 'var(--c--p--bg-switcher)';
+                   e.currentTarget.style.color = 'var(--c--p--text-primary)';
+                   e.currentTarget.style.borderColor = 'var(--c--p--border-subtle)';
+                 }}
+               >
+                 <i className="fas fa-times-circle"></i> Close View
+               </button>
             </footer>
           </div>
         )}

@@ -44,7 +44,7 @@ const initialState: IResident = {
   lastName: '', firstName: '', middleName: '',
   sex: 'Male', dob: '', 
   birthCountry: 'PHILIPPINES', birthProvince: '', birthCity: '',
-  birthPlace: '', nationality: 'FILIPINO', religion: 'ROMAN CATHOLIC', contact_number: '09', email: '', 
+  birthPlace: '', nationality: 'FILIPINO', religion: 'ROMAN CATHOLIC', contact_number: '', email: '', 
   currentAddress: '', purok: '', civilStatus: 'SINGLE',
   education: 'ELEMENTARY GRADUATE', employment: '', employmentStatus: 'UNEMPLOYED', occupation: '', 
   activityStatus: 'Active', isVoter: false, isPWD: false, 
@@ -64,6 +64,10 @@ export const ResidentModal: React.FC<{
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [visibleList, setVisibleList] = useState<string | null>(null);
   const [customFields, setCustomFields] = useState<Record<string, boolean>>({});
+  
+  // State for formal notification
+  const [successMessage, setSuccessMessage] = useState('');
+  const [isClosingPopup, setIsClosingPopup] = useState(false);
 
   const isUpdateMode = !!residentData?.id;
 
@@ -114,7 +118,7 @@ export const ResidentModal: React.FC<{
           nationality: residentData.nationality || 'FILIPINO'
         });
 
-        const standardReligion = ["ROMAN CATHOLIC", "ISLAM", "IGLESIA NI CRISTO"];
+        const standardReligion = ["ROMAN CATHOLIC", "IGLESIA NI CRISTO", "JEHOVAH'S WITNESSES"];
         const standardCivil = ["SINGLE", "MARRIED", "WIDOWED", "SEPARATED"];
         const standardEdu = ["ELEMENTARY GRADUATE", "HIGH SCHOOL GRADUATE", "COLLEGE GRADUATE", "MASTER'S DEGREE", "DOCTORATE"];
         const standardEmp = ["UNEMPLOYED", "FULL-TIME", "PART-TIME", "SELF-EMPLOYED", "STUDENT"];
@@ -132,6 +136,8 @@ export const ResidentModal: React.FC<{
         setCustomFields({});
       }
       setErrors({});
+      setSuccessMessage('');
+      setIsClosingPopup(false);
     }
   }, [isOpen, residentData]);
 
@@ -150,7 +156,44 @@ export const ResidentModal: React.FC<{
 
   const filterLimit = (list: string[], term: string) => list.filter(i => i.toLowerCase().includes(term.toLowerCase())).slice(0, 20);
 
+  const handleDateChange = (field: 'day' | 'month' | 'year', val: string) => {
+    if (!/^[0-9]*$/.test(val)) return;
+
+    if (field === 'month') {
+      const m = parseInt(val, 10);
+      if (val.length === 2 && (m < 1 || m > 12)) return;
+      if (val.length > 2) return;
+    }
+    
+    if (field === 'day') {
+      const d = parseInt(val, 10);
+      const m = parseInt(search.month || '0', 10);
+      let maxDays = 31;
+      
+      if (m === 2) {
+          const y = parseInt(search.year || '0', 10);
+          const isLeap = y > 0 ? ((y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0)) : true;
+          maxDays = isLeap ? 29 : 28;
+      } else if ([4, 6, 9, 11].includes(m)) {
+          maxDays = 30;
+      }
+      
+      if (val.length >= 2 && (d < 1 || d > maxDays)) return;
+      if (val.length > 2) return;
+    }
+    
+    if (field === 'year') {
+      if (val.length > 4) return;
+    }
+    
+    setSearch(s => ({ ...s, [field]: val }));
+  };
+
   const handleLocSearchChange = (field: string, val: string) => {
+    if (field === 'province' || field === 'city') {
+       if (!/^[A-Za-z\sñÑ]*$/.test(val)) return;
+    }
+
     const upper = val.toUpperCase();
     if (field === 'province') setSearch(s => ({ ...s, province: upper, city: '' }));
     else if (field === 'city') setSearch(s => ({ ...s, city: upper }));
@@ -158,12 +201,10 @@ export const ResidentModal: React.FC<{
   };
 
   useEffect(() => {
-    // Only update DOB from internal search state if NOT in Update Mode
     if (search.day && search.month && search.year && !isUpdateMode) {
       setFormData(prev => ({ ...prev, dob: `${search.year}-${search.month}-${search.day}` }));
     }
     
-    // Update birthplace and nationality (Allowed in both modes for correction)
     const full = [search.country, search.province, search.city].filter(Boolean).join(', ').toUpperCase();
     setFormData(prev => ({ 
       ...prev, birthCountry: search.country, birthProvince: search.province, 
@@ -172,12 +213,26 @@ export const ResidentModal: React.FC<{
   }, [search, isUpdateMode]);
 
   const handleChange = (field: keyof IResident, value: any) => {
-    // We only lock 'dob' now. Names and Sex are editable.
     if (isUpdateMode && field === 'dob') return;
+
+    if (['lastName', 'firstName', 'middleName'].includes(field)) {
+      if (!/^[A-Za-z\sñÑ]*$/.test(value)) return;
+    }
+
+    if (field === 'religion' && customFields.religion) {
+      if (!/^[A-Za-z\sñÑ]*$/.test(value)) return;
+    }
+
+    if (field === 'contact_number') {
+      if (!/^[0-9]*$/.test(value)) return; 
+      if (value.length > 0 && value[0] !== '0') return; 
+      if (value.length > 1 && value[1] !== '9') return; 
+      if (value.length > 11) return; 
+    }
 
     let v = value;
     const uppers = ['lastName', 'firstName', 'middleName', 'currentAddress', 'occupation', 'employment', 'pwdIdNumber', 'seniorIdNumber', 'fourPsIdNumber', 'soloParentIdNumber', 'voterIdNumber', 'religion', 'civilStatus', 'education', 'employmentStatus'];
-    if (uppers.includes(field)) v = String(value).toUpperCase();
+    if (uppers.includes(field as string)) v = String(value).toUpperCase();
 
     if (v === 'OTHERS') {
       setCustomFields(prev => ({ ...prev, [field]: true }));
@@ -185,7 +240,7 @@ export const ResidentModal: React.FC<{
     }
 
     setFormData(p => ({ ...p, [field]: v }));
-    if (errors[field]) setErrors(p => ({ ...p, [field]: '' }));
+    if (errors[field as string]) setErrors(p => ({ ...p, [field]: '' }));
   };
 
   const handleCustomBlur = (field: keyof IResident) => {
@@ -201,7 +256,6 @@ export const ResidentModal: React.FC<{
     
     setIsLoading(true);
 
-    // Assembly remains consistent; backend re-calculates hash if names change.
     const safePayload = {
       firstName: formData.firstName, lastName: formData.lastName, middleName: formData.middleName,
       sex: formData.sex, dob: formData.dob, birthCountry: formData.birthCountry,
@@ -220,7 +274,22 @@ export const ResidentModal: React.FC<{
     try {
       const result = await ApiService.saveResident(residentData?.id, safePayload);
       if (result.success) {
-        onSuccess(result.data); onClose();
+        // Trigger popup display
+        setSuccessMessage(isUpdateMode ? 'Identity Updated Successfully' : 'Identity Registered Successfully');
+        
+        // Wait 2 seconds for admin to read it
+        setTimeout(() => {
+          setIsClosingPopup(true); // Trigger exit transition
+          
+          // Wait 400ms for exit animation to complete before actually closing modal
+          setTimeout(() => {
+            setSuccessMessage('');
+            setIsClosingPopup(false);
+            onSuccess(result.data); 
+            onClose();
+          }, 400); 
+        }, 2000);
+        
       } else {
         alert(`Request failed: ${result.error}`);
       }
@@ -238,6 +307,78 @@ export const ResidentModal: React.FC<{
   return (
     <div className="RMS_OVERLAY" onClick={onClose}>
       <div className="RMS_CARD" onClick={e => e.stopPropagation()}>
+        
+        {/* NEW PROFESSIONAL SUCCESS POPUP */}
+        {successMessage && (
+          <div 
+            style={{
+              position: 'absolute',
+              top: 0, left: 0, right: 0, bottom: 0,
+              backgroundColor: 'rgba(255, 255, 255, 0.75)',
+              backdropFilter: 'blur(4px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 9999,
+              borderRadius: '8px',
+              opacity: isClosingPopup ? 0 : 1,
+              transition: 'opacity 0.4s ease-in-out',
+            }}
+          >
+            <div 
+              style={{
+                backgroundColor: '#ffffff',
+                padding: '35px 45px',
+                borderRadius: '12px',
+                boxShadow: '0 20px 40px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.05)',
+                border: '1px solid #e2e8f0',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '16px',
+                transform: isClosingPopup ? 'translateY(-15px) scale(0.97)' : 'translateY(0) scale(1)',
+                opacity: isClosingPopup ? 0 : 1,
+                transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
+              }}
+            >
+              <div 
+                style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '50%',
+                  backgroundColor: '#ecfdf5',
+                  color: '#10b981',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '24px'
+                }}
+              >
+                <i className="fas fa-check"></i>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <h3 style={{ 
+                  margin: '0 0 8px 0', 
+                  color: '#0f172a', 
+                  fontSize: '18px', 
+                  fontWeight: '600',
+                  fontFamily: 'system-ui, -apple-system, sans-serif'
+                }}>
+                  {successMessage}
+                </h3>
+                <p style={{ 
+                  margin: 0, 
+                  color: '#64748b', 
+                  fontSize: '14px',
+                  fontFamily: 'system-ui, -apple-system, sans-serif'
+                }}>
+                  The resident record has been securely saved.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="RMS_HEADER">
           <h2>{isUpdateMode ? 'UPDATE RESIDENT PROFILE' : 'RESIDENT REGISTRATION'}</h2>
           <button className="RMS_CLOSE_X" onClick={onClose}>&times;</button>
@@ -246,7 +387,6 @@ export const ResidentModal: React.FC<{
         <form onSubmit={onSubmit} className="RMS_FORM">
           <div className="RMS_BODY">
             
-            {/* SECTION 1: PERSONAL IDENTITY */}
             <div className="RMS_SECTION">
               <div className="RMS_SEC_TITLE">Personal Identity</div>
               <div className="RMS_GRID">
@@ -269,16 +409,16 @@ export const ResidentModal: React.FC<{
                   <label className="RMS_LABEL">DATE OF BIRTH * {isUpdateMode && lockIcon}</label>
                   <div className="RMS_DATE_FLEX">
                     <div className="RMS_SEARCH_SELECT_WRAP" ref={dateRefs.month}>
-                      <input className="RMS_INPUT" placeholder="MM" value={search.month} readOnly={isUpdateMode} onFocus={() => !isUpdateMode && setVisibleList('month')} onChange={e => setSearch({...search, month: e.target.value})} maxLength={2} />
-                      {visibleList === 'month' && <ul className="RMS_SEARCH_RESULTS">{filterLimit(months, search.month).map(m => <li key={m} onClick={() => {setSearch({...search, month: m}); setVisibleList(null);}}>{m}</li>)}</ul>}
+                      <input className="RMS_INPUT" placeholder="MM" value={search.month} readOnly={isUpdateMode} onFocus={() => !isUpdateMode && setVisibleList('month')} onChange={e => handleDateChange('month', e.target.value)} maxLength={2} />
+                      {visibleList === 'month' && <ul className="RMS_SEARCH_RESULTS">{filterLimit(months, search.month).map(m => <li key={m} onClick={() => {handleDateChange('month', m); setVisibleList(null);}}>{m}</li>)}</ul>}
                     </div>
                     <div className="RMS_SEARCH_SELECT_WRAP" ref={dateRefs.day}>
-                      <input className="RMS_INPUT" placeholder="DD" value={search.day} readOnly={isUpdateMode} onFocus={() => !isUpdateMode && setVisibleList('day')} onChange={e => setSearch({...search, day: e.target.value})} maxLength={2} />
-                      {visibleList === 'day' && <ul className="RMS_SEARCH_RESULTS">{filterLimit(days, search.day).map(d => <li key={d} onClick={() => {setSearch({...search, day: d}); setVisibleList(null);}}>{d}</li>)}</ul>}
+                      <input className="RMS_INPUT" placeholder="DD" value={search.day} readOnly={isUpdateMode} onFocus={() => !isUpdateMode && setVisibleList('day')} onChange={e => handleDateChange('day', e.target.value)} maxLength={2} />
+                      {visibleList === 'day' && <ul className="RMS_SEARCH_RESULTS">{filterLimit(days, search.day).map(d => <li key={d} onClick={() => {handleDateChange('day', d); setVisibleList(null);}}>{d}</li>)}</ul>}
                     </div>
                     <div className="RMS_SEARCH_SELECT_WRAP" ref={dateRefs.year}>
-                      <input className="RMS_INPUT" placeholder="YYYY" value={search.year} readOnly={isUpdateMode} onFocus={() => !isUpdateMode && setVisibleList('year')} onChange={e => setSearch({...search, year: e.target.value})} maxLength={4} />
-                      {visibleList === 'year' && <ul className="RMS_SEARCH_RESULTS">{filterLimit(years, search.year).map(y => <li key={y} onClick={() => {setSearch({...search, year: y}); setVisibleList(null);}}>{y}</li>)}</ul>}
+                      <input className="RMS_INPUT" placeholder="YYYY" value={search.year} readOnly={isUpdateMode} onFocus={() => !isUpdateMode && setVisibleList('year')} onChange={e => handleDateChange('year', e.target.value)} maxLength={4} />
+                      {visibleList === 'year' && <ul className="RMS_SEARCH_RESULTS">{filterLimit(years, search.year).map(y => <li key={y} onClick={() => {handleDateChange('year', y); setVisibleList(null);}}>{y}</li>)}</ul>}
                     </div>
                   </div>
                   {errors.dob && <span className="RMS_ERROR_TXT">{errors.dob}</span>}
@@ -344,8 +484,8 @@ export const ResidentModal: React.FC<{
                   ) : (
                     <select className="RMS_INPUT" value={formData.religion} onChange={e => handleChange('religion', e.target.value)}>
                       <option value="ROMAN CATHOLIC">ROMAN CATHOLIC</option>
-                      <option value="ISLAM">ISLAM</option>
                       <option value="IGLESIA NI CRISTO">IGLESIA NI CRISTO</option>
+                      <option value="JEHOVAH'S WITNESSES">JEHOVAH'S WITNESSES</option>
                       <option value="OTHERS">OTHERS (SPECIFY)</option>
                     </select>
                   )}
@@ -353,7 +493,6 @@ export const ResidentModal: React.FC<{
               </div>
             </div>
 
-            {/* ... Rest of sections remain as they were for temporal data ... */}
             <div className="RMS_SECTION">
               <div className="RMS_SEC_TITLE">Socio-Economic Profile</div>
               <div className="RMS_GRID">
@@ -415,7 +554,7 @@ export const ResidentModal: React.FC<{
                 </div>
                 <div className="RMS_GROUP">
                   <label className="RMS_LABEL">CONTACT NUMBER</label>
-                  <input className="RMS_INPUT" value={formData.contact_number} onChange={e => handleChange('contact_number', e.target.value)} maxLength={11} placeholder="09XXXXXXXXX" />
+                  <input className="RMS_INPUT" value={formData.contact_number} onChange={e => handleChange('contact_number', e.target.value)} placeholder="09XXXXXXXXX" />
                 </div>
                 <div className="RMS_GROUP">
                   <label className="RMS_LABEL">EMAIL ADDRESS</label>
@@ -428,9 +567,12 @@ export const ResidentModal: React.FC<{
               <div className="RMS_SEC_TITLE">Classifications & Special IDs</div>
               <div className="RMS_CHECK_GRID">
                 {[
-                  { k: 'isVoter', l: 'VOTER' }, { k: 'isPWD', l: 'PWD' }, 
-                  { k: 'is4Ps', l: '4PS' }, { k: 'isSoloParent', l: 'SOLO PARENT' }, 
-                  { k: 'isSeniorCitizen', l: 'SENIOR' }, { k: 'isIP', l: 'IP' }
+                  { k: 'isVoter', l: "VOTER / SUFFRAGE (OPTIONAL)" }, 
+                  { k: 'isPWD', l: 'PWD (OPTIONAL)' }, 
+                  { k: 'is4Ps', l: '4PS (OPTIONAL)' }, 
+                  { k: 'isSoloParent', l: 'SOLO PARENT (OPTIONAL)' }, 
+                  { k: 'isSeniorCitizen', l: 'SENIOR (OPTIONAL)' }, 
+                  { k: 'isIP', l: 'IP (OPTIONAL)' }
                 ].map(item => (
                   <label key={item.k} className="RMS_CHECK_ITEM">
                     <input type="checkbox" checked={!!formData[item.k as keyof IResident]} onChange={e => handleChange(item.k as keyof IResident, e.target.checked)} />
@@ -453,18 +595,37 @@ export const ResidentModal: React.FC<{
                       <input className="RMS_INPUT" value={formData.pwdIdNumber} onChange={e => handleChange('pwdIdNumber', e.target.value)} />
                     </div>
                   )}
-                  {/* ... other ID fields mapping to formData ... */}
+                  {formData.is4Ps && (
+                    <div className="RMS_GROUP">
+                      <label className="RMS_LABEL">4Ps ID #</label>
+                      <input className="RMS_INPUT" value={formData.fourPsIdNumber} onChange={e => handleChange('fourPsIdNumber', e.target.value)} />
+                    </div>
+                  )}
+                  {formData.isSoloParent && (
+                    <div className="RMS_GROUP">
+                      <label className="RMS_LABEL">SOLO PARENT ID #</label>
+                      <input className="RMS_INPUT" value={formData.soloParentIdNumber} onChange={e => handleChange('soloParentIdNumber', e.target.value)} />
+                    </div>
+                  )}
+                  {formData.isSeniorCitizen && (
+                    <div className="RMS_GROUP">
+                      <label className="RMS_LABEL">SENIOR CITIZEN ID #</label>
+                      <input className="RMS_INPUT" value={formData.seniorIdNumber} onChange={e => handleChange('seniorIdNumber', e.target.value)} />
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           </div>
 
           <div className="RMS_FOOTER">
-            <button type="button" className="RMS_BTN_CANCEL" onClick={onClose}>DISCARD</button>
-            <button type="submit" className="RMS_BTN_SUBMIT" disabled={isLoading}>{isLoading ? 'SAVING...' : (isUpdateMode ? 'UPDATE RECORD' : 'CONFIRM REGISTRATION')}</button>
+            <button type="button" className="RMS_BTN_CANCEL" onClick={onClose} disabled={successMessage !== ''}>DISCARD</button>
+            <button type="submit" className="RMS_BTN_SUBMIT" disabled={isLoading || successMessage !== ''}>
+              {isLoading ? 'SAVING...' : (isUpdateMode ? 'UPDATE RECORD' : 'CONFIRM REGISTRATION')}
+            </button>
           </div>
         </form>
       </div>
     </div>
-  );
+  ); 
 };

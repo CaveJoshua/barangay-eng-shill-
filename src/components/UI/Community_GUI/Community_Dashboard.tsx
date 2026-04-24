@@ -26,7 +26,7 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
     blotters, 
     documents, 
     newsList, 
-    notifications, // 🛡️ THE FIX: Extracting the real notifications here!
+    notifications, 
     loading, 
     fetchData, 
     activeTab, 
@@ -166,6 +166,7 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
         );
 
       case 'Blotter':
+        // 🛡️ THE FIX: View logic removed. Cleanly passing the raw data down to the child component!
         return (
           <Community_blotter 
             data={blotters || []} 
@@ -249,7 +250,6 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                 {resident?.record_id ? 'CONNECTED' : 'OFFLINE'}
               </div>
 
-              {/* 🛡️ THE FIX: Pass the real notifications array into the component! */}
               <Community_Notification 
                 notifications={notifications}
                 blotters={blotters} 

@@ -98,6 +98,7 @@
     padding: 3rem !important;
     background: linear-gradient(135deg, var(--cp-card) 0%, var(--cp-bg) 100%);
     border: 2px solid var(--cp-primary);
+    border-radius: 24px;
 }
 
 .C_P_AVATAR_LARGE {
@@ -111,12 +112,14 @@
     justify-content: center;
     font-size: 3rem;
     font-weight: 800;
+    flex-shrink: 0;
     box-shadow: 0 10px 20px rgba(37, 99, 235, 0.3);
 }
 
 .C_P_HERO_TEXT h3 {
     font-size: 1.8rem;
     margin: 0 0 0.5rem 0;
+    word-break: break-word;
 }
 
 .C_P_VERIFIED_BADGE {
@@ -158,6 +161,7 @@
     align-items: center;
     padding: 1.25rem 0;
     border-bottom: 1px solid var(--cp-border);
+    gap: 1rem;
 }
 
 .C_P_DATA_ROW:last-child { border-bottom: none; }
@@ -168,16 +172,21 @@
     gap: 12px;
     color: var(--cp-text-sub);
     font-weight: 600;
+    flex-shrink: 0;
 }
 
 .C_P_DATA_LABEL i {
     width: 20px;
     color: var(--cp-primary);
+    text-align: center;
 }
 
 .C_P_DATA_VALUE {
     font-weight: 700;
     color: var(--cp-text);
+    text-align: right;
+    word-break: break-word; /* Prevents long UUIDs from breaking layout */
+    max-width: 60%; /* Prevents text from crushing the label */
 }
 
 /* ── 5. THEME TOGGLE SWITCH ── */
@@ -259,10 +268,45 @@
     text-align: center;
 }
 
-/* ── 8. RESPONSIVE ── */
+/* ── 8. RESPONSIVE (MOBILE OVERRIDES) ── */
 @media (max-width: 600px) {
-    .C_P_PROFILE_HEADER { padding: 1rem; }
-    .C_P_HEADER_SPACER { display: none; }
-    .C_P_HERO_CARD { flex-direction: column; text-align: center; padding: 2rem !important; }
-    .DESKTOP_ONLY { display: none; }
+    .C_P_PROFILE_HEADER { 
+        padding: 1rem; 
+    }
+    
+    .C_P_HEADER_SPACER { 
+        display: none; 
+    }
+    
+    .C_P_PROFILE_SCROLL_AREA { 
+        padding: 1rem; 
+    }
+    
+    .C_P_HERO_CARD { 
+        flex-direction: column; 
+        text-align: center; 
+        padding: 1.5rem !important; 
+        gap: 1rem; 
+    }
+    
+    .C_P_DATA_ROW {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    .C_P_DATA_VALUE {
+        text-align: left;
+        max-width: 100%;
+        padding-left: 32px; /* Aligns text with the label content visually */
+    }
+
+    .C_P_THEME_TOGGLE {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .DESKTOP_ONLY { 
+        display: none; 
+    }
 }

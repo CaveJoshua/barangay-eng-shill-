@@ -22,7 +22,7 @@ interface LiveNotification {
 const AdministratorNotification: React.FC<AdminNotifProps> = ({ onNavigate }) => {
   const [notifications, setNotifications] = useState<LiveNotification[]>([]);
   
-  // 💾 Memory for Read Notifications - Wrapped in try/catch for safety
+  // 💾 Memory for Read Notifications
   const [readIds, setReadIds] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('admin_read_notif_ids');
@@ -64,7 +64,7 @@ const AdministratorNotification: React.FC<AdminNotifProps> = ({ onNavigate }) =>
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // ─── DIRECT FETCH LOGIC WITH SMART SENSOR ───
+  // ─── DIRECT FETCH LOGIC WITH STRICT ADMIN FILTERS ───
   const fetchLiveNotifs = useCallback(async () => {
     if (notifsControllerRef.current) notifsControllerRef.current.abort();
     notifsControllerRef.current = new AbortController();
@@ -73,26 +73,51 @@ const AdministratorNotification: React.FC<AdminNotifProps> = ({ onNavigate }) =>
       const liveData = await ApiService.getNotifications(notifsControllerRef.current.signal);
       
       if (liveData && Array.isArray(liveData)) {
-        const mappedNotifs: LiveNotification[] = liveData.map((item: any) => {
-          const msg = item.message || '';
-          
-          /**
-           * 📡 ENHANCED REGEX SENSOR
-           * 👇 THE FIX: Added a hyphen inside the brackets [A-Z0-9-]+ so it doesn't cut off INCD-2026-6508-Y5N7
-           */
-          const caseMatch = msg.match(/(BLTR|BL|INCD|TMP|BLT|ON-LN|WK-IN|REF)-[A-Z0-9-]+/i);
+        const mappedNotifs: LiveNotification[] = [];
+
+        for (const item of liveData) {
+          const rawMsg = item.message || '';
+          const lowerMsg = rawMsg.toLowerCase();
+
+          // 🛡️ 1. ADMIN FILTER: BLOCK ALL WALK-INS
+          if (lowerMsg.includes('wk-in') || lowerMsg.includes('walk-in')) {
+            continue; 
+          }
+
+          // 🛡️ 2. ADMIN FILTER: HIDE ALREADY PROCESSED ITEMS
+          // If it says processing, completed, ready, or claimed, the admin doesn't need a bell notification.
+          if (
+            lowerMsg.includes('processing') || 
+            lowerMsg.includes('completed') || 
+            lowerMsg.includes('ready') || 
+            lowerMsg.includes('claimed') ||
+            lowerMsg.includes('rejected')
+          ) {
+            continue; 
+          }
+
+          // 🛡️ 3. ADMIN REWRITE: Fix the "Your Document" resident phrasing
+          let adminMsg = rawMsg;
+          if (adminMsg.toLowerCase().startsWith('your ')) {
+            adminMsg = adminMsg.replace(/^Your /i, 'Incoming Online Request: ');
+          }
+          if (adminMsg.toLowerCase().includes('is now pending')) {
+            adminMsg = adminMsg.replace(/is now pending/i, 'is awaiting review.');
+          }
+
+          const caseMatch = rawMsg.match(/(BLTR|BL|INCD|TMP|BLT|ON-LN|WK-IN|REF)-[A-Z0-9-]+/i);
           const extractedRef = caseMatch ? caseMatch[0] : String(item.id);
 
-          return {
+          mappedNotifs.push({
             id: String(item.id),
             originalId: extractedRef, 
-            title: item.title || 'System Alert',
-            message: msg,
+            title: item.title === 'Document Alert' ? 'Online Request Alert' : (item.title || 'System Alert'),
+            message: adminMsg,
             type: (item.type || 'system').toLowerCase(),
             timestamp: item.created_at || new Date().toISOString(),
             status: item.is_read ? 'read' : 'unread'
-          };
-        });
+          });
+        }
 
         setNotifications(mappedNotifs);
 
@@ -206,7 +231,7 @@ const AdministratorNotification: React.FC<AdminNotifProps> = ({ onNavigate }) =>
           }}
         >
           <div className="FRAME_NOTIF_HEADER" style={{ display: 'flex', justifyContent: 'space-between', padding: '15px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
-            <h4 style={{ margin: 0, fontSize: '1rem', color: '#1e293b' }}>Notification Feed</h4>
+            <h4 style={{ margin: 0, fontSize: '1rem', color: '#1e293b' }}>Online Requests Feed</h4>
             {visibleNotifications.length > 0 && (
               <button onClick={handleClearAll} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: '0.85rem' }}>
                 Clear All

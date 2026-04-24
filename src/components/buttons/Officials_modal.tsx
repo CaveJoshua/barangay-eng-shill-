@@ -55,7 +55,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
-  const [traceId, setTraceId] = useState(''); // 🛡️ Stores the session ID for OTP
+  const [traceId, setTraceId] = useState(''); 
   const [verificationCode, setVerificationCode] = useState('');
   
   const [residents, setResidents] = useState<IResident[]>([]);
@@ -113,7 +113,6 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
           contact_number: ''
         });
       }
-      // Reset OTP states when opening modal
       setOtpSent(false);
       setVerificationCode('');
       setTraceId('');
@@ -171,7 +170,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
       const response = await fetch(`${OFFICIALS_API}/request-otp`, {
         method: 'POST',
         headers: getAuthHeaders(false, 'POST'),
-        credentials: 'include', // 🛡️ CRITICAL: Forces cookie inclusion to bypass 401 error
+        credentials: 'include', 
         body: JSON.stringify({ email: formData.full_name })
       });
 
@@ -216,7 +215,6 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
       const method = officialToEdit ? 'PUT' : 'POST';
       const url = officialToEdit ? `${OFFICIALS_API}/${officialToEdit.id}` : OFFICIALS_API;
 
-      // Pack the payload exactly as the backend expects it
       const payload = {
         ...formData,
         ...(isBarangayHallMode && { otp: verificationCode, trace_id: traceId })
@@ -225,7 +223,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
       const res = await fetch(url, {
         method,
         headers: getAuthHeaders(false, method),
-        credentials: 'include', // 🛡️ CRITICAL: Sends secure cookies (fixes 401 Unauthorized)
+        credentials: 'include', 
         body: JSON.stringify(payload) 
       });
 
@@ -295,7 +293,6 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
                 style={{ flex: 1 }}
               />
               
-              {/* 🛡️ THE NEW TRIGGER BUTTON */}
               {isBarangayHallMode && !otpSent && (
                 <button 
                   type="button" 
@@ -338,7 +335,6 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
                   term_start: newPos === 'Barangay Hall' ? '' : new Date().toISOString().split('T')[0],
                   term_end: ''
                 });
-                // Reset OTP flow if they switch away and come back
                 setOtpSent(false);
                 setVerificationCode('');
                 setShowDropdown(false);
@@ -352,7 +348,6 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
             </select>
           </div>
 
-          {/* 🛡️ CONDITIONAL AUTHENTICATION CODE INPUT */}
           {isBarangayHallMode && otpSent && (
             <div className="OM_FORM_GROUP">
               <label style={{ color: '#d97706' }}>Gmail Verification Code</label>
@@ -380,8 +375,10 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
                   <input 
                     type="date" 
                     required 
-                    className="OM_INPUT" 
+                    className={`OM_INPUT ${!!officialToEdit ? 'OM_INPUT_LOCKED' : ''}`} 
                     value={formData.term_start} 
+                    // 🛡️ LOCK: Prevent modification once registered
+                    disabled={!!officialToEdit}
                     onChange={e => setFormData({...formData, term_start: e.target.value})} 
                   />
                 </div>
@@ -389,8 +386,10 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
                   <label>Service End</label>
                   <input 
                     type="date" 
-                    className="OM_INPUT" 
+                    className={`OM_INPUT ${!!officialToEdit ? 'OM_INPUT_LOCKED' : ''}`} 
                     value={formData.term_end} 
+                    // 🛡️ LOCK: Prevent modification once registered
+                    disabled={!!officialToEdit}
                     onChange={e => setFormData({...formData, term_end: e.target.value})} 
                   />
                 </div>

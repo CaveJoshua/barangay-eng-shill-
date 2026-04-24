@@ -9,6 +9,23 @@ interface BlotterProps {
   refresh: () => void;
 }
 
+// 🛡️ ENHANCED EXTRACTOR: Safely extracts both the clean text AND the actual image URL
+const parseEvidence = (text: string) => {
+  if (!text) return { cleanText: '', evidenceUrl: null };
+  
+  const marker = '[ATTACHED EVIDENCE]';
+  const markerIndex = text.indexOf(marker);
+  
+  if (markerIndex !== -1) {
+    return { 
+      cleanText: text.substring(0, markerIndex).trim(), 
+      evidenceUrl: text.substring(markerIndex + marker.length).trim() 
+    };
+  }
+  
+  return { cleanText: text, evidenceUrl: null };
+};
+
 // 🛡️ THE FIX: Added "Pending" tab so incoming reports aren't invisible!
 const STATUS_TABS = [
   { id: 'Pending', label: 'Pending / New', icon: 'fas fa-inbox' },
@@ -228,13 +245,66 @@ const Community_blotter: React.FC<BlotterProps> = ({
               <div className="INFO_GROUP">
                 <label>Incident Narrative / Summary</label>
                 <div className="SUMMARY_BOX">
-                  {/* 🛡️ THE FIX: Render HTML tags from the database correctly instead of literal string */}
-                  <p dangerouslySetInnerHTML={{ __html: selectedCase.narrative }}></p>
+                  {/* 🛡️ THE FIX: Extract and render the text and image separately! */}
+                  {(() => {
+                    const { cleanText, evidenceUrl } = parseEvidence(selectedCase.narrative);
+                    return (
+                      <>
+                        <p dangerouslySetInnerHTML={{ __html: cleanText }}></p>
+                        
+                        {evidenceUrl && (
+                          <div style={{ marginTop: '20px', borderTop: '1px solid var(--c--p--border-subtle)', paddingTop: '15px' }}>
+                            <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--c--p--brand-blue)', marginBottom: '10px' }}>
+                              <i className="fas fa-paperclip"></i> ATTACHED EVIDENCE
+                            </span>
+                            <img 
+                              src={evidenceUrl} 
+                              alt="Attached Evidence" 
+                              style={{ width: '100%', borderRadius: '8px', border: '1px solid var(--c--p--border-subtle)' }}
+                            />
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
-            <footer className="DRAWER_FOOTER">
-               <button className="FOOTER_BTN" onClick={() => setSelectedCase(null)}>Close View</button>
+
+            {/* 🛡️ NEW STYLED FOOTER BUTTON */}
+            <footer className="DRAWER_FOOTER" style={{ padding: '20px', borderTop: '1px solid var(--c--p--border-subtle)', background: 'var(--c--p--bg-card)' }}>
+               <button 
+                 className="FOOTER_BTN" 
+                 onClick={() => setSelectedCase(null)}
+                 style={{
+                   width: '100%',
+                   padding: '12px 20px',
+                   borderRadius: '10px',
+                   border: '1px solid var(--c--p--border-subtle)',
+                   backgroundColor: 'var(--c--p--bg-switcher)',
+                   color: 'var(--c--p--text-primary)',
+                   fontSize: '0.95rem',
+                   fontWeight: 700,
+                   cursor: 'pointer',
+                   transition: 'all 0.2s',
+                   display: 'flex',
+                   alignItems: 'center',
+                   justifyContent: 'center',
+                   gap: '8px'
+                 }}
+                 onMouseEnter={(e) => {
+                   e.currentTarget.style.backgroundColor = '#ef4444'; 
+                   e.currentTarget.style.color = '#ffffff';
+                   e.currentTarget.style.borderColor = '#ef4444';
+                 }}
+                 onMouseLeave={(e) => {
+                   e.currentTarget.style.backgroundColor = 'var(--c--p--bg-switcher)';
+                   e.currentTarget.style.color = 'var(--c--p--text-primary)';
+                   e.currentTarget.style.borderColor = 'var(--c--p--border-subtle)';
+                 }}
+               >
+                 <i className="fas fa-times-circle"></i> Close View
+               </button>
             </footer>
           </div>
         )}

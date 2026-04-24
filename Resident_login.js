@@ -134,10 +134,10 @@ export const ResidentsLoginRouter = (router, supabase) => {
                 return res.status(401).json({ error: 'Invalid username or password.' });
             }
 
-            // E. Profile Fetch
+            // 🛡️ THE FIX: Select '*' to grab email, purok, etc.
             const { data: profileData } = await supabase
                 .from('residents_records')
-                .select('first_name, last_name')
+                .select('*') 
                 .eq('record_id', accountData.resident_id)
                 .maybeSingle();
 
@@ -189,6 +189,7 @@ export const ResidentsLoginRouter = (router, supabase) => {
                     role: 'resident' 
                 },
                 profile: {
+                    ...profileData, // 🛡️ Spreads ALL database columns (including email) to the frontend
                     record_id: accountData.resident_id,
                     first_name: fName.toUpperCase(),
                     last_name: lName.toUpperCase(),

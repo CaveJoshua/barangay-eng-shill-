@@ -1,7 +1,6 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Officials_modal from '../../buttons/Officials_modal';
 import './styles/Officials.css'; 
-// Using the Universal Handshake Service
 import { ApiService } from '../api'; 
 
 interface IOfficial {
@@ -21,45 +20,44 @@ export default function OfficialsPage() {
   const [error, setError] = useState('');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [officialToEdit, setOfficialToEdit] = useState<IOfficial | null>(null);
+
+  // --- SAFE REFS FOR SYNC ---
+  const isMounted = useRef(true);
 
   /**
-   * REFACTORED FETCH: Uses the Universal ApiService
+   * FETCH LOGIC: Uses the Universal ApiService
    */
   const fetchOfficials = useCallback(async (signal?: AbortSignal) => {
+    if (!isMounted.current) return;
     setLoading(true);
     try {
-      // The Service handles the headers and 401/403 errors internally
       const data = await ApiService.getOfficials(signal);
 
-      // If null, the handshake was rejected and api.ts handled the cleanup
-      if (data === null) return;
-
-      setOfficials(data);
-      setError('');
+      if (isMounted.current && data !== null) {
+        setOfficials(data);
+        setError('');
+      }
     } catch (err: any) {
-      if (err.name !== 'AbortError') {
+      if (err.name !== 'AbortError' && isMounted.current) {
         console.error("[FETCH ERROR]", err);
         setError('Cannot reach server. Sync failed.');
       }
     } finally {
-      setLoading(false);
+      if (isMounted.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    isMounted.current = true;
     const valve = new AbortController();
     fetchOfficials(valve.signal);
-    return () => valve.abort(); // Cleanup on unmount
+    return () => {
+      isMounted.current = false;
+      valve.abort();
+    };
   }, [fetchOfficials]);
 
   const handleAddNew = () => {
-    setOfficialToEdit(null);
-    setIsModalOpen(true);
-  };
-
-  const handleEdit = (off: IOfficial) => {
-    setOfficialToEdit(off);
     setIsModalOpen(true);
   };
 
@@ -82,7 +80,7 @@ export default function OfficialsPage() {
         <div className="OFFIC_HEADER_FLEX">
           <div className="OFFIC_TITLE_GROUP">
             <h1 className="OFFIC_PAGE_TITLE">Barangay Officials</h1>
-            <p className="OFFIC_PAGE_SUB">Manage elected and appointed officials.</p>
+            <p className="OFFIC_PAGE_SUB">Directory of elected and appointed personnel.</p>
           </div>
           <button className="OFFIC_ADD_BTN" onClick={handleAddNew}>
             <i className="fas fa-user-plus"></i> Add Official
@@ -104,7 +102,7 @@ export default function OfficialsPage() {
 
           {error && (
             <div className="OFFIC_ERROR_MSG">
-              {error}
+              <i className="fas fa-exclamation-circle"></i> {error}
             </div>
           )}
 
@@ -115,15 +113,14 @@ export default function OfficialsPage() {
                   <th>NAME</th>
                   <th>POSITION</th>
                   <th>TERM START</th>
-                  <th>STATUS</th>
-                  <th className="OFFIC_TEXT_RIGHT">ACTIONS</th>
+                  <th style={{ textAlign: 'right' }}>STATUS</th>
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
-                   <tr><td colSpan={5} className="OFFIC_TABLE_LOAD">Syncing with server...</td></tr>
+                {loading && officials.length === 0 ? (
+                   <tr><td colSpan={4} className="OFFIC_TABLE_LOAD"><div className="OFFIC_SYNC_SPINNER"></div>Syncing with server...</td></tr>
                 ) : filteredOfficials.length === 0 ? (
-                   <tr><td colSpan={5} className="OFFIC_TABLE_EMPTY">No officials found.</td></tr>
+                   <tr><td colSpan={4} className="OFFIC_TABLE_EMPTY">No officials found.</td></tr>
                 ) : (
                   filteredOfficials.map((off) => (
                     <tr key={off.id}>
@@ -137,15 +134,10 @@ export default function OfficialsPage() {
                       </td>
                       <td>{off.position}</td>
                       <td>{off.term_start || 'N/A'}</td>
-                      <td>
+                      <td style={{ textAlign: 'right' }}>
                         <span className={`OFFIC_STATUS_BADGE ${off.status === 'Active' ? 'ACTIVE' : 'INACTIVE'}`}>
                           {off.status}
                         </span>
-                      </td>
-                      <td className="OFFIC_ACTIONS_CELL">
-                        <button className="OFFIC_ACTION_ICON EDIT" onClick={() => handleEdit(off)} title="Edit">
-                          <i className="fas fa-pen"></i>
-                        </button>
                       </td>
                     </tr>
                   ))
@@ -160,7 +152,6 @@ export default function OfficialsPage() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSuccess={() => fetchOfficials()}
-        officialToEdit={officialToEdit}
         existingOfficials={officials}
       />
     </div>

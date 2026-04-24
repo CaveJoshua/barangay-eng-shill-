@@ -172,9 +172,10 @@ router.post('/login', async (req, res) => {
 
     const targetResidentId = accountData.resident_id || accountData.record_id;
     
+    // 🛡️ THE FIX: Select '*' so the frontend gets the email and ALL demographic data
     const { data: profileData } = await supabase
       .from('residents_records')
-      .select('record_id, first_name, last_name, purok')
+      .select('*') 
       .eq('record_id', targetResidentId)
       .maybeSingle();
 
@@ -197,7 +198,15 @@ router.post('/login', async (req, res) => {
 
     await logActivity(supabase, accountData.username, 'RESIDENT_LOGIN', 'Login successful');
 
-    res.json({ message: 'Login successful', token, role: accountData.role, profile: profileData });
+    // 🛡️ THE FIX: Inject the 'user' object into the response payload so the frontend can extract the email
+    res.json({ 
+        message: 'Login successful', 
+        token, 
+        role: accountData.role, 
+        profile: profileData,
+        user: accountData 
+    });
+
   } catch (err) {
     res.status(500).json({ error: 'Internal system error.' });
   }

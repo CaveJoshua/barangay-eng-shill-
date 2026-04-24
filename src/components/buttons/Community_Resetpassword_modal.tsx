@@ -17,9 +17,9 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
   resident, 
   onSuccess, 
   onClose, 
-  requireOtp = false 
+  requireOtp = true 
 }) => {
-  const [step, setStep] = useState<ModalStep>('UPDATE_PASSWORD');
+  const [step, setStep] = useState<ModalStep>(requireOtp ? 'REQUEST_OTP' : 'UPDATE_PASSWORD');
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -108,7 +108,6 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
     e.preventDefault();
     setError('');
 
-    // 1. Complexity Validation
     if (!newPassword || !confirmPassword) {
       setError('Please fill in both password fields.');
       return;
@@ -126,7 +125,6 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
       return;
     }
 
-    // 2. Identity Extraction
     let accountId = resident?.account_id || resident?.record_id; 
     if (!accountId) {
       const sessionStr = localStorage.getItem('resident_session');
@@ -144,7 +142,6 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
     setLoading(true);
 
     try {
-      // 🛡️ THE FIX: PULL THE ACCESS TOKEN
       const token = localStorage.getItem('access_token');
 
       const res = await fetch(`${API_BASE_URL}/accounts/reset/${accountId}`, {
@@ -152,7 +149,7 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
         credentials: 'include', 
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` // ✅ ADDED: Backend now knows who is requesting
+          'Authorization': `Bearer ${token}` 
         },
         body: JSON.stringify({ 
           password: newPassword
@@ -165,7 +162,6 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
           throw new Error(data.error || 'Server rejected the security update.');
       }
 
-      // 3. Clear the reset flag in local state
       const savedSession = localStorage.getItem('resident_session');
       if (savedSession) {
           const session = JSON.parse(savedSession);
@@ -175,7 +171,7 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
 
       alert("Security cleared: Your account has been securely updated.");
       resetState(); 
-      onSuccess(); // This should close the modal or redirect the user
+      onSuccess(); 
 
     } catch (err: any) {
       setError(err.message || "An unexpected security exception occurred.");
@@ -191,7 +187,11 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
       <div className="CM_RESET_CARD" style={{ position: 'relative' }}>
         
         {onClose && (
-          <button onClick={onClose} className="CM_RESET_CLOSE_BTN" aria-label="Close Security Modal">
+          <button 
+            onClick={onClose} 
+            className="CM_RESET_CLOSE_BTN" 
+            aria-label="Close Security Modal"
+          >
             <i className="fas fa-times"></i>
           </button>
         )}
@@ -201,9 +201,15 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
             <div className="CM_RESET_ICON"><i className="fas fa-shield-alt"></i></div>
             <h2>Verify Authorization</h2>
             <p>A security code will be sent to your registered email.</p>
+            
+            <div style={{ background: '#f0f9ff', color: '#1e3a8a', padding: '14px', borderRadius: '10px', fontSize: '0.85rem', marginTop: '20px', marginBottom: '20px', textAlign: 'left', border: '1px solid #bfdbfe', lineHeight: '1.5' }}>
+              <strong><i className="fas fa-info-circle"></i> Identity Protection Notice:</strong><br/>
+              To protect your Barangay Engineer's Hill account from unauthorized alterations, Multi-Factor Authentication (MFA) is strictly enforced.
+            </div>
+
             {error && <div className="CM_RESET_ERROR">{error}</div>}
             <button className="CM_RESET_SUBMIT" onClick={handleRequestOTP} disabled={loading || countdown > 0}>
-              {loading ? 'GENERATING...' : countdown > 0 ? `RETRY IN ${countdown}s` : 'DISPATCH CODE'}
+              {loading ? 'GENERATING...' : countdown > 0 ? `RETRY IN ${countdown}s` : 'SEND THE CODE'}
             </button>
           </div>
         )}
@@ -212,6 +218,13 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
           <div className="CM_RESET_HEADER" style={{ textAlign: 'center', paddingTop: '20px' }}>
             <div className="CM_RESET_ICON"><i className="fas fa-fingerprint"></i></div>
             <h2>Input Security Token</h2>
+            <p>Enter the 6-digit code sent to your linked address.</p>
+            
+            <div style={{ background: '#fffbeb', color: '#92400e', padding: '14px', borderRadius: '10px', fontSize: '0.85rem', marginTop: '20px', marginBottom: '20px', textAlign: 'left', border: '1px solid #fde68a', lineHeight: '1.5' }}>
+              <strong><i className="fas fa-exclamation-triangle"></i> Official Warning:</strong><br/>
+              Do not share this code with anyone. Barangay personnel, IT staff, and administrators will NEVER ask for your OTP.
+            </div>
+
             <input 
               type="text" 
               maxLength={6} 
@@ -233,6 +246,11 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
               <div className="CM_RESET_ICON"><i className="fas fa-user-lock"></i></div>
               <h2>Enforce New Protocol</h2>
               <p>Hello <strong>{resident?.first_name || 'Resident'}</strong>, establish your new encrypted access key.</p>
+            </div>
+
+            <div style={{ background: '#f0fdf4', color: '#065f46', padding: '14px', borderRadius: '10px', fontSize: '0.85rem', marginBottom: '20px', border: '1px solid #bbf7d0', lineHeight: '1.5' }}>
+              <strong><i className="fas fa-check-shield"></i> Cryptographic Standard:</strong><br/>
+              Your new password will be heavily hashed via bcrypt before transmission. We recommend utilizing a unique passphrase.
             </div>
 
             <form onSubmit={handleReset} className="CM_RESET_FORM">
@@ -276,6 +294,15 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
             </form>
           </>
         )}
+
+        {/* ── GLOBAL SECURITY FOOTER ── */}
+        <div className="CM_RESET_FOOTER">
+          <i className="fas fa-lock" style={{ marginRight: '6px' }}></i> Secured by End-to-End Encryption <br/>
+          <span style={{ fontSize: '0.75rem', opacity: 0.8, display: 'inline-block', marginTop: '6px' }}>
+            Unauthorized access is strictly prohibited. IP and activity are logged.
+          </span>
+        </div>
+
       </div>
     </div>
   );

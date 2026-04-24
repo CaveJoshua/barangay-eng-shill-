@@ -21,18 +21,16 @@ export default function AccountManagement() {
   const [isSuperAdmin,       setIsSuperAdmin]      = useState<boolean | null>(null);
 
   const [accounts,         setAccounts]        = useState<IAccount[]>([]);
-  const [error,            setError]           = useState('');
-  const [isSyncing,        setIsSyncing]       = useState(false);
-  const [activeTab,        setActiveTab]       = useState<TabState>('Officials');
-  const [searchTerm,       setSearchTerm]      = useState('');
-  const [selectedAccount,  setSelectedAccount] = useState<IAccount | null>(null);
-  const [isResetOpen,      setIsResetOpen]     = useState(false);
-  const [newPassword,      setNewPassword]     = useState('');
-  const [isRoleOpen,       setIsRoleOpen]      = useState(false);
-  const [newRole,          setNewRole]         = useState('');
+  const [error,             setError]           = useState('');
+  const [isSyncing,         setIsSyncing]       = useState(false);
+  const [activeTab,         setActiveTab]       = useState<TabState>('Officials');
+  const [searchTerm,        setSearchTerm]      = useState('');
+  const [selectedAccount,   setSelectedAccount] = useState<IAccount | null>(null);
+  const [isResetOpen,       setIsResetOpen]     = useState(false);
+  const [newPassword,       setNewPassword]     = useState('');
 
   // ── PAGINATION STATE ──
-  const [currentPage,      setCurrentPage]     = useState(1);
+  const [currentPage,       setCurrentPage]     = useState(1);
 
   // ── SAFE REFS FOR THE HANDSHAKE ──
   const isFetching = useRef(false);
@@ -41,28 +39,23 @@ export default function AccountManagement() {
   // 🛡️ ── STRICT SUPERADMIN ROLE VERIFICATION ──
   useEffect(() => {
     try {
-      // 1. Grab BOTH sources from LocalStorage
       const standaloneRole = localStorage.getItem('user_role'); 
       const sessionData = localStorage.getItem('admin_session'); 
       
       let rawRole = standaloneRole || ''; 
 
-      // 2. Fallback: Hunt inside the session object
       if (!rawRole && sessionData) {
         const session = JSON.parse(sessionData);
         rawRole = session?.role || session?.user_role || session?.profile?.role || '';
       }
       
-      // 3. Normalize the text
       const userRole = rawRole.toLowerCase().replace(/\s+/g, '');
 
-      // 4. The Gatekeeper: STRICTLY Superadmin Only
       if (userRole === 'superadmin') {
         setIsSuperAdmin(true);
         return;
       }
       
-      // If we get here, they failed the check
       setIsSuperAdmin(false);
       
     } catch (err) {
@@ -72,7 +65,6 @@ export default function AccountManagement() {
   
   // ── Fetch (Smart Handshake) ───────────────────────────────────────────
   const fetchAccounts = useCallback(async (silent = false, signal?: AbortSignal) => {
-    // Prevent overlapping fetches, unmounted updates, OR if user isn't verified
     if (!isMounted.current || isFetching.current || !isSuperAdmin) return;
     
     if (!silent) setIsSyncing(true);
@@ -83,7 +75,7 @@ export default function AccountManagement() {
       
       if (isMounted.current && data !== null) {
         setAccounts(data);
-        setError(''); // Clear error on success
+        setError(''); 
       }
     } catch (err: any) {
       if (err.name !== 'AbortError' && isMounted.current) {
@@ -96,7 +88,6 @@ export default function AccountManagement() {
   }, [accounts.length, isSuperAdmin]);
 
   useEffect(() => {
-    // Only run the fetching logic if the user is verified
     if (isSuperAdmin !== true) return;
 
     isMounted.current = true;
@@ -128,7 +119,6 @@ export default function AccountManagement() {
     };
   }, [fetchAccounts, isSuperAdmin]);
 
-  // ── RESET PAGE ON FILTER CHANGE ──
   useEffect(() => {
     setCurrentPage(1);
   }, [activeTab, searchTerm]);
@@ -146,19 +136,6 @@ export default function AccountManagement() {
         setNewPassword('');
       } else { throw new Error(result.error); }
     } catch (err: any) { alert(`Reset failed: ${err.message}`); }
-  };
-
-  const handleRoleChange = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedAccount) return;
-    try {
-      const payload = { newRole, source: selectedAccount.source };
-      const result = await ApiService.updateAccountRole(selectedAccount.id, payload);
-      if (result.success) {
-        fetchAccounts(true);
-        setIsRoleOpen(false);
-      } else { throw new Error(result.error); }
-    } catch (err: any) { alert(`Role update failed: ${err.message}`); }
   };
 
   // ── Filter + Search Logic ─────────────────────────────────────────────────
@@ -185,9 +162,6 @@ export default function AccountManagement() {
   }, [tableData, currentPage]);
 
 
-  // ─── 🛡️ RENDER GUARDS ─────────────────────────────────────────────────────
-
-  // 1. Still checking credentials
   if (isSuperAdmin === null) {
     return (
       <div className="ACC_PAGE_WRAP">
@@ -198,7 +172,6 @@ export default function AccountManagement() {
     );
   }
 
-  // 2. Access Denied State
   if (isSuperAdmin === false) {
     return (
       <div className="ACC_PAGE_WRAP">
@@ -214,12 +187,10 @@ export default function AccountManagement() {
     );
   }
 
-  // 3. Authorized Render (Original Return)
   return (
     <div className="ACC_PAGE_WRAP">
       <div className="ACC_MAIN_CONTAINER">
 
-        {/* ── Error Banner ── */}
         {error && (
           <div style={{ 
             backgroundColor: '#fee2e2', 
@@ -237,7 +208,6 @@ export default function AccountManagement() {
           </div>
         )}
 
-        {/* Stats panel */}
         <div className="ACC_STATS_PANEL">
           <div className="ACC_STAT_COL">
             <div className="ACC_STAT_TITLE">
@@ -255,8 +225,7 @@ export default function AccountManagement() {
           <div className="ACC_STAT_COL ACC_STAT_WIDE">
             <div className="ACC_STAT_TITLE">QUICK SUMMARY</div>
             <div className="ACC_STAT_SUB">
-              Manage credentials and administrative permissions for all system
-              users across the barangay network.
+              Manage credentials and security settings for all system users across the barangay network.
             </div>
           </div>
 
@@ -268,7 +237,6 @@ export default function AccountManagement() {
           </div>
         </div>
 
-        {/* Search */}
         <div className="ACC_SEARCH_ROW">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, position: 'relative' }}>
             <i className="fas fa-search" style={{ position: 'absolute', left: '12px', color: '#94a3b8', fontSize: '0.9rem' }} />
@@ -285,7 +253,6 @@ export default function AccountManagement() {
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="ACC_TABS_CONTAINER">
           <button
             className={`ACC_TAB_BTN ${activeTab === 'Officials' ? 'ACTIVE' : ''}`}
@@ -301,7 +268,6 @@ export default function AccountManagement() {
           </button>
         </div>
 
-        {/* Table Card */}
         <div className="ACC_TABLE_CARD">
           <div className="ACC_TABLE_WRAP">
             <table className="ACC_TABLE_MAIN">
@@ -350,17 +316,6 @@ export default function AccountManagement() {
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                           <button
                             className="ACC_ACTION_ICON"
-                            title="Change Role"
-                            onClick={() => {
-                              setSelectedAccount(acc);
-                              setNewRole(acc.role || 'resident');
-                              setIsRoleOpen(true);
-                            }}
-                          >
-                            <i className="fas fa-user-tag" style={{ color: '#3b82f6' }} />
-                          </button>
-                          <button
-                            className="ACC_ACTION_ICON"
                             title="Reset Password"
                             onClick={() => {
                               setSelectedAccount(acc);
@@ -379,7 +334,6 @@ export default function AccountManagement() {
             </table>
           </div>
 
-          {/* ── PAGINATION BAR ── */}
           <div className="ACC_PAGINATION_BAR">
              <div className="ACC_PAG_INFO">
                Showing {paginatedData.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0} to {Math.min(currentPage * ITEMS_PER_PAGE, tableData.length)} of {tableData.length} accounts
@@ -405,7 +359,6 @@ export default function AccountManagement() {
         </div>
       </div>
 
-      {/* ── Password Reset Modal ── */}
       {isResetOpen && (
         <div className="ACC_MODAL_OVERLAY">
           <div className="ACC_MODAL_BOX">
@@ -430,38 +383,6 @@ export default function AccountManagement() {
                 </button>
                 <button type="submit" className="ACC_BTN_SAVE">
                   Update Password
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ── Role Edit Modal ── */}
-      {isRoleOpen && (
-        <div className="ACC_MODAL_OVERLAY">
-          <div className="ACC_MODAL_BOX">
-            <h2><i className="fas fa-user-tag" /> Edit Account Role</h2>
-            <p>Change permissions for <strong>{selectedAccount?.profileName}</strong>.</p>
-            <form onSubmit={handleRoleChange}>
-              <select
-                id="acc-new-role"
-                name="new-role"
-                className="ACC_FORM_INPUT"
-                value={newRole}
-                onChange={e => setNewRole(e.target.value)}
-              >
-                <option value="resident">Resident</option>
-                <option value="staff">Barangay Staff</option>
-                <option value="admin">Administrator</option>
-                <option value="superadmin">Superadmin</option>
-              </select>
-              <div className="ACC_MODAL_ACTIONS">
-                <button type="button" className="ACC_BTN_CANCEL" onClick={() => setIsRoleOpen(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="ACC_BTN_SAVE">
-                  Save Role
                 </button>
               </div>
             </form>

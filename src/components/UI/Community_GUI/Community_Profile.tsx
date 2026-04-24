@@ -23,24 +23,26 @@ const Community_Profile: React.FC<ProfileProps> = ({ resident, onClose }) => {
 
   // ── 🛡️ DEEP IDENTITY EXTRACTION ──
   useEffect(() => {
-    // 1. Get backup data directly from local storage just in case the prop is stale
     const sessionStr = localStorage.getItem('resident_session');
     const sessionObj = sessionStr ? JSON.parse(sessionStr) : {};
 
-    // 2. Merge everything together
     const source = { ...sessionObj, ...resident };
     
-    // 3. Dig into the nested objects (Backend usually separates 'user' and 'profile')
     const userNode = source.user || {};
     const profileNode = source.profile || {};
 
-    // 4. Extract with fallbacks
-    const recordId = profileNode.record_id || userNode.record_id || userNode.account_id || source.account_id || 'N/A';
-    const email = profileNode.email || userNode.email || source.email || 'NOT LINKED';
-    const username = userNode.username || source.username || 'user';
+    const recordId = source.record_id || profileNode.record_id || userNode.record_id || userNode.account_id || source.account_id || 'N/A';
+    
+    const email = source.email 
+               || profileNode.email 
+               || userNode.email 
+               || profileNode.gmail 
+               || profileNode.email_address 
+               || 'NOT LINKED';
+               
+    const username = source.username || userNode.username || profileNode.username || 'user';
     const address = profileNode.purok || profileNode.address || source.address || "ENGINEER'S HILL";
 
-    // 5. Safely construct the display name
     const fName = profileNode.first_name || userNode.first_name || '';
     const lName = profileNode.last_name || userNode.last_name || '';
     
@@ -54,7 +56,6 @@ const Community_Profile: React.FC<ProfileProps> = ({ resident, onClose }) => {
         ? fullName.charAt(0).toUpperCase() 
         : (username ? String(username).charAt(0).toUpperCase() : 'U');
 
-    // 6. Save to state so React renders it
     setProfileData({
         recordId,
         email,
@@ -151,7 +152,7 @@ const Community_Profile: React.FC<ProfileProps> = ({ resident, onClose }) => {
                   <span className="C_P_DATA_LABEL">
                     <i className="fas fa-user-circle"></i> USERNAME
                   </span>
-                  <span className="C_P_DATA_VALUE">@{profileData.username}</span>
+                  <span className="C_P_DATA_VALUE">{profileData.username}</span>
                 </div>
 
                 <div className="C_P_DATA_ROW">
@@ -185,11 +186,12 @@ const Community_Profile: React.FC<ProfileProps> = ({ resident, onClose }) => {
         </div>
       </div>
 
-      {/* ── 🎯 YOUR EXISTING RESET MODAL ── */}
+      {/* ── 🎯 YOUR EXISTING RESET MODAL (NOW WITH ONCLOSE PROP!) ── */}
       <CommunityResetPasswordModal 
         isOpen={isResetModalOpen}
         resident={resident}
         onSuccess={() => setIsResetModalOpen(false)} 
+        onClose={() => setIsResetModalOpen(false)} 
       />
 
     </div>

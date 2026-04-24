@@ -3,36 +3,44 @@ import { type IResident } from '../../Resident_modal';
 import { PGSU } from './location'; 
 
 /**
- * Logic_Error.ts - THE VALIDATION ENGINE (ALL-CAPS EDITION)
- * Exhaustive validation for Identity, Cascading Locations, and Special Classifications.
+ * Logic_Error.ts - THE VALIDATION ENGINE (STRICT PAYLOAD EDITION)
+ * Exhaustive validation enforcing zero-tolerance for symbols/numbers in text fields,
+ * precise calendar math, and surgical cascading locations.
  */
 
 export const validateResidentForm = (data: IResident): Record<string, string> => {
   const errors: Record<string, string> = {};
 
   // =========================================================================
-  // 1. NAME VALIDATION (Letters, spaces, ñ, and dashes only)
+  // 1. STRICT ALPHABETICAL VALIDATION (Letters, spaces, and ñ/Ñ ONLY)
   // =========================================================================
-  const nameRegex = /^[A-Z\sÑ-]+$/i; // Added 'i' flag for case-insensitivity just in case
-  
+  const alphaOnlyRegex = /^[A-Za-z\sñÑ]+$/; 
+
   if (!data.firstName?.trim()) {
     errors.firstName = "FIRST NAME IS REQUIRED.";
-  } else if (!nameRegex.test(data.firstName)) {
-    errors.firstName = "USE ONLY LETTERS (A-Z) AND NO NUMBERS/SYMBOLS.";
+  } else if (!alphaOnlyRegex.test(data.firstName)) {
+    errors.firstName = "USE ONLY LETTERS (A-Z). NO NUMBERS OR SYMBOLS ALLOWED.";
   }
 
   if (!data.lastName?.trim()) {
     errors.lastName = "LAST NAME IS REQUIRED.";
-  } else if (!nameRegex.test(data.lastName)) {
-    errors.lastName = "USE ONLY LETTERS (A-Z) AND NO NUMBERS/SYMBOLS.";
+  } else if (!alphaOnlyRegex.test(data.lastName)) {
+    errors.lastName = "USE ONLY LETTERS (A-Z). NO NUMBERS OR SYMBOLS ALLOWED.";
   }
 
-  if (data.middleName?.trim() && !nameRegex.test(data.middleName)) {
-    errors.middleName = "USE ONLY LETTERS (A-Z) IN MIDDLE NAME.";
+  if (data.middleName?.trim() && !alphaOnlyRegex.test(data.middleName)) {
+    errors.middleName = "USE ONLY LETTERS (A-Z). NO NUMBERS OR SYMBOLS ALLOWED.";
   }
 
   // =========================================================================
-  // ⚙️ 2. THE SMART DATE ENGINE (Strict YYYY-MM-DD parsing)
+  // 2. RELIGION VALIDATION (Strictly characters only for custom entries)
+  // =========================================================================
+  if (data.religion?.trim() && !alphaOnlyRegex.test(data.religion)) {
+    errors.religion = "RELIGION MUST CONTAIN ONLY LETTERS. NO NUMBERS/SYMBOLS.";
+  }
+
+  // =========================================================================
+  // 3. THE SMART DATE ENGINE (Strict numerical parsing & Calendar Math)
   // =========================================================================
   if (!data.dob) {
     errors.dob = "DATE OF BIRTH IS REQUIRED.";
@@ -42,15 +50,15 @@ export const validateResidentForm = (data: IResident): Record<string, string> =>
     const match = data.dob.match(dateRegex);
 
     if (!match) {
-      errors.dob = "INVALID FORMAT. USE YYYY-MM-DD (LETTERS ARE NOT ALLOWED).";
+      errors.dob = "INVALID FORMAT. USE YYYY-MM-DD (LETTERS/SYMBOLS ARE NOT ALLOWED).";
     } else {
       const year = parseInt(match[1], 10);
       const month = parseInt(match[2], 10);
       const day = parseInt(match[3], 10);
 
       // A. Year bounds check
-      if (year < 1925 || year > 2060) {
-        errors.dob = "YEAR MUST BE BETWEEN 1925 AND 2060.";
+      if (year < 1900 || year > 2100) {
+        errors.dob = "YEAR IS OUT OF ACCEPTABLE RANGE.";
       }
       
       // B. Month bounds check
@@ -86,35 +94,47 @@ export const validateResidentForm = (data: IResident): Record<string, string> =>
   }
 
   // =========================================================================
-  // ⚙️ 3. SURGICAL CASCADING LOCATION VALIDATION (Powered by PGSU)
+  // 4. SURGICAL CASCADING LOCATION VALIDATION (Powered by PGSU)
   // =========================================================================
   if (!data.birthCountry?.trim()) {
     errors.birthCountry = "COUNTRY OF BIRTH IS REQUIRED.";
   }
 
   if (data.birthCountry?.toUpperCase() === "PHILIPPINES") {
-    const prov = data.birthProvince?.trim().toUpperCase() || "";
-    const city = data.birthCity?.trim().toUpperCase() || "";
+    const prov = data.birthProvince?.trim() || "";
+    const city = data.birthCity?.trim() || "";
 
-    if (!prov) errors.birthProvince = "PROVINCE IS REQUIRED.";
-    if (!city) errors.birthCity = "CITY/MUNICIPALITY IS REQUIRED.";
+    if (!prov) {
+      errors.birthProvince = "PROVINCE IS REQUIRED.";
+    } else if (!alphaOnlyRegex.test(prov)) {
+      errors.birthProvince = "PROVINCE MUST CONTAIN ONLY LETTERS.";
+    }
+
+    if (!city) {
+      errors.birthCity = "CITY/MUNICIPALITY IS REQUIRED.";
+    } else if (!alphaOnlyRegex.test(city)) {
+      errors.birthCity = "CITY MUST CONTAIN ONLY LETTERS.";
+    }
 
     // The Surgical Validation: Check if City belongs to Province using PGSU
-    if (prov && city) {
-      if (!PGSU.isValidCity(prov, city)) {
-         errors.birthCity = `THE CITY '${city}' DOES NOT BELONG TO PROVINCE '${prov}'.`;
+    if (prov && city && alphaOnlyRegex.test(prov) && alphaOnlyRegex.test(city)) {
+      if (!PGSU.isValidCity(prov.toUpperCase(), city.toUpperCase())) {
+         errors.birthCity = `THE CITY '${city.toUpperCase()}' DOES NOT BELONG TO PROVINCE '${prov.toUpperCase()}'.`;
       }
     }
   }
 
   // =========================================================================
-  // 4. CONTACT & EMAIL
+  // 5. CONTACT & EMAIL
   // =========================================================================
+  // Strictly enforce an 11-digit number starting with 09
   const phoneRegex = /^09\d{9}$/;
   if (!data.contact_number || data.contact_number.trim() === "" || data.contact_number === "09") {
+    // Optional: If contact number is truly optional, you can remove this first block.
+    // Assuming it is required based on your previous logic.
     errors.contact_number = "CONTACT NUMBER IS REQUIRED.";
   } else if (!phoneRegex.test(data.contact_number)) {
-    errors.contact_number = "INVALID FORMAT: MUST BE EXACTLY 11 DIGITS (E.G. 09123456789).";
+    errors.contact_number = "INVALID FORMAT: MUST BE EXACTLY 11 NUMBERS STARTING WITH 09.";
   }
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -123,13 +143,13 @@ export const validateResidentForm = (data: IResident): Record<string, string> =>
   }
 
   // =========================================================================
-  // 5. RESIDENCE VALIDATION
+  // 6. RESIDENCE VALIDATION
   // =========================================================================
   if (!data.currentAddress?.trim()) errors.currentAddress = "CURRENT ADDRESS IS REQUIRED.";
   if (!data.purok?.trim()) errors.purok = "PUROK SELECTION IS REQUIRED.";
 
   // =========================================================================
-  // 6. SOCIO-ECONOMIC VALIDATION
+  // 7. SOCIO-ECONOMIC VALIDATION
   // =========================================================================
   const employmentStatusUpper = data.employmentStatus?.toUpperCase() || "";
   if (
@@ -141,7 +161,7 @@ export const validateResidentForm = (data: IResident): Record<string, string> =>
   }
 
   // =========================================================================
-  // 7. CONDITIONAL ID CHECKS
+  // 8. CONDITIONAL ID CHECKS
   // =========================================================================
   if (data.isPWD && !data.pwdIdNumber?.trim()) errors.pwdIdNumber = "PWD ID IS REQUIRED.";
   if (data.is4Ps && !data.fourPsIdNumber?.trim()) errors.fourPsIdNumber = "4PS ID IS REQUIRED.";

@@ -30,7 +30,7 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ onNavigate }) =
   const controllerRef = useRef<AbortController | null>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ─── DATA FETCHING ─────────────────────────────────────────────
+  // ─── DATA FETCHING WITH STRICT ADMIN FILTERS ──────────────────
   const fetchData = useCallback(async () => {
     if (pollTimer.current) clearTimeout(pollTimer.current);
     if (controllerRef.current) controllerRef.current.abort();
@@ -39,8 +39,47 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ onNavigate }) =
 
     try {
       const data = await ApiService.getNotifications(controllerRef.current.signal);
+      
       if (data && Array.isArray(data)) {
-        setNotifications(data);
+        const mappedNotifs: DatabaseNotification[] = [];
+
+        for (const item of data) {
+          const rawMsg = item.message || '';
+          const lowerMsg = rawMsg.toLowerCase();
+
+          // 🛡️ 1. ADMIN FILTER: BLOCK ALL WALK-INS
+          if (lowerMsg.includes('wk-in') || lowerMsg.includes('walk-in')) {
+            continue; 
+          }
+
+          // 🛡️ 2. ADMIN FILTER: HIDE ALREADY PROCESSED ITEMS
+          if (
+            lowerMsg.includes('processing') || 
+            lowerMsg.includes('completed') || 
+            lowerMsg.includes('ready') || 
+            lowerMsg.includes('claimed') ||
+            lowerMsg.includes('rejected')
+          ) {
+            continue; 
+          }
+
+          // 🛡️ 3. ADMIN REWRITE: Fix phrasing for the Admin Archive
+          let adminMsg = rawMsg;
+          if (adminMsg.toLowerCase().startsWith('your ')) {
+            adminMsg = adminMsg.replace(/^Your /i, 'Incoming Online Request: ');
+          }
+          if (adminMsg.toLowerCase().includes('is now pending')) {
+            adminMsg = adminMsg.replace(/is now pending/i, 'is awaiting review.');
+          }
+
+          mappedNotifs.push({
+            ...item,
+            title: item.title === 'Document Alert' ? 'Online Request Alert' : (item.title || 'System Alert'),
+            message: adminMsg
+          });
+        }
+
+        setNotifications(mappedNotifs);
       }
     } catch (error: any) {
       if (error.name !== 'AbortError') console.error("[NOTIFS] Database Sync Error:", error);
