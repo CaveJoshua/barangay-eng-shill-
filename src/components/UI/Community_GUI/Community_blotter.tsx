@@ -35,6 +35,16 @@ const STATUS_TABS = [
   { id: 'Dismissed', label: 'Dismissed', icon: 'fas fa-times-circle' },
 ] as const;
 
+// ── HELPER: GET ICON BASED ON INCIDENT TYPE ──
+const getIncidentIcon = (type: string = '') => {
+  const t = type.toLowerCase();
+  if (t.includes('noise')) return 'fas fa-volume-up';
+  if (t.includes('theft') || t.includes('robbery')) return 'fas fa-mask';
+  if (t.includes('injury') || t.includes('physical')) return 'fas fa-user-injured';
+  if (t.includes('threat')) return 'fas fa-exclamation-triangle';
+  return 'fas fa-gavel'; // Default icon
+};
+
 const Community_blotter: React.FC<BlotterProps> = ({ 
   data, 
   activeTab, 
@@ -54,7 +64,6 @@ const Community_blotter: React.FC<BlotterProps> = ({
   }, [activeTab, setActiveTab]);
 
   // ── 🔄 AUTO-FETCH TRIGGER ──
-  // Forces the component to ask the parent for data the moment it loads
   useEffect(() => {
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -83,7 +92,7 @@ const Community_blotter: React.FC<BlotterProps> = ({
 
     }).map(item => {
       
-      // 1. EXTRACT NAME (Aggressively check every possible database column including the new complainant_name)
+      // 1. EXTRACT NAME 
       let rawName = item.complainant_name
                  || item.resident_name 
                  || (item.residents && item.residents.resident_name) 
@@ -117,14 +126,14 @@ const Community_blotter: React.FC<BlotterProps> = ({
   }, [data, activeTab, searchQuery]);
 
   return (
-    <div className="DOC_VIEW_CONTAINER"> 
+    <div className="CM_INC_VIEW_CONTAINER"> 
       
-      <header className="DOC_HEADER_CARD">
-        <div className="HEADER_TEXT">
+      <header className="CM_INC_HEADER_CARD">
+        <div className="CM_INC_HEADER_TEXT">
           <h1>Incident Report</h1>
           <p>Confidential records and incident tracking for Engineer's Hill.</p>
         </div>
-        <button className="BTN_REQUEST_NEW" onClick={() => setIsModalOpen(true)}>
+        <button className="CM_INC_BTN_REQUEST_NEW" onClick={() => setIsModalOpen(true)}>
           <i className="fas fa-plus" /> <span>File Report</span>
         </button>
       </header>
@@ -135,8 +144,8 @@ const Community_blotter: React.FC<BlotterProps> = ({
         onSuccess={refresh} 
       />
 
-      <div className="DOC_TOOLBAR">
-        <div className="DOC_TABS_WRAPPER">
+      <div className="CM_INC_TOOLBAR">
+        <div className="CM_INC_TABS_WRAPPER">
           {STATUS_TABS.map((tab) => {
             const count = data.filter(item => {
               const docStatus = (item.status || 'Pending').toLowerCase();
@@ -149,20 +158,20 @@ const Community_blotter: React.FC<BlotterProps> = ({
             return (
               <button
                 key={tab.id}
-                className={`DOC_TAB_ITEM ${activeTab.toLowerCase() === tab.id.toLowerCase() ? 'ACTIVE' : ''}`}
+                className={`CM_INC_TAB_ITEM ${activeTab.toLowerCase() === tab.id.toLowerCase() ? 'ACTIVE' : ''}`}
                 onClick={() => setActiveTab(tab.id)}
               >
                 <i className={tab.icon} />
-                <div className="TAB_INFO">
-                  <span className="LBL">{tab.label}</span>
-                  <span className="CNT">({count})</span>
+                <div className="CM_INC_TAB_INFO">
+                  <span className="CM_INC_LBL">{tab.label}</span>
+                  <span className="CM_INC_CNT">({count})</span>
                 </div>
               </button>
             );
           })}
         </div>
 
-        <div className="DOC_SEARCH_BOX">
+        <div className="CM_INC_SEARCH_BOX">
           <i className="fas fa-search" />
           <input 
             type="text" 
@@ -173,38 +182,48 @@ const Community_blotter: React.FC<BlotterProps> = ({
         </div>
       </div>
 
-      <div className="BLOTTER_MAIN_LAYOUT">
-        <main className="DOC_LIST_STAGE">
+      <div className="CM_INC_MAIN_LAYOUT">
+        <main className="CM_INC_GRID_LAYOUT">
           {processedData.length > 0 ? (
             processedData.map((caseItem) => (
-              <div key={caseItem.id} className="DOC_CARD_ITEM">
-                <div className="DOC_HEADER">
-                  <div className="DOC_ID_GROUP">
-                    <strong>{caseItem.incident_type}</strong>
-                    <span className="DOC_REF">{caseItem.case_no}</span>
+              <div key={caseItem.id} className="CM_INC_CARD_ITEM" onClick={() => setSelectedCase(caseItem)}>
+                
+                <div className="CM_INC_CARD_HEADER">
+                  <div className="CM_INC_TITLE_GROUP">
+                    <div className="CM_INC_ICON_BOX">
+                      <i className={getIncidentIcon(caseItem.incident_type)}></i>
+                    </div>
+                    <div className="CM_INC_TITLE_TEXT">
+                      <span className="CM_INC_ID_LABEL">{caseItem.case_no}</span>
+                      <h3>{caseItem.incident_type}</h3>
+                    </div>
                   </div>
-                  <div className={`DOC_STATUS ${caseItem.status}`}>
+                  <div className={`CM_INC_STATUS_BADGE STATUS_${caseItem.status}`}>
                     {caseItem.status}
                   </div>
                 </div>
 
-                <div className="DOC_BODY">
-                  <div className="DOC_ICON_BOX"><i className="fas fa-shield-alt" /></div>
-                  <div className="DOC_INFO">
-                    <h4>{caseItem.incident_type}</h4>
-                    <p className="DOC_DESC">Complainant: <strong>{caseItem.complainant}</strong></p>
-                    <p className="DOC_DATE">
-                        <i className="far fa-calendar-alt" /> {new Date(caseItem.incident_date).toLocaleDateString()}
-                    </p>
+                <div className="CM_INC_CARD_BODY">
+                  <div className="CM_INC_INFO_ROW">
+                    <i className="fas fa-calendar-day"></i>
+                    <span><strong>Date Filed:</strong> {new Date(caseItem.incident_date).toLocaleDateString()}</span>
                   </div>
-                  <button className="BTN_VIEW_DETAILS" onClick={() => setSelectedCase(caseItem)}>
+                  <div className="CM_INC_INFO_ROW">
+                    <i className="fas fa-user-tag"></i>
+                    <span><strong>Complainant:</strong> {caseItem.complainant}</span>
+                  </div>
+                </div>
+
+                <div className="CM_INC_CARD_FOOTER">
+                  <button className="CM_INC_ACTION_BTN">
                     View Details <i className="fas fa-arrow-right" />
                   </button>
                 </div>
+
               </div>
             ))
           ) : (
-            <div className="DOC_EMPTY_STATE">
+            <div className="CM_INC_EMPTY_STATE">
               <i className="fas fa-folder-open" />
               <p>No records found in {activeTab}.</p>
             </div>
@@ -212,40 +231,40 @@ const Community_blotter: React.FC<BlotterProps> = ({
         </main>
       </div>
 
+      {/* ── ISOLATED SLIDE DRAWER ── */}
       <div 
-        className={`DRAWER_OVERLAY ${selectedCase ? 'SHOW' : ''}`} 
+        className={`CM_INC_DRAWER_OVERLAY ${selectedCase ? 'SHOW' : ''}`} 
         onClick={() => setSelectedCase(null)} 
       />
 
-      <aside className={`SLIDE_DRAWER ${selectedCase ? 'OPEN' : ''}`}>
+      <aside className={`CM_INC_SLIDE_DRAWER ${selectedCase ? 'OPEN' : ''}`}>
         {selectedCase && (
-          <div className="DRAWER_CONTENT">
-            <header className="DRAWER_HEADER">
-              <button className="CLOSE_DRAWER" onClick={() => setSelectedCase(null)}>
+          <div className="CM_INC_DRAWER_CONTENT">
+            <header className="CM_INC_DRAWER_HEADER">
+              <button className="CM_INC_CLOSE_DRAWER" onClick={() => setSelectedCase(null)}>
                 <i className="fas fa-times" />
               </button>
-              <div className="HEADER_META">
-                <span className="SIDEBAR_ID">{selectedCase.case_no}</span>
-                <div className={`SIDEBAR_STATUS ${selectedCase.status}`}>
+              <div className="CM_INC_HEADER_META">
+                <span className="CM_INC_SIDEBAR_ID">{selectedCase.case_no}</span>
+                <div className={`CM_INC_SIDEBAR_STATUS STATUS_${selectedCase.status}`}>
                    {selectedCase.status}
                 </div>
               </div>
             </header>
             
-            <div className="SIDEBAR_INFO">
-              <h2 className="DRAWER_TITLE">{selectedCase.incident_type}</h2>
-              <div className="INFO_GROUP">
+            <div className="CM_INC_SIDEBAR_INFO">
+              <h2 className="CM_INC_DRAWER_TITLE">{selectedCase.incident_type}</h2>
+              <div className="CM_INC_INFO_GROUP">
                 <label>Complainant Name</label>
                 <p>{selectedCase.complainant}</p>
               </div>
-              <div className="INFO_GROUP">
+              <div className="CM_INC_INFO_GROUP">
                 <label>Date & Time of Incident</label>
                 <p>{new Date(selectedCase.incident_date).toLocaleString()}</p>
               </div>
-              <div className="INFO_GROUP">
+              <div className="CM_INC_INFO_GROUP">
                 <label>Incident Narrative / Summary</label>
-                <div className="SUMMARY_BOX">
-                  {/* 🛡️ THE FIX: Extract and render the text and image separately! */}
+                <div className="CM_INC_SUMMARY_BOX">
                   {(() => {
                     const { cleanText, evidenceUrl } = parseEvidence(selectedCase.narrative);
                     return (
@@ -271,37 +290,10 @@ const Community_blotter: React.FC<BlotterProps> = ({
               </div>
             </div>
 
-            {/* 🛡️ NEW STYLED FOOTER BUTTON */}
-            <footer className="DRAWER_FOOTER" style={{ padding: '20px', borderTop: '1px solid var(--c--p--border-subtle)', background: 'var(--c--p--bg-card)' }}>
+            <footer className="CM_INC_DRAWER_FOOTER">
                <button 
-                 className="FOOTER_BTN" 
+                 className="CM_INC_FOOTER_BTN" 
                  onClick={() => setSelectedCase(null)}
-                 style={{
-                   width: '100%',
-                   padding: '12px 20px',
-                   borderRadius: '10px',
-                   border: '1px solid var(--c--p--border-subtle)',
-                   backgroundColor: 'var(--c--p--bg-switcher)',
-                   color: 'var(--c--p--text-primary)',
-                   fontSize: '0.95rem',
-                   fontWeight: 700,
-                   cursor: 'pointer',
-                   transition: 'all 0.2s',
-                   display: 'flex',
-                   alignItems: 'center',
-                   justifyContent: 'center',
-                   gap: '8px'
-                 }}
-                 onMouseEnter={(e) => {
-                   e.currentTarget.style.backgroundColor = '#ef4444'; 
-                   e.currentTarget.style.color = '#ffffff';
-                   e.currentTarget.style.borderColor = '#ef4444';
-                 }}
-                 onMouseLeave={(e) => {
-                   e.currentTarget.style.backgroundColor = 'var(--c--p--bg-switcher)';
-                   e.currentTarget.style.color = 'var(--c--p--text-primary)';
-                   e.currentTarget.style.borderColor = 'var(--c--p--border-subtle)';
-                 }}
                >
                  <i className="fas fa-times-circle"></i> Close View
                </button>
