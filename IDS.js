@@ -27,8 +27,54 @@ const PATH_TRAVERSAL = /(\.\.\/|\.\.\\|%2e%2e%2f|%2e%2e%5c|%252e%252e)/i;
 const NOSQL_OPERATOR = /^\$(gt|lt|gte|lte|ne|in|nin|regex|where|expr|jsonSchema)$/i;
 const PROTO_ATTACK = /(__proto__|constructor|prototype)/i;
 
-const scanString = (str) => { return null; };
-const deepScan = (val, depth = 0) => { return null; };
+// ============================================================
+// 🛡️ THE FIX: SAFE STRING SCANNER
+// ============================================================
+const scanString = (str) => {
+    if (!str || typeof str !== 'string') return null;
+
+    // 🚨 BASE64 IMAGE BYPASS: Prevents 500 Server Crashes!
+    // If the string is massive and starts with 'data:', we skip the heavy regex math.
+    if (str.length > 50000 && str.startsWith('data:')) {
+        return null; 
+    }
+
+    if (SQL_INJECTION.test(str)) return 'SQL_INJECTION';
+    for (const rx of XSS_PATTERNS) {
+        if (rx.test(str)) return 'XSS_ATTACK';
+    }
+    if (PATH_TRAVERSAL.test(str)) return 'PATH_TRAVERSAL';
+    if (PROTO_ATTACK.test(str)) return 'PROTO_POLLUTION';
+    
+    return null;
+};
+
+// ============================================================
+// 🛡️ DEEP OBJECT SCANNER
+// ============================================================
+const deepScan = (val, depth = 0) => {
+    // Stop at depth 10 to prevent infinite loops from crashing the server
+    if (depth > 10 || !val) return null; 
+
+    if (typeof val === 'string') return scanString(val);
+    
+    if (Array.isArray(val)) {
+        for (const item of val) {
+            const threat = deepScan(item, depth + 1);
+            if (threat) return threat;
+        }
+    } else if (typeof val === 'object') {
+        for (const key of Object.keys(val)) {
+            // Check the keys themselves for NoSQL injection
+            if (NOSQL_OPERATOR.test(key) || PROTO_ATTACK.test(key)) return 'NOSQL_INJECTION_OR_PROTO';
+            
+            // Recursively check the values
+            const threat = deepScan(val[key], depth + 1);
+            if (threat) return threat;
+        }
+    }
+    return null;
+};
 
 // ============================================================
 // 🚀 MIDDLEWARE ENTRY POINT
@@ -37,22 +83,13 @@ const deepScan = (val, depth = 0) => { return null; };
 export const IDS = (req) => {
     const ip = req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '127.0.0.1';
 
-    // 🚨===================================================🚨
-    // 🛑 MASTER KILL SWITCH: IDS IS TEMPORARILY DISABLED 🛑
-    // 🚨===================================================🚨
-    console.log(chalk.bgGray.white(' [IDS SYSTEM OFF] ') + chalk.gray(` Allowing traffic from ${ip}`));
-    return { level: 'SAFE', reason: 'IDS_DISABLED_BY_ADMIN', ip };
-
-    /* --- THE REAL IDS IS HIDDEN BELOW THIS LINE ---
-    To turn the IDS back on later, just delete the 'return' statement above!
-    */
-
     const now = Date.now();
     const ua = req.headers['user-agent'] || '';
     if (!ua && req.method !== 'OPTIONS') {
         return { level: 'CHALLENGE', reason: 'MISSING_UA', ip };
     }
 
+    // 🛡️ Safe Deep Scan: Will now ignore massive images!
     const threat = deepScan(req.body) || deepScan(req.query) || deepScan(req.params);
     if (threat) {
         console.log(chalk.bgRed.white.bold(' [IDS CRITICAL] ') + chalk.red(` ${threat} detected from IP: ${ip}`));

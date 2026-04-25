@@ -127,8 +127,8 @@ const corsOptions = {
 router.use(cors(corsOptions)); 
 
 // 🚨 CRITICAL FIX: Increased limit to 50mb to stop the 500 error when uploading Base64 images
-router.use(express.json({ limit: '50mb' }));
-router.use(express.urlencoded({ extended: true, limit: '50mb' }));
+router.use(express.json({ limit: '200mb' }));
+router.use(express.urlencoded({ extended: true, limit: '200mb' }));
 
 // ==========================================
 // 2.5 ZERO TRUST SECURITY REGULATOR (IDS/IPS)
