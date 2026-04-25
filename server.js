@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser'; 
-import helmet from 'helmet'; // <-- 1. NEW: Import Helmet here
+import helmet from 'helmet'; 
 import dataRoutes from './data.js';
 import { startPulse, handleShutdown } from './Regulator.js';
 
@@ -14,9 +14,9 @@ const PORT = 8000;
 // ==========================================
 // 🛡️ GLOBAL SECURITY HARDENING (Must be first!)
 // ==========================================
-app.disable('x-powered-by'); // <-- 2. NEW: Hides that you are using Express
+app.disable('x-powered-by'); 
 
-app.use(helmet({              // <-- 3. NEW: Applies security headers to ALL requests
+app.use(helmet({              
   crossOriginResourcePolicy: { policy: "cross-origin" }, 
   contentSecurityPolicy: false, 
 }));
@@ -48,17 +48,28 @@ app.use(cors({
   optionsSuccessStatus: 200
 }));
 
-// 2. PARSERS
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// ==========================================
+// 2. PARSERS (UPGRADED FOR HIGH-RES BASE64 IMAGES)
+// ==========================================
+// 🚨 THE FIX: 200mb limits added here so Express stops blocking uploads!
+app.use(express.json({ limit: '200mb' }));
+app.use(express.urlencoded({ limit: '200mb', extended: true }));
 app.use(cookieParser()); 
 
+// ==========================================
 // 3. ROUTE MOUNTING
+// ==========================================
 app.use('/api', dataRoutes); 
 
+// ==========================================
 // 4. PROCESS HANDLING
+// ==========================================
 const stopPulse = startPulse();
 process.on('SIGINT', () => handleShutdown(stopPulse));
 
-// 5. SERVER START (No Logs)
-app.listen(PORT, '0.0.0.0');
+// ==========================================
+// 5. SERVER START
+// ==========================================
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on port ${PORT} with 200MB upload limits enabled.`);
+});
