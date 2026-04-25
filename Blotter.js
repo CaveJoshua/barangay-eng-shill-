@@ -29,8 +29,9 @@ const upload = multer({
 // =========================================================
 const processNarrativeImages = async (narrative) => {
     let finalNarrative = narrative || "";
-    // Matches data:image/...;base64,... 
-    const base64Regex = /(data:image\/[^;]+;base64,[^\s]+)/g;
+    
+    // 🛡️ THE FIX: Broadened regex to catch ANY base64 data stream (images, octet-streams, webp, heic)
+    const base64Regex = /(data:[^"'\s]+;base64,[^"'\s]+)/g;
     const matchedBase64 = finalNarrative.match(base64Regex) || [];
 
     if (matchedBase64.length > 0) {
@@ -188,7 +189,7 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
         }
     });
 
-    // ── 4. PUT: UPDATE REPORT (THE FIX FOR YOUR 500 ERROR) ──
+    // ── 4. PUT: UPDATE REPORT ──
     router.put('/blotter/:id', authenticateToken, checkRole(['admin', 'superadmin', 'staff']), async (req, res) => {
         try {
             const r = req.body;

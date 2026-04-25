@@ -253,7 +253,7 @@ router.get('/announcements', async (req, res) => {
     }
 });
 
-// POST NEW (Fixes the 404 Error)
+// POST NEW
 router.post('/announcements', authenticateToken, async (req, res) => {
     try {
         const { title, content, category, priority, expires_at, image_url, status } = req.body;
@@ -264,8 +264,8 @@ router.post('/announcements', authenticateToken, async (req, res) => {
 
         let secureImageUrl = null;
         
-        // Handle Base64 Image Upload to Cloudinary
-        if (image_url && image_url.startsWith('data:image')) {
+        // 🛡️ THE FIX: Uses .includes('base64,') to allow ANY encoded image type (webp, png, jpeg, heic, generic streams)
+        if (image_url && image_url.includes('base64,')) {
             console.log("Uploading new image to Cloudinary...");
             try {
                 secureImageUrl = await uploadImage(image_url, 'barangay_announcements');
@@ -299,7 +299,7 @@ router.post('/announcements', authenticateToken, async (req, res) => {
     }
 });
 
-// PUT (UPDATE) EXISTING (Fixes 404 Error when editing)
+// PUT (UPDATE) EXISTING
 router.put('/announcements/:id', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
@@ -308,8 +308,8 @@ router.put('/announcements/:id', authenticateToken, async (req, res) => {
         delete updates.id; 
         delete updates.created_at;
 
-        // Check if image is new base64 string
-        if (updates.image_url && updates.image_url.startsWith('data:image')) {
+        // 🛡️ THE FIX: Universal base64 acceptance for updates as well
+        if (updates.image_url && updates.image_url.includes('base64,')) {
             console.log("Updating image on Cloudinary...");
             updates.image_url = await uploadImage(updates.image_url, 'barangay_announcements');
         }
