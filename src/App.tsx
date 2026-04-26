@@ -28,28 +28,27 @@ const App: React.FC = () => {
     const hasAdminSession = !!localStorage.getItem('admin_session');
     const hasResidentSession = !!localStorage.getItem('resident_session');
 
-    // 🛡️ AGGRESSIVE SESSION RESTORATION
-    // If you hit reload, this forces the app to honor the session token immediately, 
-    // overriding any lost "view" states that cause auto-logouts.
+    // 🎯 THE FIX: Honor the exact page they were on if they have the right credentials
+    if (savedView === 'community_dash' && hasResidentSession) {
+      return 'community_dash';
+    }
+    if (savedView === 'admin' && hasAdminSession) {
+      return 'admin';
+    }
+    if (savedView === 'community') {
+      return 'community'; // Public community page is always accessible
+    }
+
+    // 🛡️ Fallback Session Restoration (If savedView was lost/corrupted)
     if (hasResidentSession) {
       return 'community_dash';
     }
-    
     if (hasAdminSession) {
       return 'admin';
     }
 
-    // Fallback Gatekeeper rules if no sessions exist
-    if (savedView === 'admin' && !hasAdminSession) {
-      console.warn("Blocked unauthorized access to Admin.");
-      return 'login';
-    }
-    if (savedView === 'community_dash' && !hasResidentSession) {
-      console.warn("Blocked unauthorized access to Resident Dashboard.");
-      return 'community'; // Send back to public community page
-    }
-
-    return savedView || 'login';
+    // Default to login if nothing exists
+    return 'login';
   });
 
   // ── 3. THE BOUNCER (Continuous Security Check) ──

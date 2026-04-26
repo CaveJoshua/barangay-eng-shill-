@@ -91,8 +91,6 @@ export const useDocumentEngine = (
 
     setPages(virtualDocumentMap.pages);
     setWordCount(virtualDocumentMap.totalWords);
-
-    // ARCHITECTURE FIX: 'onEdit' is intentionally REMOVED from this array. The loop is dead.
   }, [docConfig, captainName, kagawadName, activeSchema]);
 
   // --- THE COMPILER (Final Vector PDF & Auto-Complete for Walk-in) ---
@@ -119,26 +117,39 @@ export const useDocumentEngine = (
       // Step 2: Determine Walk-in vs Online and whether a DB record already exists
       const isWalkIn = (docConfig.requestMethod || 'Walk-in') === 'Walk-in';
       const existingId = docConfig.id;
+      
+      // 🎯 THE FIX: Parse the price exactly here so it is guaranteed to be a pure number
+      const finalPrice = parseFloat(docConfig.feesPaid) || 0;
 
       if (isWalkIn && existingId) {
-        // CASE A: Walk-in with an existing DB record (opened from the pending list)
-        // → Simply UPDATE the status to 'Completed'. No duplicate INSERT needed.
-        await updateDocumentStatus(existingId, 'Completed');
+        // ─────────────────────────────────────────────────────────────────
+        // CASE A: Walk-in opened from the pending queue (record already exists)
+        // → PATCH the existing row to 'Completed' via the correct endpoint.
+        // 🎯 THE FIX: The parsed fee is passed as the 4th argument to the API
+        // ─────────────────────────────────────────────────────────────────
+        await updateDocumentStatus(existingId, 'Completed', undefined, finalPrice);
 
       } else {
-        // CASE B: Brand-new manual/walk-in (no prior DB record)
-        // → INSERT the record directly as 'Completed' — no 'Processing' limbo.
-        await saveDocumentRecord({
+        // ─────────────────────────────────────────────────────────────────
+        // CASE B: Brand-new manual Walk-in (no prior DB record)
+        // ─────────────────────────────────────────────────────────────────
+        const newRecord = await saveDocumentRecord({
           resident_id: docConfig.residentId || 'MANUAL_ENTRY',
           resident_name: docConfig.residentName,
           type: docConfig.type,
           purpose: docConfig.purpose || 'Walk-in Request',
-          price: parseFloat(docConfig.feesPaid) || 0,
-          status: isWalkIn ? 'Completed' : 'Processing',
+          price: finalPrice, // 🎯 Price included on initial insert
+          status: isWalkIn ? 'Completed' : 'Processing', 
           reference_no: `WK-IN-${Date.now().toString().slice(-6)}`,
           date_requested: new Date().toISOString(),
           request_method: isWalkIn ? 'Walk-in' : 'Online',
         });
+
+        // 🎯 THE FIX: Pass finalPrice in the secondary PATCH request as well
+        // to forcefully overwrite the database status AND price
+        if (isWalkIn && newRecord?.id) {
+          await updateDocumentStatus(newRecord.id, 'Completed', undefined, finalPrice);
+        }
       }
 
       return true;

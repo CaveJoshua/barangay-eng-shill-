@@ -1,23 +1,24 @@
 /**
  * ============================================================
- *  Regulator.js — Security Middleware + System Telemetry  [HARDENED v2.0]
+ * Regulator.js — Security Middleware + System Telemetry  [HARDENED v2.5]
  * ============================================================
- *  AUDIT FIXES APPLIED:
- *  [CRITICAL] Security headers added inline (no Helmet dep required)
- *             Covers: HSTS, X-Frame-Options, X-Content-Type, CSP,
- *             Referrer-Policy, Permissions-Policy, X-XSS-Protection
- *  [HIGH]     Request body size limit enforced at middleware level
- *  [HIGH]     express.json/urlencoded size limits documented for app.js
- *  [MEDIUM]   Telemetry sanitized — no RAM/CPU specifics logged in prod
- *  [MEDIUM]   Shutdown handler logs errors before exit (was silent)
- *  [INFO]     X-Powered-By removal enforced (hides Express fingerprint)
- *  [INFO]     Cache-Control headers on API responses
+ * AUDIT FIXES APPLIED:
+ * [CRITICAL] Security headers added inline (no Helmet dep required)
+ * Covers: HSTS, X-Frame-Options, X-Content-Type, CSP,
+ * Referrer-Policy, Permissions-Policy, X-XSS-Protection
+ * [HIGH]     Request body size limit enforced at middleware level
+ * [HIGH]     express.json/urlencoded size limits documented for app.js
+ * [HIGH]     RENDER ANTI-SLEEP: Integrated keep-alive self-ping heartbeat
+ * [MEDIUM]   Telemetry sanitized — no RAM/CPU specifics logged in prod
+ * [MEDIUM]   Shutdown handler logs errors before exit (was silent)
+ * [INFO]     X-Powered-By removal enforced (hides Express fingerprint)
+ * [INFO]     Cache-Control headers on API responses
  * ============================================================
  *
- *  NOTE FOR app.js: Ensure you have these before mounting routes:
- *    app.use(express.json({ limit: '10kb' }));
- *    app.use(express.urlencoded({ extended: true, limit: '10kb' }));
- *    app.set('trust proxy', 1); // Only if behind a reverse proxy/Cloudflare
+ * NOTE FOR app.js: Ensure you have these before mounting routes:
+ * app.use(express.json({ limit: '10kb' }));
+ * app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+ * app.set('trust proxy', 1); // Only if behind a reverse proxy/Cloudflare
  * ============================================================
  */
 
@@ -35,6 +36,7 @@ const theme = {
     system:  chalk.bold.magenta,
     dim:     chalk.dim,
     metric:  chalk.cyan,
+    render:  chalk.bold.cyanBright, // Added for keep-alive logs
 };
 
 // Metrics state (in-process counters only — no external exposure)
@@ -42,6 +44,7 @@ const stats = {
     activeConnections: 0,
     totalRequests:     0,
     previousRequests:  0,
+    lastSelfPing:      null, // Added for Render keep-alive tracking
 };
 
 // ---------------------------------------------------------------------------
@@ -123,11 +126,15 @@ export const createSecurityRegulator = (supabase) => {
         res.on('finish', decrementConnections);
         res.on('close',  () => { if (!res.writableFinished) decrementConnections(); });
 
+        // ── Handle Internal Self-Pings ────────────────────────────────────
+        // Prevents Render keep-alive requests from triggering IDS blocks
+        const isSelfPing = req.headers['user-agent'] === 'Render-KeepAlive-Autopilot';
+
         // ── IDS Scan ──────────────────────────────────────────────────────
         const idsReport = IDS(req);
 
-        // Zero Trust fast-path: safe traffic skips IPS entirely
-        if (idsReport.level === 'SAFE') return next();
+        // Zero Trust fast-path: safe traffic (or our self-ping) skips IPS entirely
+        if (idsReport.level === 'SAFE' || isSelfPing) return next();
 
         // ── IPS Response ──────────────────────────────────────────────────
         try {
@@ -156,19 +163,37 @@ const measureEventLoopLag = () =>
     });
 
 // ---------------------------------------------------------------------------
+// 2.5 RENDER.COM KEEP-ALIVE LOGIC (Anti-Sleep)
+// ---------------------------------------------------------------------------
+const performKeepAlivePing = async (url) => {
+    if (!url) return;
+    try {
+        // We ping the app itself. createSecurityRegulator recognizes this Agent.
+        await fetch(url, {
+            headers: { 'User-Agent': 'Render-KeepAlive-Autopilot' }
+        });
+        stats.lastSelfPing = new Date().toLocaleTimeString();
+    } catch (err) {
+        console.error(theme.warning(' [RENDER_PULSE_ERROR] '), 'Self-ping failed:', err.message);
+    }
+};
+
+// ---------------------------------------------------------------------------
 // 3. ADVANCED TELEMETRY HEARTBEAT
 // ---------------------------------------------------------------------------
 export const startPulse = (intervalMs = 15_000, gcThresholdMB = 500) => {
     const isProd = process.env.NODE_ENV === 'production';
+    const renderUrl = process.env.RENDER_EXTERNAL_URL || process.env.PUBLIC_URL;
 
     if (!isProd) {
         console.log(theme.system('\n[DEV_TELEMETRY] Advanced Diagnostics: ') + chalk.green('ONLINE'));
+        if (renderUrl) console.log(theme.render('[KEEP_ALIVE] Target: ') + theme.dim(renderUrl));
     }
 
     const interval = setInterval(async () => {
         const { heapUsed } = process.memoryUsage();
-        const lag           = await measureEventLoopLag();
-        const cpuLoad       = os.loadavg()[0];
+        const lag          = await measureEventLoopLag();
+        const cpuLoad      = os.loadavg()[0];
 
         const rps = (
             (stats.totalRequests - stats.previousRequests) /
@@ -180,7 +205,12 @@ export const startPulse = (intervalMs = 15_000, gcThresholdMB = 500) => {
 
         let status = 'STABLE';
         if (lag > 50  || parseFloat(heapMB) > gcThresholdMB * 0.8 || cpuLoad > 2.0) status = 'WARNING';
-        if (lag > 100 || parseFloat(heapMB) > gcThresholdMB)                         status = 'CRITICAL';
+        if (lag > 100 || parseFloat(heapMB) > gcThresholdMB)                        status = 'CRITICAL';
+
+        // ── KEEP-ALIVE EXECUTION ──
+        if (renderUrl) {
+            await performKeepAlivePing(renderUrl);
+        }
 
         // In production: emit structured log for ingestion (no color codes)
         if (isProd) {
@@ -192,6 +222,7 @@ export const startPulse = (intervalMs = 15_000, gcThresholdMB = 500) => {
                     status,
                     rps:    parseFloat(rps),
                     lag_ms: lag,
+                    self_ping: stats.lastSelfPing
                     // NOTE: No free RAM or CPU load in prod logs (info disclosure risk)
                 }));
             }
@@ -206,7 +237,8 @@ export const startPulse = (intervalMs = 15_000, gcThresholdMB = 500) => {
                 theme.dim(' | RPS: ')        + theme.metric(rps) +
                 theme.dim(' | Active I/O: ') + theme.metric(stats.activeConnections) +
                 theme.dim(' | Lag: ')        + theme.metric(`${lag}ms`) +
-                theme.dim(' | Heap: ')       + theme.metric(`${heapMB}MB`)
+                theme.dim(' | Heap: ')       + theme.metric(`${heapMB}MB`) +
+                (stats.lastSelfPing ? theme.dim(' | Keep-Alive: ') + theme.render('SENT') : '')
                 // CPU/RAM omitted even in dev as a habit — train yourself not to expose it
             );
         }

@@ -9,6 +9,7 @@ interface DocItem {
   status: string;
   purpose: string;     
   priceDisplay: string; 
+  rejectionReason?: string;
 }
 
 interface Props {
@@ -22,8 +23,13 @@ const Community_Document_view: React.FC<Props> = ({ data, onSelect }) => {
   return (
     <div className="CM_DOC_LIST_LAYOUT">
       {data.map((req) => {
-        const safeStatusClass = req.status ? req.status.replace(/\s+/g, '_').toUpperCase() : 'PENDING';
+        const statusUpper = (req.status || 'PENDING').toUpperCase();
+        const safeStatusClass = statusUpper.replace(/\s+/g, '_');
         const isPendingPrice = !req.priceDisplay || req.priceDisplay.toLowerCase().includes('assess');
+        
+        // Status Flags
+        const isRejected = statusUpper === 'REJECTED';
+        const isReady = statusUpper === 'READY' || statusUpper === 'READY_FOR_PICKUP';
 
         return (
           <div key={req.id || Math.random().toString()} className="CM_DOC_LONG_PANEL" onClick={() => onSelect(req)}>
@@ -44,12 +50,13 @@ const Community_Document_view: React.FC<Props> = ({ data, onSelect }) => {
               </div>
             </div>
 
-            {/* ── MIDDLE SECTION: Inner Gray Info Box ── */}
+            {/* ── MIDDLE SECTION: Info Box ── */}
             <div className="CM_DOC_PANEL_INNER_BOX">
               <div className="CM_DOC_INNER_ROW">
                 <i className="fas fa-calendar-day"></i>
                 <span><strong>Date Requested:</strong> {req.date}</span>
               </div>
+              
               <div className="CM_DOC_INNER_ROW">
                 <i className="fas fa-money-bill-wave"></i>
                 <span>
@@ -59,9 +66,36 @@ const Community_Document_view: React.FC<Props> = ({ data, onSelect }) => {
                   </span>
                 </span>
               </div>
+
+              {/* ── 🛡️ REJECTED NOTICE ── */}
+              {isRejected && (
+                <div className="CM_DOC_STATUS_NOTICE NOTICE_REJECTED">
+                  <div className="NOTICE_LABEL">
+                    <i className="fas fa-exclamation-circle"></i> REASON FOR REJECTION
+                  </div>
+                  {req.rejectionReason && (
+                    <p className="REJECTION_TEXT">"{req.rejectionReason}"</p>
+                  )}
+                  <p className="NOTICE_INSTRUCTION">
+                    Please come to the Barangay Hall for more information.
+                  </p>
+                </div>
+              )}
+
+              {/* ── ✅ READY NOTICE ── */}
+              {isReady && (
+                <div className="CM_DOC_STATUS_NOTICE NOTICE_READY">
+                  <div className="NOTICE_LABEL">
+                    <i className="fas fa-check-circle"></i> DOCUMENT READY
+                  </div>
+                  <p className="NOTICE_INSTRUCTION">
+                    Your document has been processed. Please visit the Barangay Hall to claim it.
+                  </p>
+                </div>
+              )}
             </div>
 
-            {/* ── BOTTOM SECTION: View Details & Dashed Line ── */}
+            {/* ── BOTTOM SECTION: View Details ── */}
             <div className="CM_DOC_PANEL_FOOTER">
               <span className="CM_DOC_VIEW_LINK">
                 View Details <i className="fas fa-arrow-right"></i>

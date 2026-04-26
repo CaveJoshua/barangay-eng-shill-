@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ApiService } from '../../../../UI/api';
+import { ApiService, API_BASE_URL } from '../../../../UI/api';
 
 export interface IResident {
   record_id: string;
@@ -19,11 +19,8 @@ export interface IOfficial {
 
 export const useDocumentDataAPI = (initialResidentName: string, initialResidentId?: string) => {
   const [residents, setResidents] = useState<IResident[]>([]);
-
-  // STRICTLY DYNAMIC: No hardcoded names.
   const [captainName, setCaptainName] = useState('');
   const [kagawadName, setKagawadName] = useState('');
-
   const [autoFilledAddress, setAutoFilledAddress] = useState('');
 
   useEffect(() => {
@@ -63,7 +60,6 @@ export const useDocumentDataAPI = (initialResidentName: string, initialResidentI
           }
         }
 
-        // FETCH STRICTLY BY POSITION
         if (officialsData !== null) {
           const safeOfficialsList = Array.isArray(officialsData)
             ? officialsData
@@ -96,30 +92,52 @@ export const useDocumentDataAPI = (initialResidentName: string, initialResidentI
   return { residents, captainName, kagawadName, autoFilledAddress };
 };
 
-/**
- * saveDocumentRecord
- * INSERTs a brand-new document_requests row.
- * Used for: new Walk-in (no prior record) and Online requests.
- */
 export const saveDocumentRecord = async (payload: any): Promise<any> => {
   const result = await ApiService.saveDocumentRecord(payload);
   if (!result.success) throw new Error(result.error || 'Database save failed');
   return result.data;
 };
 
-/**
- * updateDocumentStatus
- * PATCHes an existing document_requests row to a new status.
- * Used for: Walk-in PDF download where the record already exists
- * (e.g. opened from the Pending/Processing queue) → auto-sets to 'Completed'.
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// FINALIZE: updateDocumentStatus (Now passes Price to the Backend)
+// ─────────────────────────────────────────────────────────────────────────────
 export const updateDocumentStatus = async (
   id: number | string,
-  status: string
+  status: string,
+  rejection_reason?: string,
+  price?: number 
 ): Promise<void> => {
-  // Swapped to saveDocumentRecord to fix the TS Error. Passing ID inside the payload so the backend knows to UPDATE, not INSERT.
-  const result = await ApiService.saveDocumentRecord({ id, status });
-  if (!result?.success) {
-    throw new Error(result?.error || 'Status update was rejected by the server.');
+  
+  // 1. Grab the auth token passed by Login_modal
+  const rawToken = localStorage.getItem('auth_token') || localStorage.getItem('token') || '';
+
+  // 2. 🛡️ ZERO-TRUST SYNC: 
+  const isRealToken = rawToken && rawToken !== 'ZERO_TRUST_COOKIE_SET';
+
+  // 3. Build Payload
+  const payload: Record<string, any> = { status };
+  
+  if (rejection_reason) {
+      payload.rejection_reason = rejection_reason;
+  }
+  
+  // 🎯 THE FIX: Attach the price to the payload so it updates the SQL 'price' column
+  if (price !== undefined) {
+      payload.price = price;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/documents/${id}/status`, {
+    method: 'PATCH',
+    credentials: 'include', 
+    headers: {
+      'Content-Type': 'application/json',
+      ...(isRealToken ? { Authorization: `Bearer ${rawToken}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || err.message || `Session invalid or secure cookie missing.`);
   }
 };

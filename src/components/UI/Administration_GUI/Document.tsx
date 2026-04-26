@@ -5,6 +5,16 @@ import Data_Analytics_modal from '../../buttons/Data_Analytics_modal';
 import './styles/Document.css';
 import { ApiService } from '../api'; 
 
+// ─────────────────────────────────────────────────────────────────────────────
+// FIX: Import updateDocumentStatus from the API layer.
+//
+// ⚠️  PATH: Adjust this import path to match where Doc_data_api.ts lives
+//   relative to this file. Common patterns:
+//     './Types/Doc_data_api'          ← if same folder level
+//     '../Documents/Types/Doc_data_api' ← if one folder up
+// ─────────────────────────────────────────────────────────────────────────────
+import { updateDocumentStatus } from '../../buttons/Tools/Document_tools/Types/Doc_data_api';
+
 export interface IDocRequest {
   id: string;
   referenceNo: string;
@@ -37,11 +47,16 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   
-  // Modals
+  // Modals & Menus
   const [selectedDoc, setSelectedDoc] = useState<IDocRequest | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false); 
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  
+  const [rejectModal, setRejectModal] = useState({
+    isOpen: false, docId: '', reason: ''
+  });
 
   // Notifications
   const prevCountRef = useRef(0);
@@ -61,7 +76,14 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
     }
   }, [highlightId]);
 
-  // ── DATA FETCHING (Universal Handshake) ──
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const closeMenu = () => setOpenDropdownId(null);
+    window.addEventListener('click', closeMenu);
+    return () => window.removeEventListener('click', closeMenu);
+  }, []);
+
+  // ── DATA FETCHING ──
   const fetchRequests = useCallback(async (silent = false, signal?: AbortSignal) => {
     if (!silent) setLoading(true);
     
@@ -77,7 +99,6 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
         
         let currentStatus = d.status || 'Pending';
 
-        // 🛡️ WALK-IN OVERRIDE
         if (isWalkIn && currentStatus.toLowerCase() !== 'rejected') {
           currentStatus = 'Completed';
         }
@@ -98,7 +119,6 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
         };
       });
 
-      // Sort by newest first
       const sortedData = mappedData.sort((a, b) => 
         new Date(b.dateRequested).getTime() - new Date(a.dateRequested).getTime()
       );
@@ -154,7 +174,6 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
     });
   }, [requests, activeTab, searchTerm]);
 
-  // ── PAGINATION ENGINE ──
   const totalPages = Math.ceil(filteredDocs.length / ITEMS_PER_PAGE);
   const paginatedDocs = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -166,6 +185,36 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
     setIsViewModalOpen(false);
     setIsManualModalOpen(false);
     setSelectedDoc(null);
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // FIX: handleStatusUpdate
+  //
+  // ROOT CAUSE (before fix):
+  //   Called ApiService.saveDocumentRecord({ id, status }) which hits the
+  //   POST /documents/save endpoint — an INSERT-only route. The backend never
+  //   looked at the `id` field for updates, so every status click was silently
+  //   trying (and failing) to INSERT a new duplicate row. Nothing was saved.
+  //
+  // FIX:
+  //   Now calls updateDocumentStatus(id, status, reason) which issues a
+  //   PATCH /documents/:id/status request — the correct update endpoint that
+  //   the backend router already exposes and handles properly.
+  // ─────────────────────────────────────────────────────────────────────────
+  const handleStatusUpdate = async (id: string, newStatus: string, reason?: string) => {
+    try {
+      await updateDocumentStatus(id, newStatus, reason);
+      handleRefresh();
+    } catch (err: any) {
+      console.error("Status Update Error:", err);
+      alert(`Failed to update status: ${err.message}`);
+    }
+  };
+
+  const submitRejection = () => {
+    if (!rejectModal.reason.trim()) return alert("Statement of reason is required.");
+    handleStatusUpdate(rejectModal.docId, 'Rejected', rejectModal.reason);
+    setRejectModal({ isOpen: false, docId: '', reason: '' });
   };
 
   return (
@@ -198,7 +247,7 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
         })}
         
         <div className="DOC_STAT_CARD DOC_ANALYTICS_TRIGGER" onClick={() => setIsAnalyticsOpen(true)}>
-          <span className="DOC_STAT_VAL"><i className="fas fa-chart-pie"></i></span>
+          <span className="DOC_STAT_VAL"><i className="fas fa-chart-pie" style={{ color: '#3b82f6' }}></i></span>
           <span className="DOC_STAT_LABEL">VIEW ANALYTICS</span>
         </div>
       </div>
@@ -239,7 +288,6 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
                 <th>DOCUMENT TYPE</th>
                 <th>DATE REQUESTED</th>
                 <th>PIPELINE STAGE</th>
-                {/* 🛡️ CONDITION: Only show ACTION column if NOT in History */}
                 {activeTab !== 'History' && <th style={{textAlign: 'right'}}>ACTION</th>}
               </tr>
             </thead>
@@ -252,26 +300,24 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
                 <tr><td colSpan={activeTab === 'History' ? 5 : 6} className="MSG_ROW">No records found for this stage.</td></tr>
               ) : (
                 paginatedDocs.map(doc => {
-                  const isGlowing = activeHighlight === doc.referenceNo;
+                  const isGlowing = activeHighlight === doc.referenceNo || activeHighlight === doc.id;
 
                   return (
                     <tr 
                       key={doc.id} 
-                      // 🛡️ CONDITION: Remove hover/click effects if in History
-                      className={`${activeTab !== 'History' ? 'DOC_ROW_CLICK' : ''} ${isGlowing ? 'HINT_HIGHLIGHT' : ''}`}
+                      className={`DOC_ROW_CLICK ${isGlowing ? 'HINT_HIGHLIGHT' : ''}`}
                       onClick={() => { 
-                        if (activeTab !== 'History') {
-                          setSelectedDoc(doc); 
-                          setIsViewModalOpen(true); 
-                        }
+                        setSelectedDoc(doc); 
+                        setIsViewModalOpen(true); 
+                        setOpenDropdownId(null);
                       }} 
                     >
                       <td>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
                           <span className="DOC_REF_BADGE">{doc.referenceNo}</span>
-                          <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--doc-text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
                             {doc.requestMethod === 'Walk-in' ? (
-                              <><i className="fas fa-walking" style={{marginRight: '4px'}}></i> Walk-in</>
+                              <><i className="fas fa-walking" style={{marginRight: '4px', color: '#10b981'}}></i> Walk-in</>
                             ) : (
                               <><i className="fas fa-globe" style={{marginRight: '4px', color: '#3b82f6'}}></i> Online</>
                             )}
@@ -281,14 +327,53 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
                       <td><strong>{doc.residentName}</strong></td>
                       <td>{doc.type}</td>
                       <td>{new Date(doc.dateRequested).toLocaleDateString()}</td>
-                      <td><span className={`DOC_STATUS_PILL STATUS_${doc.status.toUpperCase()}`}>{doc.status}</span></td>
+                      <td><span className={`DOC_STATUS_PILL ${doc.status}`}>{doc.status}</span></td>
                       
-                      {/* 🛡️ CONDITION: Hide the chevron action button in History */}
+                      {/* ACTION DROPDOWN */}
                       {activeTab !== 'History' && (
-                        <td style={{textAlign: 'right'}}>
-                            <button className="DOC_ACTION_BTN">
-                                <i className="fas fa-chevron-right"></i>
-                            </button>
+                        <td className="DOC_ACTION_CELL">
+                          <button 
+                            className="DOC_ACTION_MENU_BTN"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenDropdownId(openDropdownId === doc.id ? null : doc.id);
+                            }}
+                          >
+                            Manage <i className="fas fa-chevron-down"></i>
+                          </button>
+
+                          {/* SMART DROPDOWN MENU */}
+                          {openDropdownId === doc.id && (
+                            <div className="DOC_DROPDOWN_MENU" onClick={(e) => e.stopPropagation()}>
+                              <button onClick={() => { setSelectedDoc(doc); setIsViewModalOpen(true); setOpenDropdownId(null); }}>
+                                <i className="fas fa-search"></i> Review Details
+                              </button>
+
+                              {doc.status === 'Pending' && (
+                                <button className="PRIMARY" onClick={() => { handleStatusUpdate(doc.id, 'Processing'); setOpenDropdownId(null); }}>
+                                  <i className="fas fa-check-circle"></i> Approve Request
+                                </button>
+                              )}
+
+                              {doc.status === 'Processing' && (
+                                <button className="SUCCESS" onClick={() => { handleStatusUpdate(doc.id, 'Ready'); setOpenDropdownId(null); }}>
+                                  <i className="fas fa-print"></i> Mark as Ready
+                                </button>
+                              )}
+
+                              {doc.status === 'Ready' && (
+                                <button className="SUCCESS" onClick={() => { handleStatusUpdate(doc.id, 'Completed'); setOpenDropdownId(null); }}>
+                                  <i className="fas fa-clipboard-check"></i> Mark Completed
+                                </button>
+                              )}
+
+                              {(doc.status === 'Pending' || doc.status === 'Processing') && (
+                                <button className="DANGER" onClick={() => { setRejectModal({ isOpen: true, docId: doc.id, reason: '' }); setOpenDropdownId(null); }}>
+                                  <i className="fas fa-ban"></i> Reject Request
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </td>
                       )}
                     </tr>
@@ -312,7 +397,9 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
             >
               <i className="fas fa-chevron-left"></i> Previous
             </button>
-            <span className="DOC_PAGE_INDICATOR">Page {currentPage} of {totalPages || 1}</span>
+            <span className="DOC_PAGE_INDICATOR">
+              Page {currentPage} of {totalPages || 1}
+            </span>
             <button 
               className="DOC_NAV_BTN" 
               onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
@@ -352,6 +439,39 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
         isOpen={isAnalyticsOpen}
         onClose={() => setIsAnalyticsOpen(false)}
       />
+
+      {/* 🛡️ REJECTION MODAL */}
+      {rejectModal.isOpen && (
+        <div className="DOC_MODAL_OVERLAY" onClick={() => setRejectModal({ isOpen: false, docId: '', reason: '' })}>
+          <div className="DOC_SIMPLE_MODAL" onClick={e => e.stopPropagation()}>
+            <h3 className="DOC_MODAL_TITLE">Reject Document Request</h3>
+            
+            <label className="DOC_MODAL_LABEL">Statement of Reason</label>
+            <textarea 
+              className="DOC_MODAL_TEXTAREA"
+              rows={4} 
+              placeholder="Provide an official reason for rejecting this request..."
+              value={rejectModal.reason} 
+              onChange={e => setRejectModal(prev => ({ ...prev, reason: e.target.value }))} 
+            />
+            
+            <div className="DOC_MODAL_ACTIONS">
+              <button 
+                className="DOC_PAGE_BTN"
+                onClick={() => setRejectModal({ isOpen: false, docId: '', reason: '' })}
+              >
+                Cancel
+              </button>
+              <button 
+                className="DOC_ADD_BTN"
+                onClick={submitRejection} 
+              >
+                <i className="fas fa-ban"></i> Confirm Reject
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* NEW REQUEST NOTIFICATION */}
       {newRequestCount > 0 && (

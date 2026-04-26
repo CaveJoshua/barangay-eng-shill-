@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { ApiService } from '../../UI/api'; // 🎯 THE FIX: Import ApiService for direct fetching
 import "./C-Styles/Community_Notification.css";
 
 interface NotificationProps {
-  notifications?: any[]; // 🛡️ THE FIX: Tell TypeScript this prop exists!
+  notifications?: any[]; 
   blotters: any[];
   documents: any[];
 }
@@ -10,6 +11,10 @@ interface NotificationProps {
 const Community_Notification: React.FC<NotificationProps> = ({ notifications: dbNotifications = [], blotters, documents }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  // 🎯 THE FIX: Add local state to hold the instantly fetched notifications
+  const [liveNotifications, setLiveNotifications] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // ── 🛡️ CLOSE ON CLICK OUTSIDE ──
   useEffect(() => {
@@ -22,12 +27,39 @@ const Community_Notification: React.FC<NotificationProps> = ({ notifications: db
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // ── 🛡️ PRIORITIZED FIRST FETCH ──
+  // This bypasses the parent dashboard and grabs notifications immediately on mount
+  useEffect(() => {
+    const fetchLatestNotifications = async () => {
+      try {
+        setIsLoading(true);
+        const data = await ApiService.getNotifications();
+        if (data) {
+          setLiveNotifications(data);
+        }
+      } catch (err) {
+        console.error("Fast Notification Fetch Error:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchLatestNotifications();
+  }, []);
+
+  // 🛡️ SYNC WITH PARENT: If the parent dashboard eventually loads and sends new notifications, update the local state
+  useEffect(() => {
+    if (dbNotifications && dbNotifications.length > 0) {
+      setLiveNotifications(dbNotifications);
+    }
+  }, [dbNotifications]);
+
   // ── 🔍 GENERATE NOTIFICATIONS FROM DATA ──
   const notificationsList = useMemo(() => {
     const list: any[] = [];
 
-    // 1. 🛡️ REAL DATABASE NOTIFICATIONS (From the Backend)
-    dbNotifications?.forEach((notif) => {
+    // 1. 🛡️ REAL DATABASE NOTIFICATIONS (Using the instantly fetched state)
+    liveNotifications?.forEach((notif) => {
       let icon = 'fas fa-bell';
       let color = '#3b82f6'; // Default blue
 
@@ -85,7 +117,7 @@ const Community_Notification: React.FC<NotificationProps> = ({ notifications: db
     });
 
     return list;
-  }, [dbNotifications, blotters, documents]);
+  }, [liveNotifications, blotters, documents]);
 
   const unreadCount = notificationsList.length;
 
@@ -108,7 +140,12 @@ const Community_Notification: React.FC<NotificationProps> = ({ notifications: db
         </header>
 
         <div className="NOTIF_LIST_AREA">
-          {notificationsList.length > 0 ? (
+          {isLoading ? (
+            <div className="NOTIF_EMPTY_STATE" style={{ opacity: 0.7 }}>
+               <i className="fas fa-circle-notch fa-spin" />
+               <p>Syncing updates...</p>
+            </div>
+          ) : notificationsList.length > 0 ? (
             notificationsList.map((notif) => (
               <div key={notif.id} className="NOTIF_ITEM">
                 <div className="NOTIF_ICON_BOX" style={{ backgroundColor: `${notif.color}15`, color: notif.color }}>

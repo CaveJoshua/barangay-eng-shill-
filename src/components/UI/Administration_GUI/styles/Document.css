@@ -1,4 +1,3 @@
-
 /* =========================================
    0. CORE THEME VARIABLES
    ========================================= */
@@ -26,19 +25,19 @@
   --stat-ready-txt: #166534;
 }
 
-/* ── EXACT NAVY DARK MODE (MATCHING YOUR IMAGE) ── */
+/* ── EXACT NAVY DARK MODE ── */
 [data-theme="dark"] {
-  --doc-bg-app: #1c2536;        /* The exact color from your image */
-  --doc-bg-card: #242f42;       /* Elevated layer: slightly lighter navy */
-  --doc-bg-accent: #111827;     /* Deeper inset color */
+  --doc-bg-app: #1c2536;        
+  --doc-bg-card: #242f42;       
+  --doc-bg-accent: #111827;     
   --doc-bg-hover: #2d3748;      
   --doc-bg-hover-blue: #1e293b;
 
-  --doc-border: #334155;        /* Slate-700 for subtle borders */
+  --doc-border: #334155;        
   --doc-border-input: #475569;
 
-  --doc-text-main: #f8fafc;     /* Clean off-white */
-  --doc-text-sub: #94a3b8;      /* Muted slate blue */
+  --doc-text-main: #f8fafc;     
+  --doc-text-sub: #94a3b8;      
   --doc-text-muted: #64748b;
   --doc-text-badge: #cbd5e1;
 
@@ -141,7 +140,8 @@
   transition: all 0.2s ease;
 }
 
-.DOC_STAT_CARD[style*="cursor: pointer"]:hover {
+.DOC_ANALYTICS_TRIGGER { cursor: pointer; }
+.DOC_ANALYTICS_TRIGGER:hover {
   transform: translateY(-2px);
   background: var(--doc-bg-hover-blue) !important;
   border-color: #3b82f6;
@@ -196,6 +196,7 @@
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
+  white-space: nowrap;
 }
 
 .DOC_TAB_ITEM:hover:not(.ACTIVE) {
@@ -209,7 +210,7 @@
 }
 
 [data-theme="dark"] .DOC_TAB_ITEM.ACTIVE {
-  border: 1px solid #ffffff;
+  border: 1px solid var(--doc-border);
 }
 
 .DOC_SEARCH_FIELD {
@@ -255,7 +256,7 @@
   background: var(--doc-bg-card);
   border-radius: 16px;
   border: 1px solid var(--doc-border);
-  overflow: hidden;
+  overflow: visible; /* Changed to visible for dropdowns */
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
   display: flex;
   flex-direction: column;
@@ -264,6 +265,7 @@
 .DOC_TABLE_SCROLL_WRAP {
   max-height: 600px; 
   overflow-y: auto;
+  overflow-x: visible;
   position: relative;
 }
 
@@ -293,6 +295,10 @@
   font-size: 0.95rem;
 }
 
+.DOC_ROW_CLICK {
+  transition: background-color 0.2s;
+}
+
 .DOC_ROW_CLICK:hover { 
   background: var(--doc-bg-hover); 
   cursor: pointer; 
@@ -302,10 +308,99 @@
   text-align: center;
   padding: 4rem !important;
   color: var(--doc-text-muted);
+  font-weight: 600;
+}
+
+.MSG_ROW.ERROR {
+  color: #ef4444;
 }
 
 /* =========================================
-   6. PAGINATION FOOTER
+   6. ACTIONS & MANAGE DROPDOWN
+   ========================================= */
+.DOC_ACTION_MENU_BTN {
+  background: transparent;
+  border: 1px solid var(--doc-border-input);
+  padding: 6px 14px;
+  border-radius: 8px;
+  color: var(--doc-text-main);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  outline: none;
+}
+
+.DOC_ACTION_MENU_BTN:hover,
+.DOC_ACTION_MENU_BTN:focus {
+  background: var(--doc-bg-hover);
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+.DOC_DROPDOWN_MENU {
+  position: absolute;
+  right: 1.5rem; /* Anchor to the right of the cell */
+  top: 50%;
+  transform: translateY(-50%) scale(0.95);
+  background: var(--doc-bg-card);
+  border: 1px solid var(--doc-border);
+  border-radius: 12px;
+  padding: 8px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);
+  min-width: 180px;
+  animation: docDropFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: right center;
+}
+
+@keyframes docDropFadeIn {
+  to { transform: translateY(-50%) scale(1); opacity: 1; }
+  from { transform: translateY(-50%) scale(0.95); opacity: 0; }
+}
+
+.DOC_DROPDOWN_MENU button {
+  background: transparent;
+  border: none;
+  padding: 10px 12px;
+  text-align: left;
+  color: var(--doc-text-main);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.2s;
+  outline: none;
+}
+
+.DOC_DROPDOWN_MENU button i { width: 18px; text-align: center; color: var(--doc-text-sub); }
+.DOC_DROPDOWN_MENU button:hover { background: var(--doc-bg-hover); }
+
+/* Semantic Colors for Dropdown */
+.DOC_DROPDOWN_MENU button.PRIMARY { color: #3b82f6; }
+.DOC_DROPDOWN_MENU button.PRIMARY i { color: #3b82f6; }
+
+.DOC_DROPDOWN_MENU button.SUCCESS { color: #10b981; }
+.DOC_DROPDOWN_MENU button.SUCCESS i { color: #10b981; }
+
+.DOC_DROPDOWN_MENU button.DANGER { 
+  color: #ef4444; 
+  border-top: 1px solid var(--doc-border); 
+  margin-top: 4px; 
+  padding-top: 10px; 
+  border-radius: 0 0 6px 6px;
+}
+.DOC_DROPDOWN_MENU button.DANGER i { color: #ef4444; }
+
+
+/* =========================================
+   7. PAGINATION FOOTER
    ========================================= */
 .DOC_PAGINATION_BAR {
   display: flex;
@@ -325,6 +420,16 @@
 .DOC_NAV_GROUP { 
   display: flex; 
   gap: 8px; 
+  align-items: center;
+}
+
+.DOC_PAGE_INDICATOR {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--doc-text-main);
+  padding: 4px 12px;
+  background: var(--doc-bg-app);
+  border-radius: 6px;
 }
 
 .DOC_NAV_BTN {
@@ -337,12 +442,15 @@
   color: var(--doc-text-badge);
   cursor: pointer;
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .DOC_NAV_BTN:hover:not(:disabled) {
   background: var(--doc-bg-accent);
-  border-color: var(--doc-border-input);
-  color: var(--doc-text-main);
+  border-color: #3b82f6;
+  color: #3b82f6;
 }
 
 .DOC_NAV_BTN:disabled {
@@ -352,7 +460,7 @@
 }
 
 /* =========================================
-   7. UTILITIES (BADGES & TOASTS)
+   8. UTILITIES (BADGES, MODALS & TOASTS)
    ========================================= */
 .DOC_REF_BADGE {
   font-family: 'JetBrains Mono', monospace;
@@ -373,13 +481,102 @@
   text-transform: uppercase;
 }
 
-/* Status colors dynamically pulled from variables */
 .DOC_STATUS_PILL.Pending { background: var(--stat-pending-bg); color: var(--stat-pending-txt); }
 .DOC_STATUS_PILL.Processing { background: var(--stat-process-bg); color: var(--stat-process-txt); }
 .DOC_STATUS_PILL.Ready { background: var(--stat-ready-bg); color: var(--stat-ready-txt); }
 .DOC_STATUS_PILL.Completed { background: var(--doc-bg-accent); color: var(--doc-text-sub); }
 .DOC_STATUS_PILL.Rejected { background: var(--stat-pending-bg); color: var(--stat-pending-txt); }
 
+/* Rejection Modal */
+.DOC_MODAL_OVERLAY {
+  position: fixed;
+  inset: 0;
+  background: rgba(15,23,42,0.75);
+  backdrop-filter: blur(8px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.DOC_SIMPLE_MODAL {
+  background: var(--doc-bg-card);
+  border-radius: 18px;
+  width: 90%;
+  max-width: 420px;
+  padding: 1.75rem;
+  border: 1px solid var(--doc-border);
+  box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+}
+
+.DOC_MODAL_TITLE {
+  margin: 0 0 1.25rem 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.DOC_MODAL_LABEL {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--doc-text-muted);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  letter-spacing: 0.05em;
+}
+
+.DOC_MODAL_TEXTAREA {
+  width: 100%;
+  padding: 12px;
+  background: var(--doc-bg-app);
+  border: 1px solid var(--doc-border);
+  border-radius: 8px;
+  color: var(--doc-text-main);
+  font-size: 0.9rem;
+  outline: none;
+  resize: none;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.DOC_MODAL_TEXTAREA:focus {
+  border-color: #ef4444;
+}
+
+.DOC_MODAL_ACTIONS {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 1.25rem;
+}
+
+.DOC_PAGE_BTN {
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid var(--doc-border);
+  color: var(--doc-text-main);
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.DOC_PAGE_BTN:hover { background: var(--doc-bg-hover); }
+
+.DOC_ADD_BTN {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: opacity 0.2s;
+}
+.DOC_ADD_BTN:hover { opacity: 0.9; }
+
+/* Toast */
 .DOC_ALARM_TOAST {
   position: fixed; 
   top: 24px; 
@@ -400,8 +597,23 @@
   to { top: 24px; opacity: 1; } 
 }
 
+@keyframes hintPulse {
+  0% { background-color: transparent; }
+  20% { background-color: rgba(255, 204, 0, 0.25); } 
+  80% { background-color: rgba(255, 204, 0, 0.25); }
+  100% { background-color: transparent; }
+}
+
+.HINT_HIGHLIGHT {
+  animation: hintPulse 2.5s ease-in-out forwards;
+}
+.HINT_HIGHLIGHT td:first-child {
+  border-left: 4px solid #f59e0b !important; 
+}
+
+
 /* =========================================
-   8. MOBILE RESPONSIVE
+   9. MOBILE RESPONSIVE
    ========================================= */
 @media (max-width: 1024px) {
   .DOC_STATS_GRID { grid-template-columns: repeat(2, 1fr); }
@@ -414,17 +626,19 @@
 }
 
 @media (max-width: 600px) {
+  .DOC_PAGE_LAYOUT { padding: 1rem; gap: 1.5rem; }
   .DOC_STATS_GRID { grid-template-columns: 1fr; }
-}
-
-@keyframes hintPulse {
-  0% { background-color: transparent; }
-  20% { background-color: rgba(255, 204, 0, 0.25); } /* Yellow Highlight */
-  80% { background-color: rgba(255, 204, 0, 0.25); }
-  100% { background-color: transparent; }
-}
-
-.HINT_HIGHLIGHT {
-  animation: hintPulse 2.5s ease-in-out forwards;
-  border-left: 4px solid #ffcc00 !important; /* Yellow side bar for extra visibility */
+  .DOC_PAGINATION_BAR { flex-direction: column; gap: 1rem; }
+  
+  /* Swipeable tabs */
+  .DOC_TAB_GROUP {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+  }
+  .DOC_TAB_GROUP::-webkit-scrollbar { display: none; }
+  
+  .DOC_DROPDOWN_MENU { right: 1rem; } /* Prevent falling off screen edge */
 }

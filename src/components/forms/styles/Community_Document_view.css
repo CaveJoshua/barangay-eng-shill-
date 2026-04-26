@@ -3,7 +3,7 @@
    Theme: Engineer's Hill Premium (Long Panel Edition)
    ========================================================= */
 
-/* ── THE LIST CONTAINER (Replaces Grid) ── */
+/* ── THE LIST CONTAINER ── */
 .CM_DOC_LIST_LAYOUT {
     flex: 1;
     overflow-y: auto;
@@ -102,8 +102,9 @@
 .CM_DOC_PANEL_STATUS.PROCESSING { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
 .CM_DOC_PANEL_STATUS.READY, .CM_DOC_PANEL_STATUS.READY_FOR_PICKUP { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
 .CM_DOC_PANEL_STATUS.RELEASED, .CM_DOC_PANEL_STATUS.COMPLETED { background: var(--c--p--bg-switcher); color: var(--c--p--text-secondary); border: 1px solid var(--c--p--border-subtle); }
+.CM_DOC_PANEL_STATUS.REJECTED { background: #fef2f2; color: #ef4444; border: 1px solid #fecaca; }
 
-/* ── MIDDLE GRAY BOX ── */
+/* ── MIDDLE BOX (INNER CONTENT) ── */
 .CM_DOC_PANEL_INNER_BOX {
     background: var(--c--p--bg-main);
     border: 1px solid var(--c--p--border-subtle);
@@ -136,6 +137,41 @@
 .FEE_PENDING { color: #f59e0b; font-weight: 800; }
 .FEE_SET { color: #10b981; font-weight: 800; }
 
+/* ── 🛡️ REJECTION NOTICE STYLES ── */
+.CM_DOC_REJECTION_NOTICE {
+    margin-top: 0.5rem;
+    padding: 1rem;
+    background-color: rgba(239, 68, 68, 0.05);
+    border: 1px solid rgba(239, 68, 68, 0.15);
+    border-radius: 10px;
+    animation: panelSlideIn 0.3s ease-out;
+}
+
+.REJECTION_LABEL {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.65rem;
+    font-weight: 900;
+    color: #ef4444;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+}
+
+.REJECTION_TEXT {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--c--p--text-body);
+    font-style: italic;
+    line-height: 1.6;
+}
+
+@keyframes panelSlideIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 /* ── FOOTER DASHED LINE ── */
 .CM_DOC_PANEL_FOOTER {
     border-top: 1px dashed var(--c--p--border-subtle);
@@ -154,100 +190,37 @@
     transition: transform 0.2s;
 }
 
-.CM_DOC_LONG_PANEL:hover .CM_DOC_VIEW_LINK {
-    color: #1d4ed8;
-}
-
-.CM_DOC_LONG_PANEL:hover .CM_DOC_VIEW_LINK i {
-    transform: translateX(4px);
-}
+.CM_DOC_LONG_PANEL:hover .CM_DOC_VIEW_LINK { color: #1d4ed8; }
+.CM_DOC_LONG_PANEL:hover .CM_DOC_VIEW_LINK i { transform: translateX(4px); }
 
 /* 🌙 DARK MODE OVERRIDES */
-[data-theme='dark'] .CM_DOC_LONG_PANEL {
-    background-color: #111827;
-    border-color: #374151;
+[data-theme='dark'] .CM_DOC_LONG_PANEL { background-color: #111827; border-color: #374151; }
+[data-theme='dark'] .CM_DOC_LONG_PANEL:hover { background-color: #1f2937; }
+[data-theme='dark'] .CM_DOC_PANEL_INNER_BOX { background-color: #1f2937; border-color: #374151; }
+[data-theme='dark'] .CM_DOC_PANEL_FOOTER { border-color: #374151; }
+[data-theme='dark'] .CM_DOC_PANEL_ICON { background-color: #1e3a8a; color: #60a5fa; }
+[data-theme='dark'] .CM_DOC_PANEL_HEADING, [data-theme='dark'] .CM_DOC_INNER_ROW strong { color: #ffffff; }
+
+[data-theme='dark'] .CM_DOC_REJECTION_NOTICE {
+    background-color: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.25);
 }
 
-[data-theme='dark'] .CM_DOC_LONG_PANEL:hover {
-    background-color: #1f2937;
-    border-color: var(--c--p--brand-blue);
-}
+[data-theme='dark'] .REJECTION_TEXT { color: #cbd5e1; }
 
-[data-theme='dark'] .CM_DOC_PANEL_INNER_BOX {
-    background-color: #1f2937;
-    border-color: #374151;
-}
-
-[data-theme='dark'] .CM_DOC_PANEL_FOOTER {
-    border-color: #374151;
-}
-
-[data-theme='dark'] .CM_DOC_PANEL_ICON {
-    background-color: #1e3a8a;
-    color: #60a5fa;
-}
-
-[data-theme='dark'] .CM_DOC_PANEL_HEADING,
-[data-theme='dark'] .CM_DOC_INNER_ROW strong {
-    color: #ffffff;
-}
-
-/* 📱 MOBILE RESPONSIVENESS (Any Screen Size) */
+/* 📱 MOBILE RESPONSIVENESS */
 @media (max-width: 768px) {
-    .CM_DOC_LIST_LAYOUT {
-        padding-right: 0; /* Prevent horizontal scroll triggers */
-        gap: 1rem;
-    }
+    .CM_DOC_LIST_LAYOUT { padding-right: 0; gap: 1rem; }
+    .CM_DOC_LONG_PANEL { padding: 1.25rem; gap: 1rem; }
+    .CM_DOC_PANEL_TOP { flex-direction: column; gap: 1rem; align-items: flex-start; }
+    .CM_DOC_PANEL_ICON { width: 42px; height: 42px; font-size: 1.2rem; }
+    .CM_DOC_PANEL_HEADING { font-size: 1.05rem; word-break: break-word; }
+    .CM_DOC_PANEL_STATUS { align-self: flex-start; font-size: 0.7rem; padding: 4px 12px; }
+    .CM_DOC_PANEL_INNER_BOX { padding: 1rem; gap: 0.85rem; }
+    .CM_DOC_INNER_ROW { font-size: 0.85rem; align-items: flex-start; }
+    .CM_DOC_INNER_ROW span { display: flex; flex-direction: column; gap: 2px; }
+    .CM_DOC_PANEL_FOOTER { padding-top: 1rem; }
 
-    .CM_DOC_LONG_PANEL {
-        padding: 1.25rem; /* Tighter padding for small screens */
-        gap: 1rem;
-    }
-
-    .CM_DOC_PANEL_TOP {
-        flex-direction: column;
-        gap: 1rem;
-        align-items: flex-start;
-    }
-
-    .CM_DOC_PANEL_ICON {
-        width: 42px; /* Scale down icon */
-        height: 42px;
-        font-size: 1.2rem;
-    }
-
-    .CM_DOC_PANEL_HEADING {
-        font-size: 1.05rem; 
-        word-break: break-word; /* Ensure long document names don't break layout */
-    }
-
-    .CM_DOC_PANEL_STATUS {
-        align-self: flex-start;
-        font-size: 0.7rem;
-        padding: 4px 12px;
-    }
-
-    .CM_DOC_PANEL_INNER_BOX {
-        padding: 1rem;
-        gap: 0.85rem;
-    }
-
-    .CM_DOC_INNER_ROW {
-        font-size: 0.85rem;
-        align-items: flex-start; /* Aligns icon properly if text wraps */
-    }
-
-    .CM_DOC_INNER_ROW span {
-        display: flex;
-        flex-direction: column; /* Stack Label and Value on tiny screens */
-        gap: 2px;
-    }
-
-    .CM_DOC_PANEL_FOOTER {
-        padding-top: 1rem;
-    }
-
-    /* Convert "View Details" text link into a large touch-friendly button on mobile */
     .CM_DOC_VIEW_LINK {
         width: 100%;
         height: 44px;
@@ -259,7 +232,5 @@
         font-size: 0.9rem;
     }
     
-    [data-theme='dark'] .CM_DOC_VIEW_LINK {
-        background: #1f2937;
-    }
+    [data-theme='dark'] .CM_DOC_VIEW_LINK { background: #1f2937; }
 }

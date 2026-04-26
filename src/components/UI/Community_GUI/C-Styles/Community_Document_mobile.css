@@ -170,3 +170,93 @@
         font-size: 0.9rem;
     }
 }
+
+/* ── DRAWER FOOTER CONTAINER ── */
+.CM_DOC_DRAWER_FOOTER {
+    margin-top: auto; /* Pushes the footer to the bottom of the drawer */
+    padding: 1.5rem 2.5rem;
+    border-top: 1px solid var(--c--p--border-subtle);
+    background: var(--c--p--bg-card);
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+}
+
+/* ── THE CLOSE VIEW BUTTON ── */
+.CM_DOC_FOOTER_BTN {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    
+    padding: 1rem 1.5rem;
+    border-radius: 14px;
+    border: 1px solid var(--c--p--border-subtle);
+    
+    background-color: var(--c--p--bg-switcher);
+    color: var(--c--p--text-primary);
+    
+    font-size: 1rem;
+    font-weight: 700;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Hover State: Changes to a soft red "Close" theme */
+.CM_DOC_FOOTER_BTN:hover {
+    background-color: #fee2e2; /* soft red */
+    color: #ef4444;           /* bright red */
+    border-color: #fecaca;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.1);
+}
+
+/* Active State: Slight click effect */
+.CM_DOC_FOOTER_BTN:active {
+    transform: translateY(0);
+}
+
+.CM_DOC_FOOTER_BTN i {
+    font-size: 1.1rem;
+    transition: transform 0.2s ease;
+}
+
+.CM_DOC_FOOTER_BTN:hover i {
+    transform: rotate(90deg);
+}
+
+/* 🌙 DARK MODE OVERRIDES */
+[data-theme='dark'] .CM_DOC_DRAWER_FOOTER {
+    background-color: #111827;
+    border-color: #374151;
+}
+
+[data-theme='dark'] .CM_DOC_FOOTER_BTN {
+    background-color: #1f2937;
+    border-color: #374151;
+    color: #ffffff;
+}
+
+[data-theme='dark'] .CM_DOC_FOOTER_BTN:hover {
+    background-color: #7f1d1d; /* Deep dark red */
+    color: #fca5a5;           /* Light salmon red text */
+    border-color: #991b1b;
+}
+
+/* 📱 MOBILE RESPONSIVENESS */
+@media (max-width: 768px) {
+    .CM_DOC_DRAWER_FOOTER {
+        padding: 1.25rem; /* Tighter padding for phones */
+    }
+    
+    .CM_DOC_FOOTER_BTN {
+        padding: 0.85rem;
+        font-size: 0.95rem;
+        border-radius: 12px;
+    }
+}

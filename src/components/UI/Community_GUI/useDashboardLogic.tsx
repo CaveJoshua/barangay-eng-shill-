@@ -6,7 +6,7 @@ export const useDashboardLogic = (onLogout: () => void) => {
   const [blotters, setBlotters] = useState<any[]>([]);
   const [documents, setDocuments] = useState<any[]>([]);
   const [newsList, setNewsList] = useState<any[]>([]);
-  const [notifications, setNotifications] = useState<any[]>([]); // 🛡️ NEW: Notification State
+  const [notifications, setNotifications] = useState<any[]>([]); 
   const [loading, setLoading] = useState(true);
   
   const initialLoadDone = useRef(false);
@@ -14,13 +14,12 @@ export const useDashboardLogic = (onLogout: () => void) => {
 
   const [activeTab, setActiveTab] = useState<string>('Pending');
 
-  const fetchData = useCallback(async (residentId?: string) => {
-    if (isFetching.current) return;
+  const fetchData = useCallback(async (residentId?: string, forceRefresh: boolean = false) => {
+    if (isFetching.current && !forceRefresh) return;
 
     const sessionStr = localStorage.getItem('resident_session');
     const sessionData = sessionStr ? JSON.parse(sessionStr) : {};
     
-    // Safely check all possible ID locations
     const targetId = residentId || sessionData?.profile?.record_id || sessionData?.record_id || sessionData?.profile?.RECORD_ID;
 
     if (!targetId) return;
@@ -30,13 +29,11 @@ export const useDashboardLogic = (onLogout: () => void) => {
     try {
       if (!initialLoadDone.current) setLoading(true);
 
-      // 🛡️ THE FIX: Call the Resident-Specific endpoints to bypass the 403 RBAC Admin Block
-      // 🛡️ THE ADDITION: Call getNotifications to wake up the alert system
       const [blotterData, docData, newsData, notifData] = await Promise.all([
-      ApiService.getResidentBlotters(targetId),     // 👈 THIS MUST BE getResidentBlotters
-      ApiService.getResidentDocuments(targetId),    
-      ApiService.getAnnouncements(),
-      ApiService.getNotifications()
+        ApiService.getResidentBlotters(targetId),     
+        ApiService.getResidentDocuments(targetId),    
+        ApiService.getAnnouncements(),
+        ApiService.getNotifications()
       ]);
 
       if (blotterData === null || docData === null) {
@@ -44,63 +41,86 @@ export const useDashboardLogic = (onLogout: () => void) => {
          return; 
       }
 
-      // We no longer need to .filter() here because the backend already filtered it!
       setBlotters(
         (blotterData || []).map((b: any) => {
             const rawName = b.resident_name || b.complainant_name || b.full_name || b.complainant || 'RESIDENT';
+            const rawReason = b.rejection_reason || b.rejectionReason || b.reason || '';
+            
+            const rawBlotterStatus = b.status ? String(b.status).trim() : 'Pending';
+            const normalizedBlotterStatus = rawBlotterStatus.charAt(0).toUpperCase() + rawBlotterStatus.slice(1).toLowerCase();
             
             return {
+              ...b, 
               record_id: b.id || b.record_id,
               case_no: b.case_number || b.case_no,
               incident_type: b.incident_type,
               complainant: rawName.toUpperCase(),
               incident_date: b.date_filed || b.incident_date,
-              status: b.status,
+              status: normalizedBlotterStatus,
               rawStatus: b.status,
               details: `Vs ${b.respondent || 'Unknown'}: ${b.incident_type}`,
-              price: 'Free',
+              price: 'To be assessed',
               hearingDate: b.hearing_date,
               hearingTime: b.hearing_time,
-              rejectionReason: b.rejection_reason,
+              rejection_reason: rawReason,
+              rejectionReason: rawReason,
               narrative: b.narrative || b.details || 'No description provided.',
             };
           })
       );
       
-      // We no longer need to .filter() here because the backend already filtered it!
       setDocuments(
         (docData || []).map((d: any) => {
-            const isPending = (d.status || 'Pending').toLowerCase() === 'pending';
-            const displayPrice = isPending
+            const rawStatus = d.status ? String(d.status).trim() : 'Pending';
+            const normalizedStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
+            
+            // Handle both Pending and New as the "Assessment" phase
+            const isPendingPhase = ['Pending', 'New'].includes(normalizedStatus);
+            
+            // 🎯 THE FIX: Strip letters/currency symbols so parseFloat doesn't return NaN
+            const cleanPriceStr = String(d.price || d.fee || 0).replace(/[^0-9.]/g, '');
+            const rawPrice = parseFloat(cleanPriceStr);
+            const validPrice = isNaN(rawPrice) ? 0 : rawPrice; // Fallback to 0 if totally invalid
+
+            // 🎯 THE FIX: Calculate display price securely
+            const displayPrice = isPendingPhase
               ? 'To be assessed'
-              : (!d.price || d.price === 0 ? 'Free' : `₱${parseFloat(d.price).toFixed(2)}`);
+              : (validPrice === 0 ? 'To be assessed' : `₱${validPrice.toFixed(2)}`);
+
+            const rawReason = d.rejection_reason || d.rejectionReason || d.reason || d.rejection_message || '';
             
             return {
+              ...d, 
               record_id: d.id || d.record_id,
-              id: d.referenceNo || d.reference_no || d.control_no || 'REF-N/A',
+              id: d.id || d.record_id,
+              reference_no: d.referenceNo || d.reference_no || d.control_no || 'REF-N/A',
+              displayId: d.referenceNo || d.reference_no || d.control_no || 'REF-N/A',
               type: d.type || 'Document',
               document_type: d.type || d.document_type,
-              status: d.status || 'Pending',
-              rawStatus: d.status,
+              status: normalizedStatus, 
+              rawStatus: rawStatus,
               purpose: d.purpose || 'Not Stated',
               details: `Purpose: ${d.purpose}`,
               date_requested: d.dateRequested || d.date_requested,
               date: new Date(d.dateRequested || d.date_requested).toLocaleDateString(),
-              price: displayPrice,
-              fee: d.price || d.fee || 0,
+              price: validPrice,         
+              priceDisplay: displayPrice, 
+              fee: validPrice,
+              rejection_reason: rawReason,
+              rejectionReason: rawReason
             };
           })
       );
 
       setNewsList(newsData || []);
-      setNotifications(notifData || []); // 🛡️ Load the notifications into state
+      setNotifications(notifData || []); 
 
       initialLoadDone.current = true;
     } catch (err) {
       console.error('Dashboard Sync Error:', err);
     } finally {
       setLoading(false);
-      setTimeout(() => { isFetching.current = false; }, 500);
+      isFetching.current = false;
     }
   }, []);
 
@@ -114,9 +134,8 @@ export const useDashboardLogic = (onLogout: () => void) => {
     try {
       const parsed = JSON.parse(savedSession);
       const profile = parsed.profile || parsed;
-      const userNode = parsed.user || {}; // 🛡️ Ensure we grab the user node
+      const userNode = parsed.user || {}; 
 
-      // 🛡️ Safe ID Extraction
       const recordId = profile.record_id || profile.RECORD_ID || parsed.record_id;
 
       if (!recordId) {
@@ -124,7 +143,6 @@ export const useDashboardLogic = (onLogout: () => void) => {
         return;
       }
 
-      // 🛡️ Safe Name Extraction & CAPSLOCK ENFORCEMENT
       const firstName = profile.first_name || profile.FIRST_NAME || profile.firstName || '';
       const lastName = profile.last_name || profile.LAST_NAME || profile.lastName || '';
       
@@ -134,17 +152,15 @@ export const useDashboardLogic = (onLogout: () => void) => {
           safeName = 'UNKNOWN RESIDENT';
       }
 
-      // 🛡️ THE FIX: Deep Identity Extraction
-      // Actively hunt for the email and username across the entire session object
       const extractedEmail = profile.email || userNode.email || parsed.email || '';
       const extractedUsername = userNode.username || profile.username || parsed.username || '';
 
       setResident({
-        ...parsed,         // Keep the root payload intact
-        ...profile,        // Prioritize profile data
-        user: userNode,    // Explicitly attach the user node so it isn't dropped
-        email: extractedEmail,       // Force email to the surface
-        username: extractedUsername, // Force username to the surface
+        ...parsed,         
+        ...profile,        
+        user: userNode,    
+        email: extractedEmail,       
+        username: extractedUsername, 
         record_id: recordId, 
         formattedName: safeName,
       });
@@ -157,7 +173,6 @@ export const useDashboardLogic = (onLogout: () => void) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 🛡️ Export the notifications so the UI can use them!
   return { resident, blotters, documents, newsList, notifications, loading, fetchData, activeTab, setActiveTab };
 };
 

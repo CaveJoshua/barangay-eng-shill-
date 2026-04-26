@@ -1,7 +1,7 @@
 /* =========================================================
    COMMUNITY DASHBOARD — Community_Dashboard.css
    Theme: Engineer's Hill Premium Portal (Scoped v3.2 --c--p--)
-   Fix: Removed Mobile Bottom Nav Focus Borders/Outlines
+   Fix: Removed Mobile Bottom Nav Focus Borders & Fixed Dark Mode Sync
    ========================================================= */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800&family=JetBrains+Mono:wght@500&display=swap');
@@ -26,8 +26,9 @@
     --c--p--transition-fast: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* ── 🌑 DARK THEME OVERRIDES ── */
-:root[data-theme='dark'] {
+/* ── 🌑 DARK THEME OVERRIDES (🎯 THE FIX: Now listens to both attributes) ── */
+:root[data-theme='dark'],
+:root[data-resident-theme='dark'] {
     --c--p--bg-main: #020617;
     --c--p--bg-card: #0f172a;
     --c--p--bg-switcher: #1e293b;
@@ -45,6 +46,7 @@
     color: var(--c--p--text-primary);
     font-family: 'Inter', sans-serif;
     overflow-x: hidden;
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* ── 1. TOP NAVIGATION (Glassmorphism Effect) ── */
@@ -62,9 +64,11 @@
     top: 0;
     z-index: 1000;
     box-shadow: var(--c--p--shadow-ui);
+    transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
-[data-theme='dark'] .CM_NAV_MAIN {
+[data-theme='dark'] .CM_NAV_MAIN,
+[data-resident-theme='dark'] .CM_NAV_MAIN {
     background: rgba(15, 23, 42, 0.85);
 }
 
@@ -223,7 +227,7 @@
     align-items: center;
     gap: 10px;
     padding: 0.65rem 1.25rem;
-    background: #f1f5f9;
+    background: var(--c--p--bg-main);
     border: 1px solid var(--c--p--border-subtle);
     border-radius: 12px;
     color: var(--c--p--text-secondary);
@@ -235,7 +239,8 @@
     white-space: nowrap;
 }
 
-[data-theme='dark'] .CM_LOGOUT_WORD_BTN {
+[data-theme='dark'] .CM_LOGOUT_WORD_BTN,
+[data-resident-theme='dark'] .CM_LOGOUT_WORD_BTN {
     background: #1e293b;
 }
 
@@ -270,6 +275,7 @@
     z-index: 1000;
     justify-content: space-around;
     align-items: center;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 /* 🎯 THE OUTLINE FIX: Strip all default browser focus rings */
@@ -310,6 +316,7 @@
     border-radius: 20px;
     border: 1px solid var(--c--p--border-subtle);
     box-shadow: var(--c--p--shadow-ui);
+    transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .BULLETIN_HEADER_SECTION {

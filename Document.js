@@ -115,12 +115,14 @@ export const documentRouter = (router, supabase, authenticateToken) => {
             const { data: residents, error: resError } = await supabase.from('residents_records').select('record_id, first_name, last_name, email');
             if (resError) throw resError;
 
+            // 🎯 Ensure rejection_reason is explicitly mapped and provided to the frontend
             const formattedData = (docs || []).map(doc => {
                 const resident = residents?.find(r => r.record_id === doc.resident_id);
                 return {
                     ...doc,
                     residentName: resident ? `${resident.last_name}, ${resident.first_name}` : (doc.resident_name || 'Unknown'),
-                    residentEmail: resident?.email || null
+                    residentEmail: resident?.email || null,
+                    rejection_reason: doc.rejection_reason || null 
                 };
             });
             
@@ -131,13 +133,13 @@ export const documentRouter = (router, supabase, authenticateToken) => {
         }
     });
 
-    // ── 2.5 THE RESIDENT ROUTING POINT (FIXES THE 404 ERROR) ──
+    // ── 2.5 THE RESIDENT ROUTING POINT ──
     router.get('/documents/resident/:id', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff', 'resident']), async (req, res) => {
         try {
             const { id } = req.params;
             const { data, error } = await supabase
                 .from('document_requests')
-                .select('*')
+                .select('*') 
                 .eq('resident_id', id)
                 .order('date_requested', { ascending: false });
 
@@ -221,16 +223,21 @@ export const documentRouter = (router, supabase, authenticateToken) => {
         }
     });
 
-    // ── 4. PUT: FULL UPDATE ──
+    // ── 4. PUT: FULL UPDATE (WITH REJECTION REASON) ──
     router.put('/documents/:id', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff']), async (req, res) => {
         try {
             const { id } = req.params;
             const r = req.body;
             const actor = req.user?.username || 'Staff';
 
+            const payload = { status: r.status, price: r.price, purpose: r.purpose };
+            if (r.rejection_reason !== undefined) {
+                payload.rejection_reason = r.rejection_reason;
+            }
+
             const { data, error } = await supabase
                 .from('document_requests')
-                .update({ status: r.status, price: r.price, purpose: r.purpose })
+                .update(payload)
                 .eq('id', id)
                 .select().single();
 
@@ -243,7 +250,13 @@ export const documentRouter = (router, supabase, authenticateToken) => {
             if (['Approved', 'Ready', 'Released', 'Rejected'].includes(r.status)) {
                 const { data: resi } = await supabase.from('residents_records').select('email, first_name').eq('record_id', data.resident_id).single();
                 if (resi?.email) {
-                    sendAutoMail(resi.email, `Document Update: ${r.status}`, `Hello, ${resi.first_name}!`, `Your request for <b>${data.type}</b> is now <b>${r.status}</b>.`)
+                    let emailMessage = `Your request for <b>${data.type}</b> is now <b>${r.status}</b>.`;
+                    
+                    if (r.status === 'Rejected' && r.rejection_reason) {
+                        emailMessage += `<br><br><b>Reason for rejection:</b><br><i>"${r.rejection_reason}"</i><br><br>Please contact the barangay hall if you have any questions.`;
+                    }
+
+                    sendAutoMail(resi.email, `Document Update: ${r.status}`, `Hello, ${resi.first_name}!`, emailMessage)
                     .catch(e => console.error("[RESIDENT_EMAIL_DISPATCH_ERROR]", e.message));
                 }
             }
@@ -255,27 +268,43 @@ export const documentRouter = (router, supabase, authenticateToken) => {
         }
     });
 
-    // ── 5. PATCH: QUICK STATUS UPDATE ──
+    // ── 5. PATCH: QUICK STATUS UPDATE (WITH PRICE SUPPORT) ──
     router.patch('/documents/:id/status', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff']), async (req, res) => {
         try {
-            const { status } = req.body;
+            // 🎯 THE FIX: Extract price from req.body
+            const { status, rejection_reason, price } = req.body;
             const actor = req.user?.username || 'Staff';
+
+            const payload = { status };
+            if (rejection_reason !== undefined) {
+                payload.rejection_reason = rejection_reason;
+            }
+            // 🎯 THE FIX: Add price to the Supabase update payload
+            if (price !== undefined) {
+                payload.price = price;
+            }
 
             const { data, error } = await supabase
                 .from('document_requests')
-                .update({ status }) 
+                .update(payload) 
                 .eq('id', req.params.id)
                 .select().single();
 
             if (error) throw error;
 
-            logActivity(supabase, actor, 'STATUS_PATCH', `Doc ID ${req.params.id} -> ${status}`);
+            logActivity(supabase, actor, 'STATUS_PATCH', `Doc ID ${req.params.id} -> ${status} (Price: ${price !== undefined ? price : 'unchanged'})`);
             
             await createNotification(supabase, data.resident_id, "Document Alert", `Your ${data.type} is now ${status}.`, 'document');
 
             const { data: resi } = await supabase.from('residents_records').select('email, first_name').eq('record_id', data.resident_id).single();
             if (resi?.email) {
-                sendAutoMail(resi.email, "Status Alert", `Hi ${resi.first_name}`, `Your ${data.type} is now: ${status}.`)
+                let emailMessage = `Your ${data.type} is now: ${status}.`;
+                
+                if (status === 'Rejected' && rejection_reason) {
+                    emailMessage += `<br><br><b>Reason for rejection:</b><br><i>"${rejection_reason}"</i><br><br>Please contact the barangay hall if you have any questions.`;
+                }
+
+                sendAutoMail(resi.email, "Status Alert", `Hi ${resi.first_name}`, emailMessage)
                 .catch(e => console.error("[RESIDENT_EMAIL_DISPATCH_ERROR]", e.message));
             }
 

@@ -11,6 +11,7 @@ interface IIncidentCase {
   respondent: string;
   incident_type: string;
   status: 'Pending' | 'Active' | 'Hearing' | 'Settled' | 'Archived' | 'Rejected'; 
+  origin: 'Walk-in' | 'Online';
   date_filed: string;
   time_filed?: string;
   narrative?: string;
@@ -47,11 +48,11 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
   });
 
   const [activeHighlight, setActiveHighlight] = useState<string | null>(null);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
   const isFetchingCases = useRef(false);
   const isMounted = useRef(true);
 
-  // ─── THE FIX: Keep the highlight active for 3 seconds ───
   useEffect(() => {
     if (highlightId) {
       setActiveHighlight(highlightId);
@@ -59,6 +60,12 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
       return () => clearTimeout(timer);
     }
   }, [highlightId]);
+
+  useEffect(() => {
+    const handleClickOutside = () => setOpenDropdownId(null);
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
+  }, []);
 
   const fetchCases = useCallback(async (silent = false, signal?: AbortSignal) => {
     if (!isMounted.current || isFetchingCases.current) return;
@@ -73,6 +80,8 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
         const mappedData = rawData.map((c: any) => {
           let rawStatus = c.status || 'Pending';
           const normalizedStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
+          
+          const docOrigin = c.origin || c.source || (c.is_online ? 'Online' : 'Walk-in');
 
           return {
             ...c,
@@ -80,6 +89,7 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
             case_number: c.case_number || 'PENDING',
             complainant_name: c.complainant_name || 'Unknown',
             status: normalizedStatus,
+            origin: docOrigin,
             date_filed: c.date_filed || c.created_at || new Date().toISOString()
           };
         });
@@ -261,13 +271,13 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
             <table className="AD-BLOT_TABLE_MAIN">
               <thead>
                 <tr>
-                  <th>Case #</th>
+                  <th>Case Information</th>
                   <th>Complainant</th>
                   <th>Respondent</th>
                   <th>Type</th>
                   <th>{activeTab === 'Hearing' ? 'Hearing Date' : 'Filed Date'}</th>
                   <th>Status</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
+                  <th style={{ textAlign: 'right', paddingRight: '2rem' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -279,17 +289,22 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
                   <tr><td colSpan={7} className="AD-BLOT_TABLE_EMPTY" style={{ textAlign: 'center', padding: '4rem' }}>No {activeTab.toLowerCase()} records found.</td></tr>
                 ) : (
                   paginatedCases.map((c) => {
-                    const isFinalized = ['Settled', 'Archived', 'Rejected'].includes(c.status);
-                    
-                    // 👇 THE FIX: The string now correctly matches BOTH the id or the case_number
                     const isGlowing = activeHighlight === String(c.id) || activeHighlight === String(c.case_number);
 
                     return (
                       <tr 
                         key={c.id} 
-                        className={isGlowing ? 'AD-BLOT_HINT_HIGHLIGHT' : ''} 
+                        className={`AD-BLOT_CLICKABLE_ROW ${isGlowing ? 'AD-BLOT_HINT_HIGHLIGHT' : ''}`}
+                        onClick={() => { setSelectedCase(c); setIsModalOpen(true); setOpenDropdownId(null); }}
                       >
-                        <td><span className="AD-BLOT_CASE_NUMBER">{c.case_number}</span></td>
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-start' }}>
+                            <span className="AD-BLOT_CASE_NUMBER">{c.case_number}</span>
+                            <span className={`AD-BLOT_ORIGIN_BADGE ${c.origin === 'Online' ? 'ONLINE' : 'WALKIN'}`}>
+                              <i className={c.origin === 'Online' ? 'fas fa-globe' : 'fas fa-walking'}></i> {c.origin}
+                            </span>
+                          </div>
+                        </td>
                         <td>{c.complainant_name}</td>
                         <td>{c.respondent}</td>
                         <td>{c.incident_type}</td>
@@ -300,21 +315,54 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
                           }
                         </td>
                         <td><span className={`AD-BLOT_STATUS_BADGE AD-BLOT_STATUS_${c.status.toUpperCase()}`}>{c.status}</span></td>
-                        <td style={{ textAlign: 'right' }}>
-                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
-                            {(c.status === 'Active' || c.status === 'Pending') && (
-                              <button className="AD-BLOT_ACTION_ICON" onClick={() => setHearingModal({ isOpen: true, caseId: c.id, date: '', time: '09:00' })} title="Schedule"><i className="fas fa-calendar-plus"></i></button>
-                            )}
-                            {(c.status === 'Active' || c.status === 'Pending') && (
-                              <button className="AD-BLOT_ACTION_ICON" onClick={() => setRejectModal({ isOpen: true, caseId: c.id, reason: '' })} title="Reject"><i className="fas fa-ban" style={{ color: '#ef4444' }}></i></button>
-                            )}
-                            {c.status === 'Hearing' && (
-                              <button className="AD-BLOT_ACTION_ICON" onClick={() => handleStatusUpdate(c.id, { status: 'Settled' })} title="Mark Settled"><i className="fas fa-handshake" style={{ color: '#10b981' }}></i></button>
-                            )}
-                            <button className="AD-BLOT_ACTION_ICON" onClick={() => { setSelectedCase(c); setIsModalOpen(true); }} title="View Details">
-                              {isFinalized ? <i className="fas fa-eye"></i> : <i className="fas fa-edit"></i>}
-                            </button>
-                          </div>
+                        
+                        <td style={{ position: 'relative', textAlign: 'right', paddingRight: '2rem' }}>
+                          <button 
+                            className="AD-BLOT_ACTION_MENU_BTN"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenDropdownId(openDropdownId === c.id ? null : c.id);
+                            }}
+                            style={{
+                              width: 'auto',
+                              height: 'auto',
+                              padding: '6px 14px',
+                              border: '1px solid var(--AD-BLOT-clr-primary)',
+                              borderRadius: '8px',
+                              color: 'var(--AD-BLOT-text-heading)',
+                              fontSize: '0.85rem',
+                              fontWeight: 700,
+                              gap: '8px'
+                            }}
+                          >
+                            Manage <i className="fas fa-chevron-down" style={{ fontSize: '0.75rem' }}></i>
+                          </button>
+
+                          {openDropdownId === c.id && (
+                            <div className="AD-BLOT_DROPDOWN_MENU" onClick={(e) => e.stopPropagation()}>
+                              <button onClick={() => { setSelectedCase(c); setIsModalOpen(true); setOpenDropdownId(null); }}>
+                                <i className="fas fa-file-alt"></i> Review Details
+                              </button>
+
+                              {(c.status === 'Pending' || c.status === 'Active' || c.status === 'Hearing') && (
+                                <button onClick={() => { setHearingModal({ isOpen: true, caseId: c.id, date: c.hearing_date || '', time: c.hearing_time || '09:00' }); setOpenDropdownId(null); }}>
+                                  <i className="fas fa-calendar-alt"></i> {c.status === 'Hearing' ? 'Reschedule Hearing' : 'Schedule Hearing'}
+                                </button>
+                              )}
+
+                              {c.status === 'Hearing' && (
+                                <button className="SUCCESS" onClick={() => { handleStatusUpdate(c.id, { status: 'Settled' }); setOpenDropdownId(null); }}>
+                                  <i className="fas fa-handshake"></i> Mark as Settled
+                                </button>
+                              )}
+
+                              {(c.status === 'Pending' || c.status === 'Active') && (
+                                <button className="DANGER" onClick={() => { setRejectModal({ isOpen: true, caseId: c.id, reason: '' }); setOpenDropdownId(null); }}>
+                                  <i className="fas fa-ban"></i> Reject Complaint
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </td>
                       </tr>
                     );
