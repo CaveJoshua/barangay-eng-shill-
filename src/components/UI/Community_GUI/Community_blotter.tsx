@@ -26,7 +26,7 @@ const parseEvidence = (text: string) => {
   return { cleanText: text, evidenceUrl: null };
 };
 
-// 🛡️ THE FIX: Added "Pending" tab so incoming reports aren't invisible!
+// 🛡️ TABS
 const STATUS_TABS = [
   { id: 'Pending', label: 'Pending / New', icon: 'fas fa-inbox' },
   { id: 'Active', label: 'Active Cases', icon: 'fas fa-gavel' },
@@ -59,7 +59,7 @@ const Community_blotter: React.FC<BlotterProps> = ({
   useEffect(() => {
     const validTabs = STATUS_TABS.map(t => t.id.toLowerCase());
     if (!validTabs.includes(activeTab.toLowerCase())) {
-      setActiveTab('Pending'); // Default to Pending now
+      setActiveTab('Pending');
     }
   }, [activeTab, setActiveTab]);
 
@@ -92,24 +92,13 @@ const Community_blotter: React.FC<BlotterProps> = ({
 
     }).map(item => {
       
-      // 1. EXTRACT NAME 
-      let rawName = item.complainant_name
-                 || item.resident_name 
-                 || (item.residents && item.residents.resident_name) 
-                 || item.complainant 
-                 || item.full_name 
-                 || item.reporter 
-                 || 'RESIDENT';
-
-      // 2. CONVERT TO STRING FOR SAFETY
+      let rawName = item.complainant_name || item.resident_name || (item.residents && item.residents.resident_name) || item.complainant || item.full_name || item.reporter || 'RESIDENT';
       let nameStr = String(rawName).trim();
-
-      // 3. THE KILL SWITCH
+      
       if (!nameStr || nameStr.toLowerCase().includes('anonymous')) {
           nameStr = 'RESIDENT';
       }
 
-      // 4. ADMIN FORMATTING: Force strict CAPSLOCK
       const finalDisplayName = nameStr.toUpperCase();
 
       return {
@@ -144,6 +133,7 @@ const Community_blotter: React.FC<BlotterProps> = ({
         onSuccess={refresh} 
       />
 
+      {/* ── TOOLBAR & SCROLLABLE TABS ── */}
       <div className="CM_INC_TOOLBAR">
         <div className="CM_INC_TABS_WRAPPER">
           {STATUS_TABS.map((tab) => {
@@ -182,53 +172,61 @@ const Community_blotter: React.FC<BlotterProps> = ({
         </div>
       </div>
 
+      {/* ── THE LONG HORIZONTAL PANEL LIST ── */}
       <div className="CM_INC_MAIN_LAYOUT">
-        <main className="CM_INC_GRID_LAYOUT">
+        <div className="CM_INC_LIST_LAYOUT">
           {processedData.length > 0 ? (
-            processedData.map((caseItem) => (
-              <div key={caseItem.id} className="CM_INC_CARD_ITEM" onClick={() => setSelectedCase(caseItem)}>
-                
-                <div className="CM_INC_CARD_HEADER">
-                  <div className="CM_INC_TITLE_GROUP">
-                    <div className="CM_INC_ICON_BOX">
-                      <i className={getIncidentIcon(caseItem.incident_type)}></i>
+            processedData.map((caseItem) => {
+              const safeStatusClass = caseItem.status.replace(/\s+/g, '_');
+              
+              return (
+                <div key={caseItem.id} className="CM_INC_LONG_PANEL" onClick={() => setSelectedCase(caseItem)}>
+                  
+                  {/* TOP: ICON, TITLE, STATUS */}
+                  <div className="CM_INC_PANEL_TOP">
+                    <div className="CM_INC_PANEL_LEFT">
+                      <div className="CM_INC_PANEL_ICON">
+                        <i className={getIncidentIcon(caseItem.incident_type)}></i>
+                      </div>
+                      <div className="CM_INC_PANEL_TITLES">
+                        <span className="CM_INC_PANEL_ID">{caseItem.case_no}</span>
+                        <h3 className="CM_INC_PANEL_HEADING">{caseItem.incident_type}</h3>
+                      </div>
                     </div>
-                    <div className="CM_INC_TITLE_TEXT">
-                      <span className="CM_INC_ID_LABEL">{caseItem.case_no}</span>
-                      <h3>{caseItem.incident_type}</h3>
+                    <div className={`CM_INC_PANEL_STATUS STATUS_${safeStatusClass}`}>
+                      {caseItem.status}
                     </div>
                   </div>
-                  <div className={`CM_INC_STATUS_BADGE STATUS_${caseItem.status}`}>
-                    {caseItem.status}
-                  </div>
-                </div>
 
-                <div className="CM_INC_CARD_BODY">
-                  <div className="CM_INC_INFO_ROW">
-                    <i className="fas fa-calendar-day"></i>
-                    <span><strong>Date Filed:</strong> {new Date(caseItem.incident_date).toLocaleDateString()}</span>
+                  {/* MIDDLE: GRAY INFO BOX */}
+                  <div className="CM_INC_PANEL_INNER_BOX">
+                    <div className="CM_INC_INNER_ROW">
+                      <i className="fas fa-calendar-day"></i>
+                      <span><strong>Date Filed:</strong> {new Date(caseItem.incident_date).toLocaleDateString()}</span>
+                    </div>
+                    <div className="CM_INC_INNER_ROW">
+                      <i className="fas fa-user-tag"></i>
+                      <span><strong>Complainant:</strong> {caseItem.complainant}</span>
+                    </div>
                   </div>
-                  <div className="CM_INC_INFO_ROW">
-                    <i className="fas fa-user-tag"></i>
-                    <span><strong>Complainant:</strong> {caseItem.complainant}</span>
+
+                  {/* FOOTER: ACTION LINK */}
+                  <div className="CM_INC_PANEL_FOOTER">
+                    <span className="CM_INC_VIEW_LINK">
+                      View Details <i className="fas fa-arrow-right"></i>
+                    </span>
                   </div>
-                </div>
 
-                <div className="CM_INC_CARD_FOOTER">
-                  <button className="CM_INC_ACTION_BTN">
-                    View Details <i className="fas fa-arrow-right" />
-                  </button>
                 </div>
-
-              </div>
-            ))
+              );
+            })
           ) : (
             <div className="CM_INC_EMPTY_STATE">
               <i className="fas fa-folder-open" />
               <p>No records found in {activeTab}.</p>
             </div>
           )}
-        </main>
+        </div>
       </div>
 
       {/* ── ISOLATED SLIDE DRAWER ── */}
@@ -246,7 +244,7 @@ const Community_blotter: React.FC<BlotterProps> = ({
               </button>
               <div className="CM_INC_HEADER_META">
                 <span className="CM_INC_SIDEBAR_ID">{selectedCase.case_no}</span>
-                <div className={`CM_INC_SIDEBAR_STATUS STATUS_${selectedCase.status}`}>
+                <div className={`CM_INC_SIDEBAR_STATUS STATUS_${selectedCase.status.replace(/\s+/g, '_')}`}>
                    {selectedCase.status}
                 </div>
               </div>
@@ -270,7 +268,6 @@ const Community_blotter: React.FC<BlotterProps> = ({
                     return (
                       <>
                         <p dangerouslySetInnerHTML={{ __html: cleanText }}></p>
-                        
                         {evidenceUrl && (
                           <div style={{ marginTop: '20px', borderTop: '1px solid var(--c--p--border-subtle)', paddingTop: '15px' }}>
                             <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--c--p--brand-blue)', marginBottom: '10px' }}>

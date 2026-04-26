@@ -1,336 +1,204 @@
 /* =========================================================
-   COMMUNITY DOCUMENT VIEW — Community_Document_view.css
-   Theme: Engineer's Hill Premium (v4.2 Final)
-   Update: Dark Mode Integration & Incident/Blotter UI Support
+   COMMUNITY DOCUMENT CARDS — Community_Document_view.css
+   Theme: Engineer's Hill Premium (Long Panel Edition)
    ========================================================= */
 
-/* ── 🛡️ THE SCROLL WRAPPER ── */
-.DOC_VIEW_CONTENT_WRAPPER {
-    display: flex;
-    flex-direction: column;
-    height: calc(100vh - 300px); 
-    overflow: hidden;
-}
-
-.DOC_LIST_SCROLL_AREA {
+/* ── THE LIST CONTAINER (Replaces Grid) ── */
+.CM_DOC_LIST_LAYOUT {
     flex: 1;
     overflow-y: auto;
     padding-right: 8px;
     display: flex;
     flex-direction: column;
+    gap: 1.25rem;
 }
 
-/* Premium Scrollbar */
-.DOC_LIST_SCROLL_AREA::-webkit-scrollbar { width: 5px; }
-.DOC_LIST_SCROLL_AREA::-webkit-scrollbar-thumb { 
+.CM_DOC_LIST_LAYOUT::-webkit-scrollbar { width: 6px; }
+.CM_DOC_LIST_LAYOUT::-webkit-scrollbar-thumb { 
     background: var(--c--p--border-subtle); 
     border-radius: 10px; 
 }
-.DOC_LIST_SCROLL_AREA::-webkit-scrollbar-thumb:hover { background: var(--c--p--brand-blue); }
+.CM_DOC_LIST_LAYOUT::-webkit-scrollbar-thumb:hover { background: var(--c--p--brand-blue); }
 
-/* ── 1. LABELS & EMPTY STATE ── */
-.DOC_SECTION_LABEL {
-  font-size: 0.75rem;
-  font-weight: 800;
-  color: var(--c--p--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  margin: 0.5rem 0 1.5rem 0;
-  padding-left: 12px;
-  border-left: 4px solid var(--c--p--brand-blue);
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.DOC_EMPTY_STATE {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 4rem 2rem;
-  color: var(--c--p--text-secondary);
-  text-align: center;
-  background: var(--c--p--bg-card);
-  border-radius: 16px;
-  border: 2px dashed var(--c--p--border-subtle);
-  margin-top: 1rem;
-}
-
-.DOC_EMPTY_STATE i {
-  font-size: 3rem;
-  opacity: 0.5;
-  margin-bottom: 1rem;
-}
-
-/* ── 2. CARDS ── */
-.DOC_CARD_ITEM {
-  background: var(--c--p--bg-card);
-  border-radius: 16px;
-  padding: 1.5rem;
-  margin-bottom: 1.25rem;
-  box-shadow: var(--c--p--shadow-ui);
-  border: 1px solid var(--c--p--border-subtle);
-  cursor: pointer;
-  transition: var(--c--p--transition-fast);
-  width: 100%;
-  box-sizing: border-box;
-  position: relative;
-  overflow: hidden;
-}
-
-.DOC_CARD_ITEM:hover {
-  transform: translateY(-3px);
-  border-color: var(--c--p--brand-blue);
-  background: var(--c--p--bg-switcher);
-}
-
-/* Incident/Hearing Specific Borders */
-.STATUS_HEARING_BORDER {
-  border-left: 4px solid #8b5cf6 !important;
-}
-
-/* ── HEADER ── */
-.DOC_HEADER {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1.25rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--c--p--border-subtle);
-}
-
-.DOC_ID_GROUP {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-}
-
-.INCIDENT_TAG {
-  background: rgba(225, 29, 72, 0.1);
-  color: #e11d48;
-  font-size: 0.65rem;
-  font-weight: 800;
-  padding: 3px 8px;
-  border-radius: 6px;
-  letter-spacing: 0.5px;
-}
-
-.DOC_ID_GROUP strong {
-  font-size: 1.1rem;
-  color: var(--c--p--text-primary);
-  font-weight: 800;
-}
-
-.DOC_REF {
-  font-size: 0.75rem;
-  color: var(--c--p--text-secondary);
-  font-family: 'JetBrains Mono', monospace;
-  opacity: 0.8;
-  font-weight: 600;
-}
-
-/* Status Badges (Themed) */
-.DOC_STATUS {
-  font-size: 0.65rem;
-  font-weight: 800;
-  padding: 5px 12px;
-  border-radius: 99px;
-  text-transform: uppercase;
-  display: flex;
-  align-items: center;
-}
-
-.DOC_STATUS.PENDING { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
-.DOC_STATUS.READY { background: rgba(16, 185, 129, 0.15); color: #10b981; }
-.DOC_STATUS.HEARING { background: rgba(139, 92, 246, 0.15); color: #8b5cf6; }
-.DOC_STATUS.RELEASED, .DOC_STATUS.COMPLETED, .DOC_STATUS.SETTLED { 
-    background: var(--c--p--bg-switcher); 
-    color: var(--c--p--text-secondary); 
+/* ── THE LONG PANEL MAIN BODY ── */
+.CM_DOC_LONG_PANEL {
+    background: var(--c--p--bg-card);
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.02);
     border: 1px solid var(--c--p--border-subtle);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    width: 100%;
 }
 
-/* Icon Pulse Animation for active hearings */
-@keyframes pulse-icon-anim {
-  0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.2); opacity: 0.7; }
-  100% { transform: scale(1); opacity: 1; }
-}
-.pulse-icon {
-  animation: pulse-icon-anim 2s infinite ease-in-out;
+.CM_DOC_LONG_PANEL:hover {
+    transform: translateY(-2px);
+    border-color: var(--c--p--brand-blue);
+    box-shadow: 0 8px 24px -8px rgba(37, 99, 235, 0.15);
 }
 
-/* ── BODY ── */
-.DOC_BODY {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
+/* ── TOP SECTION ── */
+.CM_DOC_PANEL_TOP {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
 }
 
-.DOC_ICON_BOX {
-  width: 48px;
-  height: 48px;
-  background: var(--c--p--bg-switcher);
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--c--p--brand-blue);
-  font-size: 1.3rem;
-  flex-shrink: 0;
+.CM_DOC_PANEL_LEFT {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
 }
 
-.DOC_INFO { flex: 1; }
-.DOC_INFO h4 { font-size: 1rem; color: var(--c--p--text-primary); margin: 0 0 4px 0; }
-.DOC_DESC { font-size: 0.9rem; color: var(--c--p--text-secondary); line-height: 1.5; }
-.DOC_DATE { font-size: 0.8rem; color: var(--c--p--text-secondary); font-weight: 700; }
-
-.HEARING_NOTICE {
-  font-size: 0.85rem;
-  color: #8b5cf6;
-  font-weight: 700;
+.CM_DOC_PANEL_ICON {
+    width: 50px;
+    height: 50px;
+    background: #eff6ff;
+    color: #2563eb;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    flex-shrink: 0;
 }
 
-/* ── 🎯 PRICE & ASSESSMENT STYLING ── */
-.DOC_PRICE_TAG {
-  font-weight: 800;
-  font-size: 0.9rem;
-  color: var(--c--p--text-primary);
-  background: var(--c--p--bg-switcher);
-  padding: 8px 12px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  height: fit-content;
-  border: 1px solid var(--c--p--border-subtle);
+.CM_DOC_PANEL_TITLES {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
 
-/* ── ⚖️ BLOTTER PROGRESS TRACK ── */
-.HEARING_PROGRESS_TRACK {
-  margin-top: 1.25rem;
-  padding-top: 1rem;
-  border-top: 1px dashed var(--c--p--border-subtle);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 0.75rem;
-  color: var(--c--p--text-secondary);
-  font-weight: 600;
+.CM_DOC_PANEL_ID {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--c--p--text-secondary);
+    font-weight: 700;
+    letter-spacing: 0.5px;
 }
 
-.PROGRESS_BAR_HEARING {
-  flex: 1;
-  height: 6px;
-  background: var(--c--p--border-subtle);
-  border-radius: 10px;
-  overflow: hidden;
-  position: relative;
+.CM_DOC_PANEL_HEADING {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--c--p--text-primary);
+    text-transform: uppercase;
 }
 
-.PROGRESS_BAR_HEARING::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  width: 40%;
-  background: linear-gradient(90deg, #8b5cf6, #c084fc);
-  border-radius: 10px;
-  animation: progress-slide 2s infinite alternate ease-in-out;
+/* ── STATUS BADGES ── */
+.CM_DOC_PANEL_STATUS {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.CM_DOC_PANEL_STATUS.PENDING { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
+.CM_DOC_PANEL_STATUS.READY, .CM_DOC_PANEL_STATUS.READY_FOR_PICKUP { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+.CM_DOC_PANEL_STATUS.RELEASED, .CM_DOC_PANEL_STATUS.COMPLETED { background: var(--c--p--bg-switcher); color: var(--c--p--text-secondary); border: 1px solid var(--c--p--border-subtle); }
+
+/* ── MIDDLE GRAY BOX ── */
+.CM_DOC_PANEL_INNER_BOX {
+    background: var(--c--p--bg-main);
+    border: 1px solid var(--c--p--border-subtle);
+    border-radius: 12px;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
 }
 
-@keyframes progress-slide {
-  0% { transform: translateX(-20%); }
-  100% { transform: translateX(200%); }
+.CM_DOC_INNER_ROW {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.95rem;
+    color: var(--c--p--text-secondary);
 }
 
-/* ── FOOTER ── */
-.DOC_FOOTER {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-top: 1rem;
-  border-top: 1px solid var(--c--p--border-subtle);
+.CM_DOC_INNER_ROW i {
+    color: #94a3b8;
+    width: 16px;
+    text-align: center;
 }
 
-.DOC_BTN_VIEW {
-  background: var(--c--p--bg-switcher);
-  border: 1px solid var(--c--p--border-subtle);
-  padding: 0.6rem 1.2rem;
-  border-radius: 10px;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--c--p--text-primary);
-  cursor: pointer;
-  transition: var(--c--p--transition-fast);
+.CM_DOC_INNER_ROW strong {
+    color: var(--c--p--text-primary);
+    font-weight: 700;
 }
 
-.DOC_BTN_VIEW:hover { background: var(--c--p--brand-blue); color: #ffffff; border-color: var(--c--p--brand-blue); }
+.FEE_PENDING { color: #f59e0b; font-weight: 800; }
+.FEE_SET { color: #10b981; font-weight: 800; }
 
-/* =========================================================
-   🌙 DARK MODE OVERRIDES
-   ========================================================= */
-[data-resident-theme='dark'] .DOC_CARD_ITEM,
-.dark-mode .DOC_CARD_ITEM {
-    background: #1e293b; /* Deep Navy Card */
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-    border-color: #334155;
+/* ── FOOTER DASHED LINE ── */
+.CM_DOC_PANEL_FOOTER {
+    border-top: 1px dashed var(--c--p--border-subtle);
+    padding-top: 1.25rem;
+    display: flex;
+    justify-content: flex-end;
 }
 
-[data-resident-theme='dark'] .DOC_EMPTY_STATE,
-.dark-mode .DOC_EMPTY_STATE {
-    background: #0f172a;
-    border-color: #334155;
+.CM_DOC_VIEW_LINK {
+    color: #2563eb;
+    font-weight: 800;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: transform 0.2s;
 }
 
-[data-resident-theme='dark'] .DOC_CARD_ITEM:hover,
-.dark-mode .DOC_CARD_ITEM:hover {
-    background: #243042;
+.CM_DOC_LONG_PANEL:hover .CM_DOC_VIEW_LINK {
+    color: #1d4ed8;
+}
+
+.CM_DOC_LONG_PANEL:hover .CM_DOC_VIEW_LINK i {
+    transform: translateX(4px);
+}
+
+/* 🌙 DARK MODE OVERRIDES */
+[data-theme='dark'] .CM_DOC_LONG_PANEL {
+    background-color: #111827;
+    border-color: #374151;
+}
+
+[data-theme='dark'] .CM_DOC_LONG_PANEL:hover {
+    background-color: #1f2937;
     border-color: var(--c--p--brand-blue);
 }
 
-[data-resident-theme='dark'] .DOC_HEADER,
-[data-resident-theme='dark'] .DOC_FOOTER,
-[data-resident-theme='dark'] .HEARING_PROGRESS_TRACK,
-.dark-mode .DOC_HEADER,
-.dark-mode .DOC_FOOTER,
-.dark-mode .HEARING_PROGRESS_TRACK {
-    border-color: #334155;
+[data-theme='dark'] .CM_DOC_PANEL_INNER_BOX {
+    background-color: #1f2937;
+    border-color: #374151;
 }
 
-[data-resident-theme='dark'] .DOC_ICON_BOX,
-[data-resident-theme='dark'] .DOC_BTN_VIEW,
-[data-resident-theme='dark'] .DOC_PRICE_TAG,
-.dark-mode .DOC_ICON_BOX,
-.dark-mode .DOC_BTN_VIEW,
-.dark-mode .DOC_PRICE_TAG {
-    background: #0f172a;
-    border-color: #334155;
-    color: #f8fafc;
+[data-theme='dark'] .CM_DOC_PANEL_FOOTER {
+    border-color: #374151;
 }
 
-[data-resident-theme='dark'] .DOC_ICON_BOX,
-.dark-mode .DOC_ICON_BOX {
+[data-theme='dark'] .CM_DOC_PANEL_ICON {
+    background-color: #1e3a8a;
     color: #60a5fa;
 }
 
-[data-resident-theme='dark'] .DOC_STATUS.RELEASED,
-[data-resident-theme='dark'] .DOC_STATUS.COMPLETED,
-[data-resident-theme='dark'] .DOC_STATUS.SETTLED,
-.dark-mode .DOC_STATUS.RELEASED,
-.dark-mode .DOC_STATUS.COMPLETED,
-.dark-mode .DOC_STATUS.SETTLED {
-    background: #0f172a;
-    color: #94a3b8;
+[data-theme='dark'] .CM_DOC_PANEL_HEADING,
+[data-theme='dark'] .CM_DOC_INNER_ROW strong {
+    color: #ffffff;
 }
 
-[data-resident-theme='dark'] .DOC_REF,
-.dark-mode .DOC_REF {
-    color: #94a3b8;
-}
-
-[data-resident-theme='dark'] .PROGRESS_BAR_HEARING,
-.dark-mode .PROGRESS_BAR_HEARING {
-    background: #334155;
+/* 📱 MOBILE RESPONSIVENESS */
+@media (max-width: 600px) {
+    .CM_DOC_PANEL_TOP {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: flex-start;
+    }
+    .CM_DOC_PANEL_STATUS {
+        align-self: flex-start;
+    }
 }

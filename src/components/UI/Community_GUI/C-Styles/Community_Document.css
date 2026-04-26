@@ -1,22 +1,19 @@
 /* =========================================================
-   COMMUNITY DOCUMENT VIEW — Community_Document.css
-   Theme: Engineer's Hill Premium Portal (Scoped v4.5 --c--p--)
-   Features: Fixed Header, Independent Scroll, & Search Fix
+   COMMUNITY DOCUMENT MAIN — Community_Document.css
+   Theme: Engineer's Hill Premium (Isolated)
    ========================================================= */
 
-.DOC_VIEW_CONTAINER {
+.CM_DOC_VIEW_CONTAINER {
     display: flex;
     flex-direction: column;
-    /* 🛡️ LOCK TO VIEWPORT: Ensures only the list scrolls */
     height: calc(100vh - 140px); 
     gap: 1.5rem;
     animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-    transition: var(--c--p--transition-fast);
     overflow: hidden;
 }
 
-/* ── 1. HEADER CARD (LEGACY DESIGN) ── */
-.DOC_HEADER_CARD {
+/* ── 1. HEADER ── */
+.CM_DOC_HEADER_CARD {
     background-color: var(--c--p--bg-card); 
     border: 1px solid var(--c--p--border-subtle);
     border-radius: 20px;
@@ -25,29 +22,28 @@
     justify-content: space-between;
     align-items: center;
     box-shadow: var(--c--p--shadow-ui);
-    flex-shrink: 0; /* 🛡️ Prevents distortion */
-    margin-bottom: 0.5rem;
+    flex-shrink: 0; 
 }
 
-.HEADER_TEXT h1 {
+.CM_DOC_HEADER_TEXT h1 {
     font-family: 'Plus Jakarta Sans', sans-serif;
     font-size: 2rem;
     font-weight: 800;
-    color: var(--c--p--text-primary) !important; 
+    color: var(--c--p--text-primary); 
     margin: 0 0 0.5rem 0;
     letter-spacing: -0.03em;
 }
 
-.HEADER_TEXT p {
-    color: var(--c--p--text-secondary) !important;
+.CM_DOC_HEADER_TEXT p {
+    color: var(--c--p--text-secondary);
     font-size: 1.05rem;
     font-weight: 500;
     margin: 0;
 }
 
-.BTN_REQUEST_NEW {
+.CM_DOC_BTN_REQUEST_NEW {
     background: var(--c--p--brand-blue);
-    color: #ffffff !important;
+    color: #ffffff;
     border: none;
     padding: 1rem 2rem;
     border-radius: 14px;
@@ -61,8 +57,13 @@
     box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
 }
 
-/* ── 2. TOOLBAR (TABS & SEARCH FIX) ── */
-.DOC_TOOLBAR {
+.CM_DOC_BTN_REQUEST_NEW:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
+}
+
+/* ── 2. TOOLBAR (TABS & SEARCH) ── */
+.CM_DOC_TOOLBAR {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -71,16 +72,15 @@
     border-radius: 18px;
     border: 1px solid var(--c--p--border-subtle);
     box-shadow: var(--c--p--shadow-ui);
-    flex-shrink: 0; /* 🛡️ Keeps tabs fixed */
-    margin-bottom: 0.5rem;
+    flex-shrink: 0; 
 }
 
-.DOC_TABS_WRAPPER {
+.CM_DOC_TABS_WRAPPER {
     display: flex;
     gap: 0.5rem;
 }
 
-.DOC_TAB_ITEM {
+.CM_DOC_TAB_ITEM {
     padding: 0.7rem 1.4rem;
     border: none;
     background: transparent;
@@ -92,16 +92,32 @@
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    transition: var(--c--p--transition-fast);
+    transition: all 0.2s ease;
 }
 
-.DOC_TAB_ITEM.ACTIVE {
+.CM_DOC_TAB_ITEM.ACTIVE {
     background: var(--c--p--bg-switcher);
     color: var(--c--p--brand-blue);
 }
 
-/* ── PREMIUM SEARCH BOX FIX ── */
-.DOC_SEARCH_BOX {
+.CM_DOC_TAB_INFO {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.CM_DOC_CNT {
+    background: rgba(0,0,0,0.05);
+    padding: 2px 6px;
+    border-radius: 8px;
+    font-size: 0.7rem;
+}
+
+.CM_DOC_TAB_ITEM.ACTIVE .CM_DOC_CNT {
+    background: rgba(37, 99, 235, 0.1);
+}
+
+.CM_DOC_SEARCH_BOX {
     position: relative;
     display: flex;
     align-items: center;
@@ -109,197 +125,168 @@
     background: var(--c--p--bg-main);
     border: 1px solid var(--c--p--border-subtle);
     border-radius: 14px;
-    padding: 4px; /* Space for the inner button */
-    transition: all 0.2s ease;
+    padding: 4px; 
 }
 
-.DOC_SEARCH_BOX i {
+.CM_DOC_SEARCH_BOX i {
     position: absolute;
     left: 1.25rem;
     color: var(--c--p--text-secondary);
-    font-size: 0.9rem;
 }
 
-.DOC_SEARCH_BOX input {
+.CM_DOC_SEARCH_BOX input {
     flex: 1;
     padding: 0.75rem 1rem 0.75rem 3rem;
-    border: none !important; /* 🛡️ REMOVES UGLY BLACK BORDER */
-    outline: none !important;
+    border: none;
+    outline: none;
     background: transparent;
     color: var(--c--p--text-primary);
-    font-family: inherit;
     font-weight: 500;
 }
 
-/* ── 3. INDEPENDENT SCROLL STAGE ── */
-.DOC_LIST_STAGE {
-    flex: 1; /* Fills remaining space */
-    overflow-y: auto; /* Only the cards scroll */
-    padding-right: 10px;
+/* ── 3. MAIN LAYOUT & EMPTY STATE ── */
+.CM_DOC_MAIN_LAYOUT {
+    flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    min-height: 0; /* Important for inner scrolling */
 }
 
-/* Custom Scrollbar */
-.DOC_LIST_STAGE::-webkit-scrollbar { width: 6px; }
-.DOC_LIST_STAGE::-webkit-scrollbar-thumb { 
-    background: var(--c--p--border-subtle); 
-    border-radius: 10px; 
-}
-.DOC_LIST_STAGE::-webkit-scrollbar-thumb:hover { background: var(--c--p--brand-blue); }
-
-/* ── 4. DOCUMENT CARDS (LEGACY DESIGN) ── */
-.DOC_CARD {
-    background: var(--c--p--bg-card);
-    border: 1px solid var(--c--p--border-subtle);
-    border-radius: 24px;
-    padding: 1.75rem;
+.CM_DOC_EMPTY_STATE {
     display: flex;
-    gap: 1.5rem;
-    transition: all 0.3s ease;
-    box-shadow: var(--c--p--shadow-ui);
-}
-
-.DOC_CARD:hover {
-    border-color: var(--c--p--brand-blue);
-    transform: translateY(-5px);
-    box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.3);
-}
-
-.STATUS_TAG {
-    font-size: 0.65rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    padding: 4px 12px;
-    border-radius: 8px;
-}
-
-.STATUS_TAG.PENDING { background: rgba(251, 146, 60, 0.15); color: #fb923c; border: 1px solid rgba(251, 146, 60, 0.2); }
-.STATUS_TAG.READY { background: rgba(74, 222, 128, 0.15); color: #4ade80; border: 1px solid rgba(74, 222, 128, 0.2); }
-
-.DOC_CARD_FOOTER {
-    margin-top: 1rem;
-    padding-top: 1.25rem;
-    border-top: 1px solid var(--c--p--border-subtle);
-    display: flex;
-    justify-content: space-between;
+    flex-direction: column;
     align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--c--p--text-secondary);
+    background: var(--c--p--bg-card);
+    border-radius: 16px;
+    border: 2px dashed var(--c--p--border-subtle);
 }
 
-/* =========================================================
-   🌙 DARK MODE OVERRIDES (HIGH CONTRAST FIX)
-   ========================================================= */
+.CM_DOC_EMPTY_STATE i { font-size: 3rem; opacity: 0.5; margin-bottom: 1rem; }
 
-[data-theme='dark'], 
-[data-resident-theme='dark'], 
-.dark-mode {
-    /* Surfaces */
-    .DOC_VIEW_CONTAINER { background-color: #0f172a !important; }
-    
-    .DOC_HEADER_CARD, 
-    .DOC_TOOLBAR, 
-    .DOC_CARD, 
-    .SLIDE_DRAWER,
-    .DRAWER_CONTENT {
-        background-color: #111827 !important;
-        border-color: #374151 !important;
-    }
-
-    /* Fixed Ghosting/Invisible Text */
-    .HEADER_TEXT h1, 
-    .DOC_ID_GROUP strong, 
-    .DOC_INFO h4, 
-    .DRAWER_TITLE,
-    .INFO_GROUP p {
-        color: #ffffff !important;
-        opacity: 1 !important;
-    }
-
-    .HEADER_TEXT p, 
-    .DOC_REF, 
-    .DOC_DESC, 
-    .DOC_DATE, 
-    .INFO_GROUP label,
-    .SIDEBAR_ID {
-        color: #94a3b8 !important;
-    }
-
-    /* Summary Box Fix */
-    .SUMMARY_BOX {
-        background-color: #1f2937 !important;
-        border-color: #374151 !important;
-    }
-    .SUMMARY_BOX p {
-        color: #e2e8f0 !important;
-    }
-
-    /* Search & Tabs */
-    .DOC_SEARCH_BOX {
-        background-color: #1f2937 !important;
-        border-color: #374151 !important;
-    }
-    .DOC_SEARCH_BOX input { color: #ffffff !important; }
-    .DOC_TAB_ITEM.ACTIVE { background-color: #1f2937 !important; }
-
-    /* Assessment Price Glow */
-    p[style*="#f59e0b"] {
-        color: #fbbf24 !important;
-        text-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
-    }
-
-    /* Drawer Buttons */
-    .CLOSE_DRAWER { background: #1f2937 !important; color: #ffffff !important; }
-    .FOOTER_BTN { background: #ffffff !important; color: #0f172a !important; font-weight: 800; }
+/* ── 4. SLIDE DRAWER (SIDEBAR) ── */
+.CM_DOC_SLIDE_DRAWER {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 500px;
+    height: 100%;
+    background: var(--c--p--bg-card);
+    z-index: 3000;
+    box-shadow: -10px 0 50px rgba(0, 0, 0, 0.1);
+    transform: translateX(100%);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    flex-direction: column;
 }
 
-/* ── 5. MOBILE VIEW OVERRIDES ── */
-@media (max-width: 768px) {
-    .DOC_VIEW_CONTAINER {
-        height: calc(100vh - 120px); 
-        padding: 0 10px;
-    }
+.CM_DOC_SLIDE_DRAWER.OPEN { transform: translateX(0); }
 
-    .DOC_HEADER_CARD {
-        flex-direction: column;
-        align-items: flex-start;
-        padding: 1.5rem;
-        gap: 1.25rem;
-    }
+.CM_DOC_DRAWER_OVERLAY {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(4px);
+    z-index: 2999;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
 
-    .BTN_REQUEST_NEW { width: 100%; justify-content: center; }
+.CM_DOC_DRAWER_OVERLAY.SHOW { opacity: 1; visibility: visible; }
 
-    .DOC_TOOLBAR {
-        flex-direction: column;
-        gap: 1rem;
-        padding: 1rem;
-    }
+.CM_DOC_DRAWER_CONTENT {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
 
-    .DOC_TABS_WRAPPER {
-        width: 100%;
-        overflow-x: auto;
-        display: flex;
-        gap: 0.5rem;
-        padding-bottom: 8px;
-    }
+.CM_DOC_DRAWER_HEADER {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+    padding: 2.5rem 2.5rem 1.5rem 2.5rem;
+    border-bottom: 1px solid var(--c--p--border-subtle);
+    background: var(--c--p--bg-card);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
 
-    .DOC_SEARCH_BOX { width: 100%; }
+.CM_DOC_CLOSE_DRAWER {
+    background: var(--c--p--bg-switcher);
+    border: none;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    cursor: pointer;
+    color: var(--c--p--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
 
-    .DOC_CARD {
-        flex-direction: column;
-        padding: 1.5rem;
-    }
+.CM_DOC_CLOSE_DRAWER:hover { background: #fee2e2; color: #ef4444; transform: rotate(90deg); }
 
-    .DOC_CARD_FOOTER {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 1.25rem;
-    }
+.CM_DOC_HEADER_META { display: flex; align-items: center; gap: 12px; }
+.CM_DOC_SIDEBAR_ID { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: 700; color: var(--c--p--text-secondary); }
 
-    .BTN_VIEW_DETAILS { width: 100%; height: 44px; }
+/* Sidebar Status Badges */
+.CM_DOC_SIDEBAR_STATUS {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+}
+.STATUS_PENDING { background: #fffbeb; color: #d97706; }
+.STATUS_READY_FOR_PICKUP, .STATUS_READY { background: #f0fdf4; color: #16a34a; }
+.STATUS_RELEASED, .STATUS_COMPLETED { background: var(--c--p--bg-switcher); color: var(--c--p--text-secondary); }
+
+.CM_DOC_SIDEBAR_INFO { padding: 2.5rem; flex: 1; }
+.CM_DOC_DRAWER_TITLE { font-size: 1.75rem; font-weight: 800; color: var(--c--p--text-primary); margin: 0 0 1.5rem 0; }
+
+.CM_DOC_INFO_GROUP { margin-bottom: 1.5rem; }
+.CM_DOC_INFO_GROUP label { display: block; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: var(--c--p--text-secondary); margin-bottom: 6px; letter-spacing: 0.05em; }
+.CM_DOC_INFO_GROUP p { font-size: 1rem; color: var(--c--p--text-primary); font-weight: 600; margin: 0; }
+
+.CM_DOC_SUMMARY_BOX {
+    background: var(--c--p--bg-switcher);
+    padding: 1.25rem;
+    border-radius: 14px;
+    border: 1px solid var(--c--p--border-subtle);
+    line-height: 1.6;
+}
+
+/* 🌙 DARK MODE OVERRIDES */
+[data-theme='dark'] .CM_DOC_HEADER_CARD,
+[data-theme='dark'] .CM_DOC_TOOLBAR,
+[data-theme='dark'] .CM_DOC_SLIDE_DRAWER,
+[data-theme='dark'] .CM_DOC_DRAWER_HEADER,
+[data-theme='dark'] .CM_DOC_EMPTY_STATE {
+    background-color: #111827;
+    border-color: #374151;
+}
+
+[data-theme='dark'] .CM_DOC_TAB_ITEM.ACTIVE,
+[data-theme='dark'] .CM_DOC_SEARCH_BOX,
+[data-theme='dark'] .CM_DOC_SUMMARY_BOX,
+[data-theme='dark'] .CM_DOC_CLOSE_DRAWER {
+    background-color: #1f2937;
+    border-color: #374151;
+}
+
+[data-theme='dark'] .CM_DOC_HEADER_TEXT h1,
+[data-theme='dark'] .CM_DOC_DRAWER_TITLE,
+[data-theme='dark'] .CM_DOC_INFO_GROUP p {
+    color: #ffffff;
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(20px); }
+    from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }

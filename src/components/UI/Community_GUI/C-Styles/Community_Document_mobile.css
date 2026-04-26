@@ -1,39 +1,39 @@
 /* =========================================================
-   COMMUNITY DOCUMENT VIEW — Mobile Overrides (Balanced Edition)
+   COMMUNITY DOCUMENT VIEW — Mobile Overrides (Text & Icon Tabs)
    Targets: Screens 768px and below
    ========================================================= */
 
 @media (max-width: 768px) {
-    /* 🛡️ LOCK CONTAINER: Prevents the whole phone screen from bouncing */
-    .DOC_VIEW_CONTAINER {
-        height: calc(100vh - 130px); /* Adjusted for bottom nav breathing room */
+    /* 🛡️ LOCK CONTAINER */
+    .CM_DOC_VIEW_CONTAINER {
+        height: calc(100vh - 130px); 
         gap: 1rem;
-        padding: 0.5rem 1rem; /* More balanced side padding */
+        padding: 0.5rem 1rem; 
     }
 
     /* ── 1. HEADER (BALANCED STACK) ── */
-    .DOC_HEADER_CARD {
+    .CM_DOC_HEADER_CARD {
         flex-direction: column;
         align-items: flex-start;
-        padding: 1.25rem; /* Reduced from 1.5rem to save space */
-        gap: 1rem;
+        padding: 1rem; 
+        gap: 0.85rem;
         margin-bottom: 0.25rem;
-        border-radius: 16px; /* Smooth mobile corners */
+        border-radius: 16px; 
     }
 
-    .HEADER_TEXT h1 {
-        font-size: 1.35rem; /* Scaled down for mobile flow */
+    .CM_DOC_HEADER_TEXT h1 {
+        font-size: 1.35rem; 
         letter-spacing: -0.01em;
         margin-bottom: 0.25rem;
     }
 
-    .HEADER_TEXT p {
+    .CM_DOC_HEADER_TEXT p {
         font-size: 0.85rem;
         line-height: 1.4;
         opacity: 0.8;
     }
 
-    .BTN_REQUEST_NEW {
+    .CM_DOC_BTN_REQUEST_NEW {
         width: 100%;
         justify-content: center;
         padding: 0.75rem;
@@ -42,107 +42,131 @@
         font-weight: 600;
     }
 
-    /* ── 2. TOOLBAR (SWIPEABLE) ── */
-    .DOC_TOOLBAR {
+    /* ── 2. TOOLBAR (ICON + TEXT FIX) ── */
+    .CM_DOC_TOOLBAR {
         flex-direction: column;
-        gap: 0.75rem; /* Tighter gap */
-        padding: 1rem;
+        gap: 0.75rem; 
+        padding: 0.75rem;
         margin-bottom: 0.25rem;
         border-radius: 16px;
     }
 
-    /* Allows users to swipe tabs left/right if they don't fit */
-    .DOC_TABS_WRAPPER {
+    .CM_DOC_TABS_WRAPPER {
         width: 100%;
-        overflow-x: auto;
         display: flex;
+        justify-content: space-between; 
         gap: 0.5rem;
-        padding-bottom: 5px;
-        -webkit-overflow-scrolling: touch; /* Smooth swipe on iOS */
-        scrollbar-width: none; /* Hides scrollbar on Firefox */
     }
 
-    .DOC_TABS_WRAPPER::-webkit-scrollbar {
-        display: none; /* Hide scrollbar for cleaner look */
+    .CM_DOC_TAB_ITEM {
+        flex: 1; 
+        flex-direction: column; 
+        justify-content: flex-start;
+        align-items: center;
+        padding: 0.6rem 0.25rem;
+        border-radius: 12px;
+        gap: 6px;
+        text-align: center;
     }
 
-    .DOC_TAB_ITEM {
-        white-space: nowrap;
-        padding: 0.5rem 1rem;
-        flex-shrink: 0;
-        font-size: 0.85rem;
+    .CM_DOC_TAB_ITEM i {
+        font-size: 1.25rem; 
+        margin: 0;
     }
 
-    .DOC_SEARCH_BOX {
+    .CM_DOC_TAB_INFO {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+    }
+
+    /* 👻 Brought back the label! Styled for mobile wrapping */
+    .CM_DOC_LBL {
+        display: block; 
+        font-size: 0.65rem;
+        font-weight: 700;
+        white-space: normal; /* Allows "Ready for Pickup" to wrap */
+        line-height: 1.1;
+    }
+
+    .CM_DOC_CNT {
+        font-size: 0.7rem;
+        padding: 2px 6px;
+        margin: 0;
+    }
+
+    .CM_DOC_SEARCH_BOX {
         width: 100%;
     }
 
     /* ── 3. THE SCROLL STAGE ── */
-    .DOC_LIST_STAGE {
+    .CM_DOC_LIST_LAYOUT {
         padding-right: 0; 
-        gap: 1rem; /* Tighter gap between cards */
+        gap: 1rem; 
         -webkit-overflow-scrolling: touch;
-        padding-bottom: 2rem; /* Buffer for the bottom nav bar */
+        padding-bottom: 2rem; 
     }
 
-    /* ── 4. THE CARD (REFINED PROPORTIONS) ── */
-    .DOC_CARD {
-        flex-direction: column; 
-        padding: 1.25rem; /* Reduced to prevent bloat */
-        gap: 0.85rem;
+    /* ── 4. LONG PANEL MOBILE PROPORTIONS ── */
+    .CM_DOC_LONG_PANEL {
+        padding: 1.25rem; 
+        gap: 1rem;
         border-radius: 16px; 
     }
 
-    .DOC_CARD_ICON {
-        width: 40px; /* Scaled down slightly for mobile */
-        height: 40px;
-        font-size: 1.1rem;
-    }
-
-    .DOC_CARD_TOP {
-        display: flex;
+    .CM_DOC_PANEL_TOP {
+        flex-direction: column;
         align-items: flex-start;
-        flex-direction: column;
-        gap: 0.75rem;
-    }
-
-    .STATUS_TAG {
-        align-self: flex-start;
-        font-size: 0.75rem;
-        padding: 0.25rem 0.6rem;
-    }
-
-    .DOC_CARD_INFO h3 {
-        font-size: 1.1rem;
-        margin-bottom: 0.25rem;
-    }
-
-    .DOC_CARD_FOOTER {
-        display: flex;
-        flex-direction: column;
-        align-items: stretch;
         gap: 1rem;
-        padding-top: 0.85rem;
-        border-top: 1px solid rgba(128, 128, 128, 0.15); /* Subtle clean separator */
     }
 
-    .FOOT_LEFT {
+    .CM_DOC_PANEL_ICON {
+        width: 42px;
+        height: 42px;
+        font-size: 1.1rem;
+    }
+
+    .CM_DOC_PANEL_STATUS {
+        align-self: flex-start;
+        font-size: 0.7rem;
+        padding: 4px 12px;
+    }
+
+    .CM_DOC_PANEL_HEADING {
+        font-size: 1.05rem;
+    }
+
+    /* Inner Gray Box */
+    .CM_DOC_PANEL_INNER_BOX {
+        padding: 1rem;
+        gap: 0.85rem;
+    }
+
+    .CM_DOC_INNER_ROW {
+        font-size: 0.85rem;
+        align-items: flex-start;
+    }
+
+    .CM_DOC_INNER_ROW span {
         display: flex;
-        flex-direction: row; /* Row is much cleaner than column for metadata */
-        flex-wrap: wrap;
-        justify-content: space-between;
-        gap: 0.5rem;
-        font-size: 0.8rem;
+        flex-direction: column;
+        gap: 2px;
     }
 
-    .BTN_VIEW_DETAILS {
-        width: 100%; /* Giant touch target for mobile */
-        height: 44px; /* Standard mobile UI touch size */
+    /* Footer & View Details Button */
+    .CM_DOC_PANEL_FOOTER {
+        padding-top: 1rem;
+    }
+
+    .CM_DOC_VIEW_LINK {
+        width: 100%; 
+        height: 44px; 
         background: var(--c--p--bg-switcher);
         border-radius: 12px;
-        font-weight: 600;
         display: flex;
         justify-content: center;
         align-items: center;
+        font-size: 0.9rem;
     }
 }

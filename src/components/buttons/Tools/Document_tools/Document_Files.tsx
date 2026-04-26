@@ -6,7 +6,7 @@ import { useDocumentEngine } from './Document_Engine';
 interface DocumentFileProps {
   onClose: () => void;
   onSuccess?: () => void;
-  initialData?: any; 
+  initialData?: any;
 }
 
 export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, initialData }) => {
@@ -16,6 +16,10 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [docConfig, setDocConfig] = useState({
+    // ✅ THE KEY FIX: Pass the existing DB record's id so the engine
+    // can UPDATE the row instead of INSERTing a duplicate.
+    id: initialData?.id || null,
+
     residentId: initialData?.residentId || '',
     residentName: initialData?.residentName || '',
     address: '',
@@ -31,14 +35,22 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
     guardianAddress: '',
     guardianResidency: '',
     tableRows: [['', '', '']],
-    // 🛡️ THE FIX: Force manual creations and newly opened Pending requests straight to 'Processing'
+
+    // Force manual creations and newly opened Pending requests straight to 'Processing'
     status: (!initialData?.status || initialData?.status === 'Pending') ? 'Processing' : initialData.status,
-    requestMethod: initialData?.requestMethod || 'Walk-in' 
+
+    // Walk-in is always the default for this DocumentFile (admin side)
+    requestMethod: initialData?.requestMethod || 'Walk-in',
   });
 
-  const refNumber = useRef(initialData?.referenceNo || `WALK-IN-${Date.now().toString().slice(-6)}`).current;
+  const refNumber = useRef(
+    initialData?.referenceNo || `WALK-IN-${Date.now().toString().slice(-6)}`
+  ).current;
 
-  const { residents, captainName, kagawadName, autoFilledAddress } = useDocumentDataAPI(docConfig.residentName, docConfig.residentId);
+  const { residents, captainName, kagawadName, autoFilledAddress } = useDocumentDataAPI(
+    docConfig.residentName,
+    docConfig.residentId
+  );
 
   const handleSurfaceEdit = (key: string, value: string) => {
     setDocConfig(prev => {
@@ -57,15 +69,16 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
     });
   };
 
-  // Passed handleSurfaceEdit into the engine
   const { pages, wordCount, isProcessing, handleSaveAndDownload } = useDocumentEngine(
     docConfig,
     captainName,
     kagawadName,
-    handleSurfaceEdit 
+    handleSurfaceEdit
   );
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
     setDocConfig(prev => ({ ...prev, [name]: value }));
   };
@@ -73,7 +86,7 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
   const handleResidentSelect = (resident: any) => {
     const fullName = `${resident.first_name} ${resident.last_name}`.trim();
     const fullAddress = [resident.current_address, resident.purok].filter(Boolean).join(', ');
-    
+
     setDocConfig(prev => ({
       ...prev,
       residentId: resident.record_id,
@@ -81,13 +94,18 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
       address: fullAddress && fullAddress.toLowerCase() !== 'n/a' ? fullAddress : prev.address
     }));
     setShowDropdown(false);
-    setIsSidebarOpen(false); 
+    setIsSidebarOpen(false);
   };
 
+  // ✅ After PDF downloads successfully:
+  // 1. The engine has already updated/inserted the DB record as 'Completed'
+  // 2. onSuccess() fires → triggers refresh() in the parent (Community_Document / Admin list)
+  // 3. The community document list re-fetches and shows the updated 'Completed' status
   const executePrintAndSave = async () => {
     const success = await handleSaveAndDownload();
-    if (success && onSuccess) {
-      onSuccess(); 
+    if (success) {
+      if (onSuccess) onSuccess();
+      onClose();
     }
   };
 
@@ -150,13 +168,15 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
       </header>
 
       <div className="doc-workspace">
-        {isSidebarOpen && <div className="sidebar-overlay" onClick={() => setIsSidebarOpen(false)}></div>}
+        {isSidebarOpen && (
+          <div className="sidebar-overlay" onClick={() => setIsSidebarOpen(false)}></div>
+        )}
 
         <aside className={`doc-sidebar ${isSidebarOpen ? 'open' : ''}`}>
           <div className="sidebar-header">
             <h3>📄 Form Configuration</h3>
           </div>
-          
+
           <div className="sidebar-content">
             <div className="section-label text-green">DOCUMENT</div>
             <div className="field-group">
@@ -173,42 +193,76 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
             <div className="field-group-row">
               <div className="field-group">
                 <label>CERTIFICATE NO.</label>
-                <input type="text" name="certificateNo" className="strict-input" value={docConfig.certificateNo} onChange={handleInputChange} />
+                <input
+                  type="text"
+                  name="certificateNo"
+                  className="strict-input"
+                  value={docConfig.certificateNo}
+                  onChange={handleInputChange}
+                />
               </div>
               <div className="field-group">
                 <label>DATE ISSUED</label>
-                <input type="date" name="dateIssued" className="strict-input" value={docConfig.dateIssued} onChange={handleInputChange} />
+                <input
+                  type="date"
+                  name="dateIssued"
+                  className="strict-input"
+                  value={docConfig.dateIssued}
+                  onChange={handleInputChange}
+                />
               </div>
             </div>
 
             <div className="section-label text-blue">👤 RESIDENT</div>
             <div className="field-group relative" ref={dropdownRef}>
               <label>REQUESTOR NAME <span className="req">*</span></label>
-              <input 
-                type="text" name="residentName" className="strict-input" placeholder="Search or type full name..."
-                value={docConfig.residentName} 
+              <input
+                type="text"
+                name="residentName"
+                className="strict-input"
+                placeholder="Search or type full name..."
+                value={docConfig.residentName}
                 onChange={(e) => {
-                  handleInputChange(e); setShowDropdown(true); setDocConfig(prev => ({ ...prev, residentId: '' }));
+                  handleInputChange(e);
+                  setShowDropdown(true);
+                  setDocConfig(prev => ({ ...prev, residentId: '' }));
                 }}
                 onFocus={() => setShowDropdown(true)}
               />
               {showDropdown && residents && residents.length > 0 && (
                 <ul className="doc-dropdown-menu">
                   {residents
-                    .filter(r => `${r.first_name} ${r.last_name}`.toLowerCase().includes(docConfig.residentName.toLowerCase()))
+                    .filter(r =>
+                      `${r.first_name} ${r.last_name}`
+                        .toLowerCase()
+                        .includes(docConfig.residentName.toLowerCase())
+                    )
                     .map(r => (
-                      <li key={r.record_id} className="doc-dropdown-item" onClick={() => handleResidentSelect(r)}>
+                      <li
+                        key={r.record_id}
+                        className="doc-dropdown-item"
+                        onClick={() => handleResidentSelect(r)}
+                      >
                         <span className="doc-dropdown-name">{r.first_name} {r.last_name}</span>
-                        <span className="doc-dropdown-meta">{[r.current_address, r.purok].filter(Boolean).join(', ') || 'No address on file'}</span>
+                        <span className="doc-dropdown-meta">
+                          {[r.current_address, r.purok].filter(Boolean).join(', ') || 'No address on file'}
+                        </span>
                       </li>
-                  ))}
+                    ))}
                 </ul>
               )}
             </div>
 
             <div className="field-group">
               <label>RESIDENTIAL ADDRESS <span className="req">*</span></label>
-              <input type="text" name="address" className="strict-input" placeholder="Street / Purok / Barangay" value={docConfig.address} onChange={handleInputChange} />
+              <input
+                type="text"
+                name="address"
+                className="strict-input"
+                placeholder="Street / Purok / Barangay"
+                value={docConfig.address}
+                onChange={handleInputChange}
+              />
             </div>
 
             {isJobseeker ? (
@@ -219,21 +273,49 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
                 </div>
                 <div className="field-group">
                   <label>GUARDIAN NAME</label>
-                  <input type="text" name="guardianName" className="strict-input" placeholder="Name of Parent/Guardian" value={docConfig.guardianName} onChange={handleInputChange} />
+                  <input
+                    type="text"
+                    name="guardianName"
+                    className="strict-input"
+                    placeholder="Name of Parent/Guardian"
+                    value={docConfig.guardianName}
+                    onChange={handleInputChange}
+                  />
                 </div>
                 <div className="field-group-row">
                   <div className="field-group">
                     <label>GUARDIAN AGE</label>
-                    <input type="number" name="guardianAge" className="strict-input" placeholder="e.g. 45" value={docConfig.guardianAge} onChange={handleInputChange} />
+                    <input
+                      type="number"
+                      name="guardianAge"
+                      className="strict-input"
+                      placeholder="e.g. 45"
+                      value={docConfig.guardianAge}
+                      onChange={handleInputChange}
+                    />
                   </div>
                   <div className="field-group">
                     <label>YEARS IN BRGY</label>
-                    <input type="number" name="guardianResidency" className="strict-input" placeholder="e.g. 10" value={docConfig.guardianResidency} onChange={handleInputChange} />
+                    <input
+                      type="number"
+                      name="guardianResidency"
+                      className="strict-input"
+                      placeholder="e.g. 10"
+                      value={docConfig.guardianResidency}
+                      onChange={handleInputChange}
+                    />
                   </div>
                 </div>
                 <div className="field-group">
                   <label>GUARDIAN ADDRESS</label>
-                  <input type="text" name="guardianAddress" className="strict-input" placeholder="Complete Address" value={docConfig.guardianAddress} onChange={handleInputChange} />
+                  <input
+                    type="text"
+                    name="guardianAddress"
+                    className="strict-input"
+                    placeholder="Complete Address"
+                    value={docConfig.guardianAddress}
+                    onChange={handleInputChange}
+                  />
                 </div>
               </div>
             ) : (
@@ -241,40 +323,66 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
                 <div className="section-label text-orange">💰 PAYMENT & PURPOSE</div>
                 <div className="field-group">
                   <label>PURPOSE</label>
-                  <input type="text" name="purpose" className="strict-input" placeholder="e.g. Medical, Financial, General" value={docConfig.purpose} onChange={handleInputChange} />
+                  <input
+                    type="text"
+                    name="purpose"
+                    className="strict-input"
+                    placeholder="e.g. Medical, Financial, General"
+                    value={docConfig.purpose}
+                    onChange={handleInputChange}
+                  />
                 </div>
                 <div className="field-group-row">
                   <div className="field-group">
                     <label>CTC NO.</label>
-                    <input type="text" name="ctcNo" className="strict-input" value={docConfig.ctcNo} onChange={handleInputChange} />
+                    <input
+                      type="text"
+                      name="ctcNo"
+                      className="strict-input"
+                      value={docConfig.ctcNo}
+                      onChange={handleInputChange}
+                    />
                   </div>
                   <div className="field-group">
                     <label>FEES PAID</label>
-                    <input type="text" name="feesPaid" className="strict-input" value={docConfig.feesPaid} onChange={handleInputChange} />
+                    <input
+                      type="text"
+                      name="feesPaid"
+                      className="strict-input"
+                      value={docConfig.feesPaid}
+                      onChange={handleInputChange}
+                    />
                   </div>
                 </div>
                 <div className="field-group">
                   <label>O.R. NO.</label>
-                  <input type="text" name="orNo" className="strict-input" value={docConfig.orNo} onChange={handleInputChange} />
+                  <input
+                    type="text"
+                    name="orNo"
+                    className="strict-input"
+                    value={docConfig.orNo}
+                    onChange={handleInputChange}
+                  />
                 </div>
               </div>
             )}
 
             <div className="dynamic-fade-in" style={{ marginTop: '20px' }}>
               <div className="section-label text-blue">📊 TABLE CONTROLS</div>
-              <button 
-                type="button" 
-                className="btn-print" 
+              <button
+                type="button"
+                className="btn-print"
                 style={{ width: '100%', background: '#f0f0f0', color: '#333', border: '1px dashed #999' }}
-                onClick={() => setDocConfig(prev => ({ 
-                  ...prev, 
-                  tableRows: [...(prev.tableRows || []), ['', '', '']] 
-                }))}
+                onClick={() =>
+                  setDocConfig(prev => ({
+                    ...prev,
+                    tableRows: [...(prev.tableRows || []), ['', '', '']]
+                  }))
+                }
               >
                 + Add Blank Table Row
               </button>
             </div>
-
           </div>
 
           <div className="sidebar-mini-footer">
@@ -289,7 +397,10 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
 
         <main className="doc-desk">
           <div className="desk-scroll-area">
-            <div className="doc-canvas-wrapper" style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}>
+            <div
+              className="doc-canvas-wrapper"
+              style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
+            >
               {pages.length > 0 ? (
                 pages.map((pageContent, idx) => (
                   <div key={idx} className="a4-sheet drop-shadow">
@@ -297,14 +408,18 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
                   </div>
                 ))
               ) : (
-                <div className="a4-sheet drop-shadow empty-state">Loading Document Blueprint...</div>
+                <div className="a4-sheet drop-shadow empty-state">
+                  Loading Document Blueprint...
+                </div>
               )}
             </div>
           </div>
 
           <div className="desk-status-bar hidden-mobile">
             <div className="status-left">
-              <span className="status-live"><span className="live-dot-green"></span> Live Editable</span>
+              <span className="status-live">
+                <span className="live-dot-green"></span> Live Editable
+              </span>
               <span className="status-doc-type">{docConfig.type}</span>
             </div>
             <div className="status-right">
@@ -316,7 +431,6 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
             </div>
           </div>
         </main>
-
       </div>
     </div>
   );

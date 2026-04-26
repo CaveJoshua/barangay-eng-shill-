@@ -10,9 +10,10 @@ import Community_Profile from './Community_Profile';
 import Community_Notification from './Community_Notfication'; 
 import CommunityResetPasswordModal from '../../buttons/Community_Resetpassword_modal';
 
-// 🛡️ FIX 1 & 2: Strict casing (lowercase 'p') and strict 'type' import
+// 🛡️ IMPORT PREVIEW COMPONENTS
 import Community_Preview from '../../forms/Community_preview';
 import type { NewsItem } from '../../forms/Community_preview';
+import { CaptchaModal } from './Captcha_model';
 
 type DashboardView = 'Announcements' | 'Blotter' | 'Documents';
 
@@ -38,7 +39,6 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   const [mustResetPassword, setMustResetPassword] = useState(false);
   const [bulletinCategory, setBulletinCategory] = useState<string>('All');
   
-  // Tracks the currently selected article for the full preview modal
   const [selectedArticle, setSelectedArticle] = useState<NewsItem | null>(null);
 
   useEffect(() => {
@@ -70,7 +70,7 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       return (
         <div className="DASH_LOADER">
           <div className="SPINNER" />
-          <p>Loading...</p>
+          <p>Fetching your dashboard data...</p>
         </div>
       );
     }
@@ -95,26 +95,18 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
         return (
           <div className="BULLETIN_CONTAINER">
             <div className="BULLETIN_HEADER_SECTION">
-              <div>
+              <div className="BULLETIN_TEXT_GROUP">
                 <h3>Community Bulletin</h3>
-                <p>Stay updated with the latest news from Engineer's Hill.</p>
+                <p>Stay updated with the latest news and alerts from Engineer's Hill.</p>
               </div>
-              <div className="BULLETIN_FILTER_TABS" style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-                {['All', 'Event', 'Alert', 'Update'].map(cat => (
+              
+              {/* 🎯 CLEANED UP: No more inline styles! CSS handles the layout now. */}
+              <div className="BULLETIN_FILTER_TABS">
+                {['All', 'Public Advisory', 'Health & Safety', 'Senior Citizen', 'Events'].map(cat => (
                   <button
                     key={cat}
                     onClick={() => setBulletinCategory(cat)}
-                    style={{
-                      padding: '6px 16px',
-                      borderRadius: '20px',
-                      border: 'none',
-                      fontWeight: 700,
-                      fontSize: '1rem',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      backgroundColor: bulletinCategory === cat ? 'var(--c--p--brand-blue)' : 'var(--c--p--bg-switcher)',
-                      color: bulletinCategory === cat ? '#fff' : 'var(--c--p--text-secondary)'
-                    }}
+                    className={`BULLETIN_CATEGORY_BTN ${bulletinCategory === cat ? 'ACTIVE' : ''}`}
                   >
                     {cat}
                   </button>
@@ -123,8 +115,8 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
             </div>
 
             {filteredNews.length === 0 ? (
-              <div className="BULLETIN_EMPTY" style={{ textAlign: 'center', padding: '4rem', color: 'var(--c--p--text-secondary)' }}>
-                <i className="fas fa-bullhorn" style={{ fontSize: '3rem', opacity: 0.3, marginBottom: '1rem' }}></i>
+              <div className="BULLETIN_EMPTY_STATE">
+                <i className="fas fa-bullhorn"></i>
                 <p>No {bulletinCategory !== 'All' ? bulletinCategory.toLowerCase() : ''} announcements at this time.</p>
               </div>
             ) : (
@@ -155,7 +147,7 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                           created_at: news.created_at || news.date_posted 
                         })}
                       >
-                        Read Full Advisory
+                        Read Full Advisory <i className="fas fa-arrow-right" />
                       </button>
                     </div>
                   </div>
@@ -166,7 +158,6 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
         );
 
       case 'Blotter':
-        // 🛡️ THE FIX: View logic removed. Cleanly passing the raw data down to the child component!
         return (
           <Community_blotter 
             data={blotters || []} 
@@ -200,17 +191,13 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
         resident={resident}
         onSuccess={() => {
           setMustResetPassword(false);
-          
           const savedSession = localStorage.getItem('resident_session');
           if (savedSession) {
             const session = JSON.parse(savedSession);
             session.requires_reset = false;
-            if (session.profile) {
-               session.profile.is_first_login = false;
-            }
+            if (session.profile) session.profile.is_first_login = false;
             localStorage.setItem('resident_session', JSON.stringify(session));
           }
-          
           fetchData(resident?.record_id);
         }}
       />
@@ -269,8 +256,9 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
              <span className="DESKTOP_ONLY">{navDisplayName}</span>
           </div>
 
-          <button className="CM_LOGOUT_BTN" onClick={onLogout} title="Logout">
+          <button className="CM_LOGOUT_WORD_BTN" onClick={onLogout}>
             <i className="fas fa-sign-out-alt" />
+            <span>LOGOUT</span>
           </button>
         </div>
       </nav>
@@ -286,7 +274,7 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
           disabled={mustResetPassword}
         >
           <i className="fas fa-bullhorn" />
-          <span>News</span>
+          <span>Bulletin</span>
         </button>
         <button 
           className={currentView === 'Blotter' && !isProfileOpen ? 'ACTIVE' : ''} 
@@ -294,7 +282,7 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
           disabled={mustResetPassword}
         >
           <i className="fas fa-gavel" />
-          <span>Incident Report</span>
+          <span>Report Incidents</span>
         </button>
         <button 
           className={currentView === 'Documents' && !isProfileOpen ? 'ACTIVE' : ''} 
@@ -302,7 +290,7 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
           disabled={mustResetPassword}
         >
           <i className="fas fa-file-alt" />
-          <span>Docs</span>
+          <span>Request Documents</span>
         </button>
         <button 
           className={isProfileOpen ? 'ACTIVE' : ''} 
@@ -310,17 +298,17 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
           disabled={mustResetPassword}
         >
           <i className="fas fa-user-circle" />
-          <span>Me</span>
+          <span>Profile</span>
         </button>
       </nav>
 
-      {/* ── FULL ARTICLE PREVIEW MODAL ── */}
       {selectedArticle && (
         <Community_Preview 
           article={selectedArticle} 
           onBack={() => setSelectedArticle(null)} 
         />
       )}
+      <CaptchaModal />
 
     </div>
   );

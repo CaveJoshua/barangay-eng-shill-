@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ApiService } from '../../../../UI/api'; 
+import { ApiService } from '../../../../UI/api';
 
 export interface IResident {
   record_id: string;
@@ -19,11 +19,11 @@ export interface IOfficial {
 
 export const useDocumentDataAPI = (initialResidentName: string, initialResidentId?: string) => {
   const [residents, setResidents] = useState<IResident[]>([]);
-  
-  // STRICTLY DYNAMIC: No hardcoded names. 
+
+  // STRICTLY DYNAMIC: No hardcoded names.
   const [captainName, setCaptainName] = useState('');
   const [kagawadName, setKagawadName] = useState('');
-  
+
   const [autoFilledAddress, setAutoFilledAddress] = useState('');
 
   useEffect(() => {
@@ -37,7 +37,9 @@ export const useDocumentDataAPI = (initialResidentName: string, initialResidentI
         ]);
 
         if (residentList !== null) {
-          const safeResidentList = Array.isArray(residentList) ? residentList : (residentList.residents || []);
+          const safeResidentList = Array.isArray(residentList)
+            ? residentList
+            : (residentList.residents || []);
           setResidents(safeResidentList);
 
           if ((initialResidentName || initialResidentId) && safeResidentList.length > 0) {
@@ -52,7 +54,9 @@ export const useDocumentDataAPI = (initialResidentName: string, initialResidentI
 
             if (matched) {
               const addrParts = [];
-              if (matched.current_address && matched.current_address.toLowerCase() !== 'n/a') addrParts.push(matched.current_address);
+              if (matched.current_address && matched.current_address.toLowerCase() !== 'n/a') {
+                addrParts.push(matched.current_address);
+              }
               if (matched.purok) addrParts.push(matched.purok);
               setAutoFilledAddress(addrParts.join(', '));
             }
@@ -61,23 +65,26 @@ export const useDocumentDataAPI = (initialResidentName: string, initialResidentI
 
         // FETCH STRICTLY BY POSITION
         if (officialsData !== null) {
-          const safeOfficialsList = Array.isArray(officialsData) ? officialsData : (officialsData.officials || []);
-          
-          const activeCaptain = safeOfficialsList.find((o: IOfficial) => 
-            (o.position.toLowerCase().includes('captain') || o.position.toLowerCase().includes('punong')) && 
+          const safeOfficialsList = Array.isArray(officialsData)
+            ? officialsData
+            : (officialsData.officials || []);
+
+          const activeCaptain = safeOfficialsList.find((o: IOfficial) =>
+            (o.position.toLowerCase().includes('captain') ||
+              o.position.toLowerCase().includes('punong')) &&
             o.status === 'Active'
           );
           if (activeCaptain) setCaptainName(activeCaptain.full_name.toUpperCase());
 
-          const activeKagawad = safeOfficialsList.find((o: IOfficial) => 
-            o.position.toLowerCase().includes('kagawad') && 
+          const activeKagawad = safeOfficialsList.find((o: IOfficial) =>
+            o.position.toLowerCase().includes('kagawad') &&
             o.status === 'Active'
           );
           if (activeKagawad) setKagawadName(activeKagawad.full_name.toUpperCase());
         }
       } catch (err: any) {
         if (err.name !== 'AbortError') {
-          console.error("API Fetch Error:", err);
+          console.error('API Fetch Error:', err);
         }
       }
     };
@@ -89,8 +96,29 @@ export const useDocumentDataAPI = (initialResidentName: string, initialResidentI
   return { residents, captainName, kagawadName, autoFilledAddress };
 };
 
-export const saveDocumentRecord = async (payload: any) => {
+/**
+ * saveDocumentRecord
+ * INSERTs a brand-new document_requests row.
+ * Used for: new Walk-in (no prior record) and Online requests.
+ */
+export const saveDocumentRecord = async (payload: any): Promise<any> => {
   const result = await ApiService.saveDocumentRecord(payload);
   if (!result.success) throw new Error(result.error || 'Database save failed');
   return result.data;
+};
+
+/**
+ * updateDocumentStatus
+ * PATCHes an existing document_requests row to a new status.
+ * Used for: Walk-in PDF download where the record already exists
+ * (e.g. opened from the Pending/Processing queue) → auto-sets to 'Completed'.
+ */
+export const updateDocumentStatus = async (
+  id: number | string,
+  status: string
+): Promise<void> => {
+  const result = await ApiService.updateDocumentRecord(id, { status });
+  if (!result?.success) {
+    throw new Error(result?.error || 'Status update was rejected by the server.');
+  }
 };

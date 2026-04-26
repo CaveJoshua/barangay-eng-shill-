@@ -22,14 +22,24 @@ const App: React.FC = () => {
     return savedAdmin ? JSON.parse(savedAdmin) : savedResident ? JSON.parse(savedResident) : null;
   });
 
-  // ── 2. SECURE VIEW INITIALIZATION ──
+  // ── 2. SECURE VIEW INITIALIZATION (THE FIX) ──
   const [currentView, setCurrentView] = useState<AppView>(() => {
     const savedView = localStorage.getItem('app_current_view') as AppView | null;
-    
-    // 🛡️ THE GATEKEEPER: Prevent Ghost Pages on Refresh
     const hasAdminSession = !!localStorage.getItem('admin_session');
     const hasResidentSession = !!localStorage.getItem('resident_session');
 
+    // 🛡️ AGGRESSIVE SESSION RESTORATION
+    // If you hit reload, this forces the app to honor the session token immediately, 
+    // overriding any lost "view" states that cause auto-logouts.
+    if (hasResidentSession) {
+      return 'community_dash';
+    }
+    
+    if (hasAdminSession) {
+      return 'admin';
+    }
+
+    // Fallback Gatekeeper rules if no sessions exist
     if (savedView === 'admin' && !hasAdminSession) {
       console.warn("Blocked unauthorized access to Admin.");
       return 'login';
@@ -43,7 +53,6 @@ const App: React.FC = () => {
   });
 
   // ── 3. THE BOUNCER (Continuous Security Check) ──
-  // If the user state ever becomes null while on a private view, kick them out.
   useEffect(() => {
     if (currentView === 'admin' && !user) {
       setCurrentView('login');
@@ -76,6 +85,7 @@ const App: React.FC = () => {
     localStorage.removeItem('account_id'); 
     localStorage.removeItem('profile_id'); 
     localStorage.removeItem('admin_active_tab'); 
+    localStorage.removeItem('resident_active_tab'); // Clean up any saved sub-tabs too
 
     // Instantly lock down the UI
     setUser(null); 

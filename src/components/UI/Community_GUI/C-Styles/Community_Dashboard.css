@@ -1,6 +1,7 @@
 /* =========================================================
    COMMUNITY DASHBOARD — Community_Dashboard.css
-   Theme: Engineer's Hill Premium Portal (Scoped v2.6 --c--p--)
+   Theme: Engineer's Hill Premium Portal (Scoped v3.2 --c--p--)
+   Fix: Removed Mobile Bottom Nav Focus Borders/Outlines
    ========================================================= */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800&family=JetBrains+Mono:wght@500&display=swap');
@@ -10,30 +11,29 @@
     --c--p--brand-blue: #2563eb;
     --c--p--brand-dark: #0f172a;
     --c--p--brand-success: #10b981;
-    --c--p--brand-danger: #e11d48;
-    --c--p--nav-h: 72px;
-    --c--p--mob-nav-h: 68px;
+    --c--p--brand-danger: #ef4444;
+    --c--p--nav-h: 74px;
+    --c--p--mob-nav-h: 70px;
 
     /* ☁️ LIGHT THEME DEFAULTS */
-    --c--p--bg-main: #f8fafc;
+    --c--p--bg-main: #f1f5f9;
     --c--p--bg-card: #ffffff;
-    --c--p--bg-switcher: #f1f5f9;
-    --c--p--border-subtle: #e2e8f0;
-    --c--p--text-primary: #1e293b;
-    --c--p--text-secondary: #64748b;
-    --c--p--shadow-ui: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-    --c--p--transition-fast: all 0.2s ease;
+    --c--p--bg-switcher: #e2e8f0;
+    --c--p--border-subtle: #cbd5e1;
+    --c--p--text-primary: #0f172a;
+    --c--p--text-secondary: #475569;
+    --c--p--shadow-ui: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --c--p--transition-fast: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* ── 🌑 DARK THEME OVERRIDES ── */
-:root[data-resident-theme='dark'] {
-    --c--p--bg-main: #0f172a;
-    --c--p--bg-card: #1e293b;
-    --c--p--bg-switcher: #334155;
+:root[data-theme='dark'] {
+    --c--p--bg-main: #020617;
+    --c--p--bg-card: #0f172a;
+    --c--p--bg-switcher: #1e293b;
     --c--p--border-subtle: #334155;
     --c--p--text-primary: #f8fafc;
     --c--p--text-secondary: #94a3b8;
-    --c--p--shadow-ui: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
 }
 
 .CM_PAGE_WRAPPER {
@@ -45,74 +45,72 @@
     color: var(--c--p--text-primary);
     font-family: 'Inter', sans-serif;
     overflow-x: hidden;
-    transition: background-color 0.3s ease;
 }
 
-/* ── 1. TOP NAVIGATION ── */
+/* ── 1. TOP NAVIGATION (Glassmorphism Effect) ── */
 .CM_NAV_MAIN {
     height: var(--c--p--nav-h);
-    flex-shrink: 0; 
-    background: var(--c--p--bg-card);
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--c--p--border-subtle);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0 2rem;
+    padding: 0 2.5rem;
+    position: sticky;
+    top: 0;
     z-index: 1000;
     box-shadow: var(--c--p--shadow-ui);
+}
+
+[data-theme='dark'] .CM_NAV_MAIN {
+    background: rgba(15, 23, 42, 0.85);
 }
 
 .CM_NAV_LEFT {
     display: flex;
     align-items: center;
     gap: 1.5rem;
-    min-width: 0; /* Prevents flex children from blowing out container width */
 }
 
 .CM_LOGO_SHIELD {
-    font-size: 1.6rem;
+    font-size: 1.8rem;
     color: var(--c--p--brand-blue);
-    flex-shrink: 0;
-}
-
-.CM_BRAND_INFO {
-    min-width: 0; /* Critical for ellipsis text truncation */
+    filter: drop-shadow(0 0 8px rgba(37, 99, 235, 0.2));
 }
 
 .CM_BRAND_INFO strong {
     font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 1.1rem;
+    font-size: 1.15rem;
     font-weight: 800;
     letter-spacing: -0.02em;
     display: block;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 .CM_BRAND_INFO span {
-    font-size: 0.90rem;
+    font-size: 0.8rem;
     font-weight: 700;
     color: var(--c--p--text-secondary);
-    letter-spacing: 0.1em;
-    display: block;
-    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
-/* ── 2. VIEW SWITCHER (Tabs) ── */
+/* ── 2. VIEW SWITCHER (Segmented Tabs) ── */
 .VIEW_SWITCHER {
     display: flex;
     background: var(--c--p--bg-switcher);
     padding: 4px;
-    border-radius: 12px;
+    border-radius: 14px;
     margin-left: 2rem;
+    gap: 4px;
 }
 
 .CM_FILTER_TAB {
-    padding: 0.6rem 1.25rem;
+    padding: 0.6rem 1.4rem;
     border: none;
     background: transparent;
-    font-size: 1rem;
+    font-size: 0.95rem;
     font-weight: 700;
     color: var(--c--p--text-secondary);
     border-radius: 10px;
@@ -120,41 +118,38 @@
     transition: var(--c--p--transition-fast);
 }
 
+.CM_FILTER_TAB:hover {
+    color: var(--c--p--text-primary);
+}
+
 .CM_FILTER_TAB.ACTIVE {
     background: var(--c--p--bg-card);
     color: var(--c--p--brand-blue);
-    box-shadow: var(--c--p--shadow-ui);
-}
-
-.CM_FILTER_TAB:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
 }
 
 /* ── 3. NAV RIGHT & BADGES ── */
 .CM_NAV_RIGHT {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    flex-shrink: 0;
+    gap: 1.25rem;
 }
 
 .CM_ONLINE_BADGE {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     font-weight: 800;
-    background: var(--c--p--bg-main);
-    padding: 6px 12px;
+    background: var(--c--p--bg-switcher);
+    padding: 6px 14px;
     border-radius: 20px;
-    border: 1px solid var(--c--p--border-subtle);
 }
 
 .CM_DOT {
     width: 8px;
     height: 8px;
-    background: #cbd5e1;
+    background: #94a3b8;
     border-radius: 50%;
 }
 
@@ -163,230 +158,299 @@
     box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
 }
 
-/* 🛡️ SECURITY ALERT */
 .CM_SECURITY_ALERT {
     display: flex;
     align-items: center;
     gap: 8px;
-    background: rgba(225, 29, 72, 0.1);
+    background: rgba(239, 68, 68, 0.1);
     color: var(--c--p--brand-danger);
     padding: 6px 14px;
     border-radius: 20px;
-    font-size: 0.75rem;
-    font-weight: 800;
+    font-size: 0.7rem;
+    font-weight: 900;
     border: 1px solid var(--c--p--brand-danger);
     animation: pulse-alert 2s infinite;
-    white-space: nowrap;
 }
 
 @keyframes pulse-alert {
-    0% { box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.2); }
-    70% { box-shadow: 0 0 0 6px rgba(225, 29, 72, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(225, 29, 72, 0); }
+    0% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+    100% { transform: scale(1); }
 }
 
-/* ── 4. USER DISPLAY ── */
+/* ── 4. USER PILL ── */
 .CM_USER_DISPLAY_SIMPLE {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 4px 12px 4px 4px;
+    gap: 12px;
+    padding: 6px 16px 6px 6px;
     background: var(--c--p--bg-card);
     border: 1px solid var(--c--p--border-subtle);
-    border-radius: 30px;
+    border-radius: 40px;
     transition: var(--c--p--transition-fast);
+    cursor: pointer;
 }
 
-.CM_USER_DISPLAY_SIMPLE:not([style*="not-allowed"]):hover {
+.CM_USER_DISPLAY_SIMPLE:hover {
     border-color: var(--c--p--brand-blue);
-    background: var(--c--p--bg-switcher);
+    background: var(--c--p--bg-main);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 .AVATAR_CIRCLE_SMALL {
-    width: 32px;
-    height: 32px;
-    background: var(--c--p--brand-blue);
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, var(--c--p--brand-blue), #1d4ed8);
     color: white;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 800;
-    font-size: 0.8rem;
-    flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
 }
 
-.CM_LOGOUT_BTN {
-    background: transparent;
-    border: 1px solid var(--c--p--border-subtle);
-    color: var(--c--p--text-secondary);
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    cursor: pointer;
-    transition: var(--c--p--transition-fast);
+.CM_USER_DISPLAY_SIMPLE span {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--c--p--text-primary);
+    text-transform: uppercase;
+}
+
+/* ── 5. THE LOGOUT WORD BUTTON ── */
+.CM_LOGOUT_WORD_BTN {
     display: flex;
     align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
+    gap: 10px;
+    padding: 0.65rem 1.25rem;
+    background: #f1f5f9;
+    border: 1px solid var(--c--p--border-subtle);
+    border-radius: 12px;
+    color: var(--c--p--text-secondary);
+    font-weight: 800;
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
 }
 
-.CM_LOGOUT_BTN:hover {
+[data-theme='dark'] .CM_LOGOUT_WORD_BTN {
+    background: #1e293b;
+}
+
+.CM_LOGOUT_WORD_BTN:hover {
+    background: #fee2e2;
     color: var(--c--p--brand-danger);
-    border-color: var(--c--p--brand-danger);
-    background: rgba(225, 29, 72, 0.05);
+    border-color: #fecaca;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.1);
 }
 
-/* ── 5. MAIN STAGE ── */
+/* ── 6. MAIN STAGE ── */
 .CM_PAGE_STAGE {
-    flex: 1 1 auto;
+    flex: 1;
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
     padding: 2.5rem;
-    max-width: 1400px;
+    max-width: 1500px;
     margin: 0 auto;
     width: 100%;
     box-sizing: border-box;
 }
 
-.DASH_LOADER {
-    flex: 1; 
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 50vh;
-    gap: 1rem;
-    color: var(--c--p--text-secondary);
-}
-
-/* ── 6. MOBILE NAVIGATION ── */
+/* ── 7. MOBILE BOTTOM NAV ── */
 .MOBILE_BOTTOM_NAV {
     display: none;
     background: var(--c--p--bg-card);
     border-top: 1px solid var(--c--p--border-subtle);
     height: var(--c--p--mob-nav-h);
     position: fixed;
-    bottom: 0;
-    width: 100%;
+    bottom: 0; width: 100%;
+    z-index: 1000;
     justify-content: space-around;
     align-items: center;
-    z-index: 1000;
-    padding: 0 5px; 
 }
 
+/* 🎯 THE OUTLINE FIX: Strip all default browser focus rings */
 .MOBILE_BOTTOM_NAV button {
-    background: transparent;
+    background: transparent; 
     border: none;
-    display: flex;
-    flex-direction: column;
+    outline: none !important; /* Kills the blue box */
+    -webkit-tap-highlight-color: transparent; /* Kills the mobile tap flash */
+    display: flex; 
+    flex-direction: column; 
     align-items: center;
-    justify-content: center;
-    gap: 4px;
+    gap: 5px; 
     color: var(--c--p--text-secondary);
+    transition: all 0.2s;
+    flex: 1;
+    padding: 0;
+}
+
+/* Ensure active/focus states also stay perfectly clean */
+.MOBILE_BOTTOM_NAV button:focus,
+.MOBILE_BOTTOM_NAV button:active {
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.MOBILE_BOTTOM_NAV button.ACTIVE { color: var(--c--p--brand-blue); }
+.MOBILE_BOTTOM_NAV button i { font-size: 1.4rem; }
+.MOBILE_BOTTOM_NAV button span { font-size: 0.7rem; font-weight: 700; }
+
+/* =========================================================
+   8. BULLETIN SECTION (Filters & UI)
+   ========================================================= */
+
+.BULLETIN_CONTAINER {
+    background: var(--c--p--bg-card);
+    padding: 2.5rem;
+    border-radius: 20px;
+    border: 1px solid var(--c--p--border-subtle);
+    box-shadow: var(--c--p--shadow-ui);
+}
+
+.BULLETIN_HEADER_SECTION {
+    margin-bottom: 2rem;
+}
+
+.BULLETIN_TEXT_GROUP h3 {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: var(--c--p--text-primary);
+    margin: 0 0 0.5rem 0;
+    letter-spacing: -0.02em;
+}
+
+.BULLETIN_TEXT_GROUP p {
+    color: var(--c--p--text-secondary);
+    font-size: 1rem;
+    margin: 0;
+}
+
+/* 🎯 DESKTOP BULLETIN PILLS */
+.BULLETIN_FILTER_TABS {
+    display: flex;
+    gap: 10px;
+    margin-top: 1.5rem;
+    flex-wrap: wrap; /* Wraps cleanly on desktop if window resizes */
+}
+
+.BULLETIN_CATEGORY_BTN {
+    padding: 8px 18px;
+    border-radius: 20px;
+    border: 1px solid var(--c--p--border-subtle);
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 0.9rem;
     cursor: pointer;
-    flex: 1; 
-    height: 100%;
+    transition: all 0.2s ease;
+    background-color: var(--c--p--bg-switcher);
+    color: var(--c--p--text-secondary);
+    white-space: nowrap; /* Forces text to stay on one line */
+    outline: none; /* Prevents blue box here too */
+    -webkit-tap-highlight-color: transparent;
 }
 
-.MOBILE_BOTTOM_NAV button i {
-    font-size: 1.25rem;
+.BULLETIN_CATEGORY_BTN:focus,
+.BULLETIN_CATEGORY_BTN:active {
+    outline: none;
 }
 
-.MOBILE_BOTTOM_NAV button span {
-    font-size: 0.65rem;
-    font-weight: 700;
-    white-space: nowrap; 
-    text-overflow: ellipsis;
-    overflow: hidden;
-    max-width: 100%; 
+.BULLETIN_CATEGORY_BTN:hover {
+    border-color: var(--c--p--brand-blue);
+    color: var(--c--p--text-primary);
 }
 
-.MOBILE_BOTTOM_NAV button.ACTIVE {
-    color: var(--c--p--brand-blue);
+.BULLETIN_CATEGORY_BTN.ACTIVE {
+    background-color: var(--c--p--brand-blue);
+    color: #ffffff;
+    border-color: var(--c--p--brand-blue);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
 }
 
-/* ── 7. UTILS ── */
-.SPINNER {
-    width: 40px;
-    height: 40px;
-    border: 3px solid var(--c--p--border-subtle);
-    border-top: 3px solid var(--c--p--brand-blue);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
+.BULLETIN_EMPTY_STATE {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: var(--c--p--text-secondary);
+    background: var(--c--p--bg-switcher);
+    border-radius: 16px;
+    border: 2px dashed var(--c--p--border-subtle);
 }
 
-@keyframes spin { to { transform: rotate(360deg); } }
+.BULLETIN_EMPTY_STATE i {
+    font-size: 3rem;
+    opacity: 0.3;
+    margin-bottom: 1rem;
+}
 
-/* ── RESPONSIVENESS (MOBILE OPTIMIZATION) ── */
+/* ── 📱 RESPONSIVENESS (MOBILE OPTIMIZATION) ── */
 @media (max-width: 768px) {
     .DESKTOP_ONLY { display: none !important; }
     .MOBILE_ONLY { display: flex !important; }
-    
-    /* 🛡️ FIX: Remove heavy edge padding on mobile */
-    .CM_NAV_MAIN { 
-        padding: 0 0.5rem; 
-        gap: 6px; 
-    }
-    
-    /* 🛡️ FIX: Bring the shield and text closer together */
-    .CM_NAV_LEFT { 
-        gap: 8px; 
-        flex: 1; /* Pushes the right-side icons away */
-    }
-    
-    .CM_LOGO_SHIELD { 
-        font-size: 1.3rem; 
-    }
-    
-    /* 🛡️ FIX: Prevent the 4-line word wrap by forcing ellipsis (...) */
-    .CM_BRAND_INFO strong { 
-        font-size: 0.85rem; 
-    }
-    
-    /* 🛡️ FIX: Hide the subtitle on mobile to give the title more vertical space */
-    .CM_BRAND_INFO span { 
-        display: none; 
-    }
 
-    /* 🛡️ FIX: Shrink the huge red alert badge */
-    .CM_SECURITY_ALERT {
-        padding: 4px 8px;
-        font-size: 0.6rem;
-        gap: 4px;
+    .CM_NAV_MAIN { 
+        padding: 0 1rem; 
+        height: var(--c--p--mob-nav-h); 
     }
     
-    .CM_NAV_RIGHT { 
-        gap: 6px; 
-    }
+    .CM_LOGO_SHIELD { font-size: 1.4rem; }
+    .CM_BRAND_INFO span { display: none; }
+    .CM_BRAND_INFO strong { font-size: 0.95rem; }
+
+    .CM_NAV_RIGHT { gap: 8px; }
     
-    /* 🛡️ FIX: Strip the bulky borders from the profile block on mobile */
     .CM_USER_DISPLAY_SIMPLE { 
         padding: 0; 
         border: none; 
         background: transparent; 
+    }
+    
+    .CM_USER_DISPLAY_SIMPLE span { display: none; }
+
+    .CM_LOGOUT_WORD_BTN { 
+        padding: 0.5rem 0.75rem; 
+        font-size: 0.7rem; 
         gap: 6px;
+        border-radius: 10px;
     }
     
-    .AVATAR_CIRCLE_SMALL { 
-        width: 30px; 
-        height: 30px; 
-        font-size: 0.75rem; 
-    }
-    
-    .CM_LOGOUT_BTN { 
-        width: 30px; 
-        height: 30px; 
-        font-size: 0.85rem; 
-    }
-    
+    .CM_LOGOUT_WORD_BTN i { font-size: 0.85rem; }
+
     .CM_PAGE_STAGE { 
-        padding: 1rem; 
+        padding: 1.25rem; 
+        /* Adds space at the bottom so content isn't hidden behind the mobile nav */
         padding-bottom: calc(var(--c--p--mob-nav-h) + 20px); 
     }
-    
-    .MOBILE_BOTTOM_NAV { 
-        display: flex !important; 
+
+    /* ── BULLETIN MOBILE OVERRIDES ── */
+    .BULLETIN_CONTAINER {
+        padding: 1.25rem;
+    }
+
+    .BULLETIN_TEXT_GROUP h3 {
+        font-size: 1.4rem;
+    }
+
+    /* 🎯 SWIPEABLE ROW FIX */
+    .BULLETIN_FILTER_TABS {
+        flex-wrap: nowrap; /* Stops pills from stacking */
+        overflow-x: auto; /* Allows horizontal scrolling */
+        -webkit-overflow-scrolling: touch; /* Smooth scroll on iOS */
+        scrollbar-width: none; /* Hide scrollbar Firefox */
+        padding-bottom: 5px; /* Prevent shadow clipping */
+        margin-right: -1.25rem; /* Let it bleed to the edge of the screen */
+        padding-right: 1.25rem;
+    }
+
+    .BULLETIN_FILTER_TABS::-webkit-scrollbar {
+        display: none; /* Hide scrollbar Chrome/Safari */
+    }
+
+    .BULLETIN_CATEGORY_BTN {
+        flex-shrink: 0; /* Prevents text/pill from squishing together */
+        font-size: 0.85rem;
     }
 }
