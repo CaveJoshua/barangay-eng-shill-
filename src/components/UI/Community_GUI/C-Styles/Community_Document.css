@@ -1,6 +1,6 @@
 /* =========================================================
    COMMUNITY DOCUMENT MAIN — Community_Document.css
-   Theme: Engineer's Hill Premium (Isolated)
+   Theme: Engineer's Hill Premium (Isolated & Mobile Fixed)
    ========================================================= */
 
 .CM_DOC_VIEW_CONTAINER {
@@ -93,6 +93,8 @@
     align-items: center;
     gap: 0.6rem;
     transition: all 0.2s ease;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .CM_DOC_TAB_ITEM.ACTIVE {
@@ -228,6 +230,8 @@
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .CM_DOC_CLOSE_DRAWER:hover { background: #fee2e2; color: #ef4444; transform: rotate(90deg); }
@@ -244,6 +248,7 @@
     letter-spacing: 0.5px;
 }
 .STATUS_PENDING { background: #fffbeb; color: #d97706; }
+.STATUS_PROCESSING { background: #eff6ff; color: #2563eb; }
 .STATUS_READY_FOR_PICKUP, .STATUS_READY { background: #f0fdf4; color: #16a34a; }
 .STATUS_RELEASED, .STATUS_COMPLETED { background: var(--c--p--bg-switcher); color: var(--c--p--text-secondary); }
 
@@ -289,4 +294,98 @@
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
+}
+
+
+/* =========================================================
+   📱 5. MOBILE RESPONSIVENESS (The Layout Fix)
+   ========================================================= */
+@media (max-width: 768px) {
+    .CM_DOC_VIEW_CONTAINER {
+        height: calc(100vh - 120px);
+        padding: 0.5rem;
+        gap: 1rem;
+    }
+
+    /* Stack the Header */
+    .CM_DOC_HEADER_CARD {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 1.25rem;
+        gap: 1rem;
+        border-radius: 16px;
+    }
+
+    .CM_DOC_HEADER_TEXT h1 { font-size: 1.4rem; }
+    .CM_DOC_HEADER_TEXT p { font-size: 0.85rem; }
+
+    .CM_DOC_BTN_REQUEST_NEW {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* Stack the Toolbar */
+    .CM_DOC_TOOLBAR {
+        flex-direction: column;
+        padding: 0.75rem;
+        gap: 0.75rem;
+    }
+
+    /* 🎯 Make Tabs Swipeable */
+    .CM_DOC_TABS_WRAPPER {
+        width: 100%;
+        overflow-x: auto;
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 0.5rem;
+        padding-bottom: 5px;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+    .CM_DOC_TABS_WRAPPER::-webkit-scrollbar { display: none; }
+
+    .CM_DOC_TAB_ITEM {
+        flex: 0 0 auto;
+        flex-direction: column;
+        padding: 0.6rem 1rem;
+        border-radius: 12px;
+        gap: 6px;
+    }
+
+    .CM_DOC_TAB_ITEM i { font-size: 1.25rem; margin: 0; }
+    
+    .CM_DOC_TAB_INFO {
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .CM_DOC_LBL { font-size: 0.65rem; font-weight: 700; white-space: nowrap; }
+    .CM_DOC_CNT { font-size: 0.7rem; padding: 2px 6px; margin: 0; }
+    .CM_DOC_SEARCH_BOX { width: 100%; }
+
+    /* 🎯 THE DRAWER FIX (Fixes the cut-off text in your screenshot) */
+    .CM_DOC_SLIDE_DRAWER {
+        width: 100%; /* Shrink from 500px to exact phone width */
+    }
+
+    .CM_DOC_DRAWER_HEADER {
+        padding: 1.25rem; /* Reduce heavy desktop padding */
+        gap: 1rem;
+    }
+
+    .CM_DOC_SIDEBAR_INFO {
+        padding: 1.25rem; /* Reduce heavy desktop padding */
+    }
+
+    .CM_DOC_DRAWER_TITLE {
+        font-size: 1.4rem; /* Scale down massive title */
+        word-wrap: break-word; /* Ensure text wraps instead of bleeding off */
+    }
+    
+    .CM_DOC_SUMMARY_BOX {
+        padding: 1rem;
+        font-size: 0.9rem;
+    }
 }
