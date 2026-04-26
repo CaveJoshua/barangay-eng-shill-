@@ -1,35 +1,7 @@
-app.use((req, res, next) => {
-  res.setHeader("X-Frame-Options", "SAMEORIGIN");
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-
-  res.setHeader(
-    "Strict-Transport-Security",
-    "max-age=63072000; includeSubDomains; preload"
-  );
-
-  res.setHeader(
-    "Permissions-Policy",
-    "camera=(), microphone=(), geolocation=(), interest-cohort=()"
-  );
-
-  res.setHeader(
-    "Content-Security-Policy",
-    [
-      "default-src 'self'",
-      "script-src 'self' https://cdnjs.cloudflare.com",
-      "style-src 'self' https://fonts.googleapis.com https://cdnjs.cloudflare.com",
-      "img-src 'self' data: blob: https://res.cloudinary.com https://*.google.com https://*.gstatic.com",
-      "connect-src 'self' https://your-api-domain.com https://*.supabase.co",
-      "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "frame-ancestors 'none'",
-      "frame-src 'self' https://www.google.com https://*.google.com",
-      "upgrade-insecure-requests"
-    ].join("; ")
-  );
-
-  next();
-});
+/*
+  X-Frame-Options: SAMEORIGIN
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' https://fonts.googleapis.com https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://res.cloudinary.com https://*.google.com https://*.gstatic.com; connect-src 'self' https://your-api-domain.com https://*.supabase.co; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; frame-src 'self' https://www.google.com https://*.google.com; upgrade-insecure-requests
