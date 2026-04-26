@@ -117,7 +117,8 @@ export const updateDocumentStatus = async (
   id: number | string,
   status: string
 ): Promise<void> => {
-  const result = await ApiService.updateDocumentRecord(id, { status });
+  // Swapped to saveDocumentRecord to fix the TS Error. Passing ID inside the payload so the backend knows to UPDATE, not INSERT.
+  const result = await ApiService.saveDocumentRecord({ id, status });
   if (!result?.success) {
     throw new Error(result?.error || 'Status update was rejected by the server.');
   }
