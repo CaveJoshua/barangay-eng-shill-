@@ -34,6 +34,7 @@
     "lucide": "0.563.0",
     "lucide-react": "0.563.0",
     "multer": "2.1.1",
+    "node": "^24.15.0",
     "nodemailer": "^8.0.5",
     "react": "19.2.4",
     "react-chartjs-2": "5.3.0",
