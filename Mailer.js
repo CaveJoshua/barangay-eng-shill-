@@ -7,8 +7,8 @@ console.log("[MAILER DEBUG] Target User:", process.env.SMTP_USER ? "FOUND" : "NO
 
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
-  port: 587, // 🛡️ Changed from 465 for better cloud compatibility
-  secure: false, // 🛡️ Must be false for Port 587
+  port: 465, // 🛡️ Changed from 465 for better cloud compatibility
+  secure: true, // 🛡️ Must be false for Port 587
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS, // Use your 16-digit App Password here
