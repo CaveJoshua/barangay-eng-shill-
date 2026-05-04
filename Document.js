@@ -115,7 +115,6 @@ export const documentRouter = (router, supabase, authenticateToken) => {
             const { data: residents, error: resError } = await supabase.from('residents_records').select('record_id, first_name, last_name, email');
             if (resError) throw resError;
 
-            // 🎯 Ensure rejection_reason is explicitly mapped and provided to the frontend
             const formattedData = (docs || []).map(doc => {
                 const resident = residents?.find(r => r.record_id === doc.resident_id);
                 return {
@@ -168,6 +167,35 @@ export const documentRouter = (router, supabase, authenticateToken) => {
             if (!secureResidentId) {
                 return res.status(403).json({ success: false, error: "Cannot verify resident identity." });
             }
+
+            // =========================================================
+            // 🛡️ STRICT 2x A DAY LIMITER (Database-Backed)
+            // =========================================================
+            // Get the start of the current day (Midnight)
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const startOfDay = today.toISOString();
+
+            // Ask Supabase to count requests made by this resident today
+            const { count, error: countError } = await supabase
+                .from('document_requests')
+                .select('*', { count: 'exact', head: true })
+                .eq('resident_id', secureResidentId)
+                .gte('date_requested', startOfDay);
+
+            if (countError) {
+                console.error("[DB_RATE_LIMIT_ERROR] Failed to check request count:", countError.message);
+                return res.status(500).json({ success: false, error: "Failed to verify security limits." });
+            }
+
+            // Enforce the strict limit
+            if (count >= 2) {
+                return res.status(429).json({ 
+                    success: false, 
+                    error: "Daily limit reached. You can only request 2 documents per day." 
+                });
+            }
+            // =========================================================
 
             const tempRef = `TEMP-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 
@@ -271,7 +299,6 @@ export const documentRouter = (router, supabase, authenticateToken) => {
     // ── 5. PATCH: QUICK STATUS UPDATE (WITH PRICE SUPPORT) ──
     router.patch('/documents/:id/status', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff']), async (req, res) => {
         try {
-            // 🎯 THE FIX: Extract price from req.body
             const { status, rejection_reason, price } = req.body;
             const actor = req.user?.username || 'Staff';
 
@@ -279,7 +306,6 @@ export const documentRouter = (router, supabase, authenticateToken) => {
             if (rejection_reason !== undefined) {
                 payload.rejection_reason = rejection_reason;
             }
-            // 🎯 THE FIX: Add price to the Supabase update payload
             if (price !== undefined) {
                 payload.price = price;
             }

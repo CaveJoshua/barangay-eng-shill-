@@ -26,12 +26,15 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
   // --- Shared State ---
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
+  
+  // --- ANTI-BRUTE FORCE STATE ---
+  const [lockoutRemaining, setLockoutRemaining] = useState<number>(0);
 
   const LOGIN_URL = `${API_BASE_URL}/residents/login`;
   const FORGOT_PW_URL = `${API_BASE_URL}/accounts/request-otp`; 
   const RESET_PW_URL = `${API_BASE_URL}/accounts/public-reset`; 
 
+  // 🛡️ SECURITY: Generate/Retrieve Device Fingerprint
   const getFingerprint = useCallback(() => {
     let fp = document.cookie.split('; ').find(row => row.startsWith('sb_dev_fp='))?.split('=')[1];
     if (!fp) {
@@ -41,24 +44,39 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
     return fp;
   }, []);
 
+  // 🛡️ SECURITY: Live Countdown Timer for Lockouts
   useEffect(() => {
-    const deviceId = getFingerprint();
-    const savedLockout = localStorage.getItem(`lockout_${deviceId}`);
-    if (savedLockout && Date.now() < parseInt(savedLockout)) {
-      setLockoutUntil(parseInt(savedLockout));
-    }
-  }, [getFingerprint]);
+    const checkLockout = () => {
+      const savedEnd = localStorage.getItem('sb_sec_lockout');
+      if (savedEnd) {
+        const endMs = parseInt(savedEnd, 10);
+        const now = Date.now();
+        if (endMs > now) {
+          setLockoutRemaining(Math.ceil((endMs - now) / 1000));
+        } else {
+          setLockoutRemaining(0);
+          localStorage.removeItem('sb_sec_lockout');
+        }
+      }
+    };
+    
+    checkLockout();
+    const interval = setInterval(checkLockout, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // 🛡️ SECURITY: Helper to trigger UI lockout
+  const applyLockout = (seconds: number, message: string) => {
+    const endMs = Date.now() + (seconds * 1000);
+    localStorage.setItem('sb_sec_lockout', endMs.toString());
+    setLockoutRemaining(seconds);
+    setError(message);
+  };
 
   // ─── LOGIN HANDLER ──────────────────────────────────────────────
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const now = Date.now();
-    const deviceId = getFingerprint();
-
-    if (lockoutUntil && now < lockoutUntil) {
-      setError(`Security Lock: Try again shortly.`);
-      return;
-    }
+    if (lockoutRemaining > 0) return;
 
     setError('');
     setLoading(true);
@@ -67,11 +85,11 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
       const res = await fetch(LOGIN_URL, { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', // 🛡️ CRITICAL: Accepts the HttpOnly cookie from backend
+        credentials: 'include',
         body: JSON.stringify({ 
           username: username.trim().toLowerCase(), 
           password: password.trim(), 
-          deviceId 
+          deviceId: getFingerprint() 
         })
       });
 
@@ -79,10 +97,8 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
       
       if (!res.ok) {
         if (res.status === 429) {
-          const penalty = now + 60000; 
-          setLockoutUntil(penalty);
-          localStorage.setItem(`lockout_${deviceId}`, penalty.toString());
-          throw new Error("Too many attempts. Locked for 60s.");
+          applyLockout(60, "Too many login attempts. Locked out for 60 seconds.");
+          return;
         }
         throw new Error(data.error || 'Invalid resident credentials');
       }
@@ -90,15 +106,8 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
       const needsReset = data.requires_reset || data.user?.requires_reset || data.profile?.is_first_login;
       const sessionData = { ...data, requires_reset: needsReset };
 
-      // 🛡️ ZERO TRUST FIX: 
-      // We MUST explicitly save the access token using the exact key 'api.ts' expects.
-      // This handles both 'data.token' or 'data.access_token' depending on how your backend sends it.
       const actualToken = data.token || data.access_token;
-      if (actualToken) {
-          localStorage.setItem('access_token', actualToken);
-      } else {
-          console.warn("No token received from backend!");
-      }
+      if (actualToken) localStorage.setItem('access_token', actualToken);
 
       localStorage.setItem('user_role', 'resident');
       localStorage.setItem('resident_session', JSON.stringify(sessionData));
@@ -112,9 +121,11 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
     }
   };
 
-  // ─── PHASE 1: REQUEST OTP ───────────────────────────────────────
-  const handleForgotPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // ─── PHASE 1: REQUEST / RESEND OTP ──────────────────────────────
+  const handleForgotPassword = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (lockoutRemaining > 0) return;
+
     setError('');
     setRecoverySuccessMsg('');
     setLoading(true);
@@ -123,12 +134,23 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
       const res = await fetch(FORGOT_PW_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', // Send fingerprint cookie for rate limiting
+        credentials: 'include',
         body: JSON.stringify({ email: recoveryIdentifier.trim().toLowerCase() })
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to process recovery request.');
+      
+      if (res.status === 429) {
+        const waitMatch = data.error?.match(/wait (\d+) seconds/);
+        const waitSecs = waitMatch ? parseInt(waitMatch[1], 10) : 60;
+        applyLockout(waitSecs, data.error || `Too many requests. Blocked for ${waitSecs}s.`);
+        return;
+      }
+      
+      // 🛡️ FIX: If the backend says the account doesn't exist, throw the error to stop the process
+      if (!res.ok) {
+        throw new Error(data.error || 'Account not found. Please check your details.');
+      }
 
       setRecoverySuccessMsg("Security code sent! Please check your email.");
       setRecoveryPhase('reset'); 
@@ -143,6 +165,8 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
   // ─── PHASE 2: SUBMIT OTP & NEW PASSWORD ─────────────────────────
   const handleResetSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (lockoutRemaining > 0) return;
+
     setError('');
     setLoading(true);
 
@@ -159,6 +183,14 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
       });
 
       const data = await res.json();
+      
+      if (res.status === 429) {
+        applyLockout(60, data.error || "Too many failed attempts. Code destroyed.");
+        setRecoveryPhase('request'); 
+        setOtpCode('');
+        return;
+      }
+
       if (!res.ok) throw new Error(data.error || 'Failed to reset password.');
 
       alert("Password successfully reset! You can now log in.");
@@ -185,6 +217,8 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
 
   if (!isOpen) return null;
 
+  const isBlocked = lockoutRemaining > 0 || loading;
+
   return (
     <div className="CM_LOGIN_OVERLAY">
       <div className="CM_LOGIN_CARD">
@@ -201,13 +235,18 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
             </div>
 
             <form onSubmit={handleLogin} className="CM_LOGIN_FORM">
-              {error && <div className="CM_ERROR_MSG"><i className="fas fa-exclamation-triangle"></i> {error}</div>}
+              {error && (
+                <div className="CM_ERROR_MSG">
+                  <i className={lockoutRemaining > 0 ? "fas fa-lock" : "fas fa-exclamation-triangle"}></i> 
+                  {error}
+                </div>
+              )}
               
               <div className="CM_INPUT_GROUP">
                 <label>Resident ID / Email</label>
                 <div className="CM_INPUT_WRAPPER">
                   <i className="fas fa-at"></i>
-                  <input type="text" placeholder="username@residents.eng-hill.ph" value={username} onChange={e => setUsername(e.target.value)} required disabled={loading} />
+                  <input type="text" placeholder="username@residents.eng-hill.ph" value={username} onChange={e => setUsername(e.target.value)} required disabled={isBlocked} />
                 </div>
               </div>
 
@@ -215,18 +254,18 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
                 <label>Password</label>
                 <div className="CM_INPUT_WRAPPER">
                   <i className="fas fa-lock"></i>
-                  <input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required disabled={loading} />
+                  <input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required disabled={isBlocked} />
                 </div>
               </div>
 
               <div className="CM_LOGIN_ACTIONS">
-                <button type="button" className="CM_FORGOT_BTN" onClick={toggleView} disabled={loading}>
+                <button type="button" className="CM_FORGOT_BTN" onClick={toggleView} disabled={isBlocked}>
                   Forgot Password?
                 </button>
               </div>
 
-              <button type="submit" className="CM_LOGIN_SUBMIT" disabled={loading}>
-                {loading ? <i className="fas fa-circle-notch fa-spin"></i> : 'Enter Dashboard'}
+              <button type="submit" className="CM_LOGIN_SUBMIT" disabled={isBlocked}>
+                {lockoutRemaining > 0 ? `Locked (${lockoutRemaining}s)` : loading ? <i className="fas fa-circle-notch fa-spin"></i> : 'Enter Dashboard'}
               </button>
             </form>
           </>
@@ -240,30 +279,46 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
 
             {recoveryPhase === 'request' ? (
               <form onSubmit={handleForgotPassword} className="CM_LOGIN_FORM">
-                {error && <div className="CM_ERROR_MSG"><i className="fas fa-exclamation-triangle"></i> {error}</div>}
+                {error && (
+                  <div className="CM_ERROR_MSG">
+                    <i className={lockoutRemaining > 0 ? "fas fa-lock" : "fas fa-exclamation-triangle"}></i> 
+                    {error}
+                  </div>
+                )}
                 
                 <div className="CM_INPUT_GROUP">
                   <label>Registered Account</label>
                   <div className="CM_INPUT_WRAPPER">
                     <i className="fas fa-user-tag"></i>
-                    <input type="text" placeholder="Username or Email address" value={recoveryIdentifier} onChange={e => setRecoveryIdentifier(e.target.value)} required disabled={loading} />
+                    <input type="text" placeholder="Username or Email address" value={recoveryIdentifier} onChange={e => setRecoveryIdentifier(e.target.value)} required disabled={isBlocked} />
                   </div>
                 </div>
 
-                <button type="submit" className="CM_LOGIN_SUBMIT warning" disabled={loading}>
-                  {loading ? <i className="fas fa-circle-notch fa-spin"></i> : 'Request Security Code'}
+                <button type="submit" className="CM_LOGIN_SUBMIT warning" disabled={isBlocked}>
+                  {lockoutRemaining > 0 ? `Please Wait (${lockoutRemaining}s)` : loading ? <i className="fas fa-circle-notch fa-spin"></i> : 'Request Security Code'}
                 </button>
               </form>
             ) : (
               <form onSubmit={handleResetSubmit} className="CM_LOGIN_FORM">
-                {error && <div className="CM_ERROR_MSG"><i className="fas fa-exclamation-triangle"></i> {error}</div>}
-                {recoverySuccessMsg && <div className="CM_SUCCESS_MSG"><i className="fas fa-check-circle"></i> {recoverySuccessMsg}</div>}
+                {error && (
+                  <div className="CM_ERROR_MSG">
+                    <i className={lockoutRemaining > 0 ? "fas fa-lock" : "fas fa-exclamation-triangle"}></i> 
+                    {error}
+                  </div>
+                )}
+                {recoverySuccessMsg && !error && <div className="CM_SUCCESS_MSG"><i className="fas fa-check-circle"></i> {recoverySuccessMsg}</div>}
                 
                 <div className="CM_INPUT_GROUP">
                   <label>6-Character Security Code</label>
                   <div className="CM_INPUT_WRAPPER">
                     <i className="fas fa-hashtag"></i>
-                    <input type="text" placeholder="e.g., aB3X9z" value={otpCode} onChange={e => setOtpCode(e.target.value)} required disabled={loading} maxLength={6} className="CM_OTP_INPUT" />
+                    <input type="text" placeholder="e.g., aB3X9z" value={otpCode} onChange={e => setOtpCode(e.target.value)} required disabled={isBlocked} maxLength={6} className="CM_OTP_INPUT" />
+                  </div>
+                  
+                  <div style={{ textAlign: 'right', marginTop: '8px' }}>
+                    <button type="button" className="CM_FORGOT_BTN" onClick={() => handleForgotPassword()} disabled={isBlocked} style={{ fontSize: '0.85rem' }}>
+                      Didn't get it? Request a new code.
+                    </button>
                   </div>
                 </div>
 
@@ -271,18 +326,18 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
                   <label>New Password</label>
                   <div className="CM_INPUT_WRAPPER">
                     <i className="fas fa-lock"></i>
-                    <input type="password" placeholder="Enter new password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required disabled={loading} minLength={6} />
+                    <input type="password" placeholder="Enter new password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required disabled={isBlocked} minLength={6} />
                   </div>
                 </div>
 
-                <button type="submit" className="CM_LOGIN_SUBMIT success" disabled={loading}>
-                  {loading ? <i className="fas fa-circle-notch fa-spin"></i> : 'Confirm New Password'}
+                <button type="submit" className="CM_LOGIN_SUBMIT success" disabled={isBlocked}>
+                  {lockoutRemaining > 0 ? `Locked (${lockoutRemaining}s)` : loading ? <i className="fas fa-circle-notch fa-spin"></i> : 'Confirm New Password'}
                 </button>
               </form>
             )}
 
             <div className="CM_LOGIN_FOOTER">
-              <button type="button" className="CM_RETURN_BTN" onClick={toggleView} disabled={loading}>
+              <button type="button" className="CM_RETURN_BTN" onClick={toggleView} disabled={isBlocked}>
                 <i className="fas fa-arrow-left"></i> Return to Login
               </button>
             </div>

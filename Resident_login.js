@@ -1,6 +1,7 @@
 import bcrypt  from 'bcryptjs';
 import jwt     from 'jsonwebtoken';
 import crypto  from 'crypto';
+import { RateLimiterMemory } from 'rate-limiter-flexible';
 
 // ---------------------------------------------------------------------------
 // 🛡️ SECURITY CONFIG & STARTUP GUARD
@@ -20,45 +21,18 @@ const MAX_PASSWORD_LEN     = 72;
 const DUMMY_HASH = await bcrypt.hash('__timing_equalization_dummy__', 12);
 
 // ---------------------------------------------------------------------------
-// ⏳ TIERED RATE LIMITER (Prevents Brute Force Attacks)
+// ⏳ ANTI-BRUTE FORCE LIMITER (Replaced custom map with rate-limiter-flexible)
 // ---------------------------------------------------------------------------
-const loginBuckets = new Map();
-const BUCKET_TIERS = [
-    { maxAttempts: 5, penaltyMs: 1  * 60 * 1000 },  // Tier 0: 1 min lockout
-    { maxAttempts: 3, penaltyMs: 15 * 60 * 1000 },  // Tier 1: 15 min lockout
-];
-
-const tieredRateLimiter = (req, res, next) => {
-    const ip = req.ip || req.socket?.remoteAddress || 'UNKNOWN';
-    const now = Date.now();
-
-    if (!loginBuckets.has(ip)) {
-        loginBuckets.set(ip, { attempts: 0, tier: 0, lockoutUntil: 0 });
-    }
-
-    const bucket = loginBuckets.get(ip);
-
-    if (now < bucket.lockoutUntil) {
-        const remaining = Math.ceil((bucket.lockoutUntil - now) / 1000);
-        return res.status(429).json({ error: `Security lockout active. Wait ${remaining}s.` });
-    }
-
-    req.clientIp = ip;
-    req.punishIp = () => {
-        bucket.attempts++;
-        const rules = BUCKET_TIERS[Math.min(bucket.tier, BUCKET_TIERS.length - 1)];
-        if (bucket.attempts >= rules.maxAttempts) {
-            bucket.lockoutUntil = now + rules.penaltyMs;
-            bucket.attempts = 0;
-            bucket.tier = Math.min(bucket.tier + 1, BUCKET_TIERS.length - 1);
-        }
-    };
-    req.clearLoginBucket = () => loginBuckets.delete(ip);
-    next();
-};
+// Allows 5 failed attempts per 15 minutes. 
+// If exceeded, blocks the IP for 60 seconds.
+const loginLimiter = new RateLimiterMemory({
+    points: 5,           // Maximum 5 failed attempts
+    duration: 60 * 15,   // Track failures over a 15-minute window
+    blockDuration: 60,   // If points consumed, block for 60 seconds
+});
 
 // ---------------------------------------------------------------------------
-// 🔑 TOKEN HELPERS
+// 🔑 TOKEN & AUDIT HELPERS
 // ---------------------------------------------------------------------------
 const generateOpaqueRefreshToken = () => {
     const rawToken  = crypto.randomBytes(48).toString('base64url');
@@ -93,23 +67,42 @@ const logAudit = async (supabase, username, ip, userAgent, status, failReason = 
 export const ResidentsLoginRouter = (router, supabase) => {
 
     // ── POST /residents/login ────────────────────────────────────────────
-    router.post('/residents/login', tieredRateLimiter, async (req, res) => {
+    router.post('/residents/login', async (req, res) => {
+        const clientIp = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'UNKNOWN';
         const userAgent = req.headers['user-agent'] || 'Unknown Device';
         const { username, password } = req.body;
 
-        // A. Input Validation
-        if (!username || !password || typeof username !== 'string' || typeof password !== 'string') {
-            return res.status(400).json({ error: 'Username and password are required.' });
-        }
-
-        if (username.length > MAX_USERNAME_LEN || password.length > MAX_PASSWORD_LEN) {
-            req.punishIp();
-            return res.status(400).json({ error: 'Invalid credentials.' });
-        }
-
-        const cleanUsername = username.trim();
-
         try {
+            // 🛡️ CHECK 1: Is this IP already blocked?
+            const rlRes = await loginLimiter.get(clientIp);
+            if (rlRes !== null && rlRes.consumedPoints >= 5) {
+                const retrySecs = Math.round(rlRes.msBeforeNext / 1000) || 60;
+                return res.status(429).json({ error: `Security lockout active. Wait ${retrySecs}s.` });
+            }
+
+            // --- HELPER: Handles failed attempts ---
+            const handleFailure = async (reason, sendStatus = 401) => {
+                await logAudit(supabase, username, clientIp, userAgent, 'FAILED', reason);
+                try {
+                    await loginLimiter.consume(clientIp, 1);
+                    return res.status(sendStatus).json({ error: 'Invalid username or password.' });
+                } catch (rejRes) {
+                    // If this specific failure tipped them over the edge (5th strike)
+                    return res.status(429).json({ error: 'Too many login attempts. Locked out for 60 seconds.' });
+                }
+            };
+
+            // A. Input Validation
+            if (!username || !password || typeof username !== 'string' || typeof password !== 'string') {
+                return res.status(400).json({ error: 'Username and password are required.' });
+            }
+
+            if (username.length > MAX_USERNAME_LEN || password.length > MAX_PASSWORD_LEN) {
+                return await handleFailure('INVALID_CREDENTIAL_LENGTH', 400);
+            }
+
+            const cleanUsername = username.trim();
+
             // B. Safe Account Fetch (Case-Insensitive)
             const { data: accountData, error: accountError } = await supabase
                 .from('residents_account')
@@ -119,19 +112,15 @@ export const ResidentsLoginRouter = (router, supabase) => {
 
             // C. Timing-Safe User-Not-Found Path
             if (accountError || !accountData) {
-                await bcrypt.compare(password, DUMMY_HASH); 
-                req.punishIp();
-                await logAudit(supabase, cleanUsername, req.clientIp, userAgent, 'FAILED', 'USER_NOT_FOUND');
-                return res.status(401).json({ error: 'Invalid username or password.' });
+                await bcrypt.compare(password, DUMMY_HASH); // Prevent timing attack
+                return await handleFailure('USER_NOT_FOUND');
             }
 
             // D. Async Password Verification
             const isValid = await bcrypt.compare(password, accountData.password);
             
             if (!isValid) {
-                req.punishIp();
-                await logAudit(supabase, cleanUsername, req.clientIp, userAgent, 'FAILED', 'BAD_PASSWORD');
-                return res.status(401).json({ error: 'Invalid username or password.' });
+                return await handleFailure('BAD_PASSWORD');
             }
 
             // 🛡️ THE FIX: Select '*' to grab email, purok, etc.
@@ -161,7 +150,7 @@ export const ResidentsLoginRouter = (router, supabase) => {
                 token_hash: tokenHash,
                 family_id: familyId,
                 user_agent: userAgent,
-                ip_address: req.clientIp,
+                ip_address: clientIp,
                 expires_at: expiresAt,
                 revoked: false,
             }]);
@@ -175,9 +164,9 @@ export const ResidentsLoginRouter = (router, supabase) => {
                 maxAge: REFRESH_TOKEN_TTL_MS,
             });
 
-            // H. Success
-            req.clearLoginBucket();
-            await logAudit(supabase, cleanUsername, req.clientIp, userAgent, 'SUCCESS');
+            // H. Success - Wipe the penalty slate clean!
+            await loginLimiter.delete(clientIp);
+            await logAudit(supabase, cleanUsername, clientIp, userAgent, 'SUCCESS');
 
             return res.status(200).json({
                 message: 'Login successful',
@@ -189,7 +178,7 @@ export const ResidentsLoginRouter = (router, supabase) => {
                     role: 'resident' 
                 },
                 profile: {
-                    ...profileData, // 🛡️ Spreads ALL database columns (including email) to the frontend
+                    ...profileData, 
                     record_id: accountData.resident_id,
                     first_name: fName.toUpperCase(),
                     last_name: lName.toUpperCase(),
@@ -209,7 +198,7 @@ export const ResidentsLoginRouter = (router, supabase) => {
     router.post('/auth/refresh', async (req, res) => {
         const rawToken  = req.cookies?.refresh_token;
         const userAgent = req.headers['user-agent'] || 'Unknown Device';
-        const clientIp  = req.ip || 'UNKNOWN';
+        const clientIp  = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'UNKNOWN';
 
         if (!rawToken) return res.status(401).json({ error: 'No refresh token provided.' });
 

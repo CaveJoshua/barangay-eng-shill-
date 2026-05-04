@@ -21,12 +21,55 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
+  // --- ANTI-BRUTE FORCE STATE ---
+  const [lockoutRemaining, setLockoutRemaining] = useState<number>(0);
+
   const isMounted = useRef(true);
 
   useEffect(() => {
     isMounted.current = true;
     return () => { isMounted.current = false; };
   }, []);
+
+  // 🛡️ SECURITY: Live Countdown Timer for Lockouts
+  useEffect(() => {
+    const checkLockout = () => {
+      const savedEnd = localStorage.getItem('admin_sec_lockout');
+      if (savedEnd) {
+        const endMs = parseInt(savedEnd, 10);
+        const now = Date.now();
+        if (endMs > now) {
+          setLockoutRemaining(Math.ceil((endMs - now) / 1000));
+        } else {
+          setLockoutRemaining(0);
+          localStorage.removeItem('admin_sec_lockout');
+        }
+      }
+    };
+    
+    checkLockout();
+    const interval = setInterval(checkLockout, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // 🛡️ SECURITY: Helper to trigger UI lockout
+  const applyLockout = (seconds: number, msg: string) => {
+    const endMs = Date.now() + (seconds * 1000);
+    localStorage.setItem('admin_sec_lockout', endMs.toString());
+    setLockoutRemaining(seconds);
+    setError(msg);
+  };
+
+  // 🛡️ SECURITY: Smart Error Handler for Tiered Limiter
+  const handleSecurityError = (errMsg: string, defaultWait = 60) => {
+    if (errMsg.toLowerCase().includes('too many') || errMsg.toLowerCase().includes('wait') || errMsg.toLowerCase().includes('lockout')) {
+      const waitMatch = errMsg.match(/wait (\d+) seconds/i);
+      const waitSecs = waitMatch ? parseInt(waitMatch[1], 10) : defaultWait;
+      applyLockout(waitSecs, errMsg);
+    } else {
+      setError(errMsg);
+    }
+  };
 
   const handleBack = () => {
     setError('');
@@ -35,9 +78,11 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
     if (view === 'NEW_PASSWORD') setView('OTP_INPUT');
   };
 
-  // 1. Request OTP
-  const handleRequestOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // 1. Request OTP (Modified to allow calling from the Resend button)
+  const handleRequestOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (lockoutRemaining > 0) return;
+
     setLoading(true);
     setError('');
     setMessage('');
@@ -48,12 +93,13 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
       
       if (response.success) {
         setView('OTP_INPUT');
-        setMessage(response.message || 'If an account exists, a code was sent.');
+        setMessage(response.message || 'Security code sent! Please check your email.');
       } else {
         throw new Error(response.error || 'Failed to send reset code.');
       }
     } catch (err: any) {
-      setError(err.message);
+      if (!isMounted.current) return;
+      handleSecurityError(err.message);
     } finally {
       if (isMounted.current) setLoading(false);
     }
@@ -62,6 +108,8 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
   // 2. Verify OTP
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (lockoutRemaining > 0) return;
+
     setLoading(true);
     setError('');
 
@@ -75,7 +123,16 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
         throw new Error(response.error || 'Invalid or expired code.');
       }
     } catch (err: any) {
-      setError(err.message);
+      if (!isMounted.current) return;
+      
+      // Handle the specific "3 failed guesses" destroyed code response
+      if (err.message.toLowerCase().includes('destroyed') || err.message.toLowerCase().includes('too many failed attempts')) {
+        applyLockout(60, err.message || "Too many failed attempts. Code destroyed.");
+        setView('EMAIL_INPUT'); 
+        setOtp('');
+      } else {
+        handleSecurityError(err.message);
+      }
     } finally {
       if (isMounted.current) setLoading(false);
     }
@@ -84,6 +141,7 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
   // 3. Final Password Reset
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (lockoutRemaining > 0) return;
     
     if (newPassword.length < 8) {
       setError("Password must be at least 8 characters long.");
@@ -103,18 +161,21 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
         throw new Error(response.error || 'Failed to reset password.');
       }
     } catch (err: any) {
-      setError(err.message);
+      if (!isMounted.current) return;
+      handleSecurityError(err.message);
     } finally {
       if (isMounted.current) setLoading(false);
     }
   };
+
+  const isBlocked = lockoutRemaining > 0 || loading;
 
   return (
     <div className="LM_MODAL_OVERLAY" onClick={onClose}>
       <div className="LM_MODAL_CARD" onClick={(e) => e.stopPropagation()}>
         
         {view !== 'SUCCESS' && view !== 'EMAIL_INPUT' && (
-          <button className="LM_BACK_LINK" onClick={handleBack}>
+          <button className="LM_BACK_LINK" onClick={handleBack} disabled={isBlocked}>
             <i className="fas fa-chevron-left"></i> Back
           </button>
         )}
@@ -132,11 +193,15 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
               <p>Enter your registered email address.</p>
             </div>
             
-            {error && <div className="LM_ERROR_MSG">{error}</div>}
+            {error && (
+              <div className="LM_ERROR_MSG">
+                <i className={`fas ${lockoutRemaining > 0 ? "fa-lock" : "fa-exclamation-triangle"}`}></i> 
+                {error}
+              </div>
+            )}
             
             <div className="LM_INPUT_GROUP">
               <label>Email Address</label>
-              {/* 👇 THE FIX: Wrapped the input in LM_INPUT_WRAPPER and added the icon */}
               <div className="LM_INPUT_WRAPPER">
                 <i className="fas fa-at"></i>
                 <input 
@@ -144,16 +209,16 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
                   placeholder="official@example.com" 
                   value={email} 
                   onChange={(e) => setEmail(e.target.value)} 
-                  disabled={loading}
+                  disabled={isBlocked}
                   required 
                 />
               </div>
             </div>
 
-            <button className="LM_SUBMIT_BTN" disabled={loading}>
-              {loading ? <i className="fas fa-spinner fa-spin"></i> : 'Send Reset Link'}
+            <button className="LM_SUBMIT_BTN" disabled={isBlocked}>
+              {lockoutRemaining > 0 ? `Please Wait (${lockoutRemaining}s)` : loading ? <i className="fas fa-spinner fa-spin"></i> : 'Send Reset Link'}
             </button>
-            <button type="button" className="LM_FORGOT_LINK" onClick={onClose}>
+            <button type="button" className="LM_FORGOT_LINK" onClick={onClose} disabled={isBlocked}>
               Back to Login
             </button>
           </form>
@@ -165,13 +230,18 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
             <div className="LM_HEADER">
               <div className="LM_ICON"><i className="fas fa-key"></i></div>
               <h2>Enter Security Code</h2>
-              {message ? <p style={{color: '#27ae60'}}>{message}</p> : <p>Check your email for the 6-character code.</p>}
+              {message && !error ? <p className="LM_SUCCESS_MSG_TEXT">{message}</p> : <p>Check your email for the 6-character code.</p>}
             </div>
             
-            {error && <div className="LM_ERROR_MSG">{error}</div>}
+            {error && (
+              <div className="LM_ERROR_MSG">
+                <i className={`fas ${lockoutRemaining > 0 ? "fa-lock" : "fa-exclamation-triangle"}`}></i> 
+                {error}
+              </div>
+            )}
             
             <div className="LM_INPUT_GROUP">
-              <label style={{ textAlign: 'center' }}>6-Digit Code</label>
+              <label className="LM_OTP_LABEL">6-Character Code</label>
               <input 
                 type="text" 
                 className="LM_OTP_INPUT" 
@@ -179,13 +249,24 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
                 maxLength={6} 
                 value={otp} 
                 onChange={(e) => setOtp(e.target.value)} 
-                disabled={loading}
+                disabled={isBlocked}
                 required 
               />
+
+              <div className="LM_RESEND_WRAPPER">
+                <button 
+                  type="button" 
+                  className="LM_RESEND_BTN"
+                  onClick={() => handleRequestOtp()} 
+                  disabled={isBlocked} 
+                >
+                  Didn't get it? Request a new code.
+                </button>
+              </div>
             </div>
 
-            <button className="LM_SUBMIT_BTN" disabled={loading}>
-              {loading ? <i className="fas fa-spinner fa-spin"></i> : 'Verify Code'}
+            <button className="LM_SUBMIT_BTN" disabled={isBlocked}>
+              {lockoutRemaining > 0 ? `Locked (${lockoutRemaining}s)` : loading ? <i className="fas fa-spinner fa-spin"></i> : 'Verify Code'}
             </button>
           </form>
         )}
@@ -199,11 +280,15 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
               <p>Create a strong password for your account.</p>
             </div>
             
-            {error && <div className="LM_ERROR_MSG">{error}</div>}
+            {error && (
+              <div className="LM_ERROR_MSG">
+                <i className={`fas ${lockoutRemaining > 0 ? "fa-lock" : "fa-exclamation-triangle"}`}></i> 
+                {error}
+              </div>
+            )}
             
             <div className="LM_INPUT_GROUP">
               <label>New Password</label>
-              {/* 👇 THE FIX: Wrapped the input and added the show/hide eye toggle */}
               <div className="LM_INPUT_WRAPPER">
                 <i className="fas fa-lock"></i>
                 <input 
@@ -211,18 +296,18 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
                   placeholder="Minimum 8 characters" 
                   value={newPassword} 
                   onChange={(e) => setNewPassword(e.target.value)} 
-                  disabled={loading}
+                  disabled={isBlocked}
                   required 
                   minLength={8}
                 />
-                <button type="button" className="LM_EYE_TOGGLE" onClick={() => setShowPassword(!showPassword)}>
+                <button type="button" className="LM_EYE_TOGGLE" onClick={() => setShowPassword(!showPassword)} disabled={isBlocked}>
                     <i className={showPassword ? "fas fa-eye-slash" : "fas fa-eye"}></i>
                 </button>
               </div>
             </div>
 
-            <button className="LM_SUBMIT_BTN" disabled={loading}>
-              {loading ? <i className="fas fa-spinner fa-spin"></i> : 'Update Password'}
+            <button className="LM_SUBMIT_BTN" disabled={isBlocked}>
+              {lockoutRemaining > 0 ? `Locked (${lockoutRemaining}s)` : loading ? <i className="fas fa-spinner fa-spin"></i> : 'Update Password'}
             </button>
           </form>
         )}
@@ -230,10 +315,10 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
         {/* --- STEP 4: SUCCESS --- */}
         {view === 'SUCCESS' && (
           <div className="LM_SUCCESS_AREA">
-            <i className="fas fa-check-circle" style={{fontSize: '3rem', color: '#10b981', margin: '0 auto 1.5rem', display: 'block'}}></i>
+            <i className="fas fa-check-circle LM_SUCCESS_ICON"></i>
             <h2>Password Updated</h2>
-            <p style={{ color: '#64748b', marginTop: '10px' }}>Your account has been successfully secured.</p>
-            <button className="LM_SUBMIT_BTN" onClick={onClose} style={{marginTop: '30px', width: '100%'}}>
+            <p className="LM_SUCCESS_DESC">Your account has been successfully secured.</p>
+            <button className="LM_SUBMIT_BTN LM_SUCCESS_RETURN_BTN" onClick={onClose}>
               Return to Login
             </button>
           </div>

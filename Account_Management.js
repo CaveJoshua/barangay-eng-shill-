@@ -1,7 +1,26 @@
 import bcrypt from 'bcryptjs';
 import { sendAutoMail } from './Mailer.js'; 
+import { RateLimiterMemory } from 'rate-limiter-flexible';
 
-// --- OTP Memory Storage ---
+// =========================================================
+// 🛡️ RATE LIMITERS (Tiered Token Bucket)
+// =========================================================
+
+// TIER 1: Burst Limiter (Max 3 requests per 60 seconds)
+const burstLimiter = new RateLimiterMemory({
+    points: 3,           
+    duration: 60,        
+    blockDuration: 60,   
+});
+
+// TIER 2: Daily Limiter (Max 10 requests per 24 hours)
+const dailyLimiter = new RateLimiterMemory({
+    points: 10,          
+    duration: 60 * 60 * 24, 
+    blockDuration: 60 * 60 * 24, 
+});
+
+// --- OTP Memory Storage (For the Codes) ---
 const otpStore = new Map();
 
 // 🛡️ SECURITY HELPER 1: Hash Passwords
@@ -23,69 +42,122 @@ const generateSecureCode = (length = 6) => {
 export const AccountManagementRouter = (router, supabase, authenticateToken) => {
 
     // =========================================================
-    // 🧠 SMART LOOKUP HELPER
+    // 🧠 SMART LOOKUP HELPER (The Ultimate "Who is Who" Search)
     // =========================================================
     const findUserEmail = async (identifier) => {
-        const { data: account } = await supabase
+        
+        // --- 1. CHECK RESIDENTS ---
+        // A. Search by Username
+        const { data: resAuth } = await supabase
             .from('residents_account')
             .select('resident_id, username')
             .eq('username', identifier)
             .maybeSingle();
 
-        if (account) {
-            const { data: record } = await supabase
+        if (resAuth) {
+            const { data: resProfile } = await supabase
                 .from('residents_records')
                 .select('email, first_name')
-                .eq('record_id', account.resident_id)
+                .eq('record_id', resAuth.resident_id)
                 .maybeSingle();
-            return record ? { email: record.email, firstName: record.first_name, accountId: account.resident_id } : null;
+            return resProfile ? { email: resProfile.email, firstName: resProfile.first_name, accountId: resAuth.resident_id, role: 'resident' } : null;
         }
 
-        const { data: recordByEmail } = await supabase
+        // B. Search by Email
+        const { data: resProfileByEmail } = await supabase
             .from('residents_records')
             .select('record_id, email, first_name')
             .eq('email', identifier)
             .maybeSingle();
 
-        if (recordByEmail) {
-            return { email: recordByEmail.email, firstName: recordByEmail.first_name, accountId: recordByEmail.record_id };
+        if (resProfileByEmail) {
+            return { email: resProfileByEmail.email, firstName: resProfileByEmail.first_name, accountId: resProfileByEmail.record_id, role: 'resident' };
         }
-        
+
+        // --- 2. CHECK OFFICIALS / ADMINS ---
+        // A. Search by Username
+        const { data: offAuth } = await supabase
+            .from('officials_accounts')
+            .select('account_id, official_id, username')
+            .eq('username', identifier)
+            .maybeSingle();
+
+        if (offAuth) {
+            const { data: offProfile } = await supabase
+                .from('officials')
+                .select('email, full_name')
+                .eq('id', offAuth.official_id)
+                .maybeSingle();
+            return offProfile ? { email: offProfile.email, firstName: offProfile.full_name, accountId: offAuth.account_id, role: 'official' } : null;
+        }
+
+        // B. Search by Email
+        const { data: offProfileByEmail } = await supabase
+            .from('officials')
+            .select('id, email, full_name')
+            .eq('email', identifier)
+            .maybeSingle();
+
+        if (offProfileByEmail) {
+            const { data: offAuthByEmail } = await supabase
+                .from('officials_accounts')
+                .select('account_id')
+                .eq('official_id', offProfileByEmail.id)
+                .maybeSingle();
+            if (offAuthByEmail) {
+                return { email: offProfileByEmail.email, firstName: offProfileByEmail.full_name, accountId: offAuthByEmail.account_id, role: 'official' };
+            }
+        }
+
+        // --- 3. NOT FOUND ---
+        // If they typed something that doesn't exist in any of the 4 places above.
         return null;
     };
 
     // =========================================================
-    // 1. GENERATE & SEND SECURE OTP (Public / Residents)
+    // 1. GENERATE & SEND SECURE OTP (Public / Residents / Admins)
     // =========================================================
     router.post('/accounts/request-otp', async (req, res) => {
         try {
             const { email } = req.body; 
             if (!email) return res.status(400).json({ error: 'Identification required.' });
+            
+            // The input can be a username OR an email, so we clean it up
             const identifier = email.toLowerCase().trim();
 
+            // 🛡️ RATE LIMITING
+            const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+            const limitKey = `${clientIp}_${identifier}`;
+
+            try {
+                await dailyLimiter.consume(limitKey, 1);
+                await burstLimiter.consume(limitKey, 1);
+            } catch (rejRes) {
+                const secsToWait = Math.round(rejRes.msBeforeNext / 1000) || 60;
+                return res.status(429).json({ 
+                    error: `Too many requests. Please wait ${secsToWait} seconds before trying again.` 
+                });
+            }
+
+            // Let the Smart Lookup figure out who this is
             const userData = await findUserEmail(identifier);
+            
+            // 🛡️ REJECT: Return an explicit 404 error if the account does not exist
             if (!userData || !userData.email) {
-                return res.status(200).json({ success: true, message: 'If account exists, code sent.' });
+                return res.status(404).json({ error: 'Account not found. Please check your details.' });
             }
 
             const targetEmail = userData.email.toLowerCase();
-
-            const existingCode = otpStore.get(targetEmail);
-            if (existingCode && Date.now() < existingCode.cooldownLimit) {
-                return res.status(429).json({ error: 'Please wait 60 seconds before requesting another code.' });
-            }
-
             const otpCode = generateSecureCode(6);
             
             otpStore.set(targetEmail, { 
                 code: otpCode, 
                 expires: Date.now() + 300000, // 5 minutes
-                attempts: 0,
-                cooldownLimit: Date.now() + 60000 // 60 seconds
+                attempts: 0
             });
 
             const emailMessage = `
-                Hello <b>${userData.firstName || 'Resident'}</b>,<br><br>
+                Hello <b>${userData.firstName}</b>,<br><br>
                 A password reset was requested for your account.<br><br>
                 Your 5-Minute Security Code is:<br>
                 <h1 style="color: #27ae60; letter-spacing: 6px; font-family: monospace; background: #f4f4f4; padding: 15px; border-radius: 8px; display: inline-block;">${otpCode}</h1><br>
@@ -108,7 +180,7 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
     });
 
     // =========================================================
-    // 2. VERIFY OTP (Public / Residents)
+    // 2. VERIFY OTP
     // =========================================================
     router.post('/accounts/verify-otp', async (req, res) => {
         try {
@@ -143,16 +215,15 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
     });
 
   // =========================================================
-  // 3. CORE: PASSWORD RESET (Restricted: SUPERADMIN OR THE USER THEMSELVES)
+  // 3. CORE: PASSWORD RESET (Restricted: SUPERADMIN OR SELF)
   // =========================================================
   router.patch('/accounts/reset/:accountId', authenticateToken, async (req, res) => {
       try {
           const userRole = (req.user?.user_role || req.user?.role || '').toLowerCase().trim();
-          const loggedInUserId = req.user?.account_id || req.user?.sub; // ID from the JWT
+          const loggedInUserId = req.user?.account_id || req.user?.sub; 
           const targetId = req.params.accountId;
 
           // 🛡️ SECURITY GATEKEEPER:
-          // Allow if the user is a Superadmin OR if the user is changing THEIR OWN password
           const isSuperAdmin = userRole === 'superadmin';
           const isSelf = String(loggedInUserId) === String(targetId);
 
@@ -165,12 +236,12 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
 
           const securePass = hashPassword(password);
 
-          // Update the Residents Account
-          const { data: resData, error: resErr } = await supabase
+          // Try updating resident first
+          const { data: resData } = await supabase
               .from('residents_account')
               .update({ 
                   password: securePass,
-                  requires_reset: false // Automatically clear the first-time login flag
+                  requires_reset: false
               }) 
               .or(`account_id.eq.${targetId},resident_id.eq.${targetId}`)
               .select();
@@ -179,7 +250,7 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
               return res.json({ success: true, message: 'Password updated successfully.' });
           }
 
-          // If not a resident, try Officials (only if Superadmin)
+          // If superadmin, try updating official
           if (isSuperAdmin) {
               const { data: offData } = await supabase
                   .from('officials_accounts')
@@ -201,7 +272,7 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
   });
 
     // =========================================================
-    // 4. PUBLIC: RESET PASSWORD VIA OTP (Public / Residents)
+    // 4. PUBLIC: RESET PASSWORD VIA OTP
     // =========================================================
     router.post('/accounts/public-reset', async (req, res) => {
         try {
@@ -224,23 +295,33 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
                 stored.attempts += 1;
                 if (stored.attempts >= 3) {
                     otpStore.delete(targetEmail); 
-                    return res.status(429).json({ error: 'Too many failed attempts. Code destroyed. Request a new one.' });
+                    return res.status(429).json({ error: 'Too many failed attempts. Request a new one.' });
                 }
                 return res.status(400).json({ error: `Invalid code. ${3 - stored.attempts} attempts remaining.` });
             }
 
-            const { error: updateError } = await supabase
-                .from('residents_account')
-                .update({ password: hashPassword(newPassword) })
-                .eq('resident_id', userData.accountId);
-
-            if (updateError) throw updateError;
-
-            try {
-                await supabase.from('residents_account')
-                    .update({ requires_reset: false })
+            // 🛡️ UPDATE THE CORRECT TABLE BASED ON "WHO IS WHO"
+            if (userData.role === 'official') {
+                const { error: updateError } = await supabase
+                    .from('officials_accounts')
+                    .update({ password: hashPassword(newPassword) })
+                    .eq('account_id', userData.accountId);
+                
+                if (updateError) throw updateError;
+            } else {
+                const { error: updateError } = await supabase
+                    .from('residents_account')
+                    .update({ password: hashPassword(newPassword) })
                     .eq('resident_id', userData.accountId);
-            } catch(ignoreErr) {}
+
+                if (updateError) throw updateError;
+
+                try {
+                    await supabase.from('residents_account')
+                        .update({ requires_reset: false })
+                        .eq('resident_id', userData.accountId);
+                } catch(ignoreErr) {}
+            }
 
             otpStore.delete(targetEmail);
 
