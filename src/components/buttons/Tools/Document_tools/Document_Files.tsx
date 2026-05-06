@@ -36,6 +36,12 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
     guardianResidency: '',
     tableRows: [['', '', '']],
 
+    // 🎯 NEW: typed witness records — surfaces in the Affidavit & Jobseeker schemas
+    // and is also editable in the document preview itself.
+    witnesses: initialData?.witnesses || [
+      { name: '', address: '', contactNo: '' }
+    ],
+
     // Force manual creations and newly opened Pending requests straight to 'Processing'
     status: (!initialData?.status || initialData?.status === 'Pending') ? 'Processing' : initialData.status,
 
@@ -64,8 +70,49 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
         newTableRows[rIdx][cIdx] = value;
         return { ...prev, tableRows: newTableRows };
       }
+      // 🎯 NEW: route witness-N-field edits coming from the preview (witness-0-name, etc.)
+      // back into docConfig.witnesses. The schema renders these with editableKey="witness-N-field".
+      if (key.startsWith('witness-')) {
+        const parts = key.split('-');
+        const wIdx = parseInt(parts[1]);
+        const field = parts[2]; // 'name' | 'address' | 'contactNo'
+        const newWitnesses = [...(prev.witnesses || [])];
+        if (!newWitnesses[wIdx]) newWitnesses[wIdx] = { name: '', address: '', contactNo: '' };
+        // Strip HTML wrappers so saved values are clean plain text
+        const plain = value.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+        newWitnesses[wIdx] = { ...newWitnesses[wIdx], [field]: plain };
+        return { ...prev, witnesses: newWitnesses };
+      }
       // Standard text edits
       return { ...prev, [key]: value };
+    });
+  };
+
+  // 🎯 NEW: witness row handlers (sidebar input table)
+  const handleWitnessChange = (idx: number, field: 'name' | 'address' | 'contactNo', value: string) => {
+    setDocConfig(prev => {
+      const newWitnesses = [...(prev.witnesses || [])];
+      if (!newWitnesses[idx]) newWitnesses[idx] = { name: '', address: '', contactNo: '' };
+      newWitnesses[idx] = { ...newWitnesses[idx], [field]: value };
+      return { ...prev, witnesses: newWitnesses };
+    });
+  };
+
+  const handleAddWitness = () => {
+    setDocConfig(prev => ({
+      ...prev,
+      witnesses: [...(prev.witnesses || []), { name: '', address: '', contactNo: '' }]
+    }));
+  };
+
+  const handleRemoveWitness = (idx: number) => {
+    setDocConfig(prev => {
+      const newWitnesses = (prev.witnesses || []).filter((_: any, i: number) => i !== idx);
+      // Always keep at least one row so the schema has something to render
+      return {
+        ...prev,
+        witnesses: newWitnesses.length > 0 ? newWitnesses : [{ name: '', address: '', contactNo: '' }]
+      };
     });
   };
 
@@ -126,6 +173,10 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
   }, [autoFilledAddress]);
 
   const isJobseeker = docConfig.type === 'Barangay Certification';
+  const isAffidavit = docConfig.type === 'Affidavit of Barangay Official';
+  // 🎯 Witnesses are now AFFIDAVIT-ONLY (the Jobseeker has its own "Witnessed by" line
+  // baked into the schema; it doesn't need a separate witness input table).
+  const showWitnesses = isAffidavit;
 
   return (
     <div className="doc-app-shell">
@@ -144,7 +195,7 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
             <div className="tool-divider"></div>
             <button className="tool-btn">≡</button>
             <button className="tool-btn">→</button>
-            <button className="tool-btn">💾</button>
+            {/* 🎯 Save (💾) tool removed — saving is handled exclusively by the Print/Download flow */}
           </div>
         </div>
 
@@ -364,6 +415,106 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
                     onChange={handleInputChange}
                   />
                 </div>
+              </div>
+            )}
+
+            {/* 🎯 NEW: Witnesses input table (Affidavit + Jobseeker only) */}
+            {showWitnesses && (
+              <div className="dynamic-fade-in" style={{ marginTop: '20px' }}>
+                <div className="section-label text-purple">👥 WITNESSES</div>
+                <div className="doc-hint-text" style={{ fontSize: '11px', color: '#666', marginBottom: '10px' }}>
+                  Enter the witnesses for this affidavit. They also appear directly editable in the document preview.
+                </div>
+
+                {(docConfig.witnesses || []).map((w: any, i: number) => (
+                  <div
+                    key={i}
+                    style={{
+                      marginBottom: '10px',
+                      padding: '10px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      background: '#fafafa',
+                      position: 'relative',
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 'bold',
+                        color: '#666',
+                        marginBottom: '6px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <span>WITNESS #{i + 1}</span>
+                      {(docConfig.witnesses || []).length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveWitness(i)}
+                          style={{
+                            background: 'transparent',
+                            border: '1px solid #c0392b',
+                            color: '#c0392b',
+                            cursor: 'pointer',
+                            fontSize: '10px',
+                            padding: '2px 8px',
+                            borderRadius: '3px',
+                          }}
+                        >
+                          ✕ Remove
+                        </button>
+                      )}
+                    </div>
+                    <div className="field-group">
+                      <label>NAME</label>
+                      <input
+                        type="text"
+                        className="strict-input"
+                        placeholder="Full name"
+                        value={w.name || ''}
+                        onChange={(e) => handleWitnessChange(i, 'name', e.target.value)}
+                      />
+                    </div>
+                    <div className="field-group">
+                      <label>ADDRESS</label>
+                      <input
+                        type="text"
+                        className="strict-input"
+                        placeholder="Complete address"
+                        value={w.address || ''}
+                        onChange={(e) => handleWitnessChange(i, 'address', e.target.value)}
+                      />
+                    </div>
+                    <div className="field-group">
+                      <label>CONTACT NO</label>
+                      <input
+                        type="text"
+                        className="strict-input"
+                        placeholder="e.g. 09171234567"
+                        value={w.contactNo || ''}
+                        onChange={(e) => handleWitnessChange(i, 'contactNo', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  className="btn-print"
+                  style={{
+                    width: '100%',
+                    background: '#f0f0f0',
+                    color: '#333',
+                    border: '1px dashed #999',
+                    marginTop: '4px',
+                  }}
+                  onClick={handleAddWitness}
+                >
+                  + Add Another Witness
+                </button>
               </div>
             )}
 

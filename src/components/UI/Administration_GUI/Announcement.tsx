@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import Announcement_modal from '../../buttons/Announcement_modal';
 import './styles/Announcement.css';
-import { ApiService } from '../api'; // <--- Using the Universal Service
+import { ApiService } from '../api'; 
 
 export interface IAnnouncement {
   id: string;
@@ -25,19 +25,24 @@ export default function AnnouncementPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<IAnnouncement | null>(null);
 
-  /**
-   * REFACTORED FETCH: Uses the Universal Handshake
-   */
   const fetchAnnouncements = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      // THE HANDSHAKE: Service handles headers and auth rejection internally
       const data = await ApiService.getAnnouncements(signal);
-
-      // If null, handshake was rejected (api.ts already triggered logout)
       if (data === null) return;
 
-      setAnnouncements(data);
+      const now = new Date();
+      
+      // Process data: mark as Archived if the expiration date has passed
+      const processedData = data.map((item: IAnnouncement) => {
+        const isExpired = new Date(item.expires_at) < now;
+        return {
+          ...item,
+          status: isExpired ? 'Archived' : item.status
+        };
+      });
+
+      setAnnouncements(processedData);
     } catch (err: any) {
       if (err.name !== 'AbortError') {
         console.error("Bulletin Sync Error:", err);
@@ -53,15 +58,11 @@ export default function AnnouncementPage() {
     return () => valve.abort();
   }, [fetchAnnouncements]);
 
-  /**
-   * REFACTORED DELETE: Uses the Universal Trigger
-   */
   const handleDelete = async (id: string) => {
     if (!window.confirm("Permanently delete this announcement? This action is logged.")) return;
     
     try {
       const result = await ApiService.deleteAnnouncement(id);
-      
       if (result.success) {
         fetchAnnouncements();
       } else {
@@ -80,9 +81,13 @@ export default function AnnouncementPage() {
   // --- FILTER LOGIC ---
   const filteredList = useMemo(() => {
     return announcements.filter(a => {
+      // EXCLUDE ARCHIVED/EXPIRED ANNOUNCEMENTS FROM THIS VIEW
+      if (a.status === 'Archived') return false;
+
       const matchesSearch = (a.title?.toLowerCase() || "").includes(searchTerm.toLowerCase()) || 
                             (a.content?.toLowerCase() || "").includes(searchTerm.toLowerCase());
       const matchesPriority = priorityFilter === 'All' || a.priority === priorityFilter;
+      
       return matchesSearch && matchesPriority;
     });
   }, [announcements, searchTerm, priorityFilter]);
@@ -134,7 +139,7 @@ export default function AnnouncementPage() {
                 Syncing bulletin...
               </div>
             ) : filteredList.length === 0 ? (
-              <div className="ANN_EMPTY_STATE">No announcements found in the registry.</div>
+              <div className="ANN_EMPTY_STATE">No active announcements found.</div>
             ) : (
               filteredList.map(item => (
                 <div key={item.id} className="ANN_ITEM_ROW">
@@ -149,9 +154,11 @@ export default function AnnouncementPage() {
                   <div className="ANN_INFO_BOX">
                     <div className="ANN_TOP_LINE">
                       <h4>{item.title}</h4>
-                      <span className={`PRIO_BADGE ${item.priority?.toLowerCase() || 'low'}`}>
-                        {item.priority}
-                      </span>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <span className={`PRIO_BADGE ${item.priority?.toLowerCase() || 'low'}`}>
+                          {item.priority}
+                        </span>
+                      </div>
                     </div>
                     
                     <div className="ANN_CAT_TAG">{item.category}</div>

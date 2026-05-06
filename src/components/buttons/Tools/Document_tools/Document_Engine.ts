@@ -34,6 +34,17 @@ export interface DocumentSchema {
   compile: (payload: DocumentPayload) => RenderInstruction[];
 }
 
+// 🎯 Keys listed here keep their value but are FORBIDDEN from being edited inline in the
+// document preview. Used to lock down official signatures (Punong Barangay, Kagawad) so
+// admins can't rename them by accident through contentEditable. Even if a schema still
+// has an `editableKey: 'captainName'` left over, this denylist neutralizes it.
+const PROTECTED_EDITABLE_KEYS = [
+  'captainName',
+  'kagawadName',
+  'punongBarangayName',
+  'brgyCaptainName',
+];
+
 export const useDocumentEngine = (
   docConfig: EngineConfig,
   captainName: string,
@@ -83,17 +94,23 @@ export const useDocumentEngine = (
       activeSchema,
       payload,
       (key, value) => {
+        // 🎯 Belt-and-suspenders: silently drop any edit that targets a protected key.
+        // This is a no-op since the renderer also strips contentEditable on these,
+        // but it guarantees state never gets corrupted by a stale schema or a
+        // browser quirk that fires onBlur on a non-editable element.
+        if (PROTECTED_EDITABLE_KEYS.includes(key)) return;
         if (onEditRef.current) {
           onEditRef.current(key, value);
         }
-      }
+      },
+      { protectedEditableKeys: PROTECTED_EDITABLE_KEYS }
     );
 
     setPages(virtualDocumentMap.pages);
     setWordCount(virtualDocumentMap.totalWords);
   }, [docConfig, captainName, kagawadName, activeSchema]);
 
-  // --- THE COMPILER (Final Vector PDF & Auto-Complete for Walk-in) ---
+  // --- THE COMPILER (Final Vector PDF & Auto-Complete for ALL Admin-Processed Docs) ---
   const handleSaveAndDownload = useCallback(async () => {
     if (!docConfig.residentName || !docConfig.address) {
       alert('Missing critical resident information.');
@@ -114,40 +131,41 @@ export const useDocumentEngine = (
       const fileName = `${docConfig.type.replace(/\s+/g, '_')}_${docConfig.residentName}.pdf`;
       pdfInstance.save(fileName);
 
-      // Step 2: Determine Walk-in vs Online and whether a DB record already exists
-      const isWalkIn = (docConfig.requestMethod || 'Walk-in') === 'Walk-in';
+      // Step 2: Determine record state
+      // 🎯 SURGICAL FIX: Any document admin processes through this UI is, by definition,
+      // physically completed at the counter — so it's ALWAYS marked 'Completed', whether the
+      // original request came in as Walk-in or Online. Walk-in is the default for new manual
+      // entries; Online requests get promoted from Processing → Completed once the admin prints.
       const existingId = docConfig.id;
-      
-      // 🎯 THE FIX: Parse the price exactly here so it is guaranteed to be a pure number
       const finalPrice = parseFloat(docConfig.feesPaid) || 0;
+      const recordedMethod = docConfig.requestMethod || 'Walk-in';
 
-      if (isWalkIn && existingId) {
+      if (existingId) {
         // ─────────────────────────────────────────────────────────────────
-        // CASE A: Walk-in opened from the pending queue (record already exists)
-        // → PATCH the existing row to 'Completed' via the correct endpoint.
-        // 🎯 THE FIX: The parsed fee is passed as the 4th argument to the API
+        // CASE A: Record already exists in the queue (Walk-in pending OR Online request)
+        // → PATCH to 'Completed' regardless of source.
         // ─────────────────────────────────────────────────────────────────
         await updateDocumentStatus(existingId, 'Completed', undefined, finalPrice);
 
       } else {
         // ─────────────────────────────────────────────────────────────────
         // CASE B: Brand-new manual Walk-in (no prior DB record)
+        // → INSERT directly as Completed.
         // ─────────────────────────────────────────────────────────────────
         const newRecord = await saveDocumentRecord({
           resident_id: docConfig.residentId || 'MANUAL_ENTRY',
           resident_name: docConfig.residentName,
           type: docConfig.type,
           purpose: docConfig.purpose || 'Walk-in Request',
-          price: finalPrice, // 🎯 Price included on initial insert
-          status: isWalkIn ? 'Completed' : 'Processing', 
+          price: finalPrice,
+          status: 'Completed', // 🎯 admin manual processing → always Completed
           reference_no: `WK-IN-${Date.now().toString().slice(-6)}`,
           date_requested: new Date().toISOString(),
-          request_method: isWalkIn ? 'Walk-in' : 'Online',
+          request_method: recordedMethod,
         });
 
-        // 🎯 THE FIX: Pass finalPrice in the secondary PATCH request as well
-        // to forcefully overwrite the database status AND price
-        if (isWalkIn && newRecord?.id) {
+        // Belt-and-suspenders: enforce status + price even if the insert defaulted them.
+        if (newRecord?.id) {
           await updateDocumentStatus(newRecord.id, 'Completed', undefined, finalPrice);
         }
       }

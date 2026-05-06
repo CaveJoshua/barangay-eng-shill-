@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ApiService } from '../api';
-import './styles/Notification_system.css';
+import './styles/NotificationSystem.css';
 
 // ─── INTERFACES ──────────────────────────────────────────────────────────────
 interface DatabaseNotification {

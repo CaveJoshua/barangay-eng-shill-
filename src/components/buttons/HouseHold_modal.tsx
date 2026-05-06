@@ -47,8 +47,8 @@ const initialHouseholdState: IHouseholdForm = {
   members: []
 };
 
-// ─── STANDARD RELATIONSHIPS ───
-const PRESET_RELATIONS = ['Spouse', 'Child', 'Parent', 'Sibling', 'Grandfather', 'Grandmother'];
+// ─── STANDARD RELATIONSHIPS (Boarder included) ───
+const PRESET_RELATIONS = ['Spouse', 'Child', 'Parent', 'Sibling', 'Grandfather', 'Grandmother', 'Boarder'];
 
 // ─── SUB-COMPONENT: MEMBER ROW ───
 const MemberRow = ({ member, onUpdate, onRemove, residents, headId, currentMemberIds }: { 
@@ -65,17 +65,16 @@ const MemberRow = ({ member, onUpdate, onRemove, residents, headId, currentMembe
   const safeName = member.name || "";
   
   // 🛡️ DYNAMIC "OTHER" STATE LOGIC
-  // If the member's relation exists but isn't in our preset list, it must be a custom "Other" entry.
   const [isCustomRelation, setIsCustomRelation] = useState(() => {
     if (!member.relation) return false;
     return !PRESET_RELATIONS.includes(member.relation);
   });
   
-  // 🛡️ SMART FILTER: Hide the Head and already selected members from the dropdown
+  // 🛡️ SMART FILTER
   const filtered = residents.filter(r => {
     if (!r.name.toLowerCase().includes(safeName.toLowerCase())) return false;
-    if (String(r.id) === String(headId)) return false; // Block the current Family Head
-    if (currentMemberIds.includes(r.id) && r.id !== member.record_id) return false; // Block duplicates
+    if (String(r.id) === String(headId)) return false; 
+    if (currentMemberIds.includes(r.id) && r.id !== member.record_id) return false; 
     return true;
   });
 
@@ -93,7 +92,7 @@ const MemberRow = ({ member, onUpdate, onRemove, residents, headId, currentMembe
     const val = e.target.value;
     if (val === 'Other') {
       setIsCustomRelation(true);
-      onUpdate(member.ui_key, 'relation', ''); // Clear it so they can type a fresh custom relation
+      onUpdate(member.ui_key, 'relation', ''); 
     } else {
       setIsCustomRelation(false);
       onUpdate(member.ui_key, 'relation', val);
@@ -103,7 +102,7 @@ const MemberRow = ({ member, onUpdate, onRemove, residents, headId, currentMembe
   return (
     <tr ref={wrapperRef} className="HP_TABLE_ROW">
       {/* 1. Name Search Cell */}
-      <td className="HP_RELATIVE_CELL" style={{ verticalAlign: 'top', paddingTop: '12px' }}>
+      <td className="HP_MEMBER_CELL HP_RELATIVE_CELL">
         <div className="HP_COMBOBOX_WRAP">
           <input 
             className="HP_MEMBER_FIELD" 
@@ -119,7 +118,7 @@ const MemberRow = ({ member, onUpdate, onRemove, residents, headId, currentMembe
           {isDropdownOpen && safeName && (
             <div className="HP_DROP_RESULTS">
               {filtered.length === 0 ? (
-                <div className="HP_DROP_ITEM" style={{ color: '#94a3b8', fontStyle: 'italic', cursor: 'default' }}>
+                <div className="HP_DROP_ITEM HP_DROP_ITEM_EMPTY">
                   No matches (or already added to household)
                 </div>
               ) : (
@@ -141,8 +140,8 @@ const MemberRow = ({ member, onUpdate, onRemove, residents, headId, currentMembe
       </td>
 
       {/* 2. Relation Dropdown & Custom Input Cell */}
-      <td style={{ verticalAlign: 'top', paddingTop: '12px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <td className="HP_MEMBER_CELL">
+        <div className="HP_RELATION_WRAP">
           <select 
             className="HP_MEMBER_FIELD" 
             value={isCustomRelation ? "Other" : (member.relation || "")} 
@@ -159,24 +158,23 @@ const MemberRow = ({ member, onUpdate, onRemove, residents, headId, currentMembe
           {isCustomRelation && (
             <input 
               type="text" 
-              className="HP_MEMBER_FIELD" 
-              placeholder="E.g., Uncle, Niece, Cousin..." 
+              className="HP_MEMBER_FIELD HP_CUSTOM_RELATION_INPUT" 
+              placeholder="E.g., Uncle, Niece..." 
               value={member.relation} 
               onChange={(e) => onUpdate(member.ui_key, 'relation', e.target.value)}
               autoFocus
-              style={{ borderLeft: '3px solid var(--da-blue)', paddingLeft: '12px' }}
             />
           )}
         </div>
       </td>
 
       {/* 3. Age Cell */}
-      <td className="HP_AGE_DISPLAY_CELL" style={{ verticalAlign: 'top', paddingTop: '20px' }}>
-        {member.age ? `${member.age} yo` : '-'}
+      <td className="HP_MEMBER_CELL HP_AGE_CELL">
+        {member.age ? `${member.age} yrs` : ''}
       </td>
 
       {/* 4. Action Cell */}
-      <td className="HP_CENTERED_ACTION_CELL" style={{ verticalAlign: 'top', paddingTop: '12px' }}>
+      <td className="HP_MEMBER_CELL HP_CENTERED_ACTION_CELL">
         <button type="button" className="HP_REMOVE_ROW_BTN" onClick={() => onRemove(member.ui_key)} title="Remove Member">
           <i className="fas fa-times"></i>
         </button>
@@ -419,7 +417,7 @@ export default function HouseHold_modal({ onClose, onSaveSuccess, initialData }:
                   {isHeadDropdownOpen && safeHeadName && (
                     <div className="HP_DROP_RESULTS">
                       {filteredHead.length === 0 ? (
-                        <div className="HP_DROP_ITEM" style={{ color: '#94a3b8', fontStyle: 'italic', cursor: 'default' }}>
+                        <div className="HP_DROP_ITEM HP_DROP_ITEM_EMPTY">
                           No matching residents found
                         </div>
                       ) : (
@@ -466,7 +464,16 @@ export default function HouseHold_modal({ onClose, onSaveSuccess, initialData }:
           <div className="HP_FORM_SECTION">
             <div className="HP_SECTION_INDICATOR">2. Assign Family Members</div>
             
+            {/* 🛡️ ADDED: Proper semantic table setup with a Thead to make it look like a real data table */}
             <table className="HP_MEMBERS_TABLE">
+              <thead className="HP_MEMBERS_HEAD">
+                <tr>
+                  <th className="HP_TH_NAME">Resident Name</th>
+                  <th className="HP_TH_RELATION">Relationship</th>
+                  <th className="HP_TH_AGE">Age</th>
+                  <th className="HP_TH_ACTION"></th>
+                </tr>
+              </thead>
               <tbody className="HP_MEMBERS_BODY">
                 {formData.members.map(m => (
                   <MemberRow 
@@ -483,7 +490,7 @@ export default function HouseHold_modal({ onClose, onSaveSuccess, initialData }:
             </table>
             
             <button className="HP_ADD_ROW_TRIGGER" onClick={addMemberRow} type="button">
-              <i className="fas fa-plus" style={{marginRight: '8px'}}></i> Add Member Row
+              <i className="fas fa-plus HP_ADD_ICON"></i> Add Member Row
             </button>
           </div>
 

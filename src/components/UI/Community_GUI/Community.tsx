@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Community_Preview, { type NewsItem } from '../../forms/Community_preview';
 import CommunityLoginModal from '../../buttons/Community_login_modal';
-import './C-Styles/Community.css';
+import './Styles/Community.css';
 import { API_BASE_URL } from '../api';
 
 // --- STRICT CATEGORY COLOR MAPPING ---
@@ -55,8 +55,23 @@ const Community: React.FC<CommunityProps> = ({ onExit, onLoginSuccess }) => {
 
   const filters = ['All', 'Public Advisory', 'Senior Citizen', 'Health & Safety', 'Youth & Sports', 'Community Project'];
 
+  // ── 🛡️ FILTER LOGIC WITH EXPIRATION CHECK ──
   const filteredNews = useMemo(() => {
-    return newsList.filter(n => activeFilter === 'All' || n.category === activeFilter);
+    const now = new Date(); // Get current date/time
+
+    return newsList.filter((n: any) => {
+      // 1. Hide anything explicitly marked as Archived
+      const isArchived = n.status === 'Archived';
+      
+      // 2. Hide anything where the expiration date has passed
+      const isExpired = n.expires_at ? new Date(n.expires_at) < now : false;
+
+      // If it's archived or expired, filter it out completely
+      if (isArchived || isExpired) return false;
+
+      // 3. Apply standard category filter
+      return activeFilter === 'All' || n.category === activeFilter;
+    });
   }, [newsList, activeFilter]);
 
   return (
@@ -120,7 +135,7 @@ const Community: React.FC<CommunityProps> = ({ onExit, onLoginSuccess }) => {
             {loading ? (
               <div className="C_LOADING_STATE">Syncing Bulletin Board...</div>
             ) : filteredNews.length === 0 ? (
-              <div className="C_EMPTY_STATE">No announcements available in this category.</div>
+              <div className="C_EMPTY_STATE">No active announcements available in this category.</div>
             ) : (
               filteredNews.map(news => {
                 const colorMap = CATEGORY_MAP[news.category] || { indicator: 'color-default', text: '' };

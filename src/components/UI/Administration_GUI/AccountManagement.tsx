@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import './styles/Account_Management.css';
+import './styles/AccountManagement.css';
 import { ApiService } from '../api'; 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -21,16 +21,16 @@ export default function AccountManagement() {
   const [isSuperAdmin,       setIsSuperAdmin]      = useState<boolean | null>(null);
 
   const [accounts,         setAccounts]        = useState<IAccount[]>([]);
-  const [error,             setError]           = useState('');
-  const [isSyncing,         setIsSyncing]       = useState(false);
-  const [activeTab,         setActiveTab]       = useState<TabState>('Officials');
+  const [error,            setError]           = useState('');
+  const [isSyncing,        setIsSyncing]       = useState(false);
+  const [activeTab,        setActiveTab]       = useState<TabState>('Officials');
   const [searchTerm,        setSearchTerm]      = useState('');
   const [selectedAccount,   setSelectedAccount] = useState<IAccount | null>(null);
-  const [isResetOpen,       setIsResetOpen]     = useState(false);
-  const [newPassword,       setNewPassword]     = useState('');
+  const [isResetOpen,      setIsResetOpen]     = useState(false);
+  const [newPassword,      setNewPassword]     = useState('');
 
   // ── PAGINATION STATE ──
-  const [currentPage,       setCurrentPage]     = useState(1);
+  const [currentPage,      setCurrentPage]     = useState(1);
 
   // ── SAFE REFS FOR THE HANDSHAKE ──
   const isFetching = useRef(false);
@@ -172,16 +172,13 @@ export default function AccountManagement() {
     );
   }
 
+  // ── UPDATED DESIGN: Only shows "Authorized access only" ──
   if (isSuperAdmin === false) {
     return (
       <div className="ACC_PAGE_WRAP">
-        <div className="ACC_MAIN_CONTAINER" style={{ textAlign: 'center', padding: '100px 20px', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-          <i className="fas fa-shield-alt" style={{ fontSize: '4rem', color: '#ef4444', marginBottom: '20px' }}></i>
-          <h2 style={{ color: '#1e293b', fontSize: '2rem', marginBottom: '10px', fontWeight: 700 }}>Access Restricted</h2>
-          <p style={{ color: '#64748b', fontSize: '1.1rem', maxWidth: '400px', margin: '0 auto' }}>
-            You do not have the required security clearance to view this module. <br /><br />
-            This page is strictly reserved for <strong>Superadmin</strong> personnel.
-          </p>
+        <div className="ACC_MAIN_CONTAINER" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center' }}>
+          <i className="fas fa-lock" style={{ fontSize: '4rem', color: '#ef4444', marginBottom: '1.5rem' }}></i>
+          <h2 style={{ color: '#0f172a', fontSize: '2rem', fontWeight: 700 }}>Authorized access only</h2>
         </div>
       </div>
     );

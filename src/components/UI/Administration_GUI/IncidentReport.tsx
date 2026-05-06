@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { FileComponent } from '../../buttons/Tools/Blotter_File'; 
-import './styles/Blotter.css';
+import { FileComponent } from '../../buttons/Tools/Admin_Incident_Report'; 
+import './styles/IncidentReport.css';
 import { ApiService } from '../api'; 
 
 interface IIncidentCase {

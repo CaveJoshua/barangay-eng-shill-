@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { ApiService } from '../../UI/api'; // 🎯 THE FIX: Import ApiService for direct fetching
-import "./C-Styles/Community_Notification.css";
+import { ApiService } from '../api'; // 🎯 THE FIX: Import ApiService for direct fetching
+import "./Styles/Community_Notification.css";
 
 interface NotificationProps {
   notifications?: any[]; 
@@ -57,23 +57,28 @@ const Community_Notification: React.FC<NotificationProps> = ({ notifications: db
   // ── 🔍 GENERATE NOTIFICATIONS FROM DATA ──
   const notificationsList = useMemo(() => {
     const list: any[] = [];
+    const now = new Date(); // Current time to check against expirations
 
     // 1. 🛡️ REAL DATABASE NOTIFICATIONS (Using the instantly fetched state)
     liveNotifications?.forEach((notif) => {
-      let icon = 'fas fa-bell';
-      let color = '#3b82f6'; // Default blue
+      
+      // EXPIRATION CHECK: If an expiration date exists and has passed, hide it immediately
+      const isExpired = notif.expires_at ? new Date(notif.expires_at) < now : false;
 
-      // Match the icon/color to the type
-      if (notif.type === 'document') {
-        icon = 'fas fa-file-alt';
-        color = '#10b981'; // Green
-      } else if (notif.type === 'blotter') {
-        icon = 'fas fa-shield-alt';
-        color = '#f59e0b'; // Orange
-      }
+      // Only show unread, non-expired notifications
+      if (!notif.is_read && !isExpired) {
+        let icon = 'fas fa-bell';
+        let color = '#3b82f6'; // Default blue
 
-      // Only show unread notifications in the bell
-      if (!notif.is_read) {
+        // Match the icon/color to the type
+        if (notif.type === 'document') {
+          icon = 'fas fa-file-alt';
+          color = '#10b981'; // Green
+        } else if (notif.type === 'blotter') {
+          icon = 'fas fa-shield-alt';
+          color = '#f59e0b'; // Orange
+        }
+
         list.push({
           id: `db-${notif.id}`,
           type: notif.type,

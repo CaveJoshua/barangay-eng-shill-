@@ -8,7 +8,6 @@ const REQUEST_TIMEOUT_MS   = 15_000;  // Hard limit per fetch call
 const REFRESH_TIMEOUT_MS   = 10_000;  // Refresh endpoint must respond within this
 const FAILOVER_RECOVERY_MS = 60_000;  // Try primary again after this interval
 
-
 const failover = {
   active:        false,
   recoveryTimer: null as ReturnType<typeof setTimeout> | null,
@@ -67,11 +66,6 @@ export const CAPTCHA_VERIFY_API    = `${API_BASE_URL}/captcha/verify`;
 // ── CSRF HELPER ────────────────────────────────────────────────────────────────
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
-/**
- * FIX [5]: Original regex did not URI-decode cookie values.
- * Servers that URL-encode the token (e.g. base64 padding "=" → "%3D")
- * caused silent CSRF validation failures on the backend.
- */
 const getCsrfToken = (): string | null => {
   const match = document.cookie.match(/(?:^| )XSRF-TOKEN=([^;]+)/);
   return match ? decodeURIComponent(match[1]) : null;
@@ -84,9 +78,6 @@ export const getAuthHeaders = (isFormData = false, method = 'GET'): Record<strin
     headers['Content-Type'] = 'application/json';
   }
 
-  // ⚠️  SECURITY NOTE: localStorage is accessible to JavaScript on the same
-  // origin, including injected scripts (XSS). HttpOnly SameSite=Strict cookies
-  // are the OWASP-recommended storage for JWTs. Kept as-is for backward compat.
   const token = localStorage.getItem('access_token');
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
@@ -101,11 +92,6 @@ export const getAuthHeaders = (isFormData = false, method = 'GET'): Record<strin
 };
 
 // ── SESSION CLEANUP ────────────────────────────────────────────────────────────
-/**
- * FIX [6]: Central list of all session keys.
- * Previously each logout/redirect handler maintained its own list that
- * could silently drift out of sync when new keys were added.
- */
 const SESSION_KEYS = [
   'access_token',
   'account_id',
@@ -124,18 +110,6 @@ const handleAuthFailure = (): void => {
 };
 
 // ── REFRESH MUTEX ──────────────────────────────────────────────────────────────
-/**
- * FIX [2]: Original code used isRefreshing + refreshPromise and only
- * reset them inside .then(). If the fetch itself threw (network crash
- * during refresh), isRefreshing stayed true permanently — silent deadlock
- * where no further refresh was ever attempted for the rest of the session.
- *
- * This version uses a single nullable Promise and resets it in .finally(),
- * which fires regardless of success or failure.
- *
- * Thundering-herd protection: N concurrent 401s all await the same promise
- * instead of firing N parallel refresh calls to the server.
- */
 let refreshMutex: Promise<boolean> | null = null;
 
 const attemptSilentRefresh = (): Promise<boolean> => {
@@ -164,22 +138,13 @@ const attemptSilentRefresh = (): Promise<boolean> => {
     })
     .finally(() => {
       clearTimeout(timeoutId);
-      refreshMutex = null; // Always release — even on throw
+      refreshMutex = null; 
     });
 
   return refreshMutex;
 };
 
 // ── TIMEOUT HELPER ─────────────────────────────────────────────────────────────
-/**
- * FIX [3]: No fetch had a timeout. A stalled TCP connection (connected but
- * sending no data) would hang every caller for up to the OS default ~2 min.
- * With 10 pages polling simultaneously, this caused full app freezes.
- *
- * Returns [signal, cancel]:
- * signal — fires on the earlier of hard timeout OR caller unmount
- * cancel — call after a successful response to clear the internal timer
- */
 const withTimeout = (callerSignal?: AbortSignal): [AbortSignal, () => void] => {
   const controller = new AbortController();
   const timeoutId  = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -222,7 +187,6 @@ const valveFetch = async (url: string, signal?: AbortSignal, isRetry = false): P
       return null;
     }
 
-    // 🛡️ CAPTCHA TRAP
     if (response.status === 428) {
       console.warn(`[SECURITY] Bot behavior detected on ${url}. Triggering CAPTCHA...`);
       window.dispatchEvent(new CustomEvent('trigger-captcha'));
@@ -247,12 +211,6 @@ const valveFetch = async (url: string, signal?: AbortSignal, isRetry = false): P
 
     if (err?.name === 'AbortError') return null;
 
-    /**
-     * FIX [4]: Original had no isRetry guard here. If cloud was also
-     * unreachable, failover.activate() would be a noop (already active) and
-     * the function would recurse indefinitely — stack overflow.
-     * Guard: only trigger fail-safe on the first attempt.
-     */
     if (!isRetry && isNetworkFailure(err) && CLOUD_API_URL) {
       failover.activate();
       return valveFetch(url, signal, isRetry);
@@ -264,11 +222,6 @@ const valveFetch = async (url: string, signal?: AbortSignal, isRetry = false): P
 };
 
 // ── TRIGGER — MUTATIONS (POST / PUT / PATCH / DELETE) ─────────────────────────
-/**
- * FIX [7]: Added optional signal parameter (4th arg, before isRetry).
- * Fully backward-compatible — all existing callers that pass (url, method, body)
- * continue to work without any changes.
- */
 const triggerAction = async (
   url:     string,
   method:  'POST' | 'PATCH' | 'PUT' | 'DELETE',
@@ -308,7 +261,6 @@ const triggerAction = async (
       return { success: false, error: 'Access denied. You do not have permission for this action.' };
     }
 
-    // 🛡️ CAPTCHA TRAP
     if (response.status === 428) {
       console.warn(`[SECURITY] Bot behavior detected on ${url}. Triggering CAPTCHA...`);
       window.dispatchEvent(new CustomEvent('trigger-captcha'));
@@ -335,7 +287,6 @@ const triggerAction = async (
       return { success: false, error: 'Request was cancelled.' };
     }
 
-    // Same guard as valveFetch — only trigger fail-safe on first attempt
     if (!isRetry && isNetworkFailure(err) && CLOUD_API_URL) {
       failover.activate();
       return triggerAction(url, method, body, signal, isRetry);
@@ -346,8 +297,22 @@ const triggerAction = async (
   }
 };
 
+// ── FAST-BOOT PROFILE DEDUPLICATION (MUTEX) ──────────────────────────────────
+// This forces multiple components loading on boot to share ONE network request.
+let profileFetchMutex: Promise<any> | null = null;
+let lastProfileId: string | null = null;
+
 // ── MASTERMIND SERVICE MAP ─────────────────────────────────────────────────────
 export const ApiService = {
+
+  // ── AUTH LOGIN (RESTORED) ───────────────────────────────────────────────────
+  adminLogin: (
+    payload: { username: string; password?: string; otp?: string; trace_id?: string },
+    signal?: AbortSignal,
+  ) => triggerAction(LOGIN_API, 'POST', payload, signal),
+
+  rootHandshake: (signal?: AbortSignal) =>
+    triggerAction(`${API_BASE_URL}/auth/root-request`, 'POST', { username: 'SYSTEM_ROOT_ADMIN' }, signal),
 
   // ── OTP / PASSWORD RESET ────────────────────────────────────────────────────
   requestPasswordResetOTP: (email: string) =>
@@ -359,9 +324,21 @@ export const ApiService = {
   updatePassword: (email: string, otp: string, newPassword: string) =>
     triggerAction(AUTH_PASSWORD_UPDATE, 'POST', { email, otp, newPassword }),
 
-  // ── IDENTITY & PROFILE ──────────────────────────────────────────────────────
-  getProfile: (id: string, signal?: AbortSignal) =>
-    valveFetch(`${PROFILE_API}/${id}`, signal),
+  // ── IDENTITY & PROFILE (OPTIMIZED) ──────────────────────────────────────────
+  getProfile: (id: string, signal?: AbortSignal, forceSync = false) => {
+    // If a fetch is already running for this user, hijack it instead of creating a new one
+    if (!forceSync && profileFetchMutex && lastProfileId === id) {
+      return profileFetchMutex;
+    }
+    
+    lastProfileId = id;
+    profileFetchMutex = valveFetch(`${PROFILE_API}/${id}`, signal).finally(() => {
+      // Clear the mutex lock after 1.5 seconds so manual refreshes work normally later
+      setTimeout(() => { profileFetchMutex = null; }, 1500);
+    });
+    
+    return profileFetchMutex;
+  },
 
   updateProfile: (id: string, payload: any) =>
     triggerAction(`${PROFILE_API}/${id}`, 'PUT', payload),
@@ -383,7 +360,6 @@ export const ApiService = {
   getResidents: (signal?: AbortSignal) =>
     valveFetch(RESIDENTS_API, signal),
 
-  // 🛡️ NEW: Exposed Ledger Backfill Route
   triggerLedgerBackfill: () =>
     triggerAction(`${RESIDENTS_API}/ledger/backfill`, 'POST'),
 
@@ -443,7 +419,6 @@ export const ApiService = {
   getDocuments: (signal?: AbortSignal) =>
     valveFetch(DOCUMENTS_API, signal),
 
-  // 🛡️ NEW: Document Fetcher specifically for Community_Document.tsx
   getResidentDocuments: (residentId: string, signal?: AbortSignal) =>
     valveFetch(`${DOCUMENTS_API}/resident/${residentId}`, signal),
 
@@ -463,10 +438,9 @@ export const ApiService = {
     triggerAction(`${DOCUMENTS_API}/${id}`, 'DELETE'),
 
   // ── BLOTTER ─────────────────────────────────────────────────────────────────
-getBlotters: (signal?: AbortSignal) =>
+  getBlotters: (signal?: AbortSignal) =>
     valveFetch(BLOTTER_API, signal),
 
-  // 🛡️ THE MISSING FIX: Put this line back in so the Resident Dashboard can fetch incidents!
   getResidentBlotters: (residentId: string, signal?: AbortSignal) =>
     valveFetch(`${BLOTTER_API}/resident/${residentId}`, signal),
 
@@ -490,7 +464,7 @@ getBlotters: (signal?: AbortSignal) =>
   getAnalytics: (signal?: AbortSignal) =>
     valveFetch(ANALYTICS_API, signal),
 
-  // 🛡️ CAPTCHA VERIFICATION METHODS
+  // ── CAPTCHA ─────────────────────────────────────────────────────────────────
   getCaptchaChallenge: (signal?: AbortSignal) =>
     valveFetch(CAPTCHA_CHALLENGE_API, signal),
 

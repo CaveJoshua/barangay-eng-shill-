@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import './C-Styles/Community_Profile.css';
+import './Styles/Community_Profile.css';
 
 // ── 🎯 Using your existing modal ──
 import CommunityResetPasswordModal from '../../buttons/Community_Resetpassword_modal';

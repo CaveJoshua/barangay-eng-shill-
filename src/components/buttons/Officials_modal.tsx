@@ -201,6 +201,18 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
       return alert("Error: Service Start date is required for standard officials.");
     }
 
+    // 🔧 NEW VALIDATION: Mandatory Service End Date Check
+    if (!isBarangayHallMode && !formData.term_end) {
+      return alert("Warning: Service End date must be filled up to proceed.");
+    }
+
+    // 🔧 NEW VALIDATION: Logical Date Check
+    if (!isBarangayHallMode && formData.term_start && formData.term_end) {
+      if (new Date(formData.term_end) <= new Date(formData.term_start)) {
+        return alert("Warning: Service End date must be after the Service Start date.");
+      }
+    }
+
     if (isBarangayHallMode && (!verificationCode || !traceId)) {
       return alert("Error: You must request and verify the Gmail code before authorizing.");
     }
@@ -386,6 +398,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
                   <label>Service End</label>
                   <input 
                     type="date" 
+                    required // 🔧 Added native HTML required attribute
                     className={`OM_INPUT ${!!officialToEdit ? 'OM_INPUT_LOCKED' : ''}`} 
                     value={formData.term_end} 
                     // 🛡️ LOCK: Prevent modification once registered

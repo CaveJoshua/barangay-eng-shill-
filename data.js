@@ -104,7 +104,6 @@ export const authenticateToken = (req, res, next) => {
 // 2. GLOBAL MIDDLEWARE & SECURITY HEADERS
 // ==========================================
 
-
 // 🛡️ DYNAMIC CORS REPLACEMENT 🛡️
 const corsOptions = {
   origin: (origin, callback) => {
@@ -172,7 +171,7 @@ router.post('/login', async (req, res) => {
 
     const targetResidentId = accountData.resident_id || accountData.record_id;
     
-    // 🛡️ THE FIX: Select '*' so the frontend gets the email and ALL demographic data
+    // Select '*' so the frontend gets the email and ALL demographic data
     const { data: profileData } = await supabase
       .from('residents_records')
       .select('*') 
@@ -190,7 +189,9 @@ router.post('/login', async (req, res) => {
         role: accountData.role,
         user_role: accountData.role, 
         record_id: profileData ? profileData.record_id : null,
-        full_name: safeFullName 
+        full_name: safeFullName,
+        // 🛡️ THE FIX: Inject the precise position directly into the token payload
+        position: profileData?.position || accountData.role || 'Official'
       },
       JWT_SECRET,
       { expiresIn: '24h' }
@@ -198,7 +199,6 @@ router.post('/login', async (req, res) => {
 
     await logActivity(supabase, accountData.username, 'RESIDENT_LOGIN', 'Login successful');
 
-    // 🛡️ THE FIX: Inject the 'user' object into the response payload so the frontend can extract the email
     res.json({ 
         message: 'Login successful', 
         token, 
@@ -264,7 +264,6 @@ router.post('/announcements', authenticateToken, async (req, res) => {
 
         let secureImageUrl = null;
         
-        // 🛡️ THE FIX: Uses .includes('base64,') to allow ANY encoded image type (webp, png, jpeg, heic, generic streams)
         if (image_url && image_url.includes('base64,')) {
             console.log("Uploading new image to Cloudinary...");
             try {
@@ -308,7 +307,6 @@ router.put('/announcements/:id', authenticateToken, async (req, res) => {
         delete updates.id; 
         delete updates.created_at;
 
-        // 🛡️ THE FIX: Universal base64 acceptance for updates as well
         if (updates.image_url && updates.image_url.includes('base64,')) {
             console.log("Updating image on Cloudinary...");
             updates.image_url = await uploadImage(updates.image_url, 'barangay_announcements');
@@ -361,13 +359,18 @@ router.get('/stats', authenticateToken, async (req, res) => {
       supabase.from('audit_logs').select('*', { count: 'exact', head: true })
     ]);
 
+    // 🛡️ THE FIX: Server sends the synced identity data right alongside the stats
     res.status(200).json({
       stats: { 
         totalPopulation: pop.count || 0, 
         documentsIssued: doc.count || 0, 
         blotterCases: blot.count || 0, 
         systemActivities: act.count || 0 
-      }
+      },
+      barangayName: "Barangay Engineer's Hill",
+      systemName: "Smart Barangay",
+      adminName: req.user?.full_name || req.user?.username || 'Administrator',
+      position: req.user?.position || req.user?.role || 'Official'
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to retrieve system statistics.' });
@@ -383,6 +386,7 @@ router.get('/notifications/summary', authenticateToken, async (req, res) => {
             .from('document_requests')
             .select('id, resident_name, type, date_requested')
             .eq('status', 'Pending')
+            .not('tracking_code', 'ilike', '%WK-IN%')
             .order('date_requested', { ascending: false })
             .limit(10);
 
@@ -424,7 +428,8 @@ router.get('/notifications/badge-count', authenticateToken, async (req, res) => 
         const { count: docCount } = await supabase
             .from('document_requests')
             .select('*', { count: 'exact', head: true })
-            .eq('status', 'Pending');
+            .eq('status', 'Pending')
+            .not('tracking_code', 'ilike', '%WK-IN%');
 
         res.status(200).json({ count: docCount || 0 });
     } catch (err) {

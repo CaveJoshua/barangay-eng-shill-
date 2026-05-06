@@ -26,18 +26,28 @@ const checkSessionRole = (allowedRoles) => {
 // ==========================================
 // 🏷️ 2. UTILITIES
 // ==========================================
-// 🔧 UPDATED: Generates specific acronym prefixes (e.g., BH, PB, BK) for the new username format
 const getRolePrefix = (position) => {
     const pos = position.toLowerCase();
-    if (pos.includes('barangay hall') || pos.includes('super admin')) return 'BH'; 
-    if (pos.includes('punong')) return 'PB';         
-    if (pos.includes('secretary')) return 'BS';
-    if (pos.includes('treasurer')) return 'BT';
-    if (pos.includes('kagawad')) return 'BK';
-    if (pos.includes('sk')) return 'SK';
-    if (pos.includes('health worker')) return 'BHW';
-    if (pos.includes('nutrition scholar')) return 'BNS';
-    return 'STAFF';
+    if (pos.includes('barangay hall') || pos.includes('super admin')) return 'bh'; 
+    if (pos.includes('punong')) return 'pb';         
+    if (pos.includes('secretary')) return 'bs';
+    if (pos.includes('treasurer')) return 'bt';
+    if (pos.includes('kagawad')) return 'bk';
+    if (pos.includes('sk')) return 'sk';
+    if (pos.includes('health worker')) return 'bhw';
+    if (pos.includes('nutrition scholar')) return 'bns';
+    return 'staff';
+};
+
+// 🔧 NEW: Helper to extract lowercase initials from a full name
+const getInitials = (fullName) => {
+    if (!fullName) return 'x';
+    return fullName
+        .trim()
+        .split(/\s+/) // Splits by spaces
+        .map(word => word.charAt(0)) // Grabs the first letter of each word
+        .join('')
+        .toLowerCase();
 };
 
 const generateSecureCode = (length = 6) => {
@@ -73,7 +83,6 @@ export const OfficialsRouter = (router, supabase, authenticateToken) => {
             const { email } = req.body;
             if (!email || !email.includes('@')) return res.status(400).json({ error: "Valid Gmail is required for Master Account verification." });
 
-            // 🛡️ STRICT FIX: Annihilate any existing codes for this email before creating a new one
             for (const [key, value] of masterOtpStore.entries()) {
                 if (value.email === email.toLowerCase().trim()) {
                     masterOtpStore.delete(key);
@@ -86,7 +95,7 @@ export const OfficialsRouter = (router, supabase, authenticateToken) => {
             masterOtpStore.set(traceId, {
                 code: otpCode,
                 email: email.toLowerCase().trim(),
-                expires: Date.now() + 300000, // ⏱️ STRICT FIX: Reduced from 10 minutes to exactly 5 minutes
+                expires: Date.now() + 300000,
                 attempts: 0
             });
 
@@ -120,7 +129,6 @@ export const OfficialsRouter = (router, supabase, authenticateToken) => {
     router.post('/officials', authenticateToken, checkSessionRole(['barangayhall', 'admin', 'superadmin']), async (req, res) => {
         try {
             const { full_name, position, term_start, term_end, status, contact_number, otp, trace_id } = req.body;
-            // Catching both variants so it doesn't break if your frontend sends 'Super Admin'
             const isBarangayHall = position === 'Barangay Hall' || position === 'Super Admin';
 
             if (isBarangayHall) {
@@ -131,15 +139,15 @@ export const OfficialsRouter = (router, supabase, authenticateToken) => {
                     return res.status(403).json({ error: 'Invalid or missing handshake session.' });
                 }
                 if (Date.now() > record.expires) {
-                    masterOtpStore.delete(trace_id); // 🧹 Clears memory immediately
+                    masterOtpStore.delete(trace_id);
                     return res.status(400).json({ error: 'Verification code expired.' });
                 }
                 if (record.code !== otp.toUpperCase().trim()) {
                     record.attempts += 1;
-                    if (record.attempts >= 3) masterOtpStore.delete(trace_id); // 🧹 Lockout after 3 fails
+                    if (record.attempts >= 3) masterOtpStore.delete(trace_id);
                     return res.status(401).json({ error: 'Invalid verification code.' });
                 }
-                masterOtpStore.delete(trace_id); // 🧹 DESTROY code upon success so it can never be reused
+                masterOtpStore.delete(trace_id);
             }
 
             const { data: profile, error: profileError } = await supabase
@@ -156,22 +164,26 @@ export const OfficialsRouter = (router, supabase, authenticateToken) => {
 
             if (profileError) throw profileError;
 
-            // 🔧 UPDATED: Strict Username Generation (BH001@Engineershill.officials.eng-hill.brg.ph)
-            const prefix = getRolePrefix(position);
+            // 🔧 UPDATED: Dynamic Initials-based Username Generation
+            const prefix = getRolePrefix(position); // e.g., 'pb', 'bk'
+            const initials = getInitials(full_name); // e.g., 'fma'
+            
             const { count } = await supabase.from('officials_accounts').select('*', { count: 'exact', head: true });
             
-            const generatedId = `${prefix}${String((count || 0) + 1).padStart(3, '0')}`;
-            const finalUsername = `${generatedId}@Engineershill.officials.eng-hill.brg.ph`;
+            // Format: fma002
+            const generatedId = `${initials}${String((count || 0) + 1).padStart(3, '0')}`; 
+            
+            // Format: fma002@pb.officials.eng-hill.brg.ph
+            const finalUsername = `${generatedId}@${prefix}.officials.eng-hill.brg.ph`; 
             
             let plainPassword = "";
             let systemRole = isBarangayHall ? 'barangayhall' : (position.toLowerCase().includes('punong') ? 'barangayhall' : 'admin');
 
             if (isBarangayHall) {
-                // E.g. bh001123456
-                plainPassword = `${generatedId.toLowerCase()}123456`; 
+                plainPassword = `${generatedId}123456`;
             } else {
                 const nameParts = profile.full_name.trim().split(/\s+/);
-                plainPassword = `${nameParts[0].toLowerCase()}123456`;
+                plainPassword = `${nameParts[0].toLowerCase()}123456`; // Still uses first name for password (e.g., felizardo123456)
             }
 
             const { error: accountError } = await supabase

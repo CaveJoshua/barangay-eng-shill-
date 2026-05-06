@@ -28,7 +28,7 @@ export const AffidavitSchema: DocumentSchema = {
       // 2. Logo + stacked text header (matches photo exactly — no green banner)
       {
         type: 'logo_text_header',
-        alignOffset: -13, // Keep this at 0 since we're not trying to center under a second logo
+        alignOffset: -13,
         logoSrc: brgyLogo,
         logoSize: 22,
         heightInMm: 26,
@@ -115,50 +115,47 @@ export const AffidavitSchema: DocumentSchema = {
       },
       { type: 'spacer', heightInMm: 14 },
 
-      // 8. Signature block
-      //    LEFT column:  ":" marker
-      //    RIGHT column: captain name + title
-     {
-  type: 'columns',
-  heightInMm: 14,
-  columns: [
-    {
-      // 1. LEFT SIDE (The colon indicator)
-      align: 'center',
-      lines: [{ content: ':', fontSize: 11, isBold: false }],
-    },
-    {
-      // 2. RIGHT SIDE (The Kapitan)
-      // Changing this to 'center' makes the title stack perfectly under the name.
-      align: 'center', 
-      lines: [
-        { 
-          content: payload.captainName.toUpperCase(), 
-          isBold: true,  
-          fontSize: 12,
-          // 👇 NOW YOU CAN USE MM HERE (Example: 5, 10, or -10)
-          alignOffset: 0, 
-          editableKey: 'captainName' 
-        },
-        { 
-          content: 'Punong Barangay',                 
-          isBold: false, 
-          fontSize: 11,
-          // 👇 KEEP THIS NUMBER THE SAME AS ABOVE to move them as one unit
-          alignOffset: 0 
-        },
-      ],
-    },
-  ],
-},
+      // 8. Signature block — Punong Barangay name is LOCKED (not user-editable).
+      //    The previous `editableKey: 'captainName'` has been removed so the name
+      //    can never be accidentally renamed via inline editing in the preview.
+      {
+        type: 'columns',
+        heightInMm: 14,
+        columns: [
+          {
+            // LEFT SIDE — colon indicator
+            align: 'center',
+            lines: [{ content: ':', fontSize: 11, isBold: false }],
+          },
+          {
+            // RIGHT SIDE — captain name (locked)
+            align: 'center',
+            lines: [
+              {
+                content: payload.captainName.toUpperCase(),
+                isBold: true,
+                fontSize: 12,
+                alignOffset: 0,
+                // 🎯 NO editableKey here — Punong Barangay name is read-only by design.
+              },
+              {
+                content: 'Punong Barangay',
+                isBold: false,
+                fontSize: 11,
+                alignOffset: 0,
+              },
+            ],
+          },
+        ],
+      },
       { type: 'spacer', heightInMm: 10 },
 
-      // 9. Witnesses block
-      { type: 'text', content: 'Witnesses:', fontSize: 11, isBold: true, align: 'left' },
-      { type: 'spacer', heightInMm: 3 },
-      { type: 'text', content: '<b>Name:</b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; MARYELLA KRYZELLE L. ESLAVA', fontSize: 11, align: 'left' },
-      { type: 'text', content: "<b>Address:</b>&nbsp;&nbsp;&nbsp; 125 Lagerra Alley, Engr's Hill",             fontSize: 11, align: 'left' },
-      { type: 'text', content: '<b>Contact No:</b>&nbsp; 09676847922',                                          fontSize: 11, align: 'left' },
+      // 9. 🎯 DYNAMIC WITNESSES — driven entirely by payload.witnesses (sidebar input table).
+      //    Replaces the five hardcoded text instructions that were here before. The engine
+      //    expands this single instruction into one "Witnesses:" header plus one Name /
+      //    Address / Contact No block per witness, all editable inline AND two-way bound
+      //    to the sidebar's witness controls.
+      { type: 'dynamic_witnesses' },
     ];
   },
 };

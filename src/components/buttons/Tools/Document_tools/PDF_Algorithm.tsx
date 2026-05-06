@@ -9,6 +9,12 @@ const SAFE_WIDTH = A4_WIDTH - MARGIN.left - MARGIN.right;
 const PAGE_BREAK_THRESHOLD = A4_HEIGHT - MARGIN.bottom;
 
 // --- INTERFACES ---
+export interface WitnessRecord {
+  name: string;
+  address: string;
+  contactNo: string;
+}
+
 export interface DocumentPayload {
   residentName: string;
   address: string;
@@ -22,6 +28,7 @@ export interface DocumentPayload {
   captainName: string;
   kagawadName?: string;
   officials?: any[];
+  witnesses?: WitnessRecord[];
   [key: string]: any; 
 }
 
@@ -29,7 +36,7 @@ export interface RenderInstruction {
   type:
     | 'text' | 'title' | 'line' | 'spacer' | 'page_break'
     | 'image_banner' | 'columns' | 'stamp_box' | 'watermark'
-    | 'logo_text_header' | 'table';
+    | 'logo_text_header' | 'table' | 'dynamic_witnesses';
     
   color?: string; 
   content?: string;
@@ -95,8 +102,15 @@ const stripHTML = (html: string) => {
 export const calculatePagination = (
   schema: DocumentSchema,
   payload: DocumentPayload,
-  onEdit?: (key: string, value: string) => void
+  onEdit?: (key: string, value: string) => void,
+  options?: { protectedEditableKeys?: string[] }
 ) => {
+  // 🎯 Keys in this set keep their TEXT but are forbidden from being edited in the
+  // document preview. Used to lock down the Punong Barangay / Kagawad signatures
+  // so admins can't accidentally rename them via inline editing.
+  const protectedKeys = new Set(options?.protectedEditableKeys || []);
+  const isEditable = (key?: string) => !!key && !protectedKeys.has(key);
+
   const instructions = schema.compile(payload);
   let totalWords = 0;
 
@@ -119,6 +133,29 @@ export const calculatePagination = (
           className="virtual-page-content"
           style={{ position: 'relative', fontFamily: '"Times New Roman", Times, serif' }}
         >
+          {/* 🎯 SURGICAL FIX: scoped CSS so underlined placeholders disappear the moment the
+              user focuses or types into any editable field (affidavit blanks etc.) */}
+          <style>{`
+            .virtual-page-content [data-editable="true"] u {
+              text-decoration: none;
+              border-bottom: 1.2px dashed #aaa;
+              padding-bottom: 1px;
+              display: inline-block;
+              min-width: 30px;
+            }
+            .virtual-page-content [data-editable="true"]:focus u,
+            .virtual-page-content [data-editable="true"]:focus-within u,
+            .virtual-page-content [data-editable="true"] u:not(:empty) {
+              border-bottom: none !important;
+              text-decoration: none !important;
+              padding-bottom: 0 !important;
+            }
+            .virtual-page-content [data-editable="true"]:focus,
+            .virtual-page-content [data-editable="true"]:hover {
+              outline: 1px dotted #4a90e2;
+              outline-offset: 2px;
+            }
+          `}</style>
           {activeWatermark && (
             <img
               src={activeWatermark}
@@ -160,8 +197,16 @@ export const calculatePagination = (
 
       case 'logo_text_header': {
         const lSize = inst.logoSize || 22;
+        // 🎯 SURGICAL FIX: compute the actual rendered text-block height so we
+        // can advance currentY correctly and never overlap with the next block.
+        const previewLineHs = (inst.headerLines || []).map(
+          hl => (hl.fontSize || 10) * 0.3527 * 1.25
+        );
+        const previewBlockH = previewLineHs.reduce((sum, h) => sum + h, 0);
+        const containerH = Math.max(lSize, previewBlockH);
+
         currentPageElements.push(
-          <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', minHeight: `${lSize}mm`, marginBottom: '2mm' }}>
+          <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', minHeight: `${containerH}mm`, marginBottom: '2mm' }}>
             <div style={{ flexShrink: 0, width: `${lSize}mm`, height: `${lSize}mm`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {inst.logoSrc && <img src={inst.logoSrc} style={{ width: '100%', height: '100%', objectFit: 'contain' }} alt="" />}
             </div>
@@ -174,7 +219,9 @@ export const calculatePagination = (
             </div>
           </div>
         );
-        currentY += inst.heightInMm || lSize;
+        // 🎯 Advance by the MAX of all relevant heights (prevents overlap with next instruction)
+        // Plus 2mm of bottom breathing room so the body doesn't kiss the header.
+        currentY += Math.max(lSize, previewBlockH, inst.heightInMm || 0) + 2;
         break;
       }
 
@@ -243,51 +290,78 @@ export const calculatePagination = (
         currentY += estimatedHeight + 5;
         break;
 
-      case 'text':
+      case 'text': {
+        // 🎯 honor the protected-keys denylist: locked keys keep their content but lose
+        // contentEditable, the blue highlight, the hover outline, and the text cursor.
+        const editable = isEditable(inst.editableKey);
         currentPageElements.push(
           <div 
             key={index} 
+            data-editable={editable ? 'true' : undefined}
             style={{ 
               fontSize: `${inst.fontSize}pt`, color: inst.color || '#000000', textAlign: inst.align as any, 
               textIndent: inst.align === 'justify' ? '10mm' : '0', margin: 0, lineHeight: 1.5, 
               fontFamily: '"Times New Roman", Times, serif', display: 'block', outline: 'none',
-              cursor: inst.editableKey ? 'text' : 'default',
-              padding: inst.editableKey ? '2px 4px' : '0',
+              cursor: editable ? 'text' : 'default',
+              padding: editable ? '2px 4px' : '0',
               borderRadius: '3px',
-              backgroundColor: inst.editableKey ? 'rgba(0, 120, 255, 0.05)' : 'transparent',
+              backgroundColor: editable ? 'rgba(0, 120, 255, 0.05)' : 'transparent',
               transition: 'background-color 0.2s'
             }} 
             dangerouslySetInnerHTML={{ __html: inst.content || '' }} 
-            contentEditable={!!inst.editableKey}
+            contentEditable={editable}
             suppressContentEditableWarning={true}
-            onBlur={(e) => onEdit && onEdit(inst.editableKey!, e.currentTarget.innerHTML)}
+            onBlur={editable ? (e) => {
+              if (!onEdit || !inst.editableKey) return;
+              let value = e.currentTarget.innerHTML;
+              const plainText = stripHTML(value).trim();
+              if (plainText.length > 0) {
+                value = value.replace(/<u[^>]*>([\s\S]*?)<\/u>/gi, '$1');
+              }
+              onEdit(inst.editableKey, value);
+            } : undefined}
           />
         );
         currentY += estimatedHeight;
         break;
+      }
 
       case 'columns':
         currentPageElements.push(
           <div key={index} style={{ display: 'flex', width: '100%', height: `${inst.heightInMm}mm` }}>
             {inst.columns?.map((col, cIdx) => (
               <div key={cIdx} style={{ flex: 1, textAlign: col.align as any, minWidth: 0 }}>
-                {col.lines.map((l, lIdx) => (
-                  <div key={lIdx} style={{ 
+                {col.lines.map((l, lIdx) => {
+                  // 🎯 same denylist filter for column-level editable lines
+                  const lineEditable = isEditable(l.editableKey);
+                  return (
+                  <div key={lIdx}
+                    data-editable={lineEditable ? 'true' : undefined}
+                    style={{ 
                     color: l.color || inst.color || '#000000', fontWeight: l.isBold ? 'bold' : 'normal', 
                     fontSize: `${l.fontSize || 10}pt`, textAlign: (l.align as any) || 'inherit',
                     fontFamily: '"Times New Roman", Times, serif', position: 'relative', left: `${l.alignOffset || 0}mm`,
                     whiteSpace: 'nowrap', lineHeight: 1.5, display: 'block', outline: 'none',
-                    cursor: l.editableKey ? 'text' : 'default',
-                    padding: l.editableKey ? '0 4px' : '0',
+                    cursor: lineEditable ? 'text' : 'default',
+                    padding: lineEditable ? '0 4px' : '0',
                     borderRadius: '2px',
-                    backgroundColor: l.editableKey ? 'rgba(0, 120, 255, 0.05)' : 'transparent'
+                    backgroundColor: lineEditable ? 'rgba(0, 120, 255, 0.05)' : 'transparent'
                   }} 
                   dangerouslySetInnerHTML={{ __html: l.content || '&nbsp;' }} 
-                  contentEditable={!!l.editableKey}
+                  contentEditable={lineEditable}
                   suppressContentEditableWarning={true}
-                  onBlur={(e) => onEdit && onEdit(l.editableKey!, e.currentTarget.innerHTML)}
+                  onBlur={lineEditable ? (e) => {
+                    if (!onEdit || !l.editableKey) return;
+                    let value = e.currentTarget.innerHTML;
+                    const plainText = stripHTML(value).trim();
+                    if (plainText.length > 0) {
+                      value = value.replace(/<u[^>]*>([\s\S]*?)<\/u>/gi, '$1');
+                    }
+                    onEdit(l.editableKey, value);
+                  } : undefined}
                   />
-                ))}
+                  );
+                })}
               </div>
             ))}
           </div>
@@ -321,12 +395,103 @@ export const calculatePagination = (
         currentPageElements.push(<div key={index} style={{ height: `${inst.heightInMm}mm` }} />);
         currentY += inst.heightInMm || 5;
         break;
+
+      // 🎯 NEW: dynamic witness block driven entirely by payload.witnesses (sidebar input table).
+      // Schema usage is one line: `{ type: 'dynamic_witnesses' }` — the engine handles the rest.
+      case 'dynamic_witnesses': {
+        const wList = payload.witnesses || [];
+
+        // Header line
+        currentPageElements.push(
+          <div key={`${index}-h`} style={{
+            fontWeight: 'normal', fontSize: '11pt', margin: '4mm 0 2mm 0',
+            fontFamily: '"Times New Roman", Times, serif',
+          }}>
+            Witnesses:
+          </div>
+        );
+        currentY += 6;
+
+        // Per-witness rows
+        wList.forEach((w: WitnessRecord, wi: number) => {
+          const editStyle = {
+            display: 'inline-block',
+            minWidth: '180px',
+            backgroundColor: 'rgba(0, 120, 255, 0.05)',
+            padding: '0 4px',
+            borderRadius: '2px',
+            outline: 'none',
+            cursor: 'text',
+            border: '1px dotted transparent',
+          } as React.CSSProperties;
+
+          currentPageElements.push(
+            <div key={`${index}-w${wi}`} style={{
+              marginBottom: '3mm',
+              fontFamily: '"Times New Roman", Times, serif',
+              fontSize: '11pt',
+              lineHeight: 1.6,
+            }}>
+              <div>
+                <strong style={{ display: 'inline-block', minWidth: '85px' }}>Name:</strong>
+                <span data-editable="true"
+                  contentEditable
+                  suppressContentEditableWarning
+                  style={editStyle}
+                  onBlur={(e) => onEdit && onEdit(`witness-${wi}-name`, e.currentTarget.textContent || '')}
+                >{w.name || ''}</span>
+              </div>
+              <div>
+                <strong style={{ display: 'inline-block', minWidth: '85px' }}>Address:</strong>
+                <span data-editable="true"
+                  contentEditable
+                  suppressContentEditableWarning
+                  style={editStyle}
+                  onBlur={(e) => onEdit && onEdit(`witness-${wi}-address`, e.currentTarget.textContent || '')}
+                >{w.address || ''}</span>
+              </div>
+              <div>
+                <strong style={{ display: 'inline-block', minWidth: '85px' }}>Contact No:</strong>
+                <span data-editable="true"
+                  contentEditable
+                  suppressContentEditableWarning
+                  style={editStyle}
+                  onBlur={(e) => onEdit && onEdit(`witness-${wi}-contactNo`, e.currentTarget.textContent || '')}
+                >{w.contactNo || ''}</span>
+              </div>
+            </div>
+          );
+          currentY += 18; // ~3 lines × ~6mm each + spacing
+        });
+        break;
+      }
     }
   });
 
   if (currentPageElements.length > 0) {
     pages.push(
       <div key="page-final" className="virtual-page-content" style={{ position: 'relative', fontFamily: '"Times New Roman", Times, serif' }}>
+        <style>{`
+          .virtual-page-content [data-editable="true"] u {
+            text-decoration: none;
+            border-bottom: 1.2px dashed #aaa;
+            padding-bottom: 1px;
+            display: inline-block;
+            min-width: 30px;
+          }
+          .virtual-page-content [data-editable="true"]:focus u,
+          .virtual-page-content [data-editable="true"]:focus-within u,
+          .virtual-page-content [data-editable="true"] u:not(:empty) {
+            border-bottom: none !important;
+            text-decoration: none !important;
+            padding-bottom: 0 !important;
+          }
+          .virtual-page-content [data-editable="true"]:focus,
+          .virtual-page-content [data-editable="true"]:hover {
+            outline: 1px dotted #4a90e2;
+            outline-offset: 2px;
+          }
+        `}</style>
         {activeWatermark && <img src={activeWatermark} alt="watermark" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '60%', opacity: 0.08, zIndex: 0, pointerEvents: 'none' }} />}
         <div style={{ position: 'relative', zIndex: 1 }}>{currentPageElements}</div>
       </div>
@@ -421,20 +586,32 @@ export const generateVectorPDF = async (
         const textAreaWidth = SAFE_WIDTH - lSizePDF - 5;
         const textCenterX = (textAreaLeft + textAreaWidth / 2) + (inst.alignOffset || 0);
 
-        const lineCount = inst.headerLines?.length || 1;
-        const avgLineH = (inst.headerLines?.[0]?.fontSize || 10) * 0.3527 * 1.25; 
-        const blockH = lineCount * avgLineH;
-        let lineY = currentY + (lSizePDF - blockH) / 2 + (avgLineH / 2);
+        // 🎯 SURGICAL FIX: use each line's OWN font size for height (was using only the first line's
+        // size × line count, which is wildly wrong when fonts vary). This is what caused the
+        // "Email Address ... (FIRST TIME JOBSEEKERS ASSISTANCE ACT)" overlap in the downloaded PDF.
+        const headerLines = inst.headerLines || [];
+        const lineHeights = headerLines.map(hl => (hl.fontSize || 10) * 0.3527 * 1.25);
+        const blockH = lineHeights.reduce((sum, h) => sum + h, 0);
 
-        inst.headerLines?.forEach((hl) => {
+        // If the text block is taller than the logo, anchor at top (don't push first line UP into
+        // the previous block via a negative offset). Otherwise vertically center it.
+        const verticalPadding = blockH < lSizePDF ? (lSizePDF - blockH) / 2 : 0;
+        // First baseline ≈ half a line-height down from the top of the first line
+        let lineY = currentY + verticalPadding + (lineHeights[0] || 5) * 0.5;
+
+        headerLines.forEach((hl, idx) => {
           const fontStyle = hl.isBold ? (hl.isItalic ? 'bolditalic' : 'bold') : (hl.isItalic ? 'italic' : 'normal');
           pdf.setFont('times', fontStyle);
           pdf.setFontSize(hl.fontSize || 10);
           pdf.text(hl.content, textCenterX, lineY, { align: 'center' });
-          lineY += (hl.fontSize || 10) * 0.3527 * 1.25;
+          // 🎯 advance using THIS line's height — was using avgLineH which broke variable-size text
+          lineY += lineHeights[idx];
         });
 
-        currentY += inst.heightInMm || lSizePDF;
+        // 🎯 CRITICAL: advance currentY by MAX(logo, textBlock, configuredHeight)
+        // to guarantee the next instruction never lands inside the rendered header.
+        // Plus 2mm bottom breathing room.
+        currentY += Math.max(lSizePDF, blockH, inst.heightInMm || 0) + 2;
         break;
       }
 
@@ -612,6 +789,50 @@ export const generateVectorPDF = async (
       case 'spacer':
         currentY += inst.heightInMm || 5;
         break;
+
+      // 🎯 NEW: PDF rendering of the dynamic witness block from payload.witnesses.
+      case 'dynamic_witnesses': {
+        const wList = payload.witnesses || [];
+
+        // Header
+        pdf.setFont('times', 'normal');
+        pdf.setFontSize(11);
+        pdf.text('Witnesses:', MARGIN.left, currentY + 4);
+        currentY += 8;
+
+        const labelW = 28; // mm reserved for "Address:" label column
+
+        wList.forEach((w: WitnessRecord) => {
+          // Page-break check before each witness block (~18mm tall)
+          if (currentY + 20 > PAGE_BREAK_THRESHOLD) {
+            pdf.addPage();
+            currentY = MARGIN.top;
+            applyWatermark();
+          }
+
+          // Name
+          pdf.setFont('times', 'bold');
+          pdf.text('Name:', MARGIN.left, currentY + 4);
+          pdf.setFont('times', 'normal');
+          if (w.name) pdf.text(w.name, MARGIN.left + labelW, currentY + 4);
+          currentY += 5.5;
+
+          // Address
+          pdf.setFont('times', 'bold');
+          pdf.text('Address:', MARGIN.left, currentY + 4);
+          pdf.setFont('times', 'normal');
+          if (w.address) pdf.text(w.address, MARGIN.left + labelW, currentY + 4);
+          currentY += 5.5;
+
+          // Contact No
+          pdf.setFont('times', 'bold');
+          pdf.text('Contact No:', MARGIN.left, currentY + 4);
+          pdf.setFont('times', 'normal');
+          if (w.contactNo) pdf.text(w.contactNo, MARGIN.left + labelW, currentY + 4);
+          currentY += 7; // a touch of breathing room between witnesses
+        });
+        break;
+      }
     }
     
     pdf.setTextColor('#000000'); 

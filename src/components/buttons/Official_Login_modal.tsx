@@ -3,13 +3,12 @@ import { LOGIN_API } from '../UI/api';
 import AdminRecoveryModal from './AdminRecoveryModal'; 
 import './styles/Login_modal.css';
 
-// --- ENDPOINT CONSTANTS ---
 const ROOT_REQUEST_API = '/api/auth/root-request'; 
 const ROOT_USERNAME = 'SYSTEM_ROOT_ADMIN';
 
 interface LoginModalProps {
   onClose: () => void;
-  onSuccess: (token: string) => void;
+  onSuccess: (data: any) => void; // ✅ FIXED: was (token: string)
 }
 
 type ModalView = 'LOGIN' | 'ROOT_OTP';
@@ -18,13 +17,11 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
   const [view, setView] = useState<ModalView>('LOGIN');
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
 
-  // --- DATA INPUTS ---
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [traceId, setTraceId] = useState(''); 
 
-  // UI State
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -47,9 +44,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
     if (view === 'ROOT_OTP') setView('LOGIN');
   };
 
-  // ==========================================
-  // 🛡️ ACTION: GHOST HANDSHAKE (ROOT REQUEST)
-  // ==========================================
   const handleRootHandshake = async () => {
     setLoading(true);
     setError('');
@@ -74,14 +68,10 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
     }
   };
 
-  // ==========================================
-  // 🔑 ACTION: SIGN IN (Standard & Root Verify)
-  // ==========================================
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    // Trigger Root Protocol if username matches exactly
     if (username.trim() === ROOT_USERNAME && view === 'LOGIN') {
       handleRootHandshake();
       return;
@@ -117,24 +107,25 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
         localStorage.setItem('profile_id', data.profile?.record_id || data.account_id);
         
         if (view === 'ROOT_OTP') {
-            sessionStorage.setItem('trace_id', traceId);
+          sessionStorage.setItem('trace_id', traceId);
         }
 
-        // 🛡️ THE RBAC FIX: Aggressively hunt for the role name to capture 'superadmin'
-        const resolvedRole = (data.user_role || data.role || data.profile?.role || data.profile?.user_role || '').toLowerCase();
+        const resolvedRole = (
+          data.user_role || data.role || data.profile?.role || ''
+        ).toLowerCase();
 
-        // 1. Set the standalone key for quick route guards
         localStorage.setItem('user_role', resolvedRole);
 
-        // 2. Set the detailed session object
-        localStorage.setItem('admin_session', JSON.stringify({
-            username: data.username,
-            role: resolvedRole, 
-            profile: data.profile
-        }));
+        // ✅ FIXED: Pass the full data object up — NOT just the token
+        // App.tsx will save admin_session from this full object
+        onSuccess({
+          username:   data.username,
+          role:       resolvedRole,
+          profile:    data.profile,      // ← has profileName & position
+          account_id: data.account_id,
+          access_token: data.access_token
+        });
 
-        // Pass the generated JWT to the parent component securely
-        onSuccess(data.access_token || "ZERO_TRUST_COOKIE_SET"); 
       } else {
         throw new Error(data.message || data.error || 'Invalid Credentials');
       }
@@ -152,7 +143,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
     setPassword('');
     setError(msg);
 
-    // Anti-Brute Force Lockout
     if (newAttempts >= 5) {
       setIsLocked(true);
       setTimeout(() => {
@@ -179,7 +169,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
           <i className="fas fa-times"></i>
         </button>
 
-        {/* --- VIEW: LOGIN --- */}
         {view === 'LOGIN' && (
           <>
             <div className="LM_HEADER">
@@ -207,20 +196,20 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
 
               {username !== ROOT_USERNAME && (
                 <div className="LM_INPUT_GROUP">
-                    <label>Password</label>
-                    <div className="LM_INPUT_WRAPPER">
+                  <label>Password</label>
+                  <div className="LM_INPUT_WRAPPER">
                     <i className="fas fa-lock"></i>
                     <input
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        disabled={loading || isLocked}
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      disabled={loading || isLocked}
                     />
                     <button type="button" className="LM_EYE_TOGGLE" onClick={() => setShowPassword(!showPassword)}>
-                        <i className={showPassword ? "fas fa-eye-slash" : "fas fa-eye"}></i>
+                      <i className={showPassword ? "fas fa-eye-slash" : "fas fa-eye"}></i>
                     </button>
-                    </div>
+                  </div>
                 </div>
               )}
 
@@ -236,7 +225,6 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
           </>
         )}
 
-        {/* --- VIEW: GHOST ADMIN OTP --- */}
         {view === 'ROOT_OTP' && (
           <form className="LM_FORM" onSubmit={handleSignIn}>
             <div className="LM_HEADER">
@@ -249,19 +237,19 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
             {error && <div className="LM_ERROR_MSG">{error}</div>}
             
             <div className="LM_INPUT_GROUP">
-                <input 
-                    type="text" 
-                    className="LM_OTP_INPUT" 
-                    placeholder="000000"
-                    maxLength={6} 
-                    value={otp} 
-                    onChange={(e) => setOtp(e.target.value.toUpperCase())} 
-                    required 
-                />
+              <input 
+                type="text" 
+                className="LM_OTP_INPUT" 
+                placeholder="000000"
+                maxLength={6} 
+                value={otp} 
+                onChange={(e) => setOtp(e.target.value.toUpperCase())} 
+                required 
+              />
             </div>
             
             <button className="LM_SUBMIT_BTN ROOT_BTN" disabled={loading}>
-                {loading ? <i className="fas fa-spinner fa-spin"></i> : 'Verify & Override'}
+              {loading ? <i className="fas fa-spinner fa-spin"></i> : 'Verify & Override'}
             </button>
           </form>
         )}

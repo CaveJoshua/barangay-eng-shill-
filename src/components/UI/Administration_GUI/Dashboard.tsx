@@ -1,26 +1,23 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ApiService } from '../api';
 
-// IMPORT SUB-PAGES
 import Profile from './Profile';
 import HouseholdPage from './Household';
 import ResidentsPage from './Resident';
-import BlotterPage from './Blotter';
+import BlotterPage from './IncidentReport';
 import DocumentsPage from './Document';
 import OfficialsPage from './Officials';
-import AuditlogPage from './Auditlog';
+import AuditlogPage from './AuditLog';
 import AnnouncementPage from './Announcement';
-import AccountManagementPage from './Account_Management';
+import AccountManagementPage from './AccountManagement';
 import ArchivePage from './Archive';
 
-import DashboardHome, { type DashboardData } from './Dashboard_Home';
-import AdministratorNotification from './Administrator_notification'; 
-import NotificationSystem from './Notification_system'; 
+import DashboardHome, { type DashboardData } from './DashboardHome';
+import AdministratorNotification from './AdministratorNotification';
+import NotificationSystem from './NotificationSystem';
 
-import './styles/frame.css';
+import './styles/Frame.css';
 import './styles/Dashboard.css';
-
-// ─── TYPES ────────────────────────────────────────────────────────────────────
 
 interface DashboardProps {
   onLogout: () => void;
@@ -31,87 +28,131 @@ const initialDashboardData: DashboardData = {
   stats: { totalPopulation: 0, documentsIssued: 0, blotterCases: 0, systemActivities: 0 },
   barangayName: "Barangay Engineer's Hill",
   systemName: "Smart Barangay",
-  adminName: "Administrator",
+  adminName: "Loading...",
 };
 
-// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+const STATS_POLL_INTERVAL = 120000;
 
-const STATS_POLL_INTERVAL = 120000; // 2 minutes
+// ─── 🛡️ BULLETPROOF SESSION PARSER ───────────────────────────────────────────
+// Handles ALL shapes: flat login response, nested {user, profile}, or legacy formats
+const parseAdminSession = () => {
+  try {
+    const sessionStr = localStorage.getItem('admin_session');
+    if (!sessionStr) return { name: 'User', position: 'Official', initial: 'U' };
+
+    const session = JSON.parse(sessionStr);
+
+    // The backend returns flat: { account_id, username, role, profile: { profileName, position } }
+    // OR it may be nested: { user: { username }, profile: { ... } }
+    // We handle both.
+    const profile   = session?.profile   || session?.user?.profile || {};
+    const userNode  = session?.user      || session || {};
+
+    // ── NAME: profileName → full_name combos → token full_name → username ──
+    const firstName = profile?.first_name || userNode?.first_name || '';
+    const lastName  = profile?.last_name  || userNode?.last_name  || '';
+    const combined  = firstName && lastName ? `${firstName} ${lastName}` : '';
+
+    const fullName =
+      combined                        ||
+      profile?.profileName            ||   // ← what the backend actually sends
+      profile?.full_name              ||
+      session?.full_name              ||
+      userNode?.full_name             ||
+      userNode?.username              ||
+      session?.username               ||
+      'User';
+
+    // ── POSITION: profile.position → session root → role ──
+    const rawRole  = userNode?.role       || session?.role       || '';
+    const position =
+      profile?.position               ||
+      session?.position               ||
+      (rawRole.toLowerCase() === 'superadmin' ? 'Superadmin' : '') ||
+      'Official';
+
+    const resolvedPosition =
+      rawRole.toLowerCase() === 'superadmin' ? 'Superadmin' : position || 'Official';
+
+    return {
+      name:     fullName,
+      position: resolvedPosition,
+      initial:  fullName.charAt(0).toUpperCase(),
+    };
+  } catch (e) {
+    console.error('[SESSION PARSER] Failed:', e);
+    return { name: 'User', position: 'Official', initial: 'U' };
+  }
+};
 
 // ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
 
 const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
-  const [data, setData] = useState<DashboardData>(initialDashboardData);
-  const [loading, setLoading] = useState<boolean>(true);
-  
-  // ─── 🛡️ THE FIX: Navigation State ───
-  const [activeTab, setActiveTab] = useState(() => localStorage.getItem('admin_active_tab') || 'Dashboard');
-  const [highlightId, setHighlightId] = useState<string | undefined>(undefined); // State to catch the ID for the yellow glow
-  
-  const statsControllerRef = useRef<AbortController | null>(null);
-  const statsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [data, setData]         = useState<DashboardData>(initialDashboardData);
+  const [loading, setLoading]   = useState<boolean>(true);
+  const [activeTab, setActiveTab] = useState(
+    () => localStorage.getItem('admin_active_tab') || 'Dashboard'
+  );
+  const [highlightId, setHighlightId] = useState<string | undefined>(undefined);
 
-  // Persistence for the active tab
+  // Parse once on mount; re-parse whenever `user` prop changes (e.g. after login)
+  const [userInfo, setUserInfo] = useState(parseAdminSession);
+
+  useEffect(() => {
+    setUserInfo(parseAdminSession());
+  }, [user]);
+
+  const statsControllerRef = useRef<AbortController | null>(null);
+  const statsTimer         = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     localStorage.setItem('admin_active_tab', activeTab);
   }, [activeTab]);
 
-  // ─── 🛡️ THE FIX: Custom Navigation Handler ───
-  // This catches BOTH the tab name and the ID from your notification clicks
   const handleNavigation = (tabName: string, id?: string) => {
     setActiveTab(tabName);
-    setHighlightId(id); // Save the ID so the target page knows what to highlight
+    setHighlightId(id);
   };
 
-  // ─── THE SMART PULSE HANDSHAKE (Stats Only) ───
   const fetchStats = useCallback(async () => {
     if (statsControllerRef.current) statsControllerRef.current.abort();
     statsControllerRef.current = new AbortController();
-
     try {
       const realData = await ApiService.getStats(statsControllerRef.current.signal);
-      
       if (realData) {
-        const newData: DashboardData = {
-          stats: {
-            totalPopulation:  realData.stats?.totalPopulation  || 0,
-            documentsIssued:  realData.stats?.documentsIssued  || 0,
-            blotterCases:     realData.stats?.blotterCases     || 0,
-            systemActivities: realData.stats?.systemActivities || 0,
-          },
-          barangayName: realData.barangayName || "Barangay Engineer's Hill",
-          systemName:   realData.systemName   || 'Smart Barangay',
-          adminName:    user?.profileName || user?.username || 'Administrator',
-        };
-
         setData(prevData => {
+          const newData: DashboardData = {
+            stats: {
+              totalPopulation:  realData.stats?.totalPopulation  || 0,
+              documentsIssued:  realData.stats?.documentsIssued  || 0,
+              blotterCases:     realData.stats?.blotterCases     || 0,
+              systemActivities: realData.stats?.systemActivities || 0,
+            },
+            barangayName: realData.barangayName || "Barangay Engineer's Hill",
+            systemName:   realData.systemName   || 'Smart Barangay',
+            adminName:    userInfo.name,
+          };
           if (JSON.stringify(prevData) === JSON.stringify(newData)) return prevData;
-          return newData; 
+          return newData;
         });
       }
     } catch (err: any) {
-      if (err.name !== 'AbortError') console.error("[DASHBOARD] Stats Sync Error:", err);
+      if (err.name !== 'AbortError') console.error('[DASHBOARD] Stats Sync Error:', err);
     } finally {
       setLoading(false);
       if (document.visibilityState === 'visible') {
-        statsTimer.current = setTimeout(fetchStats, STATS_POLL_INTERVAL); 
+        statsTimer.current = setTimeout(fetchStats, STATS_POLL_INTERVAL);
       }
     }
-  }, [user]);
+  }, [userInfo.name]);
 
   useEffect(() => {
     fetchStats();
-
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        fetchStats();
-      } else if (statsTimer.current) {
-        clearTimeout(statsTimer.current);
-      }
+      if (document.visibilityState === 'visible') fetchStats();
+      else if (statsTimer.current) clearTimeout(statsTimer.current);
     };
-
     document.addEventListener('visibilitychange', handleVisibility);
-
     return () => {
       if (statsTimer.current) clearTimeout(statsTimer.current);
       if (statsControllerRef.current) statsControllerRef.current.abort();
@@ -135,14 +176,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'Dashboard':           return <DashboardHome data={data} loading={loading} onNavigate={handleNavigation} />;
-      
-      // ─── 🛡️ THE FIX: String matching and Prop passing ───
-      case 'Notification Center': return <NotificationSystem onNavigate={handleNavigation} />; 
+      case 'Dashboard':           return <DashboardHome data={{ ...data, adminName: userInfo.name }} loading={loading} onNavigate={handleNavigation} />;
+      case 'Notification Center': return <NotificationSystem onNavigate={handleNavigation} />;
       case 'Incident Reports':    return <BlotterPage highlightId={highlightId} />;
       case 'Document':            return <DocumentsPage highlightId={highlightId} />;
-      
-      case 'My Profile':          return <div className="DS_CONTAINER"><Profile /></div>;
+      case 'My Profile':          return <Profile />;
       case 'Household':           return <HouseholdPage />;
       case 'Residents':           return <ResidentsPage />;
       case 'Officials':           return <OfficialsPage />;
@@ -150,23 +188,22 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
       case 'Announcements':       return <AnnouncementPage />;
       case 'Archive':             return <ArchivePage />;
       case 'Account Management':  return <AccountManagementPage />;
-      default:                    return <div className="DS_CONTAINER"><h2>{activeTab}</h2><p>Module initializing...</p></div>;
+      default: return <div className="DS_CONTAINER"><h2>{activeTab}</h2><p>Module initializing...</p></div>;
     }
   };
 
   return (
     <div className="FRAME_WRAPPER">
-      {/* ─── SIDEBAR ─── */}
       <aside className="FRAME_SIDEBAR">
         <div className="FRAME_LOGO_AREA">
           <h2 className="FRAME_LOGO_TEXT">Barangay Engineer's Hill</h2>
         </div>
         <nav className="FRAME_NAV_AREA">
           {menuItems.map((item, index) => (
-            <div 
-              key={index} 
-              className={`FRAME_MENU_ITEM ${activeTab === item.name ? 'FRAME_MENU_ACTIVE' : ''}`} 
-              onClick={() => handleNavigation(item.name)} // Update sidebar clicks to clear highlightId
+            <div
+              key={index}
+              className={`FRAME_MENU_ITEM ${activeTab === item.name ? 'FRAME_MENU_ACTIVE' : ''}`}
+              onClick={() => handleNavigation(item.name)}
             >
               <i className={item.icon} />
               <span>{item.name}</span>
@@ -178,28 +215,35 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
         </div>
       </aside>
 
-      {/* ─── MAIN CONTENT ─── */}
       <div className="FRAME_MAIN_COLUMN">
         <header className="FRAME_TOPBAR">
           <div className="FRAME_BREADCRUMB">Pages / <b>{activeTab}</b></div>
-          
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-            
-            {/* 🛡️ THE FIX: Use handleNavigation so dropdowns can pass the highlightId */}
             <AdministratorNotification onNavigate={handleNavigation} />
 
-            {/* USER PROFILE */}
             <div className="FRAME_USER">
               <div className="FRAME_USER_TEXT">
-                <span className="FRAME_USER_NAME">{loading ? '...' : data.adminName}</span>
-                <span className="FRAME_USER_ROLE">{user?.role?.toUpperCase() || 'ADMIN'}</span>
+                <span className="FRAME_USER_NAME">{userInfo.name}</span>
+                <span className="FRAME_USER_ROLE" style={{ letterSpacing: '0.05em' }}>
+                  {userInfo.position.toUpperCase()}
+                </span>
               </div>
-              <div className="FRAME_AVATAR"><i className="fas fa-user-tie" /></div>
+
+              <div className="FRAME_AVATAR" style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                backgroundColor: '#eff6ff', color: '#3b82f6',
+                fontWeight: '800', fontSize: '1.2rem',
+                borderRadius: '50%', width: '40px', height: '40px',
+              }}>
+                {userInfo.initial}
+              </div>
+
               <button className="TB_LOGOUT_BTN" onClick={onLogout}>Logout</button>
             </div>
           </div>
         </header>
-        
+
         <main className="FRAME_CONTENT_AREA">
           {renderContent()}
         </main>

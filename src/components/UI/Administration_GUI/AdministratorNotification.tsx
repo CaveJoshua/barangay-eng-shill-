@@ -281,7 +281,7 @@ const AdministratorNotification: React.FC<AdminNotifProps> = ({ onNavigate }) =>
           
           <div className="FRAME_NOTIF_FOOTER" style={{ padding: '10px', textAlign: 'center', borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
             <button onClick={() => { setShowNotifs(false); onNavigate('Notification Center'); }} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold' }}>
-              View Archive <i className="fas fa-history" style={{ marginLeft: '5px' }}></i>
+              History <i className="fas fa-history" style={{ marginLeft: '5px' }}></i>
             </button>
           </div>
         </div>

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import styles from './styles/Archive.module.css';
 import { ApiService } from '../api';
 
-type ArchiveTab = 'Documents' | 'Blotter' | 'Residents' | 'Officials' | 'Households';
+type ArchiveTab = 'Documents' | 'Blotter' | 'Residents' | 'Officials' | 'Households' | 'Announcements';
 
 export default function Archive() {
   const [activeTab, setActiveTab] = useState<ArchiveTab>('Documents');
@@ -13,6 +13,7 @@ export default function Archive() {
   const [residents, setResidents] = useState<any[]>([]);
   const [officials, setOfficials] = useState<any[]>([]);
   const [households, setHouseholds] = useState<any[]>([]);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
   
   // Track which tabs have already been loaded to prevent redundant fetches
   const loadedTabs = useRef<Set<string>>(new Set());
@@ -31,7 +32,6 @@ export default function Archive() {
 
   // --- 1. TARGETED HANDSHAKE (Only fetch what is needed) ---
   const fetchSpecificArchive = useCallback(async (tab: ArchiveTab, signal?: AbortSignal) => {
-    // If already fetching or already loaded, don't hammer the server
     if (isFetching.current) return;
     
     setLoading(true);
@@ -39,6 +39,7 @@ export default function Archive() {
 
     try {
       let data: any = null;
+      const now = new Date();
 
       switch (tab) {
         case 'Documents':
@@ -62,13 +63,29 @@ export default function Archive() {
         case 'Officials':
           data = await ApiService.getOfficials(signal);
           if (data && isMounted.current) {
-            setOfficials(data.filter((o: any) => ['Archived', 'Inactive', 'Former'].includes(o.status)));
+            setOfficials(data.filter((o: any) => {
+              // 1. Check if their term is officially over based on the date
+              const isExpired = o.term_end && !isNaN(new Date(o.term_end).getTime()) && new Date(o.term_end) < now;
+              
+              // 2. Check if their status marks them as no longer active
+              const isInactiveStatus = ['Archived', 'Inactive', 'Former', 'End of Term', 'Resigned'].includes(o.status);
+              
+              // If either condition is met, they belong in the archive
+              return isExpired || isInactiveStatus;
+            }));
           }
           break;
         case 'Households':
           data = await ApiService.getHouseholds(signal);
           if (data && isMounted.current) {
             setHouseholds(data.filter((h: any) => ['Archived', 'Inactive', 'Relocated'].includes(h.status)));
+          }
+          break;
+        case 'Announcements':
+          data = await ApiService.getAnnouncements(signal);
+          if (data && isMounted.current) {
+            // Captures manually archived announcements OR naturally expired ones
+            setAnnouncements(data.filter((a: any) => a.status === 'Archived' || new Date(a.expires_at) < now));
           }
           break;
       }
@@ -85,7 +102,6 @@ export default function Archive() {
     }
   }, []);
 
-  // Fetch data only when switching to a tab that hasn't been loaded yet
   useEffect(() => {
     isMounted.current = true;
     const valve = new AbortController();
@@ -93,7 +109,6 @@ export default function Archive() {
     if (!loadedTabs.current.has(activeTab)) {
       fetchSpecificArchive(activeTab, valve.signal);
     } else {
-      // If cached, just ensure loading is off
       setLoading(false);
     }
 
@@ -106,7 +121,7 @@ export default function Archive() {
   useEffect(() => { setCurrentPage(1); }, [activeTab, searchTerm, filterStatus]);
   useEffect(() => { setFilterStatus('All'); }, [activeTab]);
 
-  // --- 2. SEARCH & DYNAMIC FILTERING (Optimized Memory Usage) ---
+  // --- 2. SEARCH & DYNAMIC FILTERING ---
   const filteredData = useMemo(() => {
     const q = searchTerm.toLowerCase();
 
@@ -131,9 +146,9 @@ export default function Archive() {
 
       case 'Officials':
         return officials.filter(o => 
-          (filterStatus === 'All' || o.status === filterStatus) &&
-          ((o.full_name || '').toLowerCase().includes(q))
-        ).sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
+          (filterStatus === 'All' || filterStatus === 'Archived') && // Keep filter simple for retired officials
+          ((o.full_name || '').toLowerCase().includes(q) || (o.position || '').toLowerCase().includes(q))
+        ).sort((a, b) => new Date(b.term_end || b.updated_at).getTime() - new Date(a.term_end || a.updated_at).getTime());
 
       case 'Households':
         return households.filter(h => 
@@ -141,9 +156,15 @@ export default function Archive() {
           ((h.household_number || '').toLowerCase().includes(q) || (h.head || '').toLowerCase().includes(q))
         ).sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
       
+      case 'Announcements':
+        return announcements.filter(a => 
+          (filterStatus === 'All' || filterStatus === 'Archived') &&
+          ((a.title || '').toLowerCase().includes(q) || (a.category || '').toLowerCase().includes(q))
+        ).sort((a, b) => new Date(b.expires_at).getTime() - new Date(a.expires_at).getTime());
+
       default: return [];
     }
-  }, [documents, blotters, residents, officials, households, activeTab, searchTerm, filterStatus]);
+  }, [documents, blotters, residents, officials, households, announcements, activeTab, searchTerm, filterStatus]);
 
   // --- 3. PAGINATION ---
   const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
@@ -163,8 +184,9 @@ export default function Archive() {
       case 'Documents': return ['All', 'Completed', 'Rejected', 'Archived'];
       case 'Blotter': return ['All', 'Settled', 'Dismissed', 'Archived', 'Rejected'];
       case 'Residents': return ['All', 'Archived', 'Deceased', 'Relocated'];
-      case 'Officials': return ['All', 'Archived', 'Inactive', 'Former'];
+      case 'Officials': return ['All', 'Archived']; // Simplified since they are all technically archived here
       case 'Households': return ['All', 'Archived', 'Inactive', 'Relocated'];
+      case 'Announcements': return ['All', 'Archived'];
       default: return ['All'];
     }
   };
@@ -181,7 +203,7 @@ export default function Archive() {
            </div>
            <div className={`${styles.ARC_STAT_COL} ${styles.ARC_STAT_WIDE}`}>
               <div className={styles.ARC_STAT_TITLE}>ARCHIVE DIRECTORY</div>
-              <div className={styles.ARC_STAT_SUB}>Access permanently closed cases and finalized records. Categories are loaded individually to ensure speed.</div>
+              <div className={styles.ARC_STAT_SUB}>Access permanently closed cases, former officials, and finalized records.</div>
            </div>
            <div className={styles.ARC_TOTAL_COL}>
               <div className={styles.ARC_BIG_NUMBER}>{filteredData.length}</div>
@@ -190,7 +212,7 @@ export default function Archive() {
         </div>
 
         <div className={styles.ARC_TABS_CONTAINER}>
-          {(['Documents', 'Blotter', 'Residents', 'Officials', 'Households'] as ArchiveTab[]).map((tab) => (
+          {(['Documents', 'Blotter', 'Residents', 'Officials', 'Households', 'Announcements'] as ArchiveTab[]).map((tab) => (
             <button key={tab} className={`${styles.ARC_TAB_BTN} ${activeTab === tab ? styles.ACTIVE : ''}`} onClick={() => setActiveTab(tab)}>
               {tab}
             </button>
@@ -226,15 +248,23 @@ export default function Archive() {
                        {activeTab === 'Residents' && (<><th>ID</th><th>FULL NAME</th><th>SEX</th><th>DOB</th></>)}
                        {activeTab === 'Officials' && (<><th>NAME</th><th>POSITION</th><th>TERM START</th><th>TERM END</th></>)}
                        {activeTab === 'Households' && (<><th>HH NO.</th><th>HEAD</th><th>ZONE</th><th>STATUS</th></>)}
-                       <th className={styles.ARC_ALIGN_RIGHT}>STATUS</th>
+                       {activeTab === 'Announcements' && (<><th>TITLE</th><th>CATEGORY</th><th>PRIORITY</th><th>EXPIRED ON</th></>)}
+                       <th className={styles.ARC_ALIGN_RIGHT}>FINAL STATUS</th>
                      </tr>
                    </thead>
                    <tbody>
                      {paginatedData.length === 0 ? (
                         <tr><td colSpan={6} className={styles.ARC_EMPTY_STATE}><i className="fas fa-box-open"></i><br/>No archived records found.</td></tr>
                      ) : paginatedData.map((item, index) => {
-                       const currentStatus = (item.status || item.activity_status || 'Archived').toUpperCase();
-                       const badgeClass = styles[`STATUS_${currentStatus}`] || styles.STATUS_DEFAULT;
+                       // Force uniform "Archived" status logic for officials whose term is done
+                       let currentStatus = (item.status || item.activity_status || 'Archived').toUpperCase();
+                       if (activeTab === 'Announcements') currentStatus = 'ARCHIVED';
+                       if (activeTab === 'Officials') {
+                         const isExpired = item.term_end && !isNaN(new Date(item.term_end).getTime()) && new Date(item.term_end) < new Date();
+                         if (isExpired) currentStatus = 'END OF TERM';
+                       }
+                       
+                       const badgeClass = styles[`STATUS_${currentStatus.replace(/\s+/g, '_')}`] || styles.STATUS_DEFAULT;
 
                        return (
                        <tr key={item.id || index}>
@@ -252,6 +282,9 @@ export default function Archive() {
                          )}
                          {activeTab === 'Households' && (
                            <><td className={styles.ARC_ID_CELL}>{item.household_number}</td><td className={styles.ARC_NAME_CELL}>{item.head}</td><td>{item.zone}</td><td>{item.status}</td></>
+                         )}
+                         {activeTab === 'Announcements' && (
+                           <><td className={styles.ARC_NAME_CELL}>{item.title}</td><td>{item.category}</td><td>{item.priority}</td><td>{formatDate(item.expires_at)}</td></>
                          )}
                          <td className={styles.ARC_ALIGN_RIGHT}>
                            <span className={`${styles.ARC_BADGE} ${badgeClass}`}>{currentStatus}</span>

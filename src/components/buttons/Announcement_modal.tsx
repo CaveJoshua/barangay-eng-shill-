@@ -143,7 +143,7 @@ const Announcement_modal: React.FC<{
                 </select>
               </div>
               <div className="AM_GROUP">
-                <label>Expiry Date</label>
+                <label>Archived Date</label>
                 <input type="date" className="AM_INPUT" required value={formData.expires_at} onChange={(e) => setFormData({...formData, expires_at: e.target.value})} />
               </div>
             </div>

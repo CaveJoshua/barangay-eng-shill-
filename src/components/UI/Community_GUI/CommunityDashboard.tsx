@@ -1,19 +1,19 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import "./C-Styles/Community_Dashboard.css";
-import "./C-Styles/Community_Bulletin_view.css"; 
+import "./Styles/Community_Dashboard.css";
+import "./Styles/Community_Bulletin_view.css"; 
 import { useDashboardLogic } from './useDashboardLogic';
 
 // ── SUB-MODULES ──
-import Community_blotter from './Community_blotter';
-import Community_Document from './Community_Document';
-import Community_Profile from './Community_Profile';
-import Community_Notification from './Community_Notfication'; 
+import Community_blotter from './CommunityIncident';
+import Community_Document from './CommunityDocument';
+import Community_Profile from './CommunityProfile';
+import Community_Notification from './CommunityNotfication'; 
 import CommunityResetPasswordModal from '../../buttons/Community_Resetpassword_modal';
 
 // 🛡️ IMPORT PREVIEW COMPONENTS
 import Community_Preview from '../../forms/Community_preview';
 import type { NewsItem } from '../../forms/Community_preview';
-import { CaptchaModal } from './Captcha_model';
+import { CaptchaModal } from './CaptchaModal';
 
 type DashboardView = 'Announcements' | 'Blotter' | 'Documents';
 

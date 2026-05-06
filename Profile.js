@@ -1,4 +1,3 @@
-
 // Profile.js
 export const ProfileRouter = (router, supabase, authenticateToken) => {
 
@@ -100,26 +99,43 @@ export const ProfileRouter = (router, supabase, authenticateToken) => {
         }
     });
 
-    // ... (Keep your existing PATCH /accounts/theme route here) ...
-
-    // ── 3. PATCH: ZERO TRUST THEME TOGGLE ──
+    // ── 3. PATCH: ZERO TRUST THEME TOGGLE (UPDATED) ──
     router.patch('/accounts/theme', authenticateToken, async (req, res) => {
         try {
             const { theme } = req.body;
             
-            // 🛡️ ZERO TRUST: Instead of trusting the frontend ID, we extract 
-            // the account ID directly from the secure HttpOnly cookie (req.user)
-            const accountId = req.user?.sub || req.user?.record_id || req.user?.account_id;
+            // 🛡️ EXHAUSTIVE TOKEN CHECK: Look for every possible ID key in the JWT
+            const tokenIdentifier = req.user?.id || req.user?.account_id || req.user?.official_id || req.user?.sub || req.user?.record_id;
 
-            if (!accountId) {
-                return res.status(401).json({ error: "Unauthorized session." });
+            if (!tokenIdentifier) {
+                return res.status(401).json({ error: "Unauthorized session. ID missing from token." });
             }
 
-            // Update the theme preference in the database
+            // 🧠 SMART LOOKUP: Exactly like GET/PUT, verify the account before updating
+            let { data: account } = await supabase
+                .from('officials_accounts')
+                .select('account_id')
+                .eq('account_id', tokenIdentifier)
+                .single();
+
+            if (!account) {
+                const { data: altAccount } = await supabase
+                    .from('officials_accounts')
+                    .select('account_id')
+                    .eq('official_id', tokenIdentifier)
+                    .single();
+                account = altAccount;
+            }
+
+            if (!account) {
+                return res.status(404).json({ error: "Account mapping failed for theme update." });
+            }
+
+            // Update the theme preference in the database targeting the verified account_id
             const { error: themeError } = await supabase
                 .from('officials_accounts')
                 .update({ theme_preference: theme })
-                .eq('account_id', accountId);
+                .eq('account_id', account.account_id);
 
             if (themeError) throw themeError;
 
