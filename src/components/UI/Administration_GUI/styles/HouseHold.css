@@ -120,7 +120,7 @@ body {
 }
 
 .HH_PRIMARY_TITLE {
-    font-size: 2.5rem;
+    font-size: 2rem;
     font-weight: 800;
     color: var(--HH-text-primary);
     margin: 0;
@@ -152,10 +152,10 @@ body {
     align-items: center;
     justify-content: center;
     gap: var(--HH-space-3);
-    padding: 14px 32px;
+    padding: 10px 24px;
     border-radius: var(--HH-radius-md);
     font-weight: 700;
-    font-size: 1.05rem;
+    font-size: 0.95rem;
     cursor: pointer;
     transition: all var(--HH-transition-base);
     border: none;
@@ -191,11 +191,11 @@ body {
     justify-content: space-between;
     align-items: center;
     background: var(--HH-bg-surface);
-    padding: var(--HH-space-5) var(--HH-space-8);
+    padding: var(--HH-space-4) var(--HH-space-6);
     border-radius: var(--HH-radius-lg) var(--HH-radius-lg) 0 0;
     border: 1px solid var(--HH-border-base);
     border-bottom: none;
-    gap: var(--HH-space-8);
+    gap: var(--HH-space-6);
     flex-wrap: wrap;
 }
 
@@ -215,12 +215,12 @@ body {
 }
 
 .HH_TAB_ITEM {
-    padding: 12px 24px;
+    padding: 8px 16px;
     border: none;
     background: transparent;
     color: var(--HH-text-tertiary);
     font-weight: 700;
-    font-size: 1.05rem;
+    font-size: 0.9rem;
     border-radius: var(--HH-radius-md);
     cursor: pointer;
     transition: all var(--HH-transition-fast);
@@ -280,14 +280,14 @@ body {
 
 .HH_SEARCH_INPUT {
     width: 100%;
-    height: 56px;
-    padding: 0 1.25rem 0 3.5rem;
+    height: 48px;
+    padding: 0 1rem 0 2.75rem;
     background: var(--HH-bg-alt);
     border: 1.5px solid transparent;
     border-radius: var(--HH-radius-md);
     color: var(--HH-text-primary);
     outline: none;
-    font-size: 1.05rem;
+    font-size: 0.9rem;
     font-weight: 600;
     transition: all var(--HH-transition-base);
     font-family: inherit;
@@ -340,8 +340,8 @@ body {
 
 .HH_GRID thead th {
     background: var(--HH-bg-alt);
-    padding: 22px var(--HH-space-8);
-    font-size: 0.85rem;
+    padding: 14px var(--HH-space-6);
+    font-size: 0.7rem;
     font-weight: 800;
     color: var(--HH-text-tertiary);
     text-transform: uppercase;
@@ -358,10 +358,10 @@ body {
 }
 
 .HH_GRID tbody td {
-    height: 140px;
-    padding: 24px var(--HH-space-8);
+    height: 100px;
+    padding: 1rem var(--HH-space-6);
     color: var(--HH-text-secondary);
-    font-size: 1.1rem;
+    font-size: 0.95rem;
     font-weight: 600;
     vertical-align: middle;
     transition: background-color var(--HH-transition-fast);
@@ -394,8 +394,8 @@ body {
 }
 
 .HH_AVATAR_CIRCLE {
-    width: 64px;
-    height: 64px;
+    width: 52px;
+    height: 52px;
     background: var(--HH-bg-canvas);
     border: 1.5px solid var(--HH-border-base);
     color: var(--HH-text-primary);
@@ -404,7 +404,7 @@ body {
     align-items: center;
     justify-content: center;
     font-weight: 800;
-    font-size: 1.5rem;
+    font-size: 1.2rem;
     flex-shrink: 0;
     box-shadow: var(--HH-shadow-sm);
     text-transform: uppercase;
@@ -422,13 +422,13 @@ body {
     font-weight: 800;
     color: var(--HH-text-primary);
     line-height: 1.2;
-    font-size: 1.25rem;
+    font-size: 1.1rem;
     letter-spacing: -0.01em;
 }
 
 .HH_ID_TAG {
     font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 0.95rem;
+    font-size: 0.8rem;
     color: var(--HH-text-tertiary);
     font-weight: 700;
     display: flex;
@@ -450,9 +450,9 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 10px 22px;
+    padding: 6px 14px;
     border-radius: 9999px;
-    font-size: 0.85rem;
+    font-size: 0.7rem;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.06em;
@@ -485,10 +485,10 @@ body {
     background: var(--HH-bg-surface);
     border: 1.5px solid var(--HH-border-base);
     color: var(--HH-text-primary);
-    height: 52px;
-    padding: 0 var(--HH-space-6);
+    height: 44px;
+    padding: 0 var(--HH-space-4);
     border-radius: var(--HH-radius-md);
-    font-size: 1.05rem;
+    font-size: 0.9rem;
     font-weight: 700;
     cursor: pointer;
     display: inline-flex;
@@ -540,11 +540,11 @@ body {
 
 .HH_MENU_ITEM {
     width: 100%;
-    padding: 14px 16px;
+    padding: 10px 12px;
     border: none;
     background: transparent;
     text-align: left;
-    font-size: 1rem;
+    font-size: 0.85rem;
     font-weight: 600;
     color: var(--HH-text-secondary);
     border-radius: var(--HH-radius-md);
@@ -595,7 +595,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--HH-space-6) var(--HH-space-8);
+    padding: var(--HH-space-4) var(--HH-space-6);
     background: var(--HH-bg-surface);
     border-top: 1px solid var(--HH-border-base);
     border-radius: 0 0 var(--HH-radius-lg) var(--HH-radius-lg);
@@ -621,12 +621,12 @@ body {
 }
 
 .HH_PAG_BTN {
-    height: 52px;
-    padding: 0 var(--HH-space-6);
+    height: 44px;
+    padding: 0 var(--HH-space-4);
     background: var(--HH-bg-surface);
     border: 1px solid var(--HH-border-base);
     border-radius: var(--HH-radius-md);
-    font-size: 1rem;
+    font-size: 0.85rem;
     font-weight: 700;
     color: var(--HH-text-primary);
     cursor: pointer;
