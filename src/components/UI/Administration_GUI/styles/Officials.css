@@ -29,7 +29,7 @@
   background-color: var(--offic-bg);
   min-height: 100vh;
   font-family: 'Inter', system-ui, sans-serif;
-  transition: background-color 0.3s ease; /* Smooth transition */
+  transition: background-color 0.3s ease; 
 }
 
 .OFFIC_MAIN_CONTAINER {
@@ -37,7 +37,7 @@
   margin: 0 auto;
 }
 
-/* HEADER SECTION */
+/* --- HEADER SECTION --- */
 .OFFIC_HEADER_FLEX {
   display: flex;
   justify-content: space-between;
@@ -78,7 +78,7 @@
   transform: translateY(-1px);
 }
 
-/* SEARCH & TABLE CONTAINER */
+/* --- SEARCH & TABLE CONTAINER --- */
 .OFFIC_TABLE_CONTAINER {
   background: var(--offic-card-bg);
   border-radius: 12px;
@@ -125,7 +125,7 @@
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-/* TABLE STYLING */
+/* --- TABLE STYLING --- */
 .OFFIC_TABLE_WRAP {
   overflow-x: auto;
 }
@@ -163,7 +163,11 @@
   background-color: var(--offic-row-hover);
 }
 
-/* AVATAR & NAME CELL */
+.OFFIC_ALIGN_RIGHT {
+  text-align: right;
+}
+
+/* --- AVATAR & NAME CELL --- */
 .OFFIC_AVATAR_FLEX {
   display: flex;
   align-items: center;
@@ -186,7 +190,7 @@
 .OFFIC_AVATAR_CIRCLE.CAPTAIN { background-color: #ef4444; }
 .OFFIC_AVATAR_CIRCLE.STAFF { background-color: #3b82f6; }
 
-/* STATUS BADGES */
+/* --- STATUS BADGES --- */
 .OFFIC_STATUS_BADGE {
   display: inline-block;
   padding: 4px 10px;
@@ -200,13 +204,12 @@
   color: #166534;
 }
 
-/* Adjusted Inactive badge for Dark Mode visibility */
 .OFFIC_STATUS_BADGE.INACTIVE {
   background-color: #334155;
   color: #cbd5e1;
 }
 
-/* ACTION BUTTONS */
+/* --- ACTION BUTTONS --- */
 .OFFIC_ACTIONS_CELL {
   text-align: right;
 }
@@ -235,7 +238,7 @@
   border-color: #3b82f6;
 }
 
-/* EMPTY & LOADING STATES */
+/* --- EMPTY & LOADING STATES --- */
 .OFFIC_TABLE_LOAD, .OFFIC_TABLE_EMPTY {
   text-align: center;
   padding: 4rem !important;
@@ -243,6 +246,105 @@
   font-style: italic;
 }
 
+/* --- ERROR BANNER (FOR ALERTS) --- */
+.OFFIC_ERROR_MSG {
+  background-color: #fee2e2;
+  color: #dc2626;
+  padding: 10px 1.5rem;
+  border-bottom: 1px solid #fecaca;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ========================================================= */
+/* --- 🛑 ACCESS RESTRICTED / UNAUTHORIZED STATE ---         */
+/* ========================================================= */
+.OFFIC_DENIED_CARD {
+  background: var(--offic-card-bg);
+  border: 1px solid var(--offic-border);
+  border-radius: 12px;
+  padding: 4rem 2rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  max-width: 550px;
+  margin: 4rem auto;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.OFFIC_DENIED_ICON_WRAP {
+  width: 80px;
+  height: 80px;
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.OFFIC_DENIED_ICON {
+  font-size: 2.5rem;
+  color: #ef4444; 
+}
+
+.OFFIC_DENIED_TITLE {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--offic-text-main);
+  margin-bottom: 0.75rem;
+}
+
+.OFFIC_DENIED_SUB {
+  color: var(--offic-text-sub);
+  font-size: 0.95rem;
+  max-width: 400px;
+  line-height: 1.6;
+  margin-bottom: 2rem;
+}
+
+.OFFIC_DENIED_CODE {
+  background: var(--offic-bg);
+  border: 1px dashed var(--offic-border);
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 0.85rem;
+  color: var(--offic-text-sub);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+/* --- ⏳ FULL SCREEN SPINNER WRAP --- */
+.OFFIC_SPINNER_WRAP {
+  display: flex; 
+  justify-content: center; 
+  align-items: center; 
+  min-height: 60vh;
+}
+
+.OFFIC_SYNC_SPINNER {
+  border: 4px solid var(--offic-border);
+  border-left-color: #3b82f6;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: offic-spin 1s linear infinite;
+  margin: 0 auto 10px auto;
+}
+
+@keyframes offic-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* --- RESPONSIVE --- */
 @media (max-width: 768px) {
   .OFFIC_HEADER_FLEX {
     flex-direction: column;

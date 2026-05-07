@@ -29,12 +29,18 @@ const normalizePayload = (val) => {
         is4Ps: val.is4Ps ?? val.is_4ps ?? val.IS_4PS,
         isSoloParent: val.isSoloParent ?? val.is_solo_parent ?? val.IS_SOLO_PARENT,
         isSeniorCitizen: val.isSeniorCitizen ?? val.is_senior_citizen ?? val.IS_SENIOR_CITIZEN,
-        isIP: val.isIP ?? val.is_ip ?? val.IS_IP,
         birthCountry: val.birthCountry || val.birth_country || val.BIRTH_COUNTRY,
         birthProvince: val.birthProvince || val.birth_province || val.BIRTH_PROVINCE,
         birthCity: val.birthCity || val.birth_city || val.BIRTH_CITY,
         birthPlace: val.birthPlace || val.birth_place || val.BIRTH_PLACE,
         nationality: val.nationality || val.NATIONALITY,
+        voterIdNumber: val.voterIdNumber || val.voter_id_number,
+        pwdIdNumber: val.pwdIdNumber || val.pwd_id_number,
+        fourPsIdNumber: val.fourPsIdNumber || val.four_ps_id_number,
+        soloParentIdNumber: val.soloParentIdNumber || val.solo_parent_id_number,
+        seniorIdNumber: val.seniorIdNumber || val.senior_id_number,
+        // 🛡️ Ensure Status is captured properly
+        activityStatus: val.activityStatus || val.activity_status || 'Active' 
     };
 };
 
@@ -43,32 +49,25 @@ const csvBoolean = z.preprocess((val) => {
     return Boolean(val);
 }, z.boolean().optional());
 
-// Helper to handle messy CSV strings gracefully
 const safeString = z.coerce.string().trim().optional().nullable().or(z.literal(''));
+const phIdString = (maxLength) => z.coerce.string().trim().max(maxLength, `Maximum of ${maxLength} characters allowed`).optional().nullable().or(z.literal(''));
 
 // =========================================================
 // 🛡️ 2. ZOD SCHEMA (BULK IMPORT SAFE)
 // =========================================================
 const residentSchema = z.preprocess(normalizePayload, z.object({
-    // Coerce to string to prevent crashes on numbers, relaxed min constraint
     firstName: z.coerce.string().trim().min(1, "First name is required"),
     lastName: z.coerce.string().trim().min(1, "Last name is required"),
     middleName: safeString,
-    
-    // If it's not a valid date, just make it null instead of crashing
     dob: z.preprocess((val) => {
         if (!val || typeof val !== 'string' || val.trim() === '') return null;
         return !isNaN(Date.parse(val)) ? val : null;
     }, z.string().nullable().optional()),
-    
     sex: safeString,
-    
-    // Strip out "N/A" or invalid emails without crashing
     email: z.preprocess((val) => {
         if (typeof val === 'string' && !val.includes('@')) return null;
         return val;
     }, z.string().email().nullable().optional().or(z.literal(''))),
-    
     contact_number: safeString,
     purok: safeString,
     civilStatus: safeString,
@@ -76,21 +75,25 @@ const residentSchema = z.preprocess(normalizePayload, z.object({
     employmentStatus: safeString,
     occupation: safeString,
     religion: safeString,
-    
     isVoter: csvBoolean,
     isPWD: csvBoolean,
     is4Ps: csvBoolean,
     isSoloParent: csvBoolean,
     isSeniorCitizen: csvBoolean,
-    isIP: csvBoolean,
+    voterIdNumber: phIdString(25),      
+    pwdIdNumber: phIdString(25),        
+    fourPsIdNumber: phIdString(20),     
+    soloParentIdNumber: phIdString(25), 
+    seniorIdNumber: phIdString(20),
+    activityStatus: safeString // 🛡️ Status validation
 }).passthrough());
 
 const validatePayload = (schema) => (req, res, next) => {
-    try {
-        req.body = schema.parse(req.body);
-        next();
-    } catch (error) {
-        return res.status(400).json({ error: "Validation Failed", details: error.errors });
+    try { 
+        req.body = schema.parse(req.body); 
+        next(); 
+    } catch (error) { 
+        return res.status(400).json({ error: "Validation Failed", details: error.errors }); 
     }
 };
 
@@ -115,8 +118,8 @@ const secure = (allowedRoles, authenticateToken) => {
     return (req, res, next) => {
         authenticateToken(req, res, () => {
             const role = (req.user?.user_role || req.user?.role || '').toLowerCase();
-            if (!allowedRoles.includes(role)) {
-                return res.status(403).json({ error: 'Forbidden', message: 'Insufficient clearance.' });
+            if (!allowedRoles.includes(role)) { 
+                return res.status(403).json({ error: 'Forbidden', message: 'Insufficient clearance.' }); 
             }
             next();
         });
@@ -125,7 +128,6 @@ const secure = (allowedRoles, authenticateToken) => {
 
 export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
     
-    // 🔗 GLOBAL REBUILD
     router.post('/residents/ledger/rebuild', secure(['admin', 'superadmin'], authenticateToken), async (req, res) => {
         try {
             const { data: all, error } = await supabase.from('residents_records').select('*');
@@ -138,16 +140,16 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
         } catch (err) { res.status(500).json({ error: err.message }); }
     });
 
-    // GET ALL
+    // 🛡️ NO FILTERS: Sends all records so Archive and Residents pages can route them locally
     router.get('/residents', secure(['admin', 'superadmin', 'staff'], authenticateToken), async (req, res) => {
         try {
-            const { data, error } = await supabase.from('residents_records').select('*').neq('activity_status', 'Archived').order('last_name', { ascending: true });
+            const { data, error } = await supabase.from('residents_records').select('*').order('last_name', { ascending: true });
             if (error) throw error;
             res.status(200).json(data.map(r => ({ ...r, integrity_status: verifyIntegrity(r) })));
         } catch (err) { res.status(500).json({ error: "Data retrieval failed." }); }
     });
 
-    // POST: Create Resident + Account (FORMAT: jcb981@residents...)
+    // POST: Create Resident + Account
     router.post('/residents', secure(['admin', 'superadmin', 'staff'], authenticateToken), validatePayload(residentSchema), async (req, res) => {
         try {
             const r = req.body;
@@ -179,14 +181,18 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                 is_4ps: !!r.is4Ps,
                 is_solo_parent: !!r.isSoloParent,
                 is_senior_citizen: !!r.isSeniorCitizen,
-                is_ip: !!r.isIP,
-                activity_status: 'Active'
+                voter_id_number: r.voterIdNumber || null,
+                pwd_id_number: r.pwdIdNumber || null,
+                four_ps_id_number: r.fourPsIdNumber || null,
+                solo_parent_id_number: r.soloParentIdNumber || null,
+                senior_id_number: r.seniorIdNumber || null,
+                activity_status: r.activityStatus || 'Active' 
             }]).select().single();
 
             if (pErr) throw pErr;
 
             try {
-                // 🎯 FORMAT: jcb981@residents (Initials: John Celino Bocoboc)
+                // 🎯 FORMAT: jcb981@residents
                 const f = profile.first_name[0] || '';
                 const m = profile.middle_name ? profile.middle_name[0] : '';
                 const l = profile.last_name[0] || '';
@@ -208,20 +214,20 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
         } catch (err) { res.status(500).json({ error: err.message }); }
     });
 
-    // PUT: BREAK AND REPLACE THE BLOCK
+    // PUT: UPDATE RESIDENT
     router.put('/residents/:id', secure(['admin', 'superadmin', 'staff'], authenticateToken), validatePayload(residentSchema), async (req, res) => {
         try {
             const r = req.body;
-            // 🛡️ ENTIRE BLOCK REPLACED: New hash for the modified identity
             const newHash = generateGenesisHash(r.firstName, r.middleName, r.lastName, r.dob);
 
+            // 🛡️ THE FIX: Ensure activity_status is actively updated in the database
             const updates = {
                 first_name: r.firstName,
                 middle_name: r.middleName,
                 last_name: r.lastName,
                 sex: r.sex,
                 dob: r.dob,
-                genesis_hash: newHash, // 👈 THE NEW SIGNATURE
+                genesis_hash: newHash,
                 contact_number: r.contact_number,
                 email: r.email,
                 current_address: r.currentAddress,
@@ -236,12 +242,17 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                 is_4ps: r.is4Ps,
                 is_solo_parent: r.isSoloParent,
                 is_senior_citizen: r.isSeniorCitizen,
-                is_ip: r.isIP,
                 birth_country: r.birthCountry,
                 birth_province: r.birthProvince,
                 birth_city: r.birthCity,
                 birth_place: r.birthPlace,
-                nationality: r.nationality
+                nationality: r.nationality,
+                voter_id_number: r.voterIdNumber || null,
+                pwd_id_number: r.pwdIdNumber || null,
+                four_ps_id_number: r.fourPsIdNumber || null,
+                solo_parent_id_number: r.soloParentIdNumber || null,
+                senior_id_number: r.seniorIdNumber || null,
+                activity_status: r.activityStatus // 🛡️ Status correctly mapped and saved
             };
 
             const { data, error } = await supabase.from('residents_records').update(updates).eq('record_id', req.params.id).select();
@@ -252,6 +263,7 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
         } catch (err) { res.status(500).json({ error: "Identity replacement failed." }); }
     });
 
+    // DELETE: Quick Archive
     router.delete('/residents/:id', secure(['admin', 'superadmin'], authenticateToken), async (req, res) => {
         try {
             await supabase.from('residents_records').update({ activity_status: 'Archived' }).eq('record_id', req.params.id);

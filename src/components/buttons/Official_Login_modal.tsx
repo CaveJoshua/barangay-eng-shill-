@@ -3,12 +3,21 @@ import { LOGIN_API } from '../UI/api';
 import AdminRecoveryModal from './AdminRecoveryModal'; 
 import './styles/Login_modal.css';
 
+// ⚠️ TIP: Make sure this is using your full API URL if backend is on a different domain
 const ROOT_REQUEST_API = '/api/auth/root-request'; 
 const ROOT_USERNAME = 'SYSTEM_ROOT_ADMIN';
 
+export interface AuthResponse {
+  username: string;
+  role: string;
+  account_id: string;
+  profile: any;
+  // ❌ access_token is intentionally removed here for security
+}
+
 interface LoginModalProps {
   onClose: () => void;
-  onSuccess: (data: any) => void; // ✅ FIXED: was (token: string)
+  onSuccess: (data: AuthResponse) => void;
 }
 
 type ModalView = 'LOGIN' | 'ROOT_OTP';
@@ -51,6 +60,7 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
       const response = await fetch(ROOT_REQUEST_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // 🔒 Ensure cookies/CORS are handled
         body: JSON.stringify({ username: ROOT_USERNAME })
       });
       const data = await response.json();
@@ -93,7 +103,7 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
       const response = await fetch(LOGIN_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', 
+        credentials: 'include', // 🔒 CRITICAL: This allows the HttpOnly cookie to be set!
         body: JSON.stringify(payload),
         signal: controllerRef.current.signal
       });
@@ -102,28 +112,25 @@ const Login_modal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
       if (!isMounted.current) return;
 
       if (response.ok) {
-        // Save Core IDs
+        // 🔒 SECURITY UPDATE: We no longer save user_role or access_token to localStorage.
+        // We only save non-sensitive identifiers used for UI queries.
         localStorage.setItem('account_id', data.account_id);
-        localStorage.setItem('profile_id', data.profile?.record_id || data.account_id);
         
+        if (data.profile?.record_id) {
+            localStorage.setItem('profile_id', data.profile.record_id);
+        }
+
         if (view === 'ROOT_OTP') {
           sessionStorage.setItem('trace_id', traceId);
         }
 
-        const resolvedRole = (
-          data.user_role || data.role || data.profile?.role || ''
-        ).toLowerCase();
-
-        localStorage.setItem('user_role', resolvedRole);
-
-        // ✅ FIXED: Pass the full data object up — NOT just the token
-        // App.tsx will save admin_session from this full object
+        // Pass the sanitized data up to the parent App/Router state
         onSuccess({
           username:   data.username,
-          role:       resolvedRole,
-          profile:    data.profile,      // ← has profileName & position
-          account_id: data.account_id,
-          access_token: data.access_token
+          role:       data.role, // Derived cleanly from backend now
+          profile:    data.profile,
+          account_id: data.account_id
+          // ❌ No more access_token leaking into memory or states
         });
 
       } else {

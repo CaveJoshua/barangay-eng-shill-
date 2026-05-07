@@ -1,18 +1,10 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Document_view from '../../forms/Document_view'; 
 import Document_modal from '../../buttons/Document_modal'; 
 import Data_Analytics_modal from '../../buttons/Data_Analytics_modal'; 
 import './styles/Document.css';
 import { ApiService } from '../api'; 
 
-// ─────────────────────────────────────────────────────────────────────────────
-// FIX: Import updateDocumentStatus from the API layer.
-//
-// ⚠️  PATH: Adjust this import path to match where Doc_data_api.ts lives
-//   relative to this file. Common patterns:
-//     './Types/Doc_data_api'          ← if same folder level
-//     '../Documents/Types/Doc_data_api' ← if one folder up
-// ─────────────────────────────────────────────────────────────────────────────
 import { updateDocumentStatus } from '../../buttons/Tools/Document_tools/Types/Doc_data_api';
 
 export interface IDocRequest {
@@ -64,17 +56,6 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
 
   // ─── Glowing Highlight ───
   const [activeHighlight, setActiveHighlight] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (highlightId) {
-      setActiveHighlight(highlightId);
-      if (highlightId.toUpperCase().includes('WK-IN')) {
-          setActiveTab('History');
-      }
-      const timer = setTimeout(() => setActiveHighlight(null), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [highlightId]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -153,6 +134,42 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
     return () => { valve.abort(); clearInterval(interval); };
   }, [fetchRequests]);
 
+  // 🛡️ ── AUTO-SYNC HIGHLIGHTER ENGINE ──
+  // Listens for an ID from the Dashboard, switches to the correct tab, and flashes the row.
+  useEffect(() => {
+    if (highlightId && requests.length > 0) {
+      const targetDoc = requests.find(d => d.id === highlightId || d.referenceNo === highlightId);
+      
+      if (targetDoc) {
+        // 1. Switch to the correct tab automatically
+        if (targetDoc.status === 'Completed' || targetDoc.status === 'Rejected') {
+          setActiveTab('History');
+        } else {
+          setActiveTab(targetDoc.status);
+        }
+
+        // 2. Set the glowing state
+        setActiveHighlight(targetDoc.id);
+
+        // 3. Scroll to the row and flash it yellow
+        setTimeout(() => {
+          const rowElement = document.getElementById(`doc-row-${targetDoc.id}`);
+          if (rowElement) {
+            rowElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            rowElement.style.transition = 'background-color 0.5s ease';
+            rowElement.style.backgroundColor = '#fef08a'; // Flash Yellow
+            
+            // Remove the flash after 3 seconds
+            setTimeout(() => {
+              rowElement.style.backgroundColor = '';
+              setActiveHighlight(null);
+            }, 3000);
+          }
+        }, 300); // 300ms delay to let the tab finish rendering
+      }
+    }
+  }, [highlightId, requests]);
+
   useEffect(() => {
     setCurrentPage(1);
   }, [activeTab, searchTerm]);
@@ -187,20 +204,6 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
     setSelectedDoc(null);
   };
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // FIX: handleStatusUpdate
-  //
-  // ROOT CAUSE (before fix):
-  //   Called ApiService.saveDocumentRecord({ id, status }) which hits the
-  //   POST /documents/save endpoint — an INSERT-only route. The backend never
-  //   looked at the `id` field for updates, so every status click was silently
-  //   trying (and failing) to INSERT a new duplicate row. Nothing was saved.
-  //
-  // FIX:
-  //   Now calls updateDocumentStatus(id, status, reason) which issues a
-  //   PATCH /documents/:id/status request — the correct update endpoint that
-  //   the backend router already exposes and handles properly.
-  // ─────────────────────────────────────────────────────────────────────────
   const handleStatusUpdate = async (id: string, newStatus: string, reason?: string) => {
     try {
       await updateDocumentStatus(id, newStatus, reason);
@@ -234,19 +237,24 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
         </button>
       </div>
 
-      {/* KPI STATS PANEL */}
+      {/* KPI STATS PANEL - NOW CLICKABLE */}
       <div className="DOC_STATS_GRID">
         {['Pending', 'Processing', 'Ready'].map(status => {
           const count = requests.filter(r => r.status === status).length;
           return (
-            <div key={status} className="DOC_STAT_CARD">
+            <div 
+              key={status} 
+              className={`DOC_STAT_CARD ${activeTab === status ? 'ACTIVE_CARD' : ''}`}
+              onClick={() => setActiveTab(status as any)}
+              style={{ cursor: 'pointer' }}
+            >
               <span className="DOC_STAT_VAL">{count}</span>
               <span className="DOC_STAT_LABEL">{status.toUpperCase()}</span>
             </div>
           );
         })}
         
-        <div className="DOC_STAT_CARD DOC_ANALYTICS_TRIGGER" onClick={() => setIsAnalyticsOpen(true)}>
+        <div className="DOC_STAT_CARD DOC_ANALYTICS_TRIGGER" onClick={() => setIsAnalyticsOpen(true)} style={{ cursor: 'pointer' }}>
           <span className="DOC_STAT_VAL"><i className="fas fa-chart-pie" style={{ color: '#3b82f6' }}></i></span>
           <span className="DOC_STAT_LABEL">VIEW ANALYTICS</span>
         </div>
@@ -303,8 +311,10 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
                   const isGlowing = activeHighlight === doc.referenceNo || activeHighlight === doc.id;
 
                   return (
+                    // 🛡️ ID assigned to the row so the Auto-Scroller can find it
                     <tr 
                       key={doc.id} 
+                      id={`doc-row-${doc.id}`}
                       className={`DOC_ROW_CLICK ${isGlowing ? 'HINT_HIGHLIGHT' : ''}`}
                       onClick={() => { 
                         setSelectedDoc(doc); 

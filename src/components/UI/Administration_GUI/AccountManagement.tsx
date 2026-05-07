@@ -172,13 +172,22 @@ export default function AccountManagement() {
     );
   }
 
-  // ── UPDATED DESIGN: Only shows "Authorized access only" ──
+  // ── 🛑 UPGRADED DESIGN: Professional "Access Restricted" Card ──
   if (isSuperAdmin === false) {
     return (
       <div className="ACC_PAGE_WRAP">
-        <div className="ACC_MAIN_CONTAINER" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center' }}>
-          <i className="fas fa-lock" style={{ fontSize: '4rem', color: '#ef4444', marginBottom: '1.5rem' }}></i>
-          <h2 style={{ color: '#0f172a', fontSize: '2rem', fontWeight: 700 }}>Authorized access only</h2>
+        <div className="ACC_MAIN_CONTAINER">
+          <div className="ACC_DENIED_CARD">
+            <div className="ACC_DENIED_ICON_WRAP">
+              <i className="fas fa-shield-alt ACC_DENIED_ICON"></i>
+            </div>
+            <h2 className="ACC_DENIED_TITLE">Access Restricted</h2>
+            <p className="ACC_DENIED_SUB">
+              Your current administrative role does not have the required permissions to view the Account Management system.
+            </p>
+            {error && <p style={{ color: '#ef4444', marginTop: '0.5rem', fontSize: '0.85rem', fontWeight: 600 }}>{error}</p>}
+            <div className="ACC_DENIED_CODE" style={{ marginTop: '1.5rem' }}>ERROR 403 &mdash; FORBIDDEN</div>
+          </div>
         </div>
       </div>
     );

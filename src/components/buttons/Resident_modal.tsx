@@ -32,7 +32,6 @@ export interface IResident {
   is4Ps: boolean;
   isSoloParent: boolean;
   isSeniorCitizen: boolean;
-  isIP: boolean;
   voterIdNumber?: string;
   pwdIdNumber?: string;
   soloParentIdNumber?: string;
@@ -48,7 +47,7 @@ const initialState: IResident = {
   currentAddress: '', purok: '', civilStatus: 'SINGLE',
   education: 'ELEMENTARY GRADUATE', employment: '', employmentStatus: 'UNEMPLOYED', occupation: '', 
   activityStatus: 'Active', isVoter: false, isPWD: false, 
-  is4Ps: false, isSoloParent: false, isSeniorCitizen: false, isIP: false,
+  is4Ps: false, isSoloParent: false, isSeniorCitizen: false,
   voterIdNumber: '', pwdIdNumber: '', soloParentIdNumber: '', seniorIdNumber: '', fourPsIdNumber: ''
 };
 
@@ -62,10 +61,12 @@ export const ResidentModal: React.FC<{
   const [formData, setFormData] = useState<IResident>(initialState);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  const [globalError, setGlobalError] = useState(''); 
+  
   const [visibleList, setVisibleList] = useState<string | null>(null);
   const [customFields, setCustomFields] = useState<Record<string, boolean>>({});
   
-  // State for formal notification
   const [successMessage, setSuccessMessage] = useState('');
   const [isClosingPopup, setIsClosingPopup] = useState(false);
 
@@ -77,6 +78,8 @@ export const ResidentModal: React.FC<{
 
   const dateRefs = { day: useRef<HTMLDivElement>(null), month: useRef<HTMLDivElement>(null), year: useRef<HTMLDivElement>(null) };
   const locRefs = { country: useRef<HTMLDivElement>(null), prov: useRef<HTMLDivElement>(null), city: useRef<HTMLDivElement>(null), nat: useRef<HTMLDivElement>(null) };
+  
+  const scrollRef = useRef<HTMLFormElement>(null); 
 
   const months = useMemo(() => Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, '0')), []);
   const days = useMemo(() => Array.from({ length: 31 }, (_, i) => (i + 1).toString().padStart(2, '0')), []);
@@ -136,6 +139,7 @@ export const ResidentModal: React.FC<{
         setCustomFields({});
       }
       setErrors({});
+      setGlobalError('');
       setSuccessMessage('');
       setIsClosingPopup(false);
     }
@@ -241,6 +245,7 @@ export const ResidentModal: React.FC<{
 
     setFormData(p => ({ ...p, [field]: v }));
     if (errors[field as string]) setErrors(p => ({ ...p, [field]: '' }));
+    if (globalError) setGlobalError(''); // Clear global error on typing
   };
 
   const handleCustomBlur = (field: keyof IResident) => {
@@ -251,9 +256,21 @@ export const ResidentModal: React.FC<{
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const valErrors = validateResidentForm(formData);
-    if (Object.keys(valErrors).length > 0) { setErrors(valErrors); return; }
     
+    const valErrors = validateResidentForm(formData);
+    if (Object.keys(valErrors).length > 0) { 
+        setErrors(valErrors); 
+
+        const failedKeys = Object.keys(valErrors).map(k => k.replace(/([A-Z])/g, ' $1').toUpperCase()).join(', ');
+        setGlobalError(`Missing or invalid data in: ${failedKeys}`);
+        
+        if (scrollRef.current) {
+            scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        return; 
+    }
+    
+    setGlobalError('');
     setIsLoading(true);
 
     const safePayload = {
@@ -265,36 +282,35 @@ export const ResidentModal: React.FC<{
       civilStatus: formData.civilStatus, education: formData.education, employment: formData.employment,
       employmentStatus: formData.employmentStatus, occupation: formData.occupation, isVoter: formData.isVoter,
       isPWD: formData.isPWD, is4Ps: formData.is4Ps, isSoloParent: formData.isSoloParent,
-      isSeniorCitizen: formData.isSeniorCitizen, isIP: formData.isIP, voterIdNumber: formData.voterIdNumber,
-      pwdIdNumber: formData.pwdIdNumber, soloParentIdNumber: formData.soloParentIdNumber,
-      seniorIdNumber: formData.seniorIdNumber, fourPsIdNumber: formData.fourPsIdNumber,
+      isSeniorCitizen: formData.isSeniorCitizen,
+      voterIdNumber: formData.voterIdNumber, pwdIdNumber: formData.pwdIdNumber, 
+      soloParentIdNumber: formData.soloParentIdNumber, seniorIdNumber: formData.seniorIdNumber, 
+      fourPsIdNumber: formData.fourPsIdNumber,
       activityStatus: formData.activityStatus
     };
 
     try {
       const result = await ApiService.saveResident(residentData?.id, safePayload);
       if (result.success) {
-        // Trigger popup display
         setSuccessMessage(isUpdateMode ? 'Identity Updated Successfully' : 'Identity Registered Successfully');
         
-        // Wait 2 seconds for admin to read it
         setTimeout(() => {
-          setIsClosingPopup(true); // Trigger exit transition
-          
-          // Wait 400ms for exit animation to complete before actually closing modal
+          setIsClosingPopup(true); 
           setTimeout(() => {
             setSuccessMessage('');
             setIsClosingPopup(false);
             onSuccess(result.data); 
             onClose();
-          }, 400); 
-        }, 2000);
+          }, 300); 
+        }, 800);
         
       } else {
-        alert(`Request failed: ${result.error}`);
+        setGlobalError(`Server Rejected: ${result.error}`);
+        if (scrollRef.current) scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
       }
     } catch (error) {
-      alert('Handshake failed. Check connection.');
+      setGlobalError('Network Error: Failed to connect to the server.');
+      if (scrollRef.current) scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setIsLoading(false);
     }
@@ -308,7 +324,7 @@ export const ResidentModal: React.FC<{
     <div className="RMS_OVERLAY" onClick={onClose}>
       <div className="RMS_CARD" onClick={e => e.stopPropagation()}>
         
-        {/* NEW PROFESSIONAL SUCCESS POPUP */}
+        {/* SUCCESS POPUP */}
         {successMessage && (
           <div 
             style={{
@@ -322,7 +338,7 @@ export const ResidentModal: React.FC<{
               zIndex: 9999,
               borderRadius: '8px',
               opacity: isClosingPopup ? 0 : 1,
-              transition: 'opacity 0.4s ease-in-out',
+              transition: 'opacity 0.3s ease-in-out',
             }}
           >
             <div 
@@ -338,42 +354,21 @@ export const ResidentModal: React.FC<{
                 gap: '16px',
                 transform: isClosingPopup ? 'translateY(-15px) scale(0.97)' : 'translateY(0) scale(1)',
                 opacity: isClosingPopup ? 0 : 1,
-                transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
+                transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
               }}
             >
               <div 
                 style={{
-                  width: '56px',
-                  height: '56px',
-                  borderRadius: '50%',
-                  backgroundColor: '#ecfdf5',
-                  color: '#10b981',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '24px'
+                  width: '56px', height: '56px', borderRadius: '50%', backgroundColor: '#ecfdf5',
+                  color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px'
                 }}
               >
                 <i className="fas fa-check"></i>
               </div>
               <div style={{ textAlign: 'center' }}>
-                <h3 style={{ 
-                  margin: '0 0 8px 0', 
-                  color: '#0f172a', 
-                  fontSize: '18px', 
-                  fontWeight: '600',
-                  fontFamily: 'system-ui, -apple-system, sans-serif'
-                }}>
+                <h3 style={{ margin: '0 0 8px 0', color: '#0f172a', fontSize: '18px', fontWeight: '600', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
                   {successMessage}
                 </h3>
-                <p style={{ 
-                  margin: 0, 
-                  color: '#64748b', 
-                  fontSize: '14px',
-                  fontFamily: 'system-ui, -apple-system, sans-serif'
-                }}>
-                  The resident record has been securely saved.
-                </p>
               </div>
             </div>
           </div>
@@ -384,9 +379,17 @@ export const ResidentModal: React.FC<{
           <button className="RMS_CLOSE_X" onClick={onClose}>&times;</button>
         </div>
 
-        <form onSubmit={onSubmit} className="RMS_FORM">
+        <form onSubmit={onSubmit} className="RMS_FORM" ref={scrollRef} style={{ overflowY: 'auto' }}>
           <div className="RMS_BODY">
             
+            {/* 🛡️ EXPLICIT GLOBAL ERROR BANNER */}
+            {globalError && (
+                <div style={{ backgroundColor: '#fef2f2', color: '#991b1b', border: '1px solid #f87171', padding: '12px', borderRadius: '8px', marginBottom: '20px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600' }}>
+                    <i className="fas fa-exclamation-circle"></i>
+                    {globalError}
+                </div>
+            )}
+
             <div className="RMS_SECTION">
               <div className="RMS_SEC_TITLE">Personal Identity</div>
               <div className="RMS_GRID">
@@ -402,22 +405,22 @@ export const ResidentModal: React.FC<{
                 </div>
                 <div className="RMS_GROUP">
                   <label className="RMS_LABEL">MIDDLE NAME</label>
-                  <input className="RMS_INPUT" value={formData.middleName} onChange={e => handleChange('middleName', e.target.value)} />
+                  <input className={`RMS_INPUT ${errors.middleName ? 'ERR_BORDER' : ''}`} value={formData.middleName} onChange={e => handleChange('middleName', e.target.value)} />
                 </div>
 
                 <div className="RMS_GROUP">
                   <label className="RMS_LABEL">DATE OF BIRTH * {isUpdateMode && lockIcon}</label>
                   <div className="RMS_DATE_FLEX">
                     <div className="RMS_SEARCH_SELECT_WRAP" ref={dateRefs.month}>
-                      <input className="RMS_INPUT" placeholder="MM" value={search.month} readOnly={isUpdateMode} onFocus={() => !isUpdateMode && setVisibleList('month')} onChange={e => handleDateChange('month', e.target.value)} maxLength={2} />
+                      <input className={`RMS_INPUT ${errors.dob ? 'ERR_BORDER' : ''}`} placeholder="MM" value={search.month} readOnly={isUpdateMode} onFocus={() => !isUpdateMode && setVisibleList('month')} onChange={e => handleDateChange('month', e.target.value)} maxLength={2} />
                       {visibleList === 'month' && <ul className="RMS_SEARCH_RESULTS">{filterLimit(months, search.month).map(m => <li key={m} onClick={() => {handleDateChange('month', m); setVisibleList(null);}}>{m}</li>)}</ul>}
                     </div>
                     <div className="RMS_SEARCH_SELECT_WRAP" ref={dateRefs.day}>
-                      <input className="RMS_INPUT" placeholder="DD" value={search.day} readOnly={isUpdateMode} onFocus={() => !isUpdateMode && setVisibleList('day')} onChange={e => handleDateChange('day', e.target.value)} maxLength={2} />
+                      <input className={`RMS_INPUT ${errors.dob ? 'ERR_BORDER' : ''}`} placeholder="DD" value={search.day} readOnly={isUpdateMode} onFocus={() => !isUpdateMode && setVisibleList('day')} onChange={e => handleDateChange('day', e.target.value)} maxLength={2} />
                       {visibleList === 'day' && <ul className="RMS_SEARCH_RESULTS">{filterLimit(days, search.day).map(d => <li key={d} onClick={() => {handleDateChange('day', d); setVisibleList(null);}}>{d}</li>)}</ul>}
                     </div>
                     <div className="RMS_SEARCH_SELECT_WRAP" ref={dateRefs.year}>
-                      <input className="RMS_INPUT" placeholder="YYYY" value={search.year} readOnly={isUpdateMode} onFocus={() => !isUpdateMode && setVisibleList('year')} onChange={e => handleDateChange('year', e.target.value)} maxLength={4} />
+                      <input className={`RMS_INPUT ${errors.dob ? 'ERR_BORDER' : ''}`} placeholder="YYYY" value={search.year} readOnly={isUpdateMode} onFocus={() => !isUpdateMode && setVisibleList('year')} onChange={e => handleDateChange('year', e.target.value)} maxLength={4} />
                       {visibleList === 'year' && <ul className="RMS_SEARCH_RESULTS">{filterLimit(years, search.year).map(y => <li key={y} onClick={() => {handleDateChange('year', y); setVisibleList(null);}}>{y}</li>)}</ul>}
                     </div>
                   </div>
@@ -427,28 +430,28 @@ export const ResidentModal: React.FC<{
                 <div className="RMS_GROUP" ref={locRefs.country}>
                   <label className="RMS_LABEL">COUNTRY OF BIRTH</label>
                   <div className="RMS_SEARCH_SELECT_WRAP">
-                    <input className="RMS_INPUT" value={search.country} onFocus={() => setVisibleList('country')} onChange={e => handleLocSearchChange('country', e.target.value)} />
+                    <input className={`RMS_INPUT ${errors.birthCountry ? 'ERR_BORDER' : ''}`} value={search.country} onFocus={() => setVisibleList('country')} onChange={e => handleLocSearchChange('country', e.target.value)} />
                     {visibleList === 'country' && <ul className="RMS_SEARCH_RESULTS">{filterLimit(availableCountries, search.country).map(c => <li key={c} onClick={() => {handleLocSearchChange('country', c); setVisibleList(null);}}>{c}</li>)}</ul>}
                   </div>
                 </div>
                 <div className="RMS_GROUP" ref={locRefs.prov}>
                   <label className="RMS_LABEL">PROVINCE OF BIRTH</label>
                   <div className="RMS_SEARCH_SELECT_WRAP">
-                    <input className="RMS_INPUT" placeholder="SEARCH PROVINCE..." value={search.province} onFocus={() => setVisibleList('prov')} onChange={e => handleLocSearchChange('province', e.target.value)} />
+                    <input className={`RMS_INPUT ${errors.birthProvince ? 'ERR_BORDER' : ''}`} placeholder="SEARCH PROVINCE..." value={search.province} onFocus={() => setVisibleList('prov')} onChange={e => handleLocSearchChange('province', e.target.value)} />
                     {visibleList === 'prov' && <ul className="RMS_SEARCH_RESULTS">{filterLimit(availableProvinces, search.province).map(p => <li key={p} onClick={() => {handleLocSearchChange('province', p); setVisibleList(null);}}>{p}</li>)}</ul>}
                   </div>
                 </div>
                 <div className="RMS_GROUP" ref={locRefs.city}>
                   <label className="RMS_LABEL">CITY/MUNICIPALITY</label>
                   <div className="RMS_SEARCH_SELECT_WRAP">
-                    <input className="RMS_INPUT" placeholder="SEARCH CITY..." value={search.city} onFocus={() => setVisibleList('city')} onChange={e => handleLocSearchChange('city', e.target.value)} disabled={!search.province} />
+                    <input className={`RMS_INPUT ${errors.birthCity ? 'ERR_BORDER' : ''}`} placeholder="SEARCH CITY..." value={search.city} onFocus={() => setVisibleList('city')} onChange={e => handleLocSearchChange('city', e.target.value)} disabled={!search.province} />
                     {visibleList === 'city' && <ul className="RMS_SEARCH_RESULTS">{filterLimit(availableCities, search.city).map(c => <li key={c} onClick={() => {handleLocSearchChange('city', c); setVisibleList(null);}}>{c}</li>)}</ul>}
                   </div>
                 </div>
 
                 <div className="RMS_GROUP">
                   <label className="RMS_LABEL">SEX *</label>
-                  <select className="RMS_INPUT" value={formData.sex} onChange={e => handleChange('sex', e.target.value as 'Male' | 'Female')}>
+                  <select className={`RMS_INPUT ${errors.sex ? 'ERR_BORDER' : ''}`} value={formData.sex} onChange={e => handleChange('sex', e.target.value as 'Male' | 'Female')}>
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
                   </select>
@@ -457,9 +460,9 @@ export const ResidentModal: React.FC<{
                 <div className="RMS_GROUP">
                   <label className="RMS_LABEL">CIVIL STATUS</label>
                   {customFields.civilStatus ? (
-                    <input className="RMS_INPUT" autoFocus placeholder="SPECIFY STATUS..." value={formData.civilStatus} onChange={e => handleChange('civilStatus', e.target.value)} onBlur={() => handleCustomBlur('civilStatus')} />
+                    <input className={`RMS_INPUT ${errors.civilStatus ? 'ERR_BORDER' : ''}`} autoFocus placeholder="SPECIFY STATUS..." value={formData.civilStatus} onChange={e => handleChange('civilStatus', e.target.value)} onBlur={() => handleCustomBlur('civilStatus')} />
                   ) : (
-                    <select className="RMS_INPUT" value={formData.civilStatus} onChange={e => handleChange('civilStatus', e.target.value)}>
+                    <select className={`RMS_INPUT ${errors.civilStatus ? 'ERR_BORDER' : ''}`} value={formData.civilStatus} onChange={e => handleChange('civilStatus', e.target.value)}>
                       <option value="SINGLE">Single</option>
                       <option value="MARRIED">Married</option>
                       <option value="WIDOWED">Widowed</option>
@@ -467,12 +470,13 @@ export const ResidentModal: React.FC<{
                       <option value="OTHERS">OTHERS (SPECIFY)</option>
                     </select>
                   )}
+                  {errors.civilStatus && <span className="RMS_ERROR_TXT">{errors.civilStatus}</span>}
                 </div>
 
                 <div className="RMS_GROUP" ref={locRefs.nat}>
                   <label className="RMS_LABEL">NATIONALITY</label>
                   <div className="RMS_SEARCH_SELECT_WRAP">
-                    <input className="RMS_INPUT" placeholder="SEARCH NATIONALITY..." value={search.nationality} onFocus={() => setVisibleList('nat')} onChange={e => handleLocSearchChange('nationality', e.target.value)} />
+                    <input className={`RMS_INPUT ${errors.nationality ? 'ERR_BORDER' : ''}`} placeholder="SEARCH NATIONALITY..." value={search.nationality} onFocus={() => setVisibleList('nat')} onChange={e => handleLocSearchChange('nationality', e.target.value)} />
                     {visibleList === 'nat' && <ul className="RMS_SEARCH_RESULTS">{filterLimit(NATIONALITIES, search.nationality).map(n => <li key={n} onClick={() => {handleLocSearchChange('nationality', n); setVisibleList(null);}}>{n}</li>)}</ul>}
                   </div>
                 </div>
@@ -480,9 +484,9 @@ export const ResidentModal: React.FC<{
                 <div className="RMS_GROUP">
                   <label className="RMS_LABEL">RELIGION</label>
                   {customFields.religion ? (
-                    <input className="RMS_INPUT" autoFocus placeholder="SPECIFY RELIGION..." value={formData.religion} onChange={e => handleChange('religion', e.target.value)} onBlur={() => handleCustomBlur('religion')} />
+                    <input className={`RMS_INPUT ${errors.religion ? 'ERR_BORDER' : ''}`} autoFocus placeholder="SPECIFY RELIGION..." value={formData.religion} onChange={e => handleChange('religion', e.target.value)} onBlur={() => handleCustomBlur('religion')} />
                   ) : (
-                    <select className="RMS_INPUT" value={formData.religion} onChange={e => handleChange('religion', e.target.value)}>
+                    <select className={`RMS_INPUT ${errors.religion ? 'ERR_BORDER' : ''}`} value={formData.religion} onChange={e => handleChange('religion', e.target.value)}>
                       <option value="ROMAN CATHOLIC">ROMAN CATHOLIC</option>
                       <option value="IGLESIA NI CRISTO">IGLESIA NI CRISTO</option>
                       <option value="JEHOVAH'S WITNESSES">JEHOVAH'S WITNESSES</option>
@@ -499,9 +503,9 @@ export const ResidentModal: React.FC<{
                 <div className="RMS_GROUP">
                   <label className="RMS_LABEL">EDUCATIONAL ATTAINMENT</label>
                   {customFields.education ? (
-                    <input className="RMS_INPUT" autoFocus placeholder="SPECIFY EDUCATION..." value={formData.education} onChange={e => handleChange('education', e.target.value)} onBlur={() => handleCustomBlur('education')} />
+                    <input className={`RMS_INPUT ${errors.education ? 'ERR_BORDER' : ''}`} autoFocus placeholder="SPECIFY EDUCATION..." value={formData.education} onChange={e => handleChange('education', e.target.value)} onBlur={() => handleCustomBlur('education')} />
                   ) : (
-                    <select className="RMS_INPUT" value={formData.education} onChange={e => handleChange('education', e.target.value)}>
+                    <select className={`RMS_INPUT ${errors.education ? 'ERR_BORDER' : ''}`} value={formData.education} onChange={e => handleChange('education', e.target.value)}>
                       <option value="ELEMENTARY GRADUATE">Elementary Graduate</option>
                       <option value="HIGH SCHOOL GRADUATE">High School Graduate</option>
                       <option value="COLLEGE GRADUATE">College Graduate</option>
@@ -514,9 +518,9 @@ export const ResidentModal: React.FC<{
                 <div className="RMS_GROUP">
                   <label className="RMS_LABEL">EMPLOYMENT STATUS</label>
                   {customFields.employmentStatus ? (
-                    <input className="RMS_INPUT" autoFocus placeholder="SPECIFY STATUS..." value={formData.employmentStatus} onChange={e => handleChange('employmentStatus', e.target.value)} onBlur={() => handleCustomBlur('employmentStatus')} />
+                    <input className={`RMS_INPUT ${errors.employmentStatus ? 'ERR_BORDER' : ''}`} autoFocus placeholder="SPECIFY STATUS..." value={formData.employmentStatus} onChange={e => handleChange('employmentStatus', e.target.value)} onBlur={() => handleCustomBlur('employmentStatus')} />
                   ) : (
-                    <select className="RMS_INPUT" value={formData.employmentStatus} onChange={e => handleChange('employmentStatus', e.target.value)}>
+                    <select className={`RMS_INPUT ${errors.employmentStatus ? 'ERR_BORDER' : ''}`} value={formData.employmentStatus} onChange={e => handleChange('employmentStatus', e.target.value)}>
                       <option value="UNEMPLOYED">Unemployed</option>
                       <option value="FULL-TIME">Full-time</option>
                       <option value="PART-TIME">Part-time</option>
@@ -529,11 +533,11 @@ export const ResidentModal: React.FC<{
 
                 <div className="RMS_GROUP">
                   <label className="RMS_LABEL">OCCUPATION</label>
-                  <input className="RMS_INPUT" value={formData.occupation} onChange={e => handleChange('occupation', e.target.value)} placeholder="E.G. TEACHER, DRIVER" />
+                  <input className={`RMS_INPUT ${errors.occupation ? 'ERR_BORDER' : ''}`} value={formData.occupation} onChange={e => handleChange('occupation', e.target.value)} placeholder="E.G. TEACHER, DRIVER" />
                 </div>
                 <div className="RMS_GROUP">
                   <label className="RMS_LABEL">EMPLOYER / COMPANY</label>
-                  <input className="RMS_INPUT" value={formData.employment} onChange={e => handleChange('employment', e.target.value)} />
+                  <input className={`RMS_INPUT ${errors.employment ? 'ERR_BORDER' : ''}`} value={formData.employment} onChange={e => handleChange('employment', e.target.value)} />
                 </div>
               </div>
             </div>
@@ -543,36 +547,40 @@ export const ResidentModal: React.FC<{
               <div className="RMS_GRID">
                 <div className="RMS_GROUP RMS_SPAN2">
                   <label className="RMS_LABEL">CURRENT ADDRESS *</label>
-                  <input className="RMS_INPUT" value={formData.currentAddress} onChange={e => handleChange('currentAddress', e.target.value)} required />
+                  <input className={`RMS_INPUT ${errors.currentAddress ? 'ERR_BORDER' : ''}`} value={formData.currentAddress} onChange={e => handleChange('currentAddress', e.target.value)} required />
+                  {errors.currentAddress && <span className="RMS_ERROR_TXT">{errors.currentAddress}</span>}
                 </div>
                 <div className="RMS_GROUP">
                   <label className="RMS_LABEL">PUROK *</label>
-                  <select className="RMS_INPUT" value={formData.purok} onChange={e => handleChange('purok', e.target.value)} required>
+                  <select className={`RMS_INPUT ${errors.purok ? 'ERR_BORDER' : ''}`} value={formData.purok} onChange={e => handleChange('purok', e.target.value)} required>
                     <option value="">SELECT LOCATION</option>
                     {[1, 2, 3, 4, 5, 6, 7].map(p => <option key={p} value={`Purok ${p}`}>Purok {p}</option>)}
                   </select>
+                  {errors.purok && <span className="RMS_ERROR_TXT">{errors.purok}</span>}
                 </div>
                 <div className="RMS_GROUP">
                   <label className="RMS_LABEL">CONTACT NUMBER</label>
-                  <input className="RMS_INPUT" value={formData.contact_number} onChange={e => handleChange('contact_number', e.target.value)} placeholder="09XXXXXXXXX" />
+                  <input className={`RMS_INPUT ${errors.contact_number ? 'ERR_BORDER' : ''}`} value={formData.contact_number} onChange={e => handleChange('contact_number', e.target.value)} placeholder="09XXXXXXXXX" />
+                  {errors.contact_number && <span className="RMS_ERROR_TXT">{errors.contact_number}</span>}
                 </div>
                 <div className="RMS_GROUP">
                   <label className="RMS_LABEL">EMAIL ADDRESS</label>
-                  <input type="email" className="RMS_INPUT" value={formData.email} onChange={e => handleChange('email', e.target.value)} />
+                  <input type="email" className={`RMS_INPUT ${errors.email ? 'ERR_BORDER' : ''}`} value={formData.email} onChange={e => handleChange('email', e.target.value)} />
+                  {errors.email && <span className="RMS_ERROR_TXT">{errors.email}</span>}
                 </div>
               </div>
             </div>
 
             <div className="RMS_SECTION">
               <div className="RMS_SEC_TITLE">Classifications & Special IDs</div>
+              
               <div className="RMS_CHECK_GRID">
                 {[
                   { k: 'isVoter', l: "VOTER / SUFFRAGE (OPTIONAL)" }, 
                   { k: 'isPWD', l: 'PWD (OPTIONAL)' }, 
                   { k: 'is4Ps', l: '4PS (OPTIONAL)' }, 
                   { k: 'isSoloParent', l: 'SOLO PARENT (OPTIONAL)' }, 
-                  { k: 'isSeniorCitizen', l: 'SENIOR (OPTIONAL)' }, 
-                  { k: 'isIP', l: 'IP (OPTIONAL)' }
+                  { k: 'isSeniorCitizen', l: 'SENIOR (OPTIONAL)' }
                 ].map(item => (
                   <label key={item.k} className="RMS_CHECK_ITEM">
                     <input type="checkbox" checked={!!formData[item.k as keyof IResident]} onChange={e => handleChange(item.k as keyof IResident, e.target.checked)} />
@@ -586,31 +594,31 @@ export const ResidentModal: React.FC<{
                   {formData.isVoter && (
                     <div className="RMS_GROUP">
                       <label className="RMS_LABEL">VOTER'S ID # (OPTIONAL)</label>
-                      <input className="RMS_INPUT" value={formData.voterIdNumber} onChange={e => handleChange('voterIdNumber', e.target.value)} />
+                      <input className="RMS_INPUT" value={formData.voterIdNumber} onChange={e => handleChange('voterIdNumber', e.target.value)} maxLength={25} />
                     </div>
                   )}
                   {formData.isPWD && (
                     <div className="RMS_GROUP">
                       <label className="RMS_LABEL">PWD ID #</label>
-                      <input className="RMS_INPUT" value={formData.pwdIdNumber} onChange={e => handleChange('pwdIdNumber', e.target.value)} />
+                      <input className="RMS_INPUT" value={formData.pwdIdNumber} onChange={e => handleChange('pwdIdNumber', e.target.value)} maxLength={25} />
                     </div>
                   )}
                   {formData.is4Ps && (
                     <div className="RMS_GROUP">
                       <label className="RMS_LABEL">4Ps ID #</label>
-                      <input className="RMS_INPUT" value={formData.fourPsIdNumber} onChange={e => handleChange('fourPsIdNumber', e.target.value)} />
+                      <input className="RMS_INPUT" value={formData.fourPsIdNumber} onChange={e => handleChange('fourPsIdNumber', e.target.value)} maxLength={20} />
                     </div>
                   )}
                   {formData.isSoloParent && (
                     <div className="RMS_GROUP">
                       <label className="RMS_LABEL">SOLO PARENT ID #</label>
-                      <input className="RMS_INPUT" value={formData.soloParentIdNumber} onChange={e => handleChange('soloParentIdNumber', e.target.value)} />
+                      <input className="RMS_INPUT" value={formData.soloParentIdNumber} onChange={e => handleChange('soloParentIdNumber', e.target.value)} maxLength={25} />
                     </div>
                   )}
                   {formData.isSeniorCitizen && (
                     <div className="RMS_GROUP">
                       <label className="RMS_LABEL">SENIOR CITIZEN ID #</label>
-                      <input className="RMS_INPUT" value={formData.seniorIdNumber} onChange={e => handleChange('seniorIdNumber', e.target.value)} />
+                      <input className="RMS_INPUT" value={formData.seniorIdNumber} onChange={e => handleChange('seniorIdNumber', e.target.value)} maxLength={20} />
                     </div>
                   )}
                 </div>
@@ -619,9 +627,21 @@ export const ResidentModal: React.FC<{
           </div>
 
           <div className="RMS_FOOTER">
-            <button type="button" className="RMS_BTN_CANCEL" onClick={onClose} disabled={successMessage !== ''}>DISCARD</button>
-            <button type="submit" className="RMS_BTN_SUBMIT" disabled={isLoading || successMessage !== ''}>
-              {isLoading ? 'SAVING...' : (isUpdateMode ? 'UPDATE RECORD' : 'CONFIRM REGISTRATION')}
+            <button type="button" className="RMS_BTN_CANCEL" onClick={onClose} disabled={isLoading || successMessage !== ''}>DISCARD</button>
+            <button 
+              type="submit" 
+              className="RMS_BTN_SUBMIT" 
+              disabled={isLoading || successMessage !== ''}
+              style={{ opacity: isLoading ? 0.7 : 1, cursor: isLoading ? 'wait' : 'pointer' }}
+            >
+              {isLoading ? (
+                <>
+                  <i className="fas fa-circle-notch fa-spin" style={{ marginRight: '8px' }}></i> 
+                  SAVING...
+                </>
+              ) : (
+                isUpdateMode ? 'UPDATE RECORD' : 'CONFIRM REGISTRATION'
+              )}
             </button>
           </div>
         </form>

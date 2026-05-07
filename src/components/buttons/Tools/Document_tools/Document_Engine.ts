@@ -1,7 +1,21 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 
 // 1. THE MATH & DRAWING ALGORITHM
-import { calculatePagination, generateVectorPDF, type DocumentPayload, type RenderInstruction } from './PDF_Algorithm';
+//    🎯 DocumentSchema is now imported (not redefined) so there is exactly ONE
+//    canonical definition in the codebase — the one in PDF_Algorithm.tsx that
+//    includes the optional `pageHeight` / `pageWidth` overrides. The previous
+//    local redefinition silently shadowed those fields and caused TS errors
+//    like "pageHeight does not exist in type 'DocumentSchema'".
+import {
+  calculatePagination,
+  generateVectorPDF,
+  type DocumentPayload,
+  
+  type DocumentSchema,
+} from './PDF_Algorithm';
+// Re-export so consumers that previously imported DocumentSchema from this file
+// keep working without changes.
+export type { DocumentSchema };
 
 // 2. THE DATA API
 import { saveDocumentRecord, updateDocumentStatus } from './Types/Doc_data_api';
@@ -28,10 +42,6 @@ interface EngineConfig {
   certificateNo: string;
   requestMethod?: string;               // ← 'Walk-in' | 'Online'
   [key: string]: any;
-}
-
-export interface DocumentSchema {
-  compile: (payload: DocumentPayload) => RenderInstruction[];
 }
 
 // 🎯 Keys listed here keep their value but are FORBIDDEN from being edited inline in the

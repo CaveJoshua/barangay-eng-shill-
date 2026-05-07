@@ -45,32 +45,38 @@ export default function Archive() {
         case 'Documents':
           data = await ApiService.getDocuments(signal);
           if (data && isMounted.current) {
-            setDocuments(data.filter((d: any) => ['Completed', 'Rejected', 'Archived'].includes(d.status)));
+            setDocuments(data.filter((d: any) => {
+              const stat = String(d.status || '').trim().toLowerCase();
+              return ['completed', 'rejected', 'archived'].includes(stat);
+            }));
           }
           break;
         case 'Blotter':
           data = await ApiService.getBlotters(signal);
           if (data && isMounted.current) {
-            setBlotters(data.filter((b: any) => ['Settled', 'Archived', 'Dismissed', 'Rejected'].includes(b.status)));
+            setBlotters(data.filter((b: any) => {
+              const stat = String(b.status || '').trim().toLowerCase();
+              return ['settled', 'archived', 'dismissed', 'rejected'].includes(stat);
+            }));
           }
           break;
         case 'Residents':
           data = await ApiService.getResidents(signal);
           if (data && isMounted.current) {
-            setResidents(data.filter((r: any) => ['Archived', 'Deceased', 'Relocated'].includes(r.status || r.activity_status)));
+            // 🛡️ Bulletproof catch: Forces lowercase to ignore case-sensitivity mismatches
+            setResidents(data.filter((r: any) => {
+              const stat = String(r.status || r.activity_status || r.activityStatus || '').trim().toLowerCase();
+              return ['archived', 'deceased', 'relocated', 'inactive'].includes(stat);
+            }));
           }
           break;
         case 'Officials':
           data = await ApiService.getOfficials(signal);
           if (data && isMounted.current) {
             setOfficials(data.filter((o: any) => {
-              // 1. Check if their term is officially over based on the date
+              const stat = String(o.status || '').trim().toLowerCase();
               const isExpired = o.term_end && !isNaN(new Date(o.term_end).getTime()) && new Date(o.term_end) < now;
-              
-              // 2. Check if their status marks them as no longer active
-              const isInactiveStatus = ['Archived', 'Inactive', 'Former', 'End of Term', 'Resigned'].includes(o.status);
-              
-              // If either condition is met, they belong in the archive
+              const isInactiveStatus = ['archived', 'inactive', 'former', 'end of term', 'resigned'].includes(stat);
               return isExpired || isInactiveStatus;
             }));
           }
@@ -78,14 +84,19 @@ export default function Archive() {
         case 'Households':
           data = await ApiService.getHouseholds(signal);
           if (data && isMounted.current) {
-            setHouseholds(data.filter((h: any) => ['Archived', 'Inactive', 'Relocated'].includes(h.status)));
+            setHouseholds(data.filter((h: any) => {
+              const stat = String(h.status || '').trim().toLowerCase();
+              return ['archived', 'inactive', 'relocated'].includes(stat);
+            }));
           }
           break;
         case 'Announcements':
           data = await ApiService.getAnnouncements(signal);
           if (data && isMounted.current) {
-            // Captures manually archived announcements OR naturally expired ones
-            setAnnouncements(data.filter((a: any) => a.status === 'Archived' || new Date(a.expires_at) < now));
+            setAnnouncements(data.filter((a: any) => {
+              const stat = String(a.status || '').trim().toLowerCase();
+              return stat === 'archived' || new Date(a.expires_at) < now;
+            }));
           }
           break;
       }
@@ -127,34 +138,38 @@ export default function Archive() {
 
     switch (activeTab) {
       case 'Documents':
-        return documents.filter(d => 
-          (filterStatus === 'All' || d.status === filterStatus) &&
-          ((d.reference_no || '').toLowerCase().includes(q) || (d.resident_name || '').toLowerCase().includes(q))
-        ).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        return documents.filter(d => {
+          const stat = String(d.status || '').trim().toLowerCase();
+          return (filterStatus === 'All' || stat === filterStatus.toLowerCase()) &&
+            ((d.reference_no || '').toLowerCase().includes(q) || (d.resident_name || '').toLowerCase().includes(q));
+        }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       case 'Blotter':
-        return blotters.filter(b => 
-          (filterStatus === 'All' || b.status === filterStatus) &&
-          ((b.case_number || '').toLowerCase().includes(q) || (b.complainant_name || '').toLowerCase().includes(q))
-        ).sort((a, b) => new Date(b.date_filed || b.created_at).getTime() - new Date(a.date_filed || a.created_at).getTime());
+        return blotters.filter(b => {
+          const stat = String(b.status || '').trim().toLowerCase();
+          return (filterStatus === 'All' || stat === filterStatus.toLowerCase()) &&
+            ((b.case_number || '').toLowerCase().includes(q) || (b.complainant_name || '').toLowerCase().includes(q));
+        }).sort((a, b) => new Date(b.date_filed || b.created_at).getTime() - new Date(a.date_filed || a.created_at).getTime());
 
       case 'Residents':
-        return residents.filter(r => 
-          (filterStatus === 'All' || r.status === filterStatus) &&
-          (`${r.first_name} ${r.last_name}`.toLowerCase().includes(q))
-        ).sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
+        return residents.filter(r => {
+          const stat = String(r.status || r.activity_status || r.activityStatus || '').trim().toLowerCase();
+          const fullName = `${r.first_name || r.firstName || ''} ${r.last_name || r.lastName || ''}`.toLowerCase();
+          return (filterStatus === 'All' || stat === filterStatus.toLowerCase()) && fullName.includes(q);
+        }).sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
 
       case 'Officials':
-        return officials.filter(o => 
-          (filterStatus === 'All' || filterStatus === 'Archived') && // Keep filter simple for retired officials
-          ((o.full_name || '').toLowerCase().includes(q) || (o.position || '').toLowerCase().includes(q))
-        ).sort((a, b) => new Date(b.term_end || b.updated_at).getTime() - new Date(a.term_end || a.updated_at).getTime());
+        return officials.filter(o => {
+          return (filterStatus === 'All' || filterStatus === 'Archived') &&
+            ((o.full_name || '').toLowerCase().includes(q) || (o.position || '').toLowerCase().includes(q));
+        }).sort((a, b) => new Date(b.term_end || b.updated_at || 0).getTime() - new Date(a.term_end || a.updated_at || 0).getTime());
 
       case 'Households':
-        return households.filter(h => 
-          (filterStatus === 'All' || h.status === filterStatus) &&
-          ((h.household_number || '').toLowerCase().includes(q) || (h.head || '').toLowerCase().includes(q))
-        ).sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
+        return households.filter(h => {
+          const stat = String(h.status || '').trim().toLowerCase();
+          return (filterStatus === 'All' || stat === filterStatus.toLowerCase()) &&
+            ((h.household_number || '').toLowerCase().includes(q) || (h.head || '').toLowerCase().includes(q));
+        }).sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
       
       case 'Announcements':
         return announcements.filter(a => 
@@ -183,8 +198,8 @@ export default function Archive() {
     switch (activeTab) {
       case 'Documents': return ['All', 'Completed', 'Rejected', 'Archived'];
       case 'Blotter': return ['All', 'Settled', 'Dismissed', 'Archived', 'Rejected'];
-      case 'Residents': return ['All', 'Archived', 'Deceased', 'Relocated'];
-      case 'Officials': return ['All', 'Archived']; // Simplified since they are all technically archived here
+      case 'Residents': return ['All', 'Archived', 'Deceased', 'Relocated', 'Inactive'];
+      case 'Officials': return ['All', 'Archived']; 
       case 'Households': return ['All', 'Archived', 'Inactive', 'Relocated'];
       case 'Announcements': return ['All', 'Archived'];
       default: return ['All'];
@@ -256,8 +271,8 @@ export default function Archive() {
                      {paginatedData.length === 0 ? (
                         <tr><td colSpan={6} className={styles.ARC_EMPTY_STATE}><i className="fas fa-box-open"></i><br/>No archived records found.</td></tr>
                      ) : paginatedData.map((item, index) => {
-                       // Force uniform "Archived" status logic for officials whose term is done
-                       let currentStatus = (item.status || item.activity_status || 'Archived').toUpperCase();
+                       
+                       let currentStatus = String(item.status || item.activity_status || item.activityStatus || 'Archived').toUpperCase();
                        if (activeTab === 'Announcements') currentStatus = 'ARCHIVED';
                        if (activeTab === 'Officials') {
                          const isExpired = item.term_end && !isNaN(new Date(item.term_end).getTime()) && new Date(item.term_end) < new Date();
@@ -267,7 +282,7 @@ export default function Archive() {
                        const badgeClass = styles[`STATUS_${currentStatus.replace(/\s+/g, '_')}`] || styles.STATUS_DEFAULT;
 
                        return (
-                       <tr key={item.id || index}>
+                       <tr key={item.id || item.record_id || index}>
                          {activeTab === 'Documents' && (
                            <><td className={styles.ARC_ID_CELL}>{item.reference_no || 'N/A'}</td><td className={styles.ARC_NAME_CELL}>{item.resident_name}</td><td>{item.type}</td><td>{formatDate(item.created_at)}</td></>
                          )}
@@ -275,7 +290,7 @@ export default function Archive() {
                            <><td className={styles.ARC_ID_CELL}>{item.case_number}</td><td className={styles.ARC_NAME_CELL}>{item.complainant_name}</td><td>{item.respondent}</td><td>{formatDate(item.date_filed)}</td></>
                          )}
                          {activeTab === 'Residents' && (
-                           <><td className={styles.ARC_ID_CELL}>{item.record_id}</td><td className={styles.ARC_NAME_CELL}>{item.first_name} {item.last_name}</td><td>{item.sex}</td><td>{formatDate(item.dob)}</td></>
+                           <><td className={styles.ARC_ID_CELL}>{item.record_id || item.id}</td><td className={styles.ARC_NAME_CELL}>{item.first_name || item.firstName} {item.last_name || item.lastName}</td><td>{item.sex}</td><td>{formatDate(item.dob)}</td></>
                          )}
                          {activeTab === 'Officials' && (
                            <><td className={styles.ARC_NAME_CELL}>{item.full_name}</td><td>{item.position}</td><td>{formatDate(item.term_start)}</td><td>{formatDate(item.term_end)}</td></>

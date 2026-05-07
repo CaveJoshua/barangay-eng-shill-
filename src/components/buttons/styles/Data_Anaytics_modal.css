@@ -336,7 +336,12 @@
 }
 
 .da-chart-tall  { height: 230px; min-height: 230px; }
-.da-chart-short { height: 190px; min-height: 190px; }
+/* 🎯 Bumped from 190 → 220. The "Distribution Filtered Reports" row uses this
+   class for both donut charts (Document Types, Sex Distribution). Now that
+   the Chart.js segmentValuePlugin paints raw counts directly on each donut
+   slice, the chart needs more pixel real estate so those 12px labels stay
+   crisp on small/medium slices instead of bunching against the inner cutout. */
+.da-chart-short { height: 220px; min-height: 220px; }
 .da-chart-mini  { height: 160px; min-height: 160px; }
 
 /* ─── Bottom Meaning Text ───────────────────────────────────────────────────── */

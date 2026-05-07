@@ -7,7 +7,7 @@ import { sendAutoMail } from './Mailer.js';
 const JWT_SECRET = process.env.SUPABASE_JWT_SECRET || 'your_fallback_secret';
 const ROOT_EMAIL = process.env.ROOT_ADMIN_EMAIL || 'your_admin_email@gmail.com';
 
-// 🛡️ CRITICAL FIX: Environment Check for Cookies
+// 🛡️ SECURITY FIX: Environment check
 const isProduction = process.env.NODE_ENV === 'production';
 
 const rootOtpStore = new Map();
@@ -114,17 +114,17 @@ export const OfficialsLoginRouter = (router, supabase) => {
                     sub: 'SYSTEM-ROOT-0000', username: 'SYSTEM_ROOT_ADMIN', user_role: 'superadmin' 
                 }, JWT_SECRET, { expiresIn: '24h' });
 
-                // 🛡️ APPLYING DYNAMIC COOKIE SECURITY
+                // 🔒 PRODUCTION GRADE COOKIE 
                 res.cookie('auth_token', token, { 
                     httpOnly: true, 
-                    secure: isProduction, 
-                    sameSite: isProduction ? 'none' : 'lax', 
-                    maxAge: 86400000 
+                    secure: true, // Force true since you are on Cloudflare HTTPS
+                    sameSite: isProduction ? 'none' : 'lax', // Required 'none' if frontend and backend domains differ
+                    maxAge: 86400000 // 24 hours
                 });
                 
+                // ❌ LEAK REMOVED: No more access_token in the JSON body
                 return res.status(200).json({
                     message: 'Root Authentication successful',
-                    access_token: token,
                     account_id: 'SYSTEM-ROOT-0000',
                     username: 'SYSTEM_ROOT_ADMIN',
                     role: 'superadmin', 
@@ -161,17 +161,17 @@ export const OfficialsLoginRouter = (router, supabase) => {
 
             logActivity(supabase, accountData.username, 'LOGIN', `${accountData.officials?.full_name} logged in.`).catch(() => {});
 
-            // 🛡️ APPLYING DYNAMIC COOKIE SECURITY
+            // 🔒 PRODUCTION GRADE COOKIE
             res.cookie('auth_token', token, { 
                 httpOnly: true, 
-                secure: isProduction, 
+                secure: true, 
                 sameSite: isProduction ? 'none' : 'lax', 
                 maxAge: 86400000 
             });
 
+            // ❌ LEAK REMOVED: No more access_token in the JSON body
             res.status(200).json({
                 message: 'Authentication successful',
-                access_token: token, // Sent back so frontend can optionally store it as Bearer
                 account_id: accountData.account_id,
                 username: accountData.username,
                 role: userRole, 
@@ -196,10 +196,10 @@ export const OfficialsLoginRouter = (router, supabase) => {
     // 2. LOGOUT (KILL SWITCH)
     // ==========================================
     router.post('/admin/logout', (req, res) => {
-        // 🛡️ APPLYING DYNAMIC COOKIE SECURITY
+        // 🔒 CLEAR THE SECURE COOKIE
         res.clearCookie('auth_token', { 
             httpOnly: true, 
-            secure: isProduction, 
+            secure: true, 
             sameSite: isProduction ? 'none' : 'lax' 
         });
         res.status(200).json({ message: 'Logged out securely.' });
@@ -210,24 +210,26 @@ export const OfficialsLoginRouter = (router, supabase) => {
     // ==========================================
     router.post('/auth/refresh', (req, res) => {
         try {
-            const token = req.cookies?.auth_token;
-            if (!token) return res.status(401).json({ error: 'No token' });
+            // 🛡️ MUST READ FROM COOKIES, NOT HEADERS
+            const token = req.cookies?.auth_token; 
+            if (!token) return res.status(401).json({ error: 'No token found in cookies.' });
 
             jwt.verify(token, JWT_SECRET, { ignoreExpiration: true }, (err, decoded) => {
-                if (err || !decoded) return res.status(403).json({ error: 'Invalid token' });
+                if (err || !decoded) return res.status(403).json({ error: 'Invalid or tampered token' });
 
                 const { iat, exp, ...newPayload } = decoded;
                 const newToken = jwt.sign(newPayload, JWT_SECRET, { expiresIn: '24h' });
 
-                // 🛡️ APPLYING DYNAMIC COOKIE SECURITY
+                // 🔒 SET THE NEW COOKIE
                 res.cookie('auth_token', newToken, {
                     httpOnly: true, 
-                    secure: isProduction, 
+                    secure: true, 
                     sameSite: isProduction ? 'none' : 'lax', 
                     maxAge: 86400000
                 });
 
-                res.status(200).json({ message: 'Token rotated', token: newToken });
+                // ❌ LEAK REMOVED: Do not send the new token back in the JSON body
+                res.status(200).json({ message: 'Token rotated successfully.' });
             });
         } catch (err) {
             res.status(500).json({ error: 'Refresh failed.' });

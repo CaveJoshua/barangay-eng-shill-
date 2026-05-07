@@ -79,6 +79,40 @@ const doughnutOpts = {
   },
 };
 
+// 🎯 Custom Chart.js plugin: paints the raw count directly on each donut slice
+// so users can read values at a glance without hovering. White text + soft dark
+// shadow keeps it legible across every brand color we use. Skips zero values
+// and slices too thin to label cleanly (< 12° of arc) so nothing overlaps.
+const segmentValuePlugin = {
+  id: 'segmentValue',
+  afterDatasetsDraw(chart: any) {
+    const { ctx } = chart;
+    chart.data.datasets.forEach((dataset: any, datasetIndex: number) => {
+      const meta = chart.getDatasetMeta(datasetIndex);
+      meta.data.forEach((arc: any, index: number) => {
+        const value = dataset.data[index];
+        if (!value || value === 0) return;
+
+        // Skip slices smaller than 12° — labels would collide with neighbours
+        const sweep = Math.abs(arc.endAngle - arc.startAngle);
+        if (sweep < (Math.PI / 180) * 12) return;
+
+        const pos = arc.tooltipPosition();
+        ctx.save();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold 12px ${MONO}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        // soft dark halo so the white reads against any slice color
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+        ctx.shadowBlur = 3;
+        ctx.fillText(String(value), pos.x, pos.y);
+        ctx.restore();
+      });
+    });
+  },
+};
+
 // ─── UI Components ────────────────────────────────────────────────────────────
 
 const Section = ({ label }: { label: string }) => (
@@ -533,16 +567,22 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
                 dropdown={DropdownDoc}
                 meaning="Displays the proportion of each document type requested. Helps identify the most frequently processed clearances or certificates."
               >
-                <Doughnut data={{
-                  labels: docLabels,
-                  datasets: [{
-                    data: docData,
-                    backgroundColor: TYPE_PAL.slice(0, docLabels.length),
-                    borderColor: '#ffffff',
-                    borderWidth: 2,
-                    hoverOffset: 4,
-                  }],
-                }} options={doughnutOpts} />
+                {/* 🎯 plugins prop attaches the segmentValuePlugin so each slice
+                    shows its raw count without requiring a hover */}
+                <Doughnut
+                  data={{
+                    labels: docLabels,
+                    datasets: [{
+                      data: docData,
+                      backgroundColor: TYPE_PAL.slice(0, docLabels.length),
+                      borderColor: '#ffffff',
+                      borderWidth: 2,
+                      hoverOffset: 4,
+                    }],
+                  }}
+                  options={doughnutOpts}
+                  plugins={[segmentValuePlugin]}
+                />
               </ChartBlock>
 
               <ChartBlock
@@ -552,16 +592,21 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
                 dropdown={DropdownSex}
                 meaning="Shows the demographic breakdown of residents by sex, based on the total registered population in the system."
               >
-                <Doughnut data={{
-                  labels: sexLabels,
-                  datasets: [{
-                    data: sexData,
-                    backgroundColor: ['#3b82f6', '#ec4899'].slice(0, sexLabels.length),
-                    borderColor: '#ffffff',
-                    borderWidth: 2,
-                    hoverOffset: 4,
-                  }],
-                }} options={doughnutOpts} />
+                {/* 🎯 same plugin — count painted directly on each slice */}
+                <Doughnut
+                  data={{
+                    labels: sexLabels,
+                    datasets: [{
+                      data: sexData,
+                      backgroundColor: ['#3b82f6', '#ec4899'].slice(0, sexLabels.length),
+                      borderColor: '#ffffff',
+                      borderWidth: 2,
+                      hoverOffset: 4,
+                    }],
+                  }}
+                  options={doughnutOpts}
+                  plugins={[segmentValuePlugin]}
+                />
               </ChartBlock>
             </div>
 

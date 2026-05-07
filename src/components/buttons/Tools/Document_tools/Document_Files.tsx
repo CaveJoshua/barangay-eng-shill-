@@ -98,12 +98,7 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
     });
   };
 
-  const handleAddWitness = () => {
-    setDocConfig(prev => ({
-      ...prev,
-      witnesses: [...(prev.witnesses || []), { name: '', address: '', contactNo: '' }]
-    }));
-  };
+  
 
   const handleRemoveWitness = (idx: number) => {
     setDocConfig(prev => {
@@ -501,20 +496,7 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
                   </div>
                 ))}
 
-                <button
-                  type="button"
-                  className="btn-print"
-                  style={{
-                    width: '100%',
-                    background: '#f0f0f0',
-                    color: '#333',
-                    border: '1px dashed #999',
-                    marginTop: '4px',
-                  }}
-                  onClick={handleAddWitness}
-                >
-                  + Add Another Witness
-                </button>
+                
               </div>
             )}
 

@@ -34,11 +34,11 @@ const TYPE_ABBR: Record<string, string> = {
 
 const typeAbbr = (t: string) => TYPE_ABBR[t] ?? t.slice(0, 5).toUpperCase();
 
-// ─── 🛡️ BULLETPROOF SESSION PARSER (same logic as Dashboard.tsx) ─────────────
+// ─── 🛡️ BULLETPROOF SESSION PARSER ──────────────
 const parseAdminSession = () => {
   try {
     const sessionStr = localStorage.getItem('admin_session');
-    if (!sessionStr) return { name: 'Administrator', position: 'Official' };
+    if (!sessionStr) return { name: 'Administrator', position: 'Official', role: 'official', initial: 'A' };
 
     const session  = JSON.parse(sessionStr);
     const profile  = session?.profile  || session?.user?.profile || {};
@@ -58,7 +58,7 @@ const parseAdminSession = () => {
       session?.username        ||
       'Administrator';
 
-    const rawRole  = userNode?.role || session?.role || '';
+    const rawRole  = userNode?.role || session?.role || 'official';
     const position =
       profile?.position ||
       session?.position ||
@@ -68,9 +68,14 @@ const parseAdminSession = () => {
     const resolvedPosition =
       rawRole.toLowerCase() === 'superadmin' ? 'Superadmin' : position || 'Official';
 
-    return { name: fullName, position: resolvedPosition };
+    return { 
+        name: fullName, 
+        position: resolvedPosition, 
+        role: rawRole.toLowerCase(),
+        initial: fullName.charAt(0).toUpperCase()
+    };
   } catch (e) {
-    return { name: 'Administrator', position: 'Official' };
+    return { name: 'Administrator', position: 'Official', role: 'official', initial: 'A' };
   }
 };
 
@@ -84,7 +89,7 @@ const PendingRow: React.FC<{ doc: IDocRequest; index: number; onClick: () => voi
   const timePart = isNaN(d.getTime()) ? '' : d.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true });
 
   return (
-    <li className="PR_ROW" onClick={onClick} style={{ animationDelay: `${index * 55}ms` }}>
+    <li className="PR_ROW" onClick={onClick} style={{ animationDelay: `${index * 55}ms`, cursor: 'pointer' }}>
       <div className="PR_ROW__INDEX">{index + 1}</div>
       <div className="PR_ROW__BADGE">{typeAbbr(doc.type)}</div>
       <div className="PR_ROW__MAIN">
@@ -105,13 +110,13 @@ const PendingRow: React.FC<{ doc: IDocRequest; index: number; onClick: () => voi
 interface DashboardHomeProps {
   data: DashboardData;
   loading: boolean;
-  onNavigate: (tabName: string) => void;
+  // 🛡️ THE FIX: onNavigate now accepts the ID
+  onNavigate: (tabName: string, id?: string) => void;
 }
 
 const DashboardHome: React.FC<DashboardHomeProps> = ({ data, loading, onNavigate }) => {
 
-  // Parse identity once on mount — no async, no flicker
-  const { name: sessionName, position: sessionRole } = parseAdminSession();
+  const { name: sessionName, position: sessionPosition, role: sessionRole } = parseAdminSession();
 
   const [pendingDocs, setPendingDocs] = useState<IDocRequest[]>(() => {
     try {
@@ -154,7 +159,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ data, loading, onNavigate
         )
         .slice(0, 5)
         .map((d: any) => ({
-          id:            d.id || 'N/A',
+          id:            d.id || d.record_id || 'N/A', // 🛡️ Ensured we capture the exact DB ID
           referenceNo:   d.reference_no || d.referenceNo || `UNKNOWN-${Math.random()}`,
           residentName:  d.resident_name || d.residentName || 'Unknown',
           type:          d.type,
@@ -204,7 +209,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ data, loading, onNavigate
   const stats = [
     { label: 'Total Population',  val: data.stats.totalPopulation,  icon: 'fas fa-users',        variant: 'DS_VAR_BLUE',   targetTab: 'Residents' },
     { label: 'Documents Issued',  val: data.stats.documentsIssued,  icon: 'fas fa-file-invoice', variant: 'DS_VAR_PINK',   targetTab: 'Document' },
-    { label: 'Blotter Cases',     val: data.stats.blotterCases,     icon: 'fas fa-gavel',        variant: 'DS_VAR_YELLOW', targetTab: 'Blotter Cases' },
+    { label: 'Blotter Cases',     val: data.stats.blotterCases,     icon: 'fas fa-gavel',        variant: 'DS_VAR_YELLOW', targetTab: 'Incident Reports' },
     { label: 'System Activities', val: data.stats.systemActivities, icon: 'fas fa-history',      variant: 'DS_VAR_RED',    targetTab: 'Audit Log' },
   ];
 
@@ -213,13 +218,13 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ data, loading, onNavigate
       <header className="DS_HEADER">
         <div className="DS_TITLE_GROUP">
           <h1 className="DS_TITLE">{data.barangayName}</h1>
-          {sessionRole.toLowerCase() === 'superadmin' && (
+          {sessionRole === 'superadmin' && (
             <span className="DS_SUPER_BADGE">SUPERADMIN ACCESS</span>
           )}
         </div>
         <p className="DS_SUBTITLE">
           Welcome back, <strong>{loading ? '...' : sessionName}</strong>.
-          <span className="DS_ROLE_TEXT"> Logged in as {sessionRole}</span>
+          <span className="DS_ROLE_TEXT"> Logged in as {sessionPosition}</span>
         </p>
       </header>
 
@@ -269,7 +274,8 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ data, loading, onNavigate
             ) : (
               <ul className="PR_LIST">
                 {pendingDocs.map((doc, i) => (
-                  <PendingRow key={doc.referenceNo} doc={doc} index={i} onClick={() => onNavigate('Document')} />
+                  // 🛡️ THE FIX: Passing doc.id to the navigation handler
+                  <PendingRow key={doc.referenceNo} doc={doc} index={i} onClick={() => onNavigate('Document', doc.id)} />
                 ))}
               </ul>
             )}

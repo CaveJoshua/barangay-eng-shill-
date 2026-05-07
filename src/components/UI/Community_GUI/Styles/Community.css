@@ -18,7 +18,8 @@ body {
   min-height: 100vh !important;
   overflow-y: auto !important;
   overflow-x: hidden !important;
-  background-color: #f8fafc;
+  background-color: #f8fafc !important; /* 🔒 FORCED LIGHT MODE */
+  color: #0f172a !important; /* 🔒 BLOCKS DARK MODE TEXT INHERITANCE */
   -webkit-font-smoothing: antialiased;
   -webkit-overflow-scrolling: touch;
 }
@@ -36,7 +37,8 @@ body {
   height: auto !important;
   display: flex;
   flex-direction: column;
-  background-color: #f8fafc;
+  background-color: #f8fafc !important; /* 🔒 FORCED LIGHT MODE */
+  color: #0f172a !important; /* 🔒 FORCED DARK TEXT */
   font-family: 'Inter', -apple-system, sans-serif;
   position: relative;
 }
@@ -71,7 +73,7 @@ body {
 
 /* --- 4. NAVBAR --- */
 .C_NAV_MAIN {
-  background: #ffffff;
+  background: #ffffff !important;
   padding: 0 5%;
   height: 3.5rem;
   display: flex;
@@ -86,14 +88,14 @@ body {
 
 .C_NAV_LEFT { display: flex; align-items: center; gap: 10px; }
 .C_LOGO_SHIELD { font-size: 1.2rem; color: #3b5998; }
-.C_BRAND_INFO strong { display: block; color: #0f172a; font-size: 0.85rem; line-height: 1; }
-.C_BRAND_INFO span { font-size: 0.65rem; color: #64748b; font-weight: 600; }
+.C_BRAND_INFO strong { display: block; color: #0f172a !important; font-size: 0.85rem; line-height: 1; }
+.C_BRAND_INFO span { font-size: 0.65rem; color: #64748b !important; font-weight: 600; }
 
 .C_EXIT_LINK { 
-  background: #eff6ff; 
-  border: 1px solid #dbeafe;
+  background: #eff6ff !important; 
+  border: 1px solid #dbeafe !important;
   cursor: pointer; 
-  color: #3b5998;
+  color: #3b5998 !important;
   font-weight: 700; 
   font-size: 0.7rem; 
   display: flex; 
@@ -108,24 +110,24 @@ body {
   width: 100%;
   padding: 2rem 1rem; 
   text-align: center;
-  background: linear-gradient(180deg, #f0f7ff 0%, #f8fafc 100%);
+  background: linear-gradient(180deg, #f0f7ff 0%, #f8fafc 100%) !important;
 }
 
-.C_HERO_HERO h1 { font-size: 2.2rem; font-weight: 800; color: #0f172a; margin-bottom: 0.5rem; }
-.C_HERO_HERO p { color: #64748b; max-width: 600px; margin: 0 auto; }
+.C_HERO_HERO h1 { font-size: 2.2rem; font-weight: 800; color: #0f172a !important; margin-bottom: 0.5rem; }
+.C_HERO_HERO p { color: #64748b !important; max-width: 600px; margin: 0 auto; }
 
 .C_SIGNIN_SECTION {
   width: 100%;
-  background: #ffffff;
+  background: #ffffff !important;
   border-block: 1px solid #e2e8f0;
   padding: 2rem 1.5rem;
   text-align: center;
-  color: black;
+  color: #000000 !important;
 }
 
 .C_LOGIN_TRIGGER_BTN {
-  background-color: #3b5998;
-  color: white;
+  background-color: #3b5998 !important;
+  color: white !important;
   margin-top: 20px;
   padding: 1rem 4.5rem;
   border-radius: 10px;
@@ -155,17 +157,17 @@ body {
 
 .C_FILTER_TAB {
   white-space: nowrap;
-  background: #ffffff; 
-  border: 1px solid #e2e8f0; 
+  background: #ffffff !important; 
+  border: 1px solid #e2e8f0 !important; 
   padding: 0.6rem 1.4rem;
   border-radius: 50px; 
   font-weight: 700; 
   font-size: 0.8rem; 
-  color: #64748b;
+  color: #64748b !important;
   cursor: pointer;
 }
 
-.C_FILTER_TAB.ACTIVE { background: #3b5998; color: #ffffff; border-color: #3b5998; }
+.C_FILTER_TAB.ACTIVE { background: #3b5998 !important; color: #ffffff !important; border-color: #3b5998 !important; }
 
 .C_ANNOUNCEMENT_GRID { 
   display: grid; 
@@ -175,8 +177,8 @@ body {
 }
 
 .C_NEWS_ITEM {
-  background: #ffffff; 
-  border: 1px solid #e2e8f0; 
+  background: #ffffff !important; 
+  border: 1px solid #e2e8f0 !important; 
   border-radius: 20px;
   overflow: hidden; 
   display: flex;
@@ -196,7 +198,7 @@ body {
 
 .C_NEWS_BODY { padding: 1.75rem; display: flex; flex-direction: column; flex-grow: 1; }
 .C_NEWS_META { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-.C_NEWS_DATE { font-size: 0.75rem; font-weight: 700; color: #3b5998; }
+.C_NEWS_DATE { font-size: 0.75rem; font-weight: 700; color: #3b5998 !important; }
 
 .C_NEWS_CAT { 
   font-size: 0.65rem; 
@@ -206,14 +208,14 @@ body {
   border-radius: 6px;
 }
 
-.C_NEWS_BODY h4 { font-size: 1.2rem; font-weight: 800; margin-bottom: 0.75rem; color: #0f172a; line-height: 1.4; }
-.C_SNIPPET { font-size: 0.9rem; color: #64748b; line-height: 1.6; margin-bottom: 1.5rem; }
+.C_NEWS_BODY h4 { font-size: 1.2rem; font-weight: 800; margin-bottom: 0.75rem; color: #0f172a !important; line-height: 1.4; }
+.C_SNIPPET { font-size: 0.9rem; color: #64748b !important; line-height: 1.6; margin-bottom: 1.5rem; }
 
 .C_NEWS_LINK { 
   margin-top: auto;
-  background: #f8fafc; 
-  border: 1px solid #e2e8f0;
-  color: #0f172a; 
+  background: #f8fafc !important; 
+  border: 1px solid #e2e8f0 !important;
+  color: #0f172a !important; 
   font-weight: 700; 
   padding: 0.75rem; 
   border-radius: 10px; 
@@ -221,9 +223,8 @@ body {
   font-size: 0.85rem;
 }
 
-.C_ANNOUNCEMENT_HEADER
-{
-  color: black;
+.C_ANNOUNCEMENT_HEADER {
+  color: #000000 !important;
 }
 
 /* --- 7. RESPONSIVE --- */

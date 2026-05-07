@@ -15,108 +15,116 @@ interface IOfficial {
 
 export default function OfficialsPage() {
   const [officials, setOfficials] = useState<IOfficial[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); 
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState('');
-  const [hasAccess, setHasAccess] = useState<boolean | null>(null); // null = checking
-
+  
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null); 
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // --- SAFE REFS FOR SYNC ---
   const isMounted = useRef(true);
 
-  // --- 🛡️ ACCESS CONTROL (RBAC) ---
-  useEffect(() => {
-    // Safely read credentials from local storage
-    const rawRole = localStorage.getItem('user_role') || '';
-    const rawPosition = localStorage.getItem('position') || '';
-
-    // Normalize strings to prevent mismatch errors (e.g., 'BarangayHall' vs 'Barangay Hall')
-    const role = rawRole.toLowerCase().replace(/\s+/g, ''); 
-    const position = rawPosition.toLowerCase();
-
-    // 1. Master Accounts automatically bypass (Role Check)
-    if (role === 'barangayhall' || role === 'superadmin') {
-      setHasAccess(true);
-      return;
-    }
-
-    // 2. Explicit Position Checks (Strictly allowing Punong Barangay, Secretary, and Hall)
-    if (
-      position.includes('punong barangay') || 
-      position.includes('barangay secretary') || 
-      position.includes('barangay hall') ||
-      position.includes('barangayhall')
-    ) {
-      setHasAccess(true);
-    } else {
-      setHasAccess(false);
-    }
-  }, []);
-
   /**
-   * FETCH LOGIC: Uses the Universal ApiService
+   * 🛡️ ZERO TRUST FETCH LOGIC (WHITELIST ONLY)
+   * Allowed: Superadmin, Admin, Punong Barangay, Barangay Secretary, Barangay Hall
    */
   const fetchOfficials = useCallback(async (signal?: AbortSignal) => {
     if (!isMounted.current) return;
     setLoading(true);
+    
     try {
+      // --- 🛡️ VERIFICATION STEP: WHO IS LOGGED IN? ---
+      const activeId = localStorage.getItem('profile_id') || localStorage.getItem('account_id');
+      
+      if (!activeId) {
+        setHasAccess(false);
+        return;
+      }
+
+      const myProfile = await ApiService.getProfile(activeId, signal);
+      
+      if (!isMounted.current) return;
+      if (!myProfile || myProfile.error) {
+        setHasAccess(false);
+        return;
+      }
+
+      // Normalize position and role for strict comparison
+      const myPosition = (myProfile.position || '').toLowerCase().trim();
+      const myRole = (myProfile.role || '').toLowerCase().trim();
+      
+      // ✅ WHITELIST CHECK (Includes Admin Bypass)
+      const isAllowed = 
+        myRole === 'superadmin' ||
+        myRole === 'admin' ||
+        myPosition === 'punong barangay' || 
+        myPosition === 'barangay secretary' || 
+        myPosition === 'barangay hall';
+
+      if (!isAllowed) {
+        setHasAccess(false);
+        setError("Access Restricted: Only the Punong Barangay, Secretary, Hall Staff, or System Admins are authorized.");
+        return;
+      }
+
+      // --- 🛡️ DATA FETCH STEP ---
       const data = await ApiService.getOfficials(signal);
 
-      if (isMounted.current && data !== null) {
-        const now = new Date();
-        
-        // Process data: automatically flag officials whose term_end has passed
-        const processedData = data.map((item: IOfficial) => {
-          let currentStatus = item.status;
-          
-          if (item.term_end) {
-            const endDate = new Date(item.term_end);
-            // If the date is valid and has passed, mark them as 'End of Term'
-            if (!isNaN(endDate.getTime()) && endDate < now && currentStatus === 'Active') {
-              currentStatus = 'End of Term';
-            }
-          }
-          
-          return {
-            ...item,
-            status: currentStatus
-          };
-        });
-
-        setOfficials(processedData);
-        setError('');
+      if (!isMounted.current) return;
+      if (!data || data.error) {
+        setHasAccess(false); 
+        return;
       }
+
+      // ✅ ACCESS GRANTED
+      setHasAccess(true);
+      const now = new Date();
+        
+      const processedData = data.map((item: IOfficial) => {
+        let currentStatus = item.status;
+          
+        if (item.term_end) {
+          const endDate = new Date(item.term_end);
+          if (!isNaN(endDate.getTime()) && endDate < now && currentStatus === 'Active') {
+            currentStatus = 'End of Term';
+          }
+        }
+          
+        return { ...item, status: currentStatus };
+      });
+
+      setOfficials(processedData);
+      setError('');
+
     } catch (err: any) {
       if (err.name !== 'AbortError' && isMounted.current) {
         console.error("[FETCH ERROR]", err);
+        if (hasAccess === null) setHasAccess(true); 
         setError('Cannot reach server. Sync failed.');
       }
     } finally {
       if (isMounted.current) setLoading(false);
     }
-  }, []);
+  }, [hasAccess]);
 
   useEffect(() => {
-    if (hasAccess === false) return; // Don't fetch if blocked
-
     isMounted.current = true;
     const valve = new AbortController();
+    
     fetchOfficials(valve.signal);
+    
     return () => {
       isMounted.current = false;
       valve.abort();
     };
-  }, [fetchOfficials, hasAccess]);
+  }, [fetchOfficials]);
 
   const handleAddNew = () => {
     setIsModalOpen(true);
   };
 
-  // --- SEARCH & VISIBILITY FILTER ---
   const filteredOfficials = useMemo(() => {
     return officials.filter(o => {
-      // STRICT FILTER: Only show currently 'Active' officials on this main page.
       if (o.status !== 'Active') return false;
 
       if (!searchTerm.trim()) return true;
@@ -133,16 +141,33 @@ export default function OfficialsPage() {
   if (hasAccess === false) {
     return (
       <div className="OFFIC_PAGE_WRAP">
-        <div className="OFFIC_MAIN_CONTAINER" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center' }}>
-          <i className="fas fa-lock" style={{ fontSize: '4rem', color: '#ef4444', marginBottom: '1.5rem' }}></i>
-          <h2 style={{ color: '#0f172a', fontSize: '2rem', fontWeight: 700 }}>Authorized access only</h2>
+        <div className="OFFIC_MAIN_CONTAINER">
+          <div className="OFFIC_DENIED_CARD">
+            <div className="OFFIC_DENIED_ICON_WRAP">
+              <i className="fas fa-shield-alt OFFIC_DENIED_ICON"></i>
+            </div>
+            <h2 className="OFFIC_DENIED_TITLE">Access Restricted</h2>
+            <p className="OFFIC_DENIED_SUB">
+              Your current administrative role does not have the required permissions to view the Officials Directory.
+            </p>
+            {error && <p style={{ color: '#ef4444', marginTop: '0.5rem', fontSize: '0.85rem', fontWeight: 600 }}>{error}</p>}
+            <div className="OFFIC_DENIED_CODE" style={{ marginTop: '1.5rem' }}>ERROR 403 &mdash; FORBIDDEN</div>
+          </div>
         </div>
       </div>
     );
   }
 
-  // Prevents UI flashing while checking credentials
-  if (hasAccess === null) return null; 
+  // --- ⏳ RENDER: LOADING STATE ---
+  if (hasAccess === null) {
+    return (
+      <div className="OFFIC_PAGE_WRAP">
+        <div className="OFFIC_SPINNER_WRAP">
+          <div className="OFFIC_SYNC_SPINNER"></div>
+        </div>
+      </div>
+    ); 
+  }
 
   // --- 🔓 RENDER: MAIN UI ---
   return (
@@ -185,7 +210,7 @@ export default function OfficialsPage() {
                   <th>NAME</th>
                   <th>POSITION</th>
                   <th>TERM START</th>
-                  <th style={{ textAlign: 'right' }}>STATUS</th>
+                  <th className="OFFIC_ALIGN_RIGHT">STATUS</th>
                 </tr>
               </thead>
               <tbody>
@@ -206,7 +231,7 @@ export default function OfficialsPage() {
                       </td>
                       <td>{off.position}</td>
                       <td>{off.term_start || 'N/A'}</td>
-                      <td style={{ textAlign: 'right' }}>
+                      <td className="OFFIC_ALIGN_RIGHT">
                         <span className="OFFIC_STATUS_BADGE ACTIVE">
                           {off.status}
                         </span>
@@ -224,7 +249,6 @@ export default function OfficialsPage() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSuccess={() => fetchOfficials()}
-        // The 'as any' bypasses the strict string literal clash between this page and the modal interface
         existingOfficials={officials as any} 
       />
     </div>

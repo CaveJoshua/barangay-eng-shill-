@@ -3,10 +3,11 @@ import jsPDF from 'jspdf';
 
 // --- CONSTANTS & CALIBRATION ---
 const A4_WIDTH = 210;
-const A4_HEIGHT = 297;
+// 🎯 DEFAULT page height — schemas can override via `pageHeight` (e.g. JobseekerSchema
+// uses an extended 330mm so the Oath of Undertaking fits without spilling onto a 3rd page).
+const DEFAULT_PAGE_HEIGHT = 297;
 const MARGIN = { top: 25, right: 25, bottom: 25, left: 25 };
 const SAFE_WIDTH = A4_WIDTH - MARGIN.left - MARGIN.right;
-const PAGE_BREAK_THRESHOLD = A4_HEIGHT - MARGIN.bottom;
 
 // --- INTERFACES ---
 export interface WitnessRecord {
@@ -80,6 +81,11 @@ export interface RenderInstruction {
 
 export interface DocumentSchema {
   compile: (payload: DocumentPayload) => RenderInstruction[];
+  // 🎯 Optional per-schema page-size overrides. When omitted, the default A4
+  // (210 × 297 mm) is used. The Jobseeker schema sets a slightly extended
+  // height so the Oath of Undertaking page fits on a single sheet.
+  pageHeight?: number;
+  pageWidth?: number;
 }
 
 // Safely converts surface edits (HTML) into clean PDF text
@@ -111,6 +117,12 @@ export const calculatePagination = (
   const protectedKeys = new Set(options?.protectedEditableKeys || []);
   const isEditable = (key?: string) => !!key && !protectedKeys.has(key);
 
+  // 🎯 Per-schema page sizing: each schema can declare its own pageHeight/pageWidth
+  // to fit content that overflows standard A4. Defaults preserve A4 if unset.
+  const PAGE_HEIGHT = schema.pageHeight || DEFAULT_PAGE_HEIGHT;
+  const PAGE_WIDTH = schema.pageWidth || A4_WIDTH;
+  const PAGE_BREAK_THRESHOLD = PAGE_HEIGHT - MARGIN.bottom;
+
   const instructions = schema.compile(payload);
   let totalWords = 0;
 
@@ -131,7 +143,13 @@ export const calculatePagination = (
         <div
           key={`page-${pages.length}`}
           className="virtual-page-content"
-          style={{ position: 'relative', fontFamily: '"Times New Roman", Times, serif' }}
+          style={{
+            position: 'relative',
+            fontFamily: '"Times New Roman", Times, serif',
+            // 🎯 mirror the schema's page sizing on screen so the preview matches the PDF
+            width: `${PAGE_WIDTH}mm`,
+            minHeight: `${PAGE_HEIGHT}mm`,
+          }}
         >
           {/* 🎯 SURGICAL FIX: scoped CSS so underlined placeholders disappear the moment the
               user focuses or types into any editable field (affidavit blanks etc.) */}
@@ -470,7 +488,12 @@ export const calculatePagination = (
 
   if (currentPageElements.length > 0) {
     pages.push(
-      <div key="page-final" className="virtual-page-content" style={{ position: 'relative', fontFamily: '"Times New Roman", Times, serif' }}>
+      <div key="page-final" className="virtual-page-content" style={{
+        position: 'relative',
+        fontFamily: '"Times New Roman", Times, serif',
+        width: `${PAGE_WIDTH}mm`,
+        minHeight: `${PAGE_HEIGHT}mm`,
+      }}>
         <style>{`
           .virtual-page-content [data-editable="true"] u {
             text-decoration: none;
@@ -508,7 +531,17 @@ export const generateVectorPDF = async (
   schema: DocumentSchema,
   payload: DocumentPayload
 ): Promise<jsPDF> => {
-  const pdf = new jsPDF('p', 'mm', 'a4');
+  // 🎯 Resolve per-schema page sizing. JobseekerSchema overrides this to ~330mm
+  // so the Oath of Undertaking on page 2 doesn't spill onto a 3rd page.
+  const PAGE_WIDTH = schema.pageWidth || A4_WIDTH;
+  const PAGE_HEIGHT = schema.pageHeight || DEFAULT_PAGE_HEIGHT;
+  const PAGE_BREAK_THRESHOLD = PAGE_HEIGHT - MARGIN.bottom;
+
+  const pdf = new jsPDF({
+    orientation: 'p',
+    unit: 'mm',
+    format: [PAGE_WIDTH, PAGE_HEIGHT],
+  });
   const instructions = schema.compile(payload);
 
   let currentY = MARGIN.top;

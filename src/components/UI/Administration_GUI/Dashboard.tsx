@@ -34,28 +34,24 @@ const initialDashboardData: DashboardData = {
 const STATS_POLL_INTERVAL = 120000;
 
 // ─── 🛡️ BULLETPROOF SESSION PARSER ───────────────────────────────────────────
-// Handles ALL shapes: flat login response, nested {user, profile}, or legacy formats
 const parseAdminSession = () => {
   try {
     const sessionStr = localStorage.getItem('admin_session');
-    if (!sessionStr) return { name: 'User', position: 'Official', initial: 'U' };
+    if (!sessionStr) return { name: 'User', position: 'Official', role: 'official', initial: 'U' };
 
     const session = JSON.parse(sessionStr);
 
-    // The backend returns flat: { account_id, username, role, profile: { profileName, position } }
-    // OR it may be nested: { user: { username }, profile: { ... } }
-    // We handle both.
     const profile   = session?.profile   || session?.user?.profile || {};
     const userNode  = session?.user      || session || {};
 
-    // ── NAME: profileName → full_name combos → token full_name → username ──
+    // ── NAME ──
     const firstName = profile?.first_name || userNode?.first_name || '';
     const lastName  = profile?.last_name  || userNode?.last_name  || '';
     const combined  = firstName && lastName ? `${firstName} ${lastName}` : '';
 
     const fullName =
       combined                        ||
-      profile?.profileName            ||   // ← what the backend actually sends
+      profile?.profileName            ||  
       profile?.full_name              ||
       session?.full_name              ||
       userNode?.full_name             ||
@@ -63,25 +59,22 @@ const parseAdminSession = () => {
       session?.username               ||
       'User';
 
-    // ── POSITION: profile.position → session root → role ──
-    const rawRole  = userNode?.role       || session?.role       || '';
-    const position =
-      profile?.position               ||
-      session?.position               ||
-      (rawRole.toLowerCase() === 'superadmin' ? 'Superadmin' : '') ||
-      'Official';
+    // ── ROLE & POSITION FIX: Prioritize actual position over system role ──
+    const rawRole     = (userNode?.role || session?.role || 'official').toLowerCase().trim();
+    const rawPosition = (profile?.position || session?.position || '').trim();
 
-    const resolvedPosition =
-      rawRole.toLowerCase() === 'superadmin' ? 'Superadmin' : position || 'Official';
+    // If they have a real Barangay position, use it. Otherwise, use their system role.
+    const resolvedPosition = rawPosition ? rawPosition : (rawRole === 'superadmin' ? 'Superadmin' : 'Official');
 
     return {
       name:     fullName,
       position: resolvedPosition,
+      role:     rawRole, 
       initial:  fullName.charAt(0).toUpperCase(),
     };
   } catch (e) {
     console.error('[SESSION PARSER] Failed:', e);
-    return { name: 'User', position: 'Official', initial: 'U' };
+    return { name: 'User', position: 'Official', role: 'official', initial: 'U' };
   }
 };
 
@@ -95,7 +88,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
   );
   const [highlightId, setHighlightId] = useState<string | undefined>(undefined);
 
-  // Parse once on mount; re-parse whenever `user` prop changes (e.g. after login)
   const [userInfo, setUserInfo] = useState(parseAdminSession);
 
   useEffect(() => {
@@ -160,19 +152,47 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
     };
   }, [fetchStats]);
 
-  const menuItems = [
-    { name: 'Dashboard',          icon: 'fas fa-th-large' },
-    { name: 'Announcements',      icon: 'fas fa-bullhorn' },
-    { name: 'Officials',          icon: 'fas fa-user-shield' },
-    { name: 'Residents',          icon: 'fas fa-users' },
-    { name: 'Household',          icon: 'fas fa-home' },
-    { name: 'Document',           icon: 'fas fa-file-alt' },
-    { name: 'Incident Reports',   icon: 'fas fa-gavel' },
-    { name: 'Archive',            icon: 'fas fa-archive' },
-    { name: 'Audit Log',          icon: 'fas fa-clipboard-list' },
-    { name: 'Account Management', icon: 'fas fa-user-cog' },
-    { name: 'My Profile',         icon: 'fas fa-cog' },
-  ];
+  // ─── 🛡️ DYNAMIC MENU FILTERING (FIXED FOR PUNONG BARANGAY) ─────────────────
+  const getVisibleMenuItems = () => {
+    const role = userInfo.role;
+    const pos = userInfo.position.toLowerCase();
+
+    // Admins and Top Officials get absolute access
+    const isSysAdmin = role === 'admin' || role === 'superadmin';
+    const isHighOfficial = pos === 'punong barangay' || pos === 'barangay secretary';
+
+    const allItems = [
+      { name: 'Dashboard',          icon: 'fas fa-th-large' },
+      { name: 'Announcements',      icon: 'fas fa-bullhorn' },
+      { name: 'Officials',          icon: 'fas fa-user-shield' },
+      { name: 'Residents',          icon: 'fas fa-users' },
+      { name: 'Household',          icon: 'fas fa-home' },
+      { name: 'Document',           icon: 'fas fa-file-alt' },
+      { name: 'Incident Reports',   icon: 'fas fa-gavel' },
+      { name: 'Archive',            icon: 'fas fa-archive' },
+      { name: 'Audit Log',          icon: 'fas fa-clipboard-list' },
+      { name: 'Account Management', icon: 'fas fa-user-cog' },
+      { name: 'My Profile',         icon: 'fas fa-cog' },
+    ];
+
+    return allItems.filter(item => {
+      // 1. Captains, Secretaries, and System Admins see EVERYTHING.
+      if (isSysAdmin || isHighOfficial) return true;
+
+      // 2. Hide sensitive modules from regular Kagawads/Staff
+      if (item.name === 'Account Management' || item.name === 'Audit Log') return false;
+
+      // 3. Officials Directory visibility for specific roles
+      if (item.name === 'Officials') {
+        return pos === 'barangay hall';
+      }
+
+      // Show everything else (Residents, Blotter, Profile, etc.)
+      return true;
+    });
+  };
+
+  const visibleMenuItems = getVisibleMenuItems();
 
   const renderContent = () => {
     switch (activeTab) {
@@ -198,8 +218,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
         <div className="FRAME_LOGO_AREA">
           <h2 className="FRAME_LOGO_TEXT">Barangay Engineer's Hill</h2>
         </div>
+        
+        {/* ── Dynamic Nav Rendering ── */}
         <nav className="FRAME_NAV_AREA">
-          {menuItems.map((item, index) => (
+          {visibleMenuItems.map((item, index) => (
             <div
               key={index}
               className={`FRAME_MENU_ITEM ${activeTab === item.name ? 'FRAME_MENU_ACTIVE' : ''}`}
@@ -210,6 +232,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
             </div>
           ))}
         </nav>
+        
         <div className="FRAME_FOOTER">
           <span className="FRAME_VERSION_TEXT">Smart Barangay</span>
         </div>
