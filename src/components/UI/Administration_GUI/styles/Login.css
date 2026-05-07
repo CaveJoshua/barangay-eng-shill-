@@ -1,0 +1,200 @@
+/* --- 1. FULL VIEWPORT RESET --- */
+.LG_PAGE_STAGE {
+  position: fixed; /* Locks to screen */
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f1f5f9; /* Professional Light Base */
+  font-family: 'Inter', sans-serif;
+  overflow: hidden; /* No scrolling allowed on the main stage */
+}
+
+/* Background Handler */
+.LG_HERO_BG {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.LG_STAIN_GLASS {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(241, 245, 249, 0.8) 0%, #cbd5e1 100%);
+  z-index: 2;
+}
+
+/* --- 2. MAIN WRAPPER (Fits the screen) --- */
+.LG_MAIN_WRAPPER {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  max-width: 1100px;
+  padding: 0 20px;
+  display: flex;
+  flex-direction: column;
+  height: 100%; /* Spans full height of stage */
+  justify-content: center; /* Centers vertically */
+}
+
+.LG_PORTAL_CONTAINER {
+  width: 100%;
+}
+
+/* --- 3. BRANDING --- */
+.LG_BRANDING {
+  margin-bottom: 3rem;
+  text-align: center;
+}
+
+.LG_LOGO_HEX {
+  width: 60px;
+  height: 60px;
+  background: #3b82f6;
+  color: white;
+  margin: 0 auto 1rem;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  box-shadow: 0 10px 25px rgba(59, 130, 246, 0.3);
+}
+
+.LG_HERO_TITLE {
+  font-size: 2.8rem;
+  font-weight: 900;
+  color: #1e293b;
+  margin: 0;
+  letter-spacing: -1px;
+}
+
+.LG_ACCENT {
+  color: #3b82f6;
+}
+
+.LG_HERO_SUBTITLE {
+  color: #64748b;
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+/* --- 4. PORTAL GRID (Responsive) --- */
+.LG_PORTAL_GRID {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  margin-bottom: 2rem;
+}
+
+.LG_PORTAL_CARD {
+  background: #ffffff;
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.LG_PORTAL_CARD:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  border-color: #3b82f6;
+}
+
+.LG_CARD_BODY {
+  padding: 2.5rem 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.LG_ICON_HALO {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  margin-bottom: 1.5rem;
+}
+
+.LG_GREEN { background: #f0fdf4; color: #16a34a; }
+.LG_NAVY { background: #f8fafc; color: #1e293b; }
+
+.LG_CARD_TEXT h2 {
+  color: #0f172a;
+  font-size: 1.3rem;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+}
+
+.LG_CARD_TEXT p {
+  color: #64748b;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.LG_CARD_FOOTER {
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  background: #f8fafc;
+  color: #475569;
+  border-top: 1px solid #f1f5f9;
+  border-radius: 0 0 20px 20px;
+}
+
+.LG_PORTAL_CARD:hover .LG_CARD_FOOTER {
+  background: #3b82f6;
+  color: #ffffff;
+}
+
+/* --- 5. FOOTER --- */
+.LG_STAGE_FOOTER {
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+/* --- 6. RESPONSIVE MEDIA --- */
+@media (max-width: 768px) {
+  .LG_PAGE_STAGE {
+    overflow-y: auto; /* Allow scroll only on small phones */
+    padding: 20px 0;
+  }
+
+  .LG_MAIN_WRAPPER {
+    height: auto;
+    justify-content: flex-start;
+  }
+
+  .LG_PORTAL_GRID {
+    grid-template-columns: 1fr; /* Stack cards */
+  }
+
+  .LG_HERO_TITLE {
+    font-size: 2rem;
+  }
+}
+
+@media (max-height: 700px) {
+  .LG_BRANDING { margin-bottom: 1.5rem; }
+  .LG_LOGO_HEX { margin-bottom: 0.5rem; }
+  .LG_CARD_BODY { padding: 1.5rem 1rem; }
+}

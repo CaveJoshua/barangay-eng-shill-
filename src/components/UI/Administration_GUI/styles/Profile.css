@@ -1,0 +1,439 @@
+/* =========================================================
+   PROFILE PAGE — Profile.css
+   ========================================================= */
+
+/* ── 1. VARIABLE DEFINITIONS (light + dark)
+        These were used throughout but never defined — dark mode did nothing.
+   ────────────────────────────────────────────────────────── */
+:root {
+  --CONTENT-bg:  #f8fafc;
+  --L-bg:        #ffffff;
+  --L-border:    #e2e8f0;
+  --TEXT-main:   #0f172a;
+  --TEXT-sub:    #64748b;
+  --color-brand: #3b82f6;
+}
+
+[data-theme="dark"] {
+  --CONTENT-bg:  #0f172a;
+  --L-bg:        #1e293b;
+  --L-border:    #334155;
+  --TEXT-main:   #f1f5f9;
+  --TEXT-sub:    #94a3b8;
+  --color-brand: #60a5fa;
+}
+
+/* ── 2. WIDE PAGE CONTAINER ──────────────────────────────── */
+.PF_WIDE_CONTAINER {
+  width: 100%;
+  padding: 3rem 30px 6rem 30px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+  background-color: var(--CONTENT-bg);
+  transition: background-color 0.3s ease, padding 0.3s ease;
+  min-height: 100vh;
+}
+
+/* ── 3. PAGE HEADER ──────────────────────────────────────── */
+.PF_PAGE_HEADER {
+  border-bottom: 1px solid var(--L-border);
+  padding-bottom: 1.5rem;
+  margin-bottom: 1rem;
+  transition: border-color 0.3s ease;
+}
+
+.PF_PAGE_HEADER h1 {
+  font-size: 2.2rem;
+  font-weight: 800;
+  margin: 0 0 0.5rem 0;
+  color: var(--TEXT-main);
+  letter-spacing: -0.02em;
+  transition: color 0.3s ease;
+}
+
+.PF_PAGE_HEADER p {
+  color: var(--TEXT-sub);
+  font-size: 1.1rem;
+  margin: 0;
+  transition: color 0.3s ease;
+}
+
+/* ── 4. ERROR BANNER ─────────────────────────────────────── */
+.PF_ERROR_BANNER {
+  background-color: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  padding: 0.85rem 1.25rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+[data-theme="dark"] .PF_ERROR_BANNER {
+  background-color: #450a0a;
+  color: #f87171;
+  border-color: #7f1d1d;
+}
+
+/* ── 5. SECTIONS & CARDS ─────────────────────────────────── */
+.PF_SETTING_SECTION {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.PF_SECTION_LABEL {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--TEXT-sub);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-left: 5px;
+  transition: color 0.3s ease;
+}
+
+.PF_CONTENT_CARD {
+  background: var(--L-bg);
+  border: 1px solid var(--L-border);
+  border-radius: 12px;
+  padding: 2.5rem;
+  width: 100%;
+  box-sizing: border-box;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+/* ── 6. PROFILE HEADER ───────────────────────────────────── */
+.PF_PROFILE_HEADER {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 2.5rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--L-border);
+  transition: border-color 0.3s ease;
+}
+
+.PF_AVATAR_WRAPPER {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  min-width: 80px;
+  border-radius: 50%;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid var(--L-border);
+  transition: border-color 0.3s ease;
+}
+
+/* FIX: Was hardcoded #eff6ff / #3b82f6 — invisible in dark mode */
+.PF_AVATAR_PLACEHOLDER {
+  width: 100%;
+  height: 100%;
+  background-color: color-mix(in srgb, var(--color-brand) 12%, var(--L-bg));
+  color: var(--color-brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  font-weight: 800;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.PF_AVATAR_OVERLAY {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.PF_AVATAR_WRAPPER:hover .PF_AVATAR_OVERLAY { opacity: 1; }
+
+.PF_USER_INFO { display: flex; flex-direction: column; }
+
+.PF_USER_DISPLAY_NAME {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--TEXT-main);
+  line-height: 1.2;
+  transition: color 0.3s ease;
+}
+
+.PF_USER_DISPLAY_ROLE {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-brand);
+  background-color: color-mix(in srgb, var(--color-brand) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-brand) 25%, transparent);
+  padding: 3px 10px;
+  border-radius: 99px;
+  margin-top: 6px;
+  display: inline-block;
+  letter-spacing: 0.06em;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* ── 7. FORM INPUTS ──────────────────────────────────────── */
+.PF_FORM_GRID {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 1.75rem;
+}
+
+.PF_INPUT_GROUP {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.PF_INPUT_GROUP label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--TEXT-sub);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-left: 2px;
+  transition: color 0.3s ease;
+}
+
+.PF_CLEAN_INPUT {
+  padding: 0.85rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--L-border);
+  background-color: var(--L-bg);
+  color: var(--TEXT-main);
+  font-size: 0.95rem;
+  font-family: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease,
+              background-color 0.3s ease, color 0.3s ease;
+}
+
+.PF_CLEAN_INPUT:focus {
+  outline: none;
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand) 18%, transparent);
+}
+
+.PF_DISABLED {
+  background-color: var(--CONTENT-bg);
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+/* ── 8. THEME SELECTOR ───────────────────────────────────── */
+.PF_THEME_GRID {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 1.5rem;
+}
+
+.PF_THEME_VISUAL_BTN {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  padding: 0;
+}
+
+/* FIX: Preview card — was present in CSS but never rendered in JSX.
+        JSX now includes the mock window markup so this actually shows. */
+.PF_THEME_PREVIEW {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border: 2px solid var(--L-border);
+  border-radius: 12px;
+  background: var(--CONTENT-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease,
+              background-color 0.3s ease;
+}
+
+.PF_THEME_VISUAL_BTN:hover .PF_THEME_PREVIEW {
+  border-color: color-mix(in srgb, var(--color-brand) 50%, transparent);
+}
+
+.PF_THEME_VISUAL_BTN.ACTIVE .PF_THEME_PREVIEW {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-brand) 15%, transparent);
+}
+
+/* Mock window — light variant */
+.PF_MOCK_WINDOW {
+  width: 78%;
+  height: 72%;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  display: flex;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.PF_MOCK_SIDEBAR {
+  width: 28%;
+  background: #f1f5f9;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 6px;
+}
+
+.PF_MOCK_SIDEBAR_DOT {
+  width: 100%;
+  height: 5px;
+  background: #e2e8f0;
+  border-radius: 2px;
+}
+
+.PF_MOCK_CONTENT {
+  flex: 1;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.PF_MOCK_LINE {
+  height: 5px;
+  background: #e2e8f0;
+  border-radius: 2px;
+}
+
+.PF_MOCK_LINE:first-child { width: 60%; }
+.PF_MOCK_LINE:nth-child(2) { width: 85%; }
+.PF_MOCK_LINE:nth-child(3) { width: 70%; }
+
+/* Mock window — dark variant (used by the dark-mode preview card) */
+.DARK_WINDOW {
+  background: #1e293b;
+  border-color: #334155;
+}
+.DARK_WINDOW .PF_MOCK_SIDEBAR {
+  background: #0f172a;
+  border-color: #334155;
+}
+.DARK_WINDOW .PF_MOCK_SIDEBAR_DOT { background: #334155; }
+.DARK_WINDOW .PF_MOCK_CONTENT     { background: #1e293b; }
+.DARK_WINDOW .PF_MOCK_LINE        { background: #334155; }
+
+.PF_THEME_VISUAL_BTN span {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--TEXT-sub);
+  transition: color 0.2s ease;
+}
+.PF_THEME_VISUAL_BTN.ACTIVE span { color: var(--TEXT-main); font-weight: 800; }
+
+/* ── 9. ACTION BUTTONS ───────────────────────────────────── */
+.PF_ACTIONS {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2.5rem;
+  border-top: 1px solid var(--L-border);
+  padding-top: 1.5rem;
+  transition: border-color 0.3s ease;
+}
+
+/* FIX: Added transitions and hover states — buttons were flat/unresponsive */
+.PF_BTN_EDIT {
+  background-color: var(--TEXT-main);
+  color: var(--L-bg);
+  border: none;
+  padding: 0.85rem 2rem;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.1s ease;
+}
+.PF_BTN_EDIT:hover:not(:disabled)   { opacity: 0.85; }
+.PF_BTN_EDIT:active                 { transform: scale(0.98); }
+.PF_BTN_EDIT:disabled               { opacity: 0.45; cursor: not-allowed; }
+
+.PF_BTN_SAVE {
+  background-color: var(--color-brand);
+  color: white;
+  border: none;
+  padding: 0.85rem 2rem;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: filter 0.2s ease, transform 0.1s ease, background-color 0.3s ease;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-brand) 35%, transparent);
+}
+.PF_BTN_SAVE:hover:not(:disabled)   { filter: brightness(1.1); transform: translateY(-1px); }
+.PF_BTN_SAVE:active                 { transform: scale(0.98); }
+.PF_BTN_SAVE:disabled               { opacity: 0.55; cursor: not-allowed; }
+
+.PF_BTN_CANCEL {
+  background-color: transparent;
+  color: var(--TEXT-sub);
+  border: 1px solid var(--L-border);
+  padding: 0.85rem 2rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease,
+              border-color 0.2s ease, transform 0.1s ease;
+}
+.PF_BTN_CANCEL:hover:not(:disabled)  {
+  background-color: var(--CONTENT-bg);
+  color: var(--TEXT-main);
+  border-color: var(--TEXT-sub);
+}
+.PF_BTN_CANCEL:active                { transform: scale(0.98); }
+.PF_BTN_CANCEL:disabled              { opacity: 0.45; cursor: not-allowed; }
+
+/* ── 10. RESPONSIVE ──────────────────────────────────────── */
+@media (max-width: 768px) {
+  .PF_WIDE_CONTAINER { padding: 2rem 15px 4rem 15px; gap: 1.5rem; }
+  .PF_PAGE_HEADER h1 { font-size: 1.75rem; }
+  .PF_CONTENT_CARD   { padding: 1.5rem; }
+
+  .PF_PROFILE_HEADER {
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
+  }
+
+  .PF_USER_DISPLAY_ROLE { align-self: center; }
+
+  .PF_ACTIONS {
+    flex-direction: column-reverse;
+    gap: 0.75rem;
+  }
+
+  .PF_BTN_EDIT,
+  .PF_BTN_SAVE,
+  .PF_BTN_CANCEL {
+    width: 100%;
+    padding: 1rem;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .PF_PAGE_HEADER h1 { font-size: 1.5rem; }
+  .PF_THEME_GRID     { grid-template-columns: 1fr; }
+}
