@@ -99,11 +99,11 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
     setIsSubmitting(true);
 
     try {
-      // Generate Unique Case Number
+      // 🛡️ THE FIX: Generate Unique Case Number with the strictly aligned ON-INC prefix
       const year = new Date().getFullYear();
       const uniqueHash = Math.random().toString(36).substring(2, 6).toUpperCase();
       const timeStamp = Date.now().toString().slice(-4);
-      const generatedCaseNum = `INCD-${year}-${timeStamp}-${uniqueHash}`;
+      const generatedCaseNum = `ON-INC-${year}-${timeStamp}-${uniqueHash}`;
 
       // Build FormData payload to support file uploads
       const payload = new FormData();

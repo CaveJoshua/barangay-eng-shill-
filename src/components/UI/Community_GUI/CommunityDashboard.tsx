@@ -87,7 +87,19 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
     switch (currentView) {
       case 'Announcements':
         const rawNews = newsList || [];
+        const now = new Date().getTime();
+
         const filteredNews = rawNews.filter((news: any) => {
+          // 🛡️ THE FIX: Check if the event or announcement has lapsed.
+          // If it has an expires_at date and that date is in the past, hide it.
+          if (news.expires_at) {
+            const expirationTime = new Date(news.expires_at).getTime();
+            if (!isNaN(expirationTime) && expirationTime < now) {
+              return false; // Skip lapsed items completely
+            }
+          }
+
+          // Then apply the category filter
           if (bulletinCategory === 'All') return true;
           return news.category?.toLowerCase() === bulletinCategory.toLowerCase();
         });
@@ -100,7 +112,6 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                 <p>Stay updated with the latest news and alerts from Engineer's Hill.</p>
               </div>
               
-              {/* 🎯 CLEANED UP: No more inline styles! CSS handles the layout now. */}
               <div className="BULLETIN_FILTER_TABS">
                 {['All', 'Public Advisory', 'Health & Safety', 'Senior Citizen', 'Events'].map(cat => (
                   <button

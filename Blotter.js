@@ -24,13 +24,10 @@ const upload = multer({
 
 // =========================================================
 // 🛡️ IMAGE PROCESSOR ENGINE
-// Scans narrative for Base64 strings, uploads them to Cloudinary, 
-// and replaces the massive text with short, secure URLs.
 // =========================================================
 const processNarrativeImages = async (narrative) => {
     let finalNarrative = narrative || "";
     
-    // 🛡️ THE FIX: Broadened regex to catch ANY base64 data stream (images, octet-streams, webp, heic)
     const base64Regex = /(data:[^"'\s]+;base64,[^"'\s]+)/g;
     const matchedBase64 = finalNarrative.match(base64Regex) || [];
 
@@ -47,7 +44,6 @@ const processNarrativeImages = async (narrative) => {
 
         const uploadResults = await Promise.all(uploadPromises);
         
-        // Swap out the massive strings for clean URLs
         uploadResults.forEach(item => {
             if (item) {
                 finalNarrative = finalNarrative.replace(item.oldString, item.newUrl);
@@ -58,7 +54,7 @@ const processNarrativeImages = async (narrative) => {
 };
 
 // =========================================================
-// INTERNAL HELPERS (Notifications & RBAC)
+// INTERNAL HELPERS
 // =========================================================
 const createNotification = async (supabase, userId, title, message, type = 'blotter') => {
     if (!userId || userId === 'WALK-IN') return; 
@@ -97,7 +93,6 @@ const checkRole = (allowedRoles) => {
 
 export const BlotterRouter = (router, supabase, authenticateToken) => {
     
-    // ── 1. GET ALL (Admin) ──
     router.get('/blotter', authenticateToken, checkRole(['admin', 'superadmin', 'staff']), async (req, res) => {
         try {
             const { data: cases } = await supabase.from('blotter_cases').select('*').order('created_at', { ascending: false });
@@ -106,7 +101,6 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
         } catch (err) { res.status(500).json({ error: "Sync failed." }); }
     });
 
-    // ── 2. GET RESIDENT HISTORY ──
     router.get('/blotter/resident/:id', authenticateToken, checkRole(['admin', 'superadmin', 'staff', 'resident']), async (req, res) => {
         try {
             const { id } = req.params;
@@ -116,18 +110,25 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
         } catch (err) { res.status(500).json({ error: "Fetch failed." }); }
     });
 
-    // ── 3. POST: CREATE REPORT ──
+    // ── 3. POST: CREATE REPORT (UPDATED WITH ON-INC / WK-INC LOGIC) ──
     router.post('/blotter', authenticateToken, checkRole(['admin', 'superadmin', 'staff', 'resident']), upload.array('evidence', 5), async (req, res) => {
         try {
             const r = req.body;
             const userRole = req.validatedRole;
             const tokenResidentId = req.user?.record_id || req.user?.resident_id || req.user?.id || req.user?.sub;
-            const secureComplainantId = (userRole === 'resident') ? (tokenResidentId || r.complainant_id) : (r.complainant_id || 'WALK-IN');
+            
+            const isOnline = userRole === 'resident';
+            const secureComplainantId = isOnline ? (tokenResidentId || r.complainant_id) : (r.complainant_id || 'WALK-IN');
 
-            // ⚡ 1. Process Base64 images from frontend payload
+            // 🛡️ THE FIX: Generate specific prefixes and assign automatic status
+            const prefix = isOnline ? 'ON-INC-' : 'WK-INC-';
+            const suffix = Date.now().toString().slice(-6); // Unique 6-digit identifier
+            const generatedCaseNumber = r.case_number || `${prefix}${suffix}`;
+            
+            const initialStatus = isOnline ? 'Pending' : 'Active';
+
             let finalNarrative = await processNarrativeImages(r.narrative);
 
-            // ⚡ 1.5. Fallback: Handle traditional form-data uploads just in case
             let uploadedImageLinks = [];
             if (req.files && req.files.length > 0) {
                 const formUploadPromises = req.files.map(async (file) => {
@@ -150,9 +151,8 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
                 }
             }
 
-            // ⚡ 2. DATABASE COMMIT
             const dbPayload = {
-                case_number: r.case_number || `INC-${Date.now()}`,
+                case_number: generatedCaseNumber,
                 complainant_name: r.complainant_name,
                 complainant_id: secureComplainantId,
                 respondent: r.respondent,
@@ -160,7 +160,7 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
                 narrative: finalNarrative, 
                 date_filed: r.date_filed || new Date().toISOString().split('T')[0],
                 time_filed: r.time_filed || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-                status: 'Pending'
+                status: initialStatus // 🛡️ Saves as Active for Walk-ins, Pending for Online
             };
 
             const { data, error } = await supabase.from('blotter_cases').insert([dbPayload]).select().single();
@@ -170,7 +170,7 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
 
             // Background Tasks
             logActivity(supabase, req.user.username || 'System', 'INCIDENT_REPORTED', `Case ${dbPayload.case_number} filed.`).catch(() => {});
-            if (userRole === 'resident') {
+            if (isOnline) {
                 createNotification(supabase, secureComplainantId, "Report Received", `Under review.`, 'blotter').catch(() => {});
             }
             notifyAllAdmins(supabase, "New Incident", `Case ${dbPayload.case_number} filed.`, 'blotter').catch(() => {});
@@ -189,19 +189,14 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
         }
     });
 
-    // ── 4. PUT: UPDATE REPORT ──
     router.put('/blotter/:id', authenticateToken, checkRole(['admin', 'superadmin', 'staff']), async (req, res) => {
         try {
             const r = req.body;
-
-            // 🚨 Crucial Fix: Process any NEW Base64 images added during an edit before saving!
             if (r.narrative) {
                 r.narrative = await processNarrativeImages(r.narrative);
             }
-
             const { data, error } = await supabase.from('blotter_cases').update(r).eq('id', req.params.id).select().single();
             if (error) throw error;
-            
             res.json({ success: true, data });
         } catch (err) { 
             console.error("[BLOTTER PUT ERROR]:", err);
@@ -209,7 +204,6 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
         }
     });
 
-    // ── 5, 6. PATCH, DELETE ──
     router.patch('/blotter/:id/status', authenticateToken, checkRole(['admin', 'superadmin', 'staff']), async (req, res) => {
         try {
             const { status, hearing_date, hearing_time, rejection_reason } = req.body;

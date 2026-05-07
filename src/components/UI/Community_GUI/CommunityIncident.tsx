@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import "./Styles/Community_blotter.css";
-import Community_Blotter_Request from '../../buttons/Community_Blotter_Request'; 
+import Community_Blotter_Request from '../../buttons/Community_Incident_Request'; 
 
 interface BlotterProps {
   data: any[]; 

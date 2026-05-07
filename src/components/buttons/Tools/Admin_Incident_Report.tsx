@@ -19,7 +19,7 @@ interface IFileProps {
   onClose: () => void;
   onRefresh: () => void;
   selectedCase: any;
-  officials?: any[]; // 🛡️ THE FIX: Added this back so TypeScript stops panicking
+  officials?: any[]; 
 }
 
 // 🛡️ MULTI-EVIDENCE EXTRACTOR: Safely extracts up to 5 images
@@ -61,13 +61,12 @@ export const FileComponent: React.FC<IFileProps> = ({ onClose, onRefresh, select
     return `${fName} ${mInit}${lName}`.trim();
   }, []);
 
+  // 🛡️ THE FIX: Generates strictly formatted WK-INC case numbers
   const generateCaseNumber = () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const random = Math.floor(1000 + Math.random() * 9000);
-    return `BL-${year}${month}${day}-${random}`;
+    const year = new Date().getFullYear();
+    const uniqueHash = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const timeStamp = Date.now().toString().slice(-4);
+    return `WK-INC-${year}-${timeStamp}-${uniqueHash}`;
   };
 
   // 🛡️ EXTRACT EVIDENCE ON LOAD
@@ -189,6 +188,7 @@ export const FileComponent: React.FC<IFileProps> = ({ onClose, onRefresh, select
     
     const submissionData = { 
       ...formData,
+      case_number: formData.caseNumber, // Ensure the new case number is sent
       complainant_id: formData.complainantId || 'WALK-IN', 
       complainant_name: formData.complainantName,
       incident_type: formData.type,
@@ -373,7 +373,7 @@ export const FileComponent: React.FC<IFileProps> = ({ onClose, onRefresh, select
                       }}
                     ></div>
 
-                    {/* 🛡️ SINGLE PHOTO: Renders inline on Page 1. Fixed string[] assignment. */}
+                    {/* 🛡️ SINGLE PHOTO: Renders inline on Page 1. */}
                     {evidenceList.length === 1 && (
                       <div style={{ marginTop: '20px', border: '1px solid #1e293b', padding: '15px', position: 'relative', pageBreakInside: 'avoid' }}>
                          <span style={{ 

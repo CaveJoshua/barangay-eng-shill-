@@ -36,7 +36,7 @@ export default function Community_Document_Request({ isOpen, onClose, onSuccess,
   
   // 🛡️ ERROR STATES
   const [fetchError, setFetchError] = useState('');
-  const [submitError, setSubmitError] = useState(''); // NEW: Tracks submission failures (like limits)
+  const [submitError, setSubmitError] = useState(''); // Tracks submission failures (like limits)
 
   const [formData, setFormData] = useState({
     docTypeId: '', 
@@ -122,12 +122,11 @@ export default function Community_Document_Request({ isOpen, onClose, onSuccess,
             setStep(4);
             onSuccess();
         } else {
-            // 🛡️ THE FIX: No more alert(). We check the specific error string.
             const errorMsg = result?.error || 'Unknown error occurred.';
             
-            // Check if the error is the 429 Daily Limit we set up in the backend
+            // 🛡️ THE FIX: Check specific error string and display the explicit 2-document rule
             if (errorMsg.includes("Daily limit reached") || errorMsg.includes("limit")) {
-                setSubmitError("You have reached your daily limit for document requests. For additional information or emergency requests, please visit the Barangay Engineer's Hill hall.");
+                setSubmitError("You have reached the daily limit of 2 document requests. For additional documents or emergencies, please visit the Barangay Engineer's Hill hall in person.");
             } else {
                 setSubmitError(`Request Failed: ${errorMsg}`);
             }
@@ -165,6 +164,26 @@ export default function Community_Document_Request({ isOpen, onClose, onSuccess,
           {/* STEP 1: FORM SELECTION */}
           {step === 1 && (
             <div className="DOC_STEP_CONTAINER">
+              
+              {/* 🛡️ POLICY DISCLAIMER ADDED HERE */}
+              <div style={{ 
+                  backgroundColor: '#eff6ff', 
+                  color: '#1e40af', 
+                  padding: '12px', 
+                  borderRadius: '6px', 
+                  marginBottom: '20px', 
+                  fontSize: '13px', 
+                  border: '1px solid #bfdbfe',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '10px'
+              }}>
+                 <i className="fas fa-info-circle" style={{ marginTop: '2px', color: '#2563eb' }}></i>
+                 <div>
+                    <strong>Daily Request Policy:</strong> To prevent system spam, residents are strictly limited to requesting a maximum of <strong>2 documents per day</strong> online.
+                 </div>
+              </div>
+
               <label className="DOC_LABEL">SELECT DOCUMENT TYPE</label>
               
               {fetchError ? (
@@ -246,7 +265,7 @@ export default function Community_Document_Request({ isOpen, onClose, onSuccess,
                <h4>READY TO SEND?</h4>
                <p>Your request will be sent to the Barangay Staff for review.</p>
 
-               {/* 🛡️ NEW: Rate Limit / Submission Error Banner */}
+               {/* 🛡️ RATE LIMIT ERROR DISPLAY */}
                {submitError && (
                  <div style={{ 
                      marginTop: '20px', 
