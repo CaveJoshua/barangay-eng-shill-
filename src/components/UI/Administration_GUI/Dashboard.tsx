@@ -1,278 +1,295 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ApiService } from '../api';
 
-import Profile from './Profile';
-import HouseholdPage from './Household';
-import ResidentsPage from './Resident';
-import BlotterPage from './IncidentReport';
-import DocumentsPage from './Document';
-import OfficialsPage from './Officials';
-import AuditlogPage from './AuditLog';
-import AnnouncementPage from './Announcement';
-import AccountManagementPage from './AccountManagement';
-import ArchivePage from './Archive';
-
-import DashboardHome, { type DashboardData } from './DashboardHome';
-import AdministratorNotification from './AdministratorNotification';
-import NotificationSystem from './NotificationSystem';
-
-import './styles/Frame.css';
-import './styles/Dashboard.css';
-
-interface DashboardProps {
-  onLogout: () => void;
-  user: any;
+export interface DashboardStats {
+  totalPopulation: number;
+  documentsIssued: number;
+  blotterCases: number;
+  systemActivities: number;
 }
 
-const initialDashboardData: DashboardData = {
-  stats: { totalPopulation: 0, documentsIssued: 0, blotterCases: 0, systemActivities: 0 },
-  barangayName: "Barangay Engineer's Hill",
-  systemName: "Smart Barangay",
-  adminName: "Loading...",
+export interface DashboardData {
+  stats: DashboardStats;
+  barangayName: string;
+  systemName: string;
+  adminName: string;
+}
+
+export interface IDocRequest {
+  id: string;
+  referenceNo: string;
+  residentName: string;
+  type: string;
+  dateRequested: string;
+  status: string;
+}
+
+const TYPE_ABBR: Record<string, string> = {
+  'Barangay Clearance':        'CLRNC',
+  'Certificate of Residency':  'RESID',
+  'Certificate of Indigency':  'INDGN',
+  'Barangay Certification':    'BSPMT',
+  'Certificate of Good Moral': 'GMCRT',
 };
 
-const STATS_POLL_INTERVAL = 120000;
+const typeAbbr = (t: string) => TYPE_ABBR[t] ?? t.slice(0, 5).toUpperCase();
 
-// ─── 🛡️ BULLETPROOF SESSION PARSER ───────────────────────────────────────────
+// ─── 🛡️ BULLETPROOF SESSION PARSER ──────────────
 const parseAdminSession = () => {
   try {
     const sessionStr = localStorage.getItem('admin_session');
-    if (!sessionStr) return { name: 'User', position: 'Official', role: 'official', initial: 'U' };
+    if (!sessionStr) return { name: 'Administrator', position: 'Official', role: 'official', initial: 'A' };
 
-    const session = JSON.parse(sessionStr);
+    const session  = JSON.parse(sessionStr);
+    const profile  = session?.profile  || session?.user?.profile || {};
+    const userNode = session?.user     || session || {};
 
-    const profile   = session?.profile   || session?.user?.profile || {};
-    const userNode  = session?.user      || session || {};
-
-    // ── NAME ──
     const firstName = profile?.first_name || userNode?.first_name || '';
     const lastName  = profile?.last_name  || userNode?.last_name  || '';
     const combined  = firstName && lastName ? `${firstName} ${lastName}` : '';
 
     const fullName =
-      combined                        ||
-      profile?.profileName            ||  
-      profile?.full_name              ||
-      session?.full_name              ||
-      userNode?.full_name             ||
-      userNode?.username              ||
-      session?.username               ||
-      'User';
+      combined                 ||
+      profile?.profileName     ||
+      profile?.full_name       ||
+      session?.full_name       ||
+      userNode?.full_name      ||
+      userNode?.username       ||
+      session?.username        ||
+      'Administrator';
 
-    // ── ROLE & POSITION FIX: Prioritize actual position over system role ──
-    const rawRole     = (userNode?.role || session?.role || 'official').toLowerCase().trim();
-    const rawPosition = (profile?.position || session?.position || '').trim();
+    const rawRole  = userNode?.role || session?.role || 'official';
+    const position =
+      profile?.position ||
+      session?.position ||
+      (rawRole.toLowerCase() === 'superadmin' ? 'Superadmin' : '') ||
+      'Official';
 
-    // If they have a real Barangay position, use it. Otherwise, use their system role.
-    const resolvedPosition = rawPosition ? rawPosition : (rawRole === 'superadmin' ? 'Superadmin' : 'Official');
+    const resolvedPosition =
+      rawRole.toLowerCase() === 'superadmin' ? 'Superadmin' : position || 'Official';
 
-    return {
-      name:     fullName,
-      position: resolvedPosition,
-      role:     rawRole, 
-      initial:  fullName.charAt(0).toUpperCase(),
+    return { 
+        name: fullName, 
+        position: resolvedPosition, 
+        role: rawRole.toLowerCase(),
+        initial: fullName.charAt(0).toUpperCase()
     };
   } catch (e) {
-    console.error('[SESSION PARSER] Failed:', e);
-    return { name: 'User', position: 'Official', role: 'official', initial: 'U' };
+    return { name: 'Administrator', position: 'Official', role: 'official', initial: 'A' };
   }
 };
 
-// ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
+// ─── PENDING ROW ─────────────────────────────────────────────────────────────
 
-const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
-  const [data, setData]         = useState<DashboardData>(initialDashboardData);
-  const [loading, setLoading]   = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState(
-    () => localStorage.getItem('admin_active_tab') || 'Dashboard'
+const PendingRow: React.FC<{ doc: IDocRequest; index: number; onClick: () => void }> = ({
+  doc, index, onClick,
+}) => {
+  const d        = new Date(doc.dateRequested);
+  const datePart = isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+  const timePart = isNaN(d.getTime()) ? '' : d.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  return (
+    <li className="PR_ROW" onClick={onClick} style={{ animationDelay: `${index * 55}ms`, cursor: 'pointer' }}>
+      <div className="PR_ROW__INDEX">{index + 1}</div>
+      <div className="PR_ROW__BADGE">{typeAbbr(doc.type)}</div>
+      <div className="PR_ROW__MAIN">
+        <span className="PR_ROW__NAME">{doc.residentName}</span>
+        <span className="PR_ROW__TYPE">{doc.type}</span>
+      </div>
+      <div className="PR_ROW__META">
+        <span className="PR_ROW__DATE">{datePart}</span>
+        <span className="PR_ROW__TIME">{timePart}</span>
+      </div>
+      <div className="PR_ROW__REF">{doc.referenceNo}</div>
+    </li>
   );
-  const [highlightId, setHighlightId] = useState<string | undefined>(undefined);
+};
 
-  const [userInfo, setUserInfo] = useState(parseAdminSession);
+// ─── MAIN HOME COMPONENT ─────────────────────────────────────────────────────
 
-  useEffect(() => {
-    setUserInfo(parseAdminSession());
-  }, [user]);
+interface DashboardHomeProps {
+  data: DashboardData;
+  loading: boolean;
+  // 🛡️ THE FIX: onNavigate now accepts the ID
+  onNavigate: (tabName: string, id?: string) => void;
+}
 
-  const statsControllerRef = useRef<AbortController | null>(null);
-  const statsTimer         = useRef<ReturnType<typeof setTimeout> | null>(null);
+const DashboardHome: React.FC<DashboardHomeProps> = ({ data, loading, onNavigate }) => {
 
-  useEffect(() => {
-    localStorage.setItem('admin_active_tab', activeTab);
-  }, [activeTab]);
+  const { name: sessionName, position: sessionPosition, role: sessionRole } = parseAdminSession();
 
-  const handleNavigation = (tabName: string, id?: string) => {
-    setActiveTab(tabName);
-    setHighlightId(id);
-  };
-
-  const fetchStats = useCallback(async () => {
-    if (statsControllerRef.current) statsControllerRef.current.abort();
-    statsControllerRef.current = new AbortController();
+  const [pendingDocs, setPendingDocs] = useState<IDocRequest[]>(() => {
     try {
-      const realData = await ApiService.getStats(statsControllerRef.current.signal);
-      if (realData) {
-        setData(prevData => {
-          const newData: DashboardData = {
-            stats: {
-              totalPopulation:  realData.stats?.totalPopulation  || 0,
-              documentsIssued:  realData.stats?.documentsIssued  || 0,
-              blotterCases:     realData.stats?.blotterCases     || 0,
-              systemActivities: realData.stats?.systemActivities || 0,
-            },
-            barangayName: realData.barangayName || "Barangay Engineer's Hill",
-            systemName:   realData.systemName   || 'Smart Barangay',
-            adminName:    userInfo.name,
-          };
-          if (JSON.stringify(prevData) === JSON.stringify(newData)) return prevData;
-          return newData;
-        });
-      }
+      const cached = localStorage.getItem('pr_queue_cache');
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
+
+  const [totalPending, setTotalPending] = useState(() => {
+    const c = localStorage.getItem('pr_total_cache');
+    return c ? parseInt(c, 10) : 0;
+  });
+
+  const [pendingLoading, setPendingLoading] = useState(
+    () => !localStorage.getItem('pr_queue_cache')
+  );
+
+  const pollTimer      = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const controllerRef  = useRef<AbortController | null>(null);
+
+  const hasDataChanged = (a: IDocRequest[], b: IDocRequest[]) =>
+    a.length !== b.length || JSON.stringify(a) !== JSON.stringify(b);
+
+  const fetchData = useCallback(async () => {
+    if (controllerRef.current) controllerRef.current.abort();
+    controllerRef.current = new AbortController();
+    try {
+      const rawDocs = await ApiService.getDocuments(controllerRef.current.signal);
+      if (!rawDocs) return;
+
+      const allPending = rawDocs.filter((d: any) => {
+        const ref = d.reference_no || d.referenceNo || d.tracking_code || '';
+        return d.status === 'Pending' && !ref.includes('WK-IN');
+      });
+
+      const sortedTop5: IDocRequest[] = allPending
+        .sort((a: any, b: any) =>
+          new Date(b.date_requested || b.dateRequested).getTime() -
+          new Date(a.date_requested || a.dateRequested).getTime()
+        )
+        .slice(0, 5)
+        .map((d: any) => ({
+          id:            d.id || d.record_id || 'N/A', // 🛡️ Ensured we capture the exact DB ID
+          referenceNo:   d.reference_no || d.referenceNo || `UNKNOWN-${Math.random()}`,
+          residentName:  d.resident_name || d.residentName || 'Unknown',
+          type:          d.type,
+          dateRequested: d.date_requested || d.dateRequested,
+          status:        d.status,
+        }));
+
+      setPendingDocs(prev => {
+        if (hasDataChanged(sortedTop5, prev)) {
+          localStorage.setItem('pr_queue_cache', JSON.stringify(sortedTop5));
+          return sortedTop5;
+        }
+        return prev;
+      });
+
+      setTotalPending(prev => {
+        if (prev !== allPending.length) {
+          localStorage.setItem('pr_total_cache', allPending.length.toString());
+          return allPending.length;
+        }
+        return prev;
+      });
     } catch (err: any) {
-      if (err.name !== 'AbortError') console.error('[DASHBOARD] Stats Sync Error:', err);
+      if (err.name !== 'AbortError') console.error('[DASHBOARD] Sync Error:', err);
     } finally {
-      setLoading(false);
+      setPendingLoading(false);
       if (document.visibilityState === 'visible') {
-        statsTimer.current = setTimeout(fetchStats, STATS_POLL_INTERVAL);
+        pollTimer.current = setTimeout(fetchData, 8000);
       }
     }
-  }, [userInfo.name]);
+  }, []);
 
   useEffect(() => {
-    fetchStats();
+    fetchData();
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') fetchStats();
-      else if (statsTimer.current) clearTimeout(statsTimer.current);
+      if (document.visibilityState === 'visible') fetchData();
+      else if (pollTimer.current) clearTimeout(pollTimer.current);
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => {
-      if (statsTimer.current) clearTimeout(statsTimer.current);
-      if (statsControllerRef.current) statsControllerRef.current.abort();
+      if (pollTimer.current) clearTimeout(pollTimer.current);
+      if (controllerRef.current) controllerRef.current.abort();
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [fetchStats]);
+  }, [fetchData]);
 
-  // ─── 🛡️ DYNAMIC MENU FILTERING (FIXED FOR PUNONG BARANGAY) ─────────────────
-  const getVisibleMenuItems = () => {
-    const role = userInfo.role;
-    const pos = userInfo.position.toLowerCase();
-
-    // Admins and Top Officials get absolute access
-    const isSysAdmin = role === 'admin' || role === 'superadmin';
-    const isHighOfficial = pos === 'punong barangay' || pos === 'barangay secretary';
-
-    const allItems = [
-      { name: 'Dashboard',          icon: 'fas fa-th-large' },
-      { name: 'Announcements',      icon: 'fas fa-bullhorn' },
-      { name: 'Officials',          icon: 'fas fa-user-shield' },
-      { name: 'Residents',          icon: 'fas fa-users' },
-      { name: 'Household',          icon: 'fas fa-home' },
-      { name: 'Document',           icon: 'fas fa-file-alt' },
-      { name: 'Incident Reports',   icon: 'fas fa-gavel' },
-      { name: 'Archive',            icon: 'fas fa-archive' },
-      { name: 'Audit Log',          icon: 'fas fa-clipboard-list' },
-      { name: 'Account Management', icon: 'fas fa-user-cog' },
-      { name: 'My Profile',         icon: 'fas fa-cog' },
-    ];
-
-    return allItems.filter(item => {
-      // 1. Captains, Secretaries, and System Admins see EVERYTHING.
-      if (isSysAdmin || isHighOfficial) return true;
-
-      // 2. Hide sensitive modules from regular Kagawads/Staff
-      if (item.name === 'Account Management' || item.name === 'Audit Log') return false;
-
-      // 3. Officials Directory visibility for specific roles
-      if (item.name === 'Officials') {
-        return pos === 'barangay hall';
-      }
-
-      // Show everything else (Residents, Blotter, Profile, etc.)
-      return true;
-    });
-  };
-
-  const visibleMenuItems = getVisibleMenuItems();
-
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'Dashboard':           return <DashboardHome data={{ ...data, adminName: userInfo.name }} loading={loading} onNavigate={handleNavigation} />;
-      case 'Notification Center': return <NotificationSystem onNavigate={handleNavigation} />;
-      case 'Incident Reports':    return <BlotterPage highlightId={highlightId} />;
-      case 'Document':            return <DocumentsPage highlightId={highlightId} />;
-      case 'My Profile':          return <Profile />;
-      case 'Household':           return <HouseholdPage />;
-      case 'Residents':           return <ResidentsPage />;
-      case 'Officials':           return <OfficialsPage />;
-      case 'Audit Log':           return <AuditlogPage />;
-      case 'Announcements':       return <AnnouncementPage />;
-      case 'Archive':             return <ArchivePage />;
-      case 'Account Management':  return <AccountManagementPage />;
-      default: return <div className="DS_CONTAINER"><h2>{activeTab}</h2><p>Module initializing...</p></div>;
-    }
-  };
+  const stats = [
+    { label: 'Total Population',  val: data.stats.totalPopulation,  icon: 'fas fa-users',        variant: 'DS_VAR_BLUE',   targetTab: 'Residents' },
+    { label: 'Documents Issued',  val: data.stats.documentsIssued,  icon: 'fas fa-file-invoice', variant: 'DS_VAR_PINK',   targetTab: 'Document' },
+    { label: 'Blotter Cases',     val: data.stats.blotterCases,     icon: 'fas fa-gavel',        variant: 'DS_VAR_YELLOW', targetTab: 'Incident Reports' },
+    { label: 'System Activities', val: data.stats.systemActivities, icon: 'fas fa-history',      variant: 'DS_VAR_RED',    targetTab: 'Audit Log' },
+  ];
 
   return (
-    <div className="FRAME_WRAPPER">
-      <aside className="FRAME_SIDEBAR">
-        <div className="FRAME_LOGO_AREA">
-          <h2 className="FRAME_LOGO_TEXT">Barangay Engineer's Hill</h2>
+    <div className="DS_CONTAINER">
+      <header className="DS_HEADER">
+        <div className="DS_TITLE_GROUP">
+          <h1 className="DS_TITLE">{data.barangayName}</h1>
+          {sessionRole === 'superadmin' && (
+            <span className="DS_SUPER_BADGE">SUPERADMIN ACCESS</span>
+          )}
         </div>
-        
-        {/* ── Dynamic Nav Rendering ── */}
-        <nav className="FRAME_NAV_AREA">
-          {visibleMenuItems.map((item, index) => (
-            <div
-              key={index}
-              className={`FRAME_MENU_ITEM ${activeTab === item.name ? 'FRAME_MENU_ACTIVE' : ''}`}
-              onClick={() => handleNavigation(item.name)}
-            >
-              <i className={item.icon} />
-              <span>{item.name}</span>
+        <p className="DS_SUBTITLE">
+          Welcome back, <strong>{loading ? '...' : sessionName}</strong>.
+          <span className="DS_ROLE_TEXT"> Logged in as {sessionPosition}</span>
+        </p>
+      </header>
+
+      <section className="DS_STATS_GRID">
+        {stats.map((stat, i) => (
+          <div key={i} className="DS_CARD" onClick={() => onNavigate(stat.targetTab)}>
+            <div className="DS_CARD_HEADER">
+              <div className="DS_CARD_INFO">
+                <span className="DS_CARD_LABEL">{stat.label}</span>
+                <h2 className="DS_CARD_VALUE">{loading ? '...' : stat.val.toLocaleString()}</h2>
+              </div>
+              <div className={`DS_ICON_BOX ${stat.variant}`}><i className={stat.icon} /></div>
             </div>
-          ))}
-        </nav>
-        
-        <div className="FRAME_FOOTER">
-          <span className="FRAME_VERSION_TEXT">Smart Barangay</span>
+            <button className="DS_CARD_LINK">View Details <i className="fas fa-arrow-right" /></button>
+          </div>
+        ))}
+      </section>
+
+      <div className="DS_BOTTOM_GRID">
+        <div className="DS_SECTION_BOX">
+          <div className="DS_SECTION_HEADER"><h3><i className="fas fa-map-marked-alt" /> Barangay Map</h3></div>
+          <div className="DS_MAP_VIEW">
+            <iframe
+              title="Map"
+              src="https://www.google.com/maps?q=Engineer's+Hill+Barangay+Hall+Baguio&output=embed"
+              width="100%" height="100%"
+              style={{ border: 0 }}
+              loading="lazy"
+            />
+          </div>
         </div>
-      </aside>
 
-      <div className="FRAME_MAIN_COLUMN">
-        <header className="FRAME_TOPBAR">
-          <div className="FRAME_BREADCRUMB">Pages / <b>{activeTab}</b></div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-            <AdministratorNotification onNavigate={handleNavigation} />
-
-            <div className="FRAME_USER">
-              <div className="FRAME_USER_TEXT">
-                <span className="FRAME_USER_NAME">{userInfo.name}</span>
-                <span className="FRAME_USER_ROLE" style={{ letterSpacing: '0.05em' }}>
-                  {userInfo.position.toUpperCase()}
-                </span>
-              </div>
-
-              <div className="FRAME_AVATAR" style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                backgroundColor: '#eff6ff', color: '#3b82f6',
-                fontWeight: '800', fontSize: '1.2rem',
-                borderRadius: '50%', width: '40px', height: '40px',
-              }}>
-                {userInfo.initial}
-              </div>
-
-              <button className="TB_LOGOUT_BTN" onClick={onLogout}>Logout</button>
+        <div className="DS_SECTION_BOX">
+          <div className="DS_SECTION_HEADER">
+            <h3><i className="fas fa-clipboard-check" /> Pending Requests</h3>
+            <div className="PR_BADGE_WRAP">
+              <span className="PR_COUNT_BADGE">{totalPending}</span>
+              <span className="PR_COUNT_LABEL">queued</span>
             </div>
           </div>
-        </header>
 
-        <main className="FRAME_CONTENT_AREA">
-          {renderContent()}
-        </main>
+          <div className="DS_LIST_CONTAINER">
+            {pendingLoading ? (
+              <div className="PR_STATE"><div className="PR_SPINNER" /><span>Syncing queue...</span></div>
+            ) : pendingDocs.length === 0 ? (
+              <div className="PR_STATE PR_STATE--CLEAR"><i className="fas fa-check-circle" /><span>Queue is clear</span></div>
+            ) : (
+              <ul className="PR_LIST">
+                {pendingDocs.map((doc, i) => (
+                  // 🛡️ THE FIX: Passing doc.id to the navigation handler
+                  <PendingRow key={doc.referenceNo} doc={doc} index={i} onClick={() => onNavigate('Document', doc.id)} />
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {!pendingLoading && pendingDocs.length > 0 && (
+            <button className="PR_VIEW_ALL" onClick={() => onNavigate('Document')}>
+              View all {totalPending} pending <i className="fas fa-arrow-right" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
 };
 
-export default Dashboard;
+export default DashboardHome;
