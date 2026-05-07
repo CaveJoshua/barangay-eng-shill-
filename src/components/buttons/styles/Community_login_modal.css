@@ -1,0 +1,332 @@
+/* ==========================================
+   1. CORE OVERLAY & STAGE
+   ========================================== */
+.CM_LOGIN_OVERLAY {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(8px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+  padding: 1.5rem;
+  animation: cmFadeIn 0.3s ease-out;
+}
+
+@keyframes cmFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ==========================================
+   2. LOGIN CARD (The Container)
+   ========================================== */
+.CM_LOGIN_CARD {
+  background: #ffffff;
+  width: 100%;
+  max-width: 420px; /* Slightly narrower */
+  padding: 2.5rem 2rem; /* Reduced padding (was 3.5rem 2.5rem) */
+  border-radius: 24px;
+  position: relative;
+  box-sizing: border-box;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+  border: 1px solid #f1f5f9;
+  animation: cmSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes cmSlideUp {
+  from { transform: translateY(30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* ==========================================
+   3. HEADER & ICONS
+   ========================================== */
+.CM_LOGIN_HEADER {
+  text-align: center;
+  margin-bottom: 1.75rem; /* Reduced gap */
+}
+
+.CM_LOGIN_ICON {
+  width: 56px; /* Smaller icon */
+  height: 56px;
+  background: #f0f7ff;
+  color: #2563eb;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  margin: 0 auto 1rem auto;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.1);
+}
+
+.CM_LOGIN_ICON.warning {
+  background: #fff7ed;
+  color: #ea580c;
+  box-shadow: inset 0 0 0 1px rgba(234, 88, 12, 0.1);
+}
+
+.CM_LOGIN_HEADER h2 {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 0.4rem 0;
+  letter-spacing: -0.025em;
+}
+
+.CM_LOGIN_HEADER p {
+  font-size: 0.9rem;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* ==========================================
+   4. FORM & INPUT GROUPS
+   ========================================== */
+.CM_LOGIN_FORM {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem; /* Reduced gap between inputs */
+}
+
+.CM_INPUT_GROUP {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.CM_INPUT_GROUP label {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.CM_INPUT_WRAPPER {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.CM_INPUT_WRAPPER i {
+  position: absolute;
+  left: 1.15rem;
+  color: #94a3b8;
+  font-size: 1rem;
+  pointer-events: none;
+}
+
+.CM_INPUT_WRAPPER input {
+  width: 100%;
+  padding: 0.85rem 1.15rem 0.85rem 3.2rem; /* Slimmer inputs */
+  border: 2px solid #f1f5f9;
+  background-color: #f8fafc;
+  border-radius: 14px;
+  font-size: 0.95rem;
+  color: #1e293b;
+  box-sizing: border-box;
+  transition: all 0.25s ease;
+}
+
+.CM_INPUT_WRAPPER input:focus {
+  outline: none;
+  border-color: #2563eb;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.08);
+}
+
+/* --- OTP INPUT FIX --- */
+.CM_OTP_INPUT {
+  letter-spacing: 0.25rem; 
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.CM_OTP_INPUT::placeholder {
+  letter-spacing: normal;
+  font-weight: 400;
+  text-transform: none;
+}
+
+/* ==========================================
+   5. BUTTONS & ACTIONS
+   ========================================== */
+.CM_LOGIN_ACTIONS {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: -0.25rem;
+}
+
+.CM_FORGOT_BTN {
+  background: none;
+  border: none !important;
+  color: #2563eb;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.CM_FORGOT_BTN:hover:not(:disabled) {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.CM_FORGOT_BTN:disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.CM_LOGIN_SUBMIT {
+  width: 100%;
+  padding: 0.95rem; /* Slimmer button */
+  background-color: #0f172a;
+  color: #ffffff;
+  border: none;
+  border-radius: 14px;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 0.25rem;
+}
+
+.CM_LOGIN_SUBMIT:hover:not(:disabled) {
+  background-color: #1e293b;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 15px -4px rgba(0, 0, 0, 0.2);
+}
+
+.CM_LOGIN_SUBMIT:disabled {
+  background-color: #cbd5e1;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+.CM_LOGIN_SUBMIT.warning { background-color: #ea580c; }
+.CM_LOGIN_SUBMIT.warning:hover:not(:disabled) { background-color: #c2410c; }
+
+.CM_LOGIN_SUBMIT.success { background-color: #10b981; }
+.CM_LOGIN_SUBMIT.success:hover:not(:disabled) { background-color: #059669; }
+
+.CM_LOGIN_CLOSE {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.25rem;
+  background: #f1f5f9;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.CM_LOGIN_CLOSE:hover {
+  background-color: #fee2e2;
+  color: #ef4444;
+}
+
+.CM_RETURN_BTN {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  margin: 1.25rem auto 0;
+}
+
+.CM_RETURN_BTN:hover:not(:disabled) { color: #0f172a; }
+.CM_RETURN_BTN:disabled { cursor: not-allowed; opacity: 0.5; }
+
+/* ==========================================
+   6. ERROR & SUCCESS MESSAGES
+   ========================================== */
+.CM_ERROR_MSG, .CM_SUCCESS_MSG {
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 0.25rem;
+}
+
+.CM_ERROR_MSG {
+  background-color: #fff1f2;
+  color: #e11d48;
+  border: 1px solid #ffe4e6;
+}
+
+.CM_SUCCESS_MSG {
+  background-color: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #dcfce7;
+}
+
+/* ==========================================
+   7. FOOTER & RESPONSIVE (MOBILE VIEW)
+   ========================================== */
+.CM_LOGIN_FOOTER {
+  margin-top: 1.5rem;
+  text-align: center;
+  padding-top: 1.25rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+/* Standard Mobile Phones */
+@media (max-width: 480px) {
+  .CM_LOGIN_OVERLAY {
+    padding: 0.75rem; 
+  }
+  
+  .CM_LOGIN_CARD {
+    padding: 2rem 1.5rem;
+    border-radius: 20px;
+    max-height: 95vh;
+    overflow-y: auto; 
+  }
+  
+  .CM_LOGIN_HEADER {
+    margin-bottom: 1.5rem;
+  }
+
+  .CM_LOGIN_HEADER h2 { 
+    font-size: 1.4rem; 
+  }
+
+  .CM_LOGIN_FORM {
+    gap: 1rem;
+  }
+
+  .CM_INPUT_WRAPPER input {
+    font-size: 16px; /* Prevents iOS auto-zoom */
+  }
+
+  .CM_LOGIN_CLOSE {
+    top: 1rem;
+    right: 1rem;
+  }
+}

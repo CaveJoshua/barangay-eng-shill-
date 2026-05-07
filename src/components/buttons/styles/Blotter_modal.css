@@ -1,0 +1,143 @@
+/* =========================================
+   FIXED BLOTTER/DOCUMENT FULL-SCREEN CSS
+   ========================================= */
+
+/* 1. ROOT OVERLAY WRAPPER */
+.BLOT_FILE_OVERLAY {
+  position: fixed;
+  top: 0; 
+  left: 0;
+  width: 100vw; 
+  height: 100vh;
+  background-color: #f1f5f9; /* UI Background Color */
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* Prevents messy double scrollbars */
+  animation: blotFileFadeIn 0.2s ease-out;
+}
+
+/* 2. TOP TOOLBAR */
+.BLOT_FILE_TOOLBAR {
+  height: 64px;
+  background-color: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 2rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+/* 3. MAIN BODY LAYOUT */
+.BLOT_FILE_BODY {
+  flex: 1;
+  display: flex;
+  flex-direction: row; /* Sidebar and Preview side-by-side */
+  height: calc(100vh - 64px); /* Subtract toolbar height precisely */
+  width: 100%;
+  overflow: hidden;
+}
+
+/* 4. SIDEBAR (Management Controls) */
+.BLOT_SIDE_PANEL {
+  width: 380px;
+  min-width: 380px;
+  max-width: 380px;
+  background-color: #ffffff;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  padding: 2rem;
+  overflow-y: auto; /* Sidebar scrolls independently */
+  z-index: 10;
+}
+
+/* 5. PREVIEW AREA (The Gray Contrast Space) */
+.BLOT_PREVIEW_AREA {
+  flex: 1;
+  background-color: #94a3b8; /* Contrast Gray */
+  overflow-y: auto; /* Independent paper scrolling */
+  display: flex;
+  justify-content: center; /* Centers the paper */
+  padding: 40px 20px;
+  scroll-behavior: smooth;
+}
+
+/* 6. A4 PAPER SIMULATION */
+.BLOT_A4_PAGE {
+  width: 210mm;
+  min-height: 297mm;
+  background-color: #ffffff;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+  padding: 25mm; /* Standard document margins */
+  box-sizing: border-box; /* CRITICAL: Ensures padding stays inside 210mm */
+  display: flex;
+  flex-direction: column; /* Allows content to push footer to bottom */
+  position: relative;
+  margin-bottom: 40px; /* Buffer for scrolling */
+}
+
+/* 7. SIGNATURE BLOCK ALIGNMENT FIX */
+.BLOT_A4_FOOTER {
+  margin-top: auto; /* MAGIC FIX: Pushes signature to absolute bottom of page content */
+  padding-top: 60px; /* Space between narrative and signature */
+  display: flex;
+  justify-content: flex-end; /* Aligns signature to the right */
+  width: 100%;
+}
+
+.BLOT_SIG_BLOCK {
+  width: 250px;
+  text-align: center;
+}
+
+.BLOT_SIG_NAME {
+  font-weight: 900;
+  text-transform: uppercase;
+  margin: 0;
+  font-size: 11pt;
+  font-family: 'Arial', sans-serif;
+  border-bottom: 1.5px solid #000; /* Built-in signature line */
+  padding-bottom: 4px;
+}
+
+.BLOT_SIG_ROLE {
+  margin-top: 5px;
+  font-size: 10pt;
+  font-style: italic;
+  font-family: 'Times New Roman', serif;
+}
+
+/* 8. DOCUMENT TEXT STYLES */
+.BLOT_A4_HEADER { text-align: center; margin-bottom: 10px; }
+.BLOT_A4_LINE { border-top: 2.5px solid black; margin: 15px 0 35px 0; }
+.BLOT_DOC_TITLE { text-align: center; font-size: 20pt; font-weight: 900; text-decoration: underline; margin-bottom: 40px; text-transform: uppercase; }
+
+.BLOT_A4_CONTENT {
+  font-family: 'Times New Roman', serif;
+  font-size: 12pt;
+  line-height: 1.6;
+  flex: 1; /* Occupies all space above signature */
+}
+
+/* 9. BUTTONS */
+.BLOT_BTN_SAVE {
+  background-color: #dc2626;
+  color: white;
+  padding: 10px 24px;
+  border-radius: 6px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.3);
+}
+
+.BLOT_BTN_SAVE:hover { background-color: #b91c1c; }
+
+@keyframes blotFileFadeIn {
+  from { opacity: 0; transform: scale(0.99); }
+  to { opacity: 1; transform: scale(1); }
+}

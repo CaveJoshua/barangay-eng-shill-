@@ -1,0 +1,313 @@
+import { useState, useEffect } from 'react';
+import './styles/Community_Document_Request.css';
+import { ApiService } from '../UI/api'; 
+
+// ─── INTERFACES ─────────────────────────────────────────────────────────
+interface Props {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+  residentName: string;
+  residentId: string;
+}
+
+interface DocumentType {
+  id: string; 
+  label: string; 
+  price: number; 
+  icon: string; 
+}
+
+const PURPOSES = [
+  'EMPLOYMENT REQUIREMENT',
+  'SCHOOL / SCHOLARSHIP',
+  'BUSINESS REQUIREMENT',
+  'OTHER'
+];
+
+type StepType = 1 | 2 | 3 | 4;
+
+export default function Community_Document_Request({ isOpen, onClose, onSuccess, residentName, residentId }: Props) {
+  const [step, setStep] = useState<StepType>(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([]);
+  const [isLoadingDocs, setIsLoadingDocs] = useState(false);
+  const [refNumber, setRefNumber] = useState('');
+  
+  // 🛡️ ERROR STATES
+  const [fetchError, setFetchError] = useState('');
+  const [submitError, setSubmitError] = useState(''); // NEW: Tracks submission failures (like limits)
+
+  const [formData, setFormData] = useState({
+    docTypeId: '', 
+    purpose: '',
+    otherPurpose: ''
+  });
+
+  // ─── DATA FETCHING ──────────────────────────────────────────────────────
+  useEffect(() => {
+    const controller = new AbortController();
+
+    if (isOpen) {
+      setStep(1);
+      setFetchError(''); 
+      setSubmitError(''); // Clear any old submission errors
+      
+      const fetchDocs = async () => {
+        setIsLoadingDocs(true);
+        try {
+          const data = await ApiService.getDocumentTypes(controller.signal);
+          
+          if (!data) {
+              setFetchError("Session expired or unauthorized. Please close this modal, log out, and log back in.");
+              return;
+          }
+
+          if (data && data.length > 0) {
+            const validatedData = data.map((doc: any) => ({
+              ...doc,
+              icon: doc.id === 'brgy_clearance' ? 'fa-file-contract' : (doc.icon || 'fa-file-alt')
+            }));
+            
+            setDocumentTypes(validatedData);
+            setFormData(prev => ({ ...prev, docTypeId: validatedData[0].id }));
+          } else {
+             setFetchError("No document types are currently available.");
+          }
+        } catch (err) {
+          console.error("Failed to load document types");
+          setFetchError("Unable to connect to the server. Please check your connection.");
+        } finally {
+          setIsLoadingDocs(false);
+        }
+      };
+      fetchDocs();
+    }
+    return () => controller.abort();
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  // ─── DERIVED STATE ─────────────────────────────
+  const selectedDoc = documentTypes.find(d => d.id === formData.docTypeId);
+  const safeResidentName = (residentName || 'RESIDENT').toUpperCase();
+  const safeDocLabel = selectedDoc?.label.toUpperCase() || 'UNKNOWN DOCUMENT';
+  const finalPurposeText = (formData.purpose === 'OTHER' ? formData.otherPurpose : formData.purpose).toUpperCase();
+
+  const isNextDisabled = !formData.docTypeId || 
+                         !formData.purpose || 
+                         (formData.purpose === 'OTHER' && !formData.otherPurpose.trim());
+
+  // ─── SUBMIT HANDLER ─────────────────────────────────────────────────────
+  const handleFinalSubmit = async () => {
+    if (!residentId || !selectedDoc) return;
+    
+    setIsSubmitting(true);
+    setSubmitError(''); // Clear previous errors on retry
+
+    const payload = {
+        resident_id: residentId, 
+        resident_name: safeResidentName, 
+        type: safeDocLabel, 
+        purpose: formData.purpose.toUpperCase(),
+        other_purpose: formData.purpose === 'OTHER' ? formData.otherPurpose.toUpperCase() : '', 
+        price: 0
+    };
+
+    try {
+        const result = await ApiService.saveDocumentRecord(payload);
+        
+        if (result && result.success) {
+            setRefNumber(result.data.reference_no);
+            setStep(4);
+            onSuccess();
+        } else {
+            // 🛡️ THE FIX: No more alert(). We check the specific error string.
+            const errorMsg = result?.error || 'Unknown error occurred.';
+            
+            // Check if the error is the 429 Daily Limit we set up in the backend
+            if (errorMsg.includes("Daily limit reached") || errorMsg.includes("limit")) {
+                setSubmitError("You have reached your daily limit for document requests. For additional information or emergency requests, please visit the Barangay Engineer's Hill hall.");
+            } else {
+                setSubmitError(`Request Failed: ${errorMsg}`);
+            }
+        }
+    } catch (err) {
+        setSubmitError('Server connection failed. Please try again.');
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+
+  const handleBack = () => {
+      setSubmitError(''); // Clear error if they decide to go back and change something
+      setStep(prev => (prev - 1) as StepType);
+  };
+
+  return (
+    <div className="DOC_MODAL_OVERLAY">
+      <div className="DOC_MODAL_CARD">
+        
+        {/* HEADER */}
+        {step < 4 && (
+            <div className="DOC_MODAL_HEADER">
+                <div className="DOC_HEADER_TEXT">
+                    <h3>{step === 3 ? 'FINAL CONFIRMATION' : 'REQUEST DOCUMENT'}</h3>
+                    <p>STEP {step} OF 3</p>
+                </div>
+                <button className="DOC_CLOSE_BTN" onClick={onClose}><i className="fas fa-times"></i></button>
+            </div>
+        )}
+
+        {/* BODY */}
+        <div className="DOC_MODAL_BODY">
+          
+          {/* STEP 1: FORM SELECTION */}
+          {step === 1 && (
+            <div className="DOC_STEP_CONTAINER">
+              <label className="DOC_LABEL">SELECT DOCUMENT TYPE</label>
+              
+              {fetchError ? (
+                <div style={{ color: '#dc2626', backgroundColor: '#fee2e2', padding: '15px', borderRadius: '8px', textAlign: 'center', marginBottom: '20px', fontSize: '14px', border: '1px solid #f87171' }}>
+                    <i className="fas fa-exclamation-triangle" style={{ marginRight: '8px' }}></i>
+                    {fetchError}
+                </div>
+              ) : isLoadingDocs ? (
+                <div className="DOC_LOADING"><i className="fas fa-circle-notch fa-spin"></i></div>
+              ) : (
+                <div className="DOC_GRID_SELECT">
+                  {documentTypes.map((doc) => (
+                    <div 
+                      key={doc.id} 
+                      className={`DOC_SELECT_CARD ${formData.docTypeId === doc.id ? 'SELECTED' : ''}`}
+                      onClick={() => setFormData({ ...formData, docTypeId: doc.id })}
+                    >
+                      <i className={`fas ${doc.icon}`}></i>
+                      <span>{doc.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {!fetchError && !isLoadingDocs && (
+                  <>
+                    <label className="DOC_LABEL">PURPOSE</label>
+                    <select 
+                        value={formData.purpose} 
+                        onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
+                        className="DOC_INPUT"
+                    >
+                        <option value="" disabled>Select a purpose...</option>
+                        {PURPOSES.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+
+                    {formData.purpose === 'OTHER' && (
+                        <input 
+                        type="text" 
+                        className="DOC_INPUT" 
+                        placeholder="SPECIFY PURPOSE HERE..."
+                        value={formData.otherPurpose}
+                        onChange={(e) => setFormData({...formData, otherPurpose: e.target.value})}
+                        />
+                    )}
+                  </>
+              )}
+            </div>
+          )}
+
+          {/* STEP 2: REVIEW */}
+          {step === 2 && (
+            <div className="DOC_STEP_CONTAINER">
+               <div className="DOC_REVIEW_LIST">
+                  <div className="DOC_REVIEW_ITEM">
+                    <small>REQUESTOR</small>
+                    <p>{safeResidentName}</p> 
+                  </div>
+                  <div className="DOC_REVIEW_ITEM">
+                    <small>DOCUMENT</small>
+                    <p>{safeDocLabel}</p>
+                  </div>
+                  <div className="DOC_REVIEW_ITEM">
+                    <small>DOCUMENT FEE</small>
+                    <p>TO BE ASSESSED</p>
+                  </div>
+                  <div className="DOC_REVIEW_ITEM">
+                    <small>PURPOSE</small>
+                    <p>{finalPurposeText}</p>
+                  </div>
+               </div>
+            </div>
+          )}
+
+          {/* STEP 3: CONFIRM */}
+          {step === 3 && (
+            <div className="DOC_STEP_CONTAINER CENTERED">
+               <div className="DOC_CONFIRM_ICON"><i className="fas fa-paper-plane"></i></div>
+               <h4>READY TO SEND?</h4>
+               <p>Your request will be sent to the Barangay Staff for review.</p>
+
+               {/* 🛡️ NEW: Rate Limit / Submission Error Banner */}
+               {submitError && (
+                 <div style={{ 
+                     marginTop: '20px', 
+                     color: '#991b1b', 
+                     backgroundColor: '#fef2f2', 
+                     padding: '16px', 
+                     borderRadius: '8px', 
+                     border: '1px solid #f87171', 
+                     fontSize: '14px', 
+                     textAlign: 'left',
+                     lineHeight: '1.5'
+                 }}>
+                     <div style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                         <i className="fas fa-ban" style={{ marginRight: '8px', fontSize: '16px' }}></i>
+                         REQUEST DENIED
+                     </div>
+                     <div>{submitError}</div>
+                 </div>
+               )}
+            </div>
+          )}
+
+          {/* STEP 4: SUCCESS */}
+          {step === 4 && (
+            <div className="DOC_STEP_CONTAINER CENTERED SUCCESS">
+                <div className="DOC_SUCCESS_ICON"><i className="fas fa-check-circle"></i></div>
+                <h3>REQUEST SENT!</h3>
+                <p>REFERENCE: <strong>{refNumber}</strong></p>
+                <button className="DOC_BTN_PRIMARY" onClick={onClose} style={{marginTop: '20px'}}>CLOSE REGISTRY</button>
+            </div>
+          )}
+        </div>
+
+        {/* FOOTER CONTROLS */}
+        {step < 4 && (
+            <div className="DOC_MODAL_FOOTER">
+                {step > 1 && (
+                  <button className="DOC_BTN_SECONDARY" onClick={handleBack} disabled={isSubmitting}>BACK</button>
+                )}
+                
+                {step === 1 && (
+                  <button className="DOC_BTN_PRIMARY" onClick={() => setStep(2)} disabled={isNextDisabled || !!fetchError || isLoadingDocs}>REVIEW REQUEST</button>
+                )}
+                
+                {step === 2 && (
+                  <button className="DOC_BTN_PRIMARY" onClick={() => setStep(3)}>NEXT</button>
+                )}
+                
+                {step === 3 && (
+                  <button 
+                    className="DOC_BTN_PRIMARY SUBMIT" 
+                    onClick={handleFinalSubmit} 
+                    disabled={isSubmitting || !!submitError} // Disable if they already hit the limit
+                    style={submitError ? { backgroundColor: '#94a3b8', cursor: 'not-allowed' } : {}}
+                  >
+                    {isSubmitting ? 'COMMUNICATING...' : 'CONFIRM & SUBMIT'}
+                  </button>
+                )}
+            </div>
+        )}
+      </div>
+    </div>
+  );
+}

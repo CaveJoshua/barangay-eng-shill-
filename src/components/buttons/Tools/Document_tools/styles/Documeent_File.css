@@ -1,0 +1,461 @@
+/* ==========================================================================
+   DOCUMENT FILE / FRAME CSS (Responsive MS365 Dark Theme)
+   ========================================================================== */
+
+:root {
+  --doc-desk-bg: #374151;      /* Dark desk background */
+  --doc-topbar-bg: #111827;    /* Deep navy/black for toolbars */
+  --doc-sidebar-bg: #ffffff;   /* Clean white for the form */
+  --doc-border: #e5e7eb;
+  --doc-border-dark: #374151;
+  --doc-text-main: #1f2937;
+  --doc-text-muted: #6b7280;
+  --doc-accent-green: #10b981;
+  --doc-accent-green-hover: #059669;
+  --doc-accent-blue: #3b82f6;
+  --a4-width: 210mm;
+  --a4-height: 297mm;
+  --a4-padding: 25mm;
+}
+
+/* --- APP SHELL & LAYOUT --- */
+.doc-app-shell {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--doc-desk-bg);
+  display: flex;
+  flex-direction: column;
+  z-index: 9999;
+  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  overflow: hidden;
+}
+
+/* --- TOP NAV TOOLBAR --- */
+.doc-topbar {
+  height: 56px;
+  background-color: var(--doc-topbar-bg);
+  border-bottom: 1px solid var(--doc-border-dark);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  color: #f3f4f6;
+  flex-shrink: 0;
+  z-index: 100; /* Above sidebar on mobile */
+}
+
+.topbar-left, .topbar-center, .topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.brand-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 200px;
+}
+
+.brand-icon { font-size: 1.25rem; }
+.brand-text { font-weight: 600; font-size: 1rem; color: #ffffff; }
+
+.format-tools, .zoom-tools {
+  display: flex;
+  align-items: center;
+  background-color: #1f2937;
+  padding: 4px;
+  border-radius: 6px;
+  gap: 4px;
+  border: 1px solid var(--doc-border-dark);
+}
+
+.tool-btn {
+  background: transparent;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  color: #d1d5db;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.tool-btn:hover {
+  background-color: #374151;
+  color: #ffffff;
+}
+
+.tool-divider {
+  width: 1px;
+  height: 20px;
+  background-color: #4b5563;
+  margin: 0 4px;
+}
+
+.strict-select-dark {
+  background: transparent;
+  color: #d1d5db;
+  border: none;
+  font-size: 0.85rem;
+  padding: 4px 8px;
+  outline: none;
+}
+
+.zoom-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  min-width: 48px;
+  text-align: center;
+  user-select: none;
+  font-family: 'Inter', sans-serif;
+}
+
+.doc-title-display {
+  font-size: 0.85rem;
+  color: #9ca3af;
+  margin-left: 16px;
+}
+
+.btn-close {
+  background: transparent;
+  border: 1px solid #4b5563;
+  color: #f3f4f6;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-close:hover {
+  background: #374151;
+  border-color: #9ca3af;
+}
+
+.btn-print {
+  background: var(--doc-accent-green);
+  color: #ffffff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-print:hover:not(:disabled) {
+  background: var(--doc-accent-green-hover);
+}
+
+.btn-print:disabled {
+  background: #6ee7b7;
+  cursor: not-allowed;
+}
+
+/* Mobile Hamburger Button */
+.mobile-menu-btn {
+  display: none; /* Hidden on desktop */
+  background: transparent;
+  border: none;
+  color: #f3f4f6;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 4px;
+}
+
+/* --- WORKSPACE --- */
+.doc-workspace {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* --- LEFT SIDEBAR (FORM) --- */
+.doc-sidebar {
+  width: 340px;
+  background-color: var(--doc-sidebar-bg);
+  display: flex;
+  flex-direction: column;
+  z-index: 50;
+  box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+  transition: transform 0.3s ease-in-out;
+}
+
+.sidebar-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--doc-border);
+}
+
+.sidebar-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--doc-text-main);
+}
+
+.sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.page-pill {
+  padding: 6px 12px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 4px;
+  border: 1px solid #bfdbfe;
+  display: inline-block;
+  width: max-content;
+}
+
+.section-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin-top: 8px;
+}
+.text-green { color: var(--doc-accent-green); }
+.text-blue { color: var(--doc-accent-blue); }
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-group.relative { position: relative; }
+
+.field-group label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--doc-text-muted);
+}
+.req { color: #ef4444; }
+
+.strict-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  color: var(--doc-text-main);
+  background-color: #ffffff;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+}
+
+.strict-input:focus {
+  outline: none;
+  border-color: var(--doc-accent-blue);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.field-group-row {
+  display: flex;
+  gap: 12px;
+}
+.field-group-row > .field-group { flex: 1; }
+
+/* Dropdown styling */
+.doc-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  z-index: 60;
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.doc-dropdown-item {
+  padding: 10px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f3f4f6;
+}
+.doc-dropdown-item:last-child { border-bottom: none; }
+.doc-dropdown-item:hover { background-color: #eff6ff; }
+.doc-dropdown-name { display: block; font-weight: 600; color: var(--doc-text-main); font-size: 0.85rem; }
+.doc-dropdown-meta { display: block; font-size: 0.75rem; color: var(--doc-text-muted); margin-top: 2px; }
+
+/* Sidebar Mini-Footer */
+.sidebar-mini-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--doc-border);
+  background-color: #f9fafb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  color: var(--doc-text-muted);
+  font-weight: 500;
+}
+.sidebar-stats { display: flex; gap: 8px; align-items: center; }
+.live-dot { width: 6px; height: 6px; background-color: var(--doc-accent-blue); border-radius: 50%; }
+
+/* --- MAIN DESK (PDF PREVIEW) --- */
+.doc-desk {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.desk-scroll-area {
+  flex: 1;
+  overflow: auto;
+  padding-bottom: 40px;
+}
+
+.doc-canvas-wrapper {
+  margin: 40px auto;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  align-items: center;
+}
+
+.a4-sheet {
+  width: var(--a4-width);
+  min-height: var(--a4-height);
+  background: white;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); /* Strong shadow for dark desk */
+  box-sizing: border-box;
+}
+
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+/* Desk Status Bar (Bottom) */
+.desk-status-bar {
+  height: 32px;
+  background-color: var(--doc-topbar-bg);
+  border-top: 1px solid var(--doc-border-dark);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 16px;
+  color: #d1d5db;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.status-left, .status-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.status-live {
+  color: var(--doc-accent-green);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.live-dot-green {
+  width: 6px;
+  height: 6px;
+  background-color: var(--doc-accent-green);
+  border-radius: 50%;
+}
+
+.status-ref { font-weight: 600; color: #f3f4f6; }
+
+/* --- VIRTUAL DOM FORMATTING (Inside A4) --- */
+.virtual-page-content {
+  padding: var(--a4-padding);
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  color: #000000;
+}
+.virtual-page-content b, .virtual-page-content strong { font-weight: 900; }
+.virtual-page-content u { text-decoration: underline; text-underline-offset: 2px; }
+.virtual-page-content::selection, .virtual-page-content *::selection { background: rgba(59, 130, 246, 0.2); }
+
+/* --- CUSTOM SCROLLBARS --- */
+.desk-scroll-area::-webkit-scrollbar,
+.sidebar-content::-webkit-scrollbar { width: 12px; height: 12px; }
+.desk-scroll-area::-webkit-scrollbar-track { background: var(--doc-desk-bg); }
+.sidebar-content::-webkit-scrollbar-track { background: var(--doc-sidebar-bg); }
+.desk-scroll-area::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 6px; border: 3px solid var(--doc-desk-bg); }
+.sidebar-content::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 6px; border: 3px solid var(--doc-sidebar-bg); }
+
+/* --- RESPONSIVE / MOBILE DESIGN --- */
+.sidebar-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 40;
+}
+
+@media (max-width: 1024px) {
+  .hidden-mobile { display: none !important; }
+  .mobile-menu-btn { display: block; }
+  
+  /* Convert Sidebar to Off-Canvas Drawer */
+  .doc-sidebar {
+    position: absolute;
+    top: 0; bottom: 0; left: 0;
+    transform: translateX(-100%);
+    width: 300px;
+  }
+  
+  .doc-sidebar.open {
+    transform: translateX(0);
+  }
+
+  .doc-canvas-wrapper {
+    margin: 20px auto;
+  }
+}
+
+/* --- BROWSER PRINT OVERRIDE (Ctrl+P Safety) --- */
+@media print {
+  body * { visibility: hidden; }
+  .doc-app-shell { position: absolute; left: 0; top: 0; background: white; }
+  .doc-topbar, .doc-sidebar, .desk-status-bar { display: none !important; }
+  .doc-workspace, .doc-desk, .desk-scroll-area, .doc-canvas-wrapper, .a4-sheet {
+    visibility: visible;
+    box-shadow: none !important;
+    background: transparent !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .a4-sheet * { visibility: visible; }
+  .a4-sheet { page-break-after: always; }
+}

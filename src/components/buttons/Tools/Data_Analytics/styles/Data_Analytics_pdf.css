@@ -1,0 +1,186 @@
+/* ─── PDF Modal Overlay & Container ─── */
+.pdf-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(6px); /* Slightly stronger blur to focus the user */
+}
+
+.pdf-modal {
+  background-color: #cbd5e1; /* Darker outer edge so the white paper pops */
+  width: 1180px; /* Slightly wider than the paper to give comfortable breathing room */
+  height: 92vh;
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* ─── Header Area ─── */
+.pdf-header {
+  padding: 20px 32px;
+  background-color: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 10;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); /* Drops a subtle shadow over the gray desk */
+}
+
+.pdf-header-title {
+  margin: 0;
+  color: #0f172a;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.pdf-header-subtitle {
+  margin: 4px 0 0 0;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.pdf-header-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* ─── Buttons ─── */
+.pdf-btn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  background-color: #2563eb;
+  color: #ffffff;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+}
+
+.pdf-btn:hover:not(:disabled) {
+  background-color: #1d4ed8;
+  box-shadow: 0 4px 6px rgba(37, 99, 235, 0.3);
+  transform: translateY(-1px); /* Slight lift effect on hover */
+}
+
+.pdf-btn:disabled {
+  background-color: #94a3b8;
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.pdf-close-btn {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pdf-close-btn:hover {
+  background-color: #e2e8f0;
+  color: #0f172a;
+}
+
+/* ─── Loading State ─── */
+.pdf-loading {
+  padding: 80px;
+  text-align: center;
+  color: #475569;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  animation: pdf-pulse 2s infinite;
+}
+
+@keyframes pdf-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ─── Preview Wrapper ("The Desk") ─── */
+.pdf-preview-wrapper {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 40px 0; 
+  background-color: #cbd5e1; 
+  display: flex;
+  flex-direction: column; /* Stack the pages vertically */
+  align-items: center;
+  gap: 40px; /* Realistic gap between Page 1 and Page 2 */
+}
+
+/* Custom, elegant scrollbar for the preview window */
+.pdf-preview-wrapper::-webkit-scrollbar {
+  width: 8px;
+}
+.pdf-preview-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+.pdf-preview-wrapper::-webkit-scrollbar-thumb {
+  background-color: #94a3b8;
+  border-radius: 10px;
+}
+
+/* ─── The Actual Print Container (The A4 Paper) ─── */
+.pdf-print-container {
+  width: 1100px; /* Exact mathematical width for crisp ChartJS renders */
+  min-height: 1555px; /* Exact A4 aspect ratio mapping to 1100px width */
+  background-color: #ffffff; /* Pure white paper */
+  padding: 60px; /* Realistic printed paper margins */
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); /* Heavy, realistic paper drop shadow */
+  box-sizing: border-box;
+  flex-shrink: 0; /* Prevents flexbox from squishing the paper */
+}
+
+/* ─── Paper Typography Overrides ─── */
+.pdf-report-header {
+  border-bottom: 3px solid #1e293b; /* Thicker, bolder header underline */
+  padding-bottom: 20px;
+  margin-bottom: 32px;
+}
+
+.pdf-report-title {
+  margin: 0;
+  font-size: 32px;
+  color: #0f172a;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.pdf-report-meta {
+  margin: 12px 0 0 0;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.pdf-report-meta strong {
+  color: #1e293b;
+}
+
+/* ─── Chart Box Printing Rules ─── */
+.pdf-print-container .da-block {
+  break-inside: avoid; /* Prevents blocks from splitting if printed directly via browser */
+  page-break-inside: avoid;
+}

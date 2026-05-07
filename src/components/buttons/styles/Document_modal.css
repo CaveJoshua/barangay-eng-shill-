@@ -1,0 +1,115 @@
+/* =========================================
+   1. MASTER STUDIO OVERLAY
+   ========================================= */
+.MANUAL_DOC_OVERLAY {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(15, 23, 42, 0.9); /* Deep slate backdrop for focus */
+    backdrop-filter: blur(10px);
+    z-index: 5000; /* Ensures it stays on top of any dashboard elements */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2vh; /* Responsive padding */
+    animation: modalFadeIn 0.25s ease-out;
+}
+
+/* =========================================
+   2. STUDIO MODAL CONTAINER
+   ========================================= */
+.DOC_MODAL_CONTAINER {
+    width: 100%;
+    max-width: 1440px; /* Professional high-res width */
+    height: 96vh;      /* Nearly full screen height */
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+    display: flex;
+    flex-direction: column; /* Toolbar on top, content below */
+    overflow: hidden;       /* Prevents the modal itself from scrolling */
+    animation: modalScaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+}
+
+/* =========================================
+   3. STUDIO EDITOR WRAPPER 
+   ========================================= */
+/* This ensures the Document_Files component fills the modal perfectly 
+   without leaking into the dashboard background. */
+.DOC_MODAL_CONTAINER > div {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    overflow: hidden; /* Constrains internal components (Sidebar/Desk) */
+}
+
+/* =========================================
+   4. LAYOUT ADJUSTMENTS FOR Document_Files
+   ========================================= */
+/* These targets ensure the inner components follow the "Studio" rules */
+
+.DOC_FILE_BODY {
+    flex: 1;
+    display: flex;
+    overflow: hidden; /* Enables independent scrolling for Sidebar vs Desk */
+}
+
+/* Fix for the "Desk" area inside the modal */
+.DOC_PREVIEW_AREA {
+    flex: 1;
+    background: #64748b; /* Professional gray studio desk */
+    padding: 60px 40px;
+    overflow-y: auto;    /* Enables vertical scrolling for the A4 paper only */
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+/* Anti-Distortion Rule for the A4 Paper */
+.A4_PAGE {
+    flex-shrink: 0; /* Prevents the paper from being squished or distorted */
+    margin-bottom: 80px; /* Padding at the bottom for a clean scroll finish */
+}
+
+/* =========================================
+   5. ANIMATIONS
+   ========================================= */
+@keyframes modalFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes modalScaleUp {
+    from { 
+        transform: scale(0.98) translateY(10px); 
+        opacity: 0; 
+    }
+    to { 
+        transform: scale(1) translateY(0); 
+        opacity: 1; 
+    }
+}
+
+/* =========================================
+   6. RESPONSIVE STUDIO VIEW
+   ========================================= */
+@media (max-width: 1200px) {
+    .DOC_MODAL_CONTAINER {
+        max-width: 98%;
+        height: 98vh;
+    }
+}
+
+@media (max-width: 768px) {
+    .DOC_MODAL_CONTAINER {
+        border-radius: 0;
+        height: 100vh;
+    }
+    .MANUAL_DOC_OVERLAY {
+        padding: 0;
+    }
+}

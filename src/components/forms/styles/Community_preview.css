@@ -1,0 +1,217 @@
+/* --- COMMUNITY PREVIEW MODAL: C_P_ PREFIX --- */
+
+.C_P_OVERLAY_BACKDROP {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+  padding: 2rem;
+  animation: cpFadeIn 0.3s ease-out;
+}
+
+@keyframes cpFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.C_P_PREVIEW_CARD {
+  background: #ffffff;
+  width: 100%;
+  max-width: 900px;
+  max-height: 90vh;
+  border-radius: 24px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  animation: cpSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes cpSlideUp {
+  from { transform: translateY(30px); }
+  to { transform: translateY(0); }
+}
+
+/* --- 1. NAVIGATION HEADER --- */
+.C_P_PREVIEW_NAV {
+  padding: 1rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #f1f5f9;
+  background: #ffffff;
+  z-index: 10;
+}
+
+.C_P_PREVIEW_BACK_BTN {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: color 0.2s;
+}
+
+.C_P_PREVIEW_BACK_BTN:hover { color: #3b5998; }
+
+.C_P_CLOSE_ICON_BTN {
+  background: #f1f5f9;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.C_P_CLOSE_ICON_BTN:hover { background: #e2e8f0; transform: rotate(90deg); }
+
+/* --- 2. SCROLLABLE CONTENT --- */
+.C_P_PREVIEW_SCROLL_AREA {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 3rem;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.C_P_PREVIEW_SCROLL_AREA::-webkit-scrollbar { width: 6px; }
+.C_P_PREVIEW_SCROLL_AREA::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+/* --- 3. HERO BANNER --- */
+.C_P_PREVIEW_HERO {
+  width: 100%;
+  height: 400px;
+  background: #f8fafc;
+  position: relative;
+}
+
+.C_P_HERO_IMG {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.C_P_HERO_PLACEHOLDER {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 4rem;
+  color: #cbd5e1;
+}
+
+/* --- 4. BODY CONTENT --- */
+.C_P_PREVIEW_BODY {
+  padding: 2.5rem 3rem;
+}
+
+.C_P_BADGE_ROW {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.C_P_CAT_TAG {
+  background: #eff6ff;
+  color: #3b5998;
+  padding: 0.4rem 1rem;
+  border-radius: 50px;
+  font-weight: 800;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.C_P_PRIO_TAG.URGENT {
+  background: #fef2f2;
+  color: #ef4444;
+  padding: 0.4rem 1rem;
+  border-radius: 50px;
+  font-weight: 800;
+  font-size: 0.75rem;
+}
+
+.C_P_DATE_TEXT {
+  color: #94a3b8;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.C_P_PREVIEW_TITLE {
+  font-size: 2.5rem;
+  font-weight: 900;
+  color: #0f172a;
+  line-height: 1.2;
+  margin-bottom: 1.5rem;
+  letter-spacing: -0.03em;
+}
+
+.C_P_PREVIEW_DIVIDER {
+  width: 60px;
+  height: 4px;
+  background: #3b5998;
+  margin-bottom: 2.5rem;
+  border-radius: 2px;
+}
+
+.C_P_PREVIEW_TEXT {
+  font-size: 1.15rem;
+  line-height: 1.8;
+  color: #334155;
+}
+
+.C_P_PREVIEW_TEXT p {
+  margin-bottom: 1.5rem;
+}
+
+.C_P_EXPIRY_NOTICE {
+  margin-top: 3rem;
+  padding: 1.25rem;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #92400e;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* --- 5. FOOTER --- */
+.C_P_PREVIEW_FOOTER {
+  padding: 1.25rem;
+  text-align: center;
+  border-top: 1px solid #f1f5f9;
+  background: #f8fafc;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* --- RESPONSIVE --- */
+@media (max-width: 768px) {
+  .C_P_OVERLAY_BACKDROP { padding: 0; }
+  .C_P_PREVIEW_CARD { max-height: 100vh; border-radius: 0; }
+  .C_P_PREVIEW_HERO { height: 250px; }
+  .C_P_PREVIEW_BODY { padding: 2rem 1.5rem; }
+  .C_P_PREVIEW_TITLE { font-size: 1.75rem; }
+}

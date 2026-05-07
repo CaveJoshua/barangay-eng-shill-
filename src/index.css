@@ -1,0 +1,59 @@
+/* --- 1. CORE TYPOGRAPHY & SMOOTHING --- */
+:root {
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  /* Let App.css handle the specific background colors */
+  color-scheme: light dark;
+  
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* --- 2. GLOBAL RESET REPAIR --- */
+body {
+  margin: 0;
+  /* 🛡️ THE FIX: Removed display:flex and place-items:center */
+  /* This allows APP_ROOT to take full control of the screen */
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+/* --- 3. CLEAN LINK DEFAULTS --- */
+a {
+  font-weight: 500;
+  color: var(--color-brand); /* Uses your brand color from App.css */
+  text-decoration: inherit;
+  transition: opacity 0.2s ease;
+}
+
+a:hover {
+  opacity: 0.8;
+}
+
+/* --- 4. GLOBAL ELEMENT TWEAKS --- */
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  line-height: 1.1;
+  color: var(--TEXT-main);
+}
+
+/* Base button reset - your namespaced AD-BLOT buttons will override this */
+button {
+  font-family: inherit;
+}
+
+button:focus,
+button:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+/* Remove Vite's default centering for the #root div */
+#root {
+  width: 100%;
+  height: 100%;
+}
