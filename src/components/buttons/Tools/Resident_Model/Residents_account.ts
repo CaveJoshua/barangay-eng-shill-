@@ -36,7 +36,7 @@ export const handleResidentSubmit = async (formData: IResident) => {
       is_4ps: formData.is4Ps,
       is_solo_parent: formData.isSoloParent,
       is_senior_citizen: formData.isSeniorCitizen,
-      is_ip: formData.isIP,
+      // removal of ip status 
       voter_id_number: formData.voterIdNumber,
       pwd_id_number: formData.pwdIdNumber,
       solo_parent_id_number: formData.soloParentIdNumber,

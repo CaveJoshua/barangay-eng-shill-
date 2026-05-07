@@ -37,7 +37,7 @@ export const ResidentMapper = {
       is4Ps: !!(dbRow.is4Ps || dbRow.is_4ps),
       isSoloParent: !!(dbRow.isSoloParent || dbRow.is_solo_parent),
       isSeniorCitizen: !!(dbRow.isSeniorCitizen || dbRow.is_senior_citizen),
-      isIP: !!(dbRow.isIP || dbRow.is_ip),
+      
       voterIdNumber: dbRow.voterIdNumber || dbRow.voter_id_number || '',
       pwdIdNumber: dbRow.pwdIdNumber || dbRow.pwd_id_number || '',
       soloParentIdNumber: dbRow.soloParentIdNumber || dbRow.solo_parent_id_number || '',
@@ -86,7 +86,7 @@ export const ResidentMapper = {
       is4Ps: bool(ui.is4Ps),
       isSoloParent: bool(ui.isSoloParent),
       isSeniorCitizen: bool(ui.isSeniorCitizen),
-      isIP: bool(ui.isIP),
+      
       voterIdNumber: clean(ui.voterIdNumber),
       pwdIdNumber: clean(ui.pwdIdNumber),
       soloParentIdNumber: clean(ui.soloParentIdNumber),
