@@ -33,7 +33,7 @@ app.use(cors({
     ];
 
     // DYNAMIC WILDCARD: Allows ANY URL ending in your domain
-    const isCloudflare = origin && origin.endsWith('.barangay-eng-shill.pages.dev');
+    const isCloudflare = origin && origin.endsWith('.barangay-engineer-s-hill.pages.dev');
 
     if (!origin || allowedLocal.includes(origin) || isCloudflare) {
       callback(null, true); // Approved
