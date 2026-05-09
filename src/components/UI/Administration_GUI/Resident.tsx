@@ -6,14 +6,17 @@ import { exportResidentsToCSV, importResidentsFromCSV } from '../../buttons/Tool
 import { ApiService } from '../api';
 import { VerifyChainModal } from '../../buttons/VerifyChainModal';
 
-// Interface for the Smart Import Report
 interface IImportSummary {
   importedCount: number;
   duplicateCount: number;
   duplicateDetails: Array<{ name: string; reason: string }>;
 }
 
-export default function ResidentsPage() {
+interface ResidentsPageProps {
+  highlightId?: string;
+}
+
+export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
   const [residents, setResidents] = useState<IResident[]>([]);
   const [error, setError] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -34,6 +37,11 @@ export default function ResidentsPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // 🛡️ HIGHLIGHT TARGETING REFS
+  const [activeHighlight, setActiveHighlight] = useState<string | null>(null); // For Notifications (Yellow)
+  const [blueHighlight, setBlueHighlight] = useState<string | null>(null); // For New Residents (Blue)
+  const processedHighlightId = useRef<string | null>(null);
+
   // ==========================================================
   // SYSTEM GUARD: PREVENT DATA INTERRUPTION DURING IMPORT
   // ==========================================================
@@ -51,10 +59,11 @@ export default function ResidentsPage() {
   }, [importProgress]);
 
   // ==========================================================
-  // FETCH — Uses the Universal Handshake Service
+  // ORIGINAL FETCH ENGINE
   // ==========================================================
   const fetchResidents = useCallback(async (silent = false, signal?: AbortSignal) => {
     if (!silent) setIsSyncing(true);
+    
     try {
       const data = await ApiService.getResidents(signal);
       if (data === null) return;
@@ -76,11 +85,33 @@ export default function ResidentsPage() {
     }
   }, []);
 
+  // 🛡️ THE TARGETING ENGINE (Notification Sync)
+  useEffect(() => {
+    if (highlightId && processedHighlightId.current !== highlightId && residents.length > 0) {
+      const target = residents.find(r => String(r.id) === String(highlightId));
+      if (target) {
+        processedHighlightId.current = highlightId;
+        
+        setFilter('All Residents');
+        setSearchTerm(String(target.id));
+        setCurrentPage(1);
+
+        setActiveHighlight(String(target.id));
+        const timer = setTimeout(() => setActiveHighlight(null), 3000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [highlightId, residents]);
+
+  // FETCH LIFECYCLE
   useEffect(() => {
     const valve = new AbortController();
     fetchResidents(false, valve.signal);
 
-    const autoLoader = setInterval(() => fetchResidents(true, valve.signal), 300000);
+    const autoLoader = setInterval(() => {
+      if (document.visibilityState === 'visible') fetchResidents(true, valve.signal);
+    }, 300000); 
+    
     return () => {
       valve.abort();
       clearInterval(autoLoader);
@@ -88,7 +119,7 @@ export default function ResidentsPage() {
   }, [fetchResidents]);
 
   // ==========================================================
-  // DIRECT STATUS UPDATE ENGINE (NO MODAL REQUIRED)
+  // DIRECT STATUS UPDATE ENGINE
   // ==========================================================
   const handleUpdateStatus = async (resident: IResident, newStatus: string) => {
     const isArchiveBound = ['Deceased', 'Relocated', 'Archived'].includes(newStatus);
@@ -100,42 +131,9 @@ export default function ResidentsPage() {
     
     setIsSyncing(true);
     try {
-      // Re-package the entire resident payload with the new status
-      const payload = {
-        firstName: resident.firstName,
-        lastName: resident.lastName,
-        middleName: resident.middleName,
-        sex: resident.sex,
-        dob: resident.dob,
-        birthCountry: resident.birthCountry,
-        birthProvince: resident.birthProvince,
-        birthCity: resident.birthCity,
-        birthPlace: resident.birthPlace,
-        nationality: resident.nationality,
-        religion: resident.religion,
-        contact_number: resident.contact_number,
-        email: resident.email,
-        currentAddress: resident.currentAddress,
-        purok: resident.purok,
-        civilStatus: resident.civilStatus,
-        education: resident.education,
-        employment: resident.employment,
-        employmentStatus: resident.employmentStatus,
-        occupation: resident.occupation,
-        isVoter: resident.isVoter,
-        isPWD: resident.isPWD,
-        is4Ps: resident.is4Ps,
-        isSoloParent: resident.isSoloParent,
-        isSeniorCitizen: resident.isSeniorCitizen,
-        voterIdNumber: resident.voterIdNumber,
-        pwdIdNumber: resident.pwdIdNumber,
-        soloParentIdNumber: resident.soloParentIdNumber,
-        seniorIdNumber: resident.seniorIdNumber,
-        fourPsIdNumber: resident.fourPsIdNumber,
-        activityStatus: newStatus // 🛡️ THE OVERRIDE
-      };
-
+      const payload = { ...resident, activityStatus: newStatus };
       const response = await ApiService.saveResident(resident.id, payload);
+      
       if (response.success) {
         fetchResidents(true);
       } else {
@@ -171,12 +169,16 @@ export default function ResidentsPage() {
     return residents.filter((res) => {
       const currentStatus = (res.activityStatus || 'Active').toUpperCase();
       
-      // 🛡️ THE GHOST FILTER: Anything terminal completely vanishes from the Residents page
-      // It will now ONLY be visible in the Archive module.
       if (['ARCHIVED', 'DECEASED', 'RELOCATED'].includes(currentStatus)) return false;
 
       const fullName = `${res.lastName || ''}, ${res.firstName || ''}`.toLowerCase();
-      if (searchTerm && !fullName.includes(searchTerm.toLowerCase())) return false;
+      const searchStr = searchTerm.toLowerCase();
+      
+      const matchesSearch = !searchTerm || 
+                            fullName.includes(searchStr) || 
+                            String(res.id) === searchTerm;
+
+      if (!matchesSearch) return false;
 
       if (filter === 'All Residents') return true;
       if (filter === 'Active Residents') return currentStatus === 'ACTIVE';
@@ -205,21 +207,18 @@ export default function ResidentsPage() {
 
   useEffect(() => { setCurrentPage(1); }, [filter, searchTerm]);
 
-  // PAGINATION
   const totalPages = Math.ceil(filteredResidents.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedResidents = filteredResidents.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-  // STATS
   const totalCount = filteredResidents.length;
   const maleCount = filteredResidents.filter(r => r.sex === 'Male').length;
   const femaleCount = filteredResidents.filter(r => r.sex === 'Female').length;
   const malePercent = totalCount > 0 ? Math.round((maleCount / totalCount) * 100) : 0;
   const femalePercent = totalCount > 0 ? Math.round((femaleCount / totalCount) * 100) : 0;
 
-
   // ==========================================================
-  // 🛡️ THE "GHOST" BYPASS ENGINE FOR IMPORT
+  // THE "GHOST" BYPASS ENGINE FOR IMPORT
   // ==========================================================
   const handleSecureImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const originalFetch = window.fetch;
@@ -257,6 +256,29 @@ export default function ResidentsPage() {
             setImportSummary(summary);
         }
     });
+  };
+
+  // 🛡️ MODAL SUCCESS HANDLER (Applies the Blue Glow)
+  const handleModalSuccess = (newRecord?: any) => {
+    fetchResidents(true);
+    
+    if (newRecord) {
+      // Backend might return the id as 'id', 'record_id', or 'resident_id'
+      const targetId = newRecord.id || newRecord.record_id || newRecord.resident_id;
+      
+      setFilter('All Residents');
+      
+      if (targetId) {
+        setSearchTerm(String(targetId));
+        setCurrentPage(1);
+        setBlueHighlight(String(targetId));
+        setTimeout(() => setBlueHighlight(null), 3000);
+      } else if (newRecord.lastName) {
+        // Fallback search if ID is somehow missing
+        setSearchTerm(newRecord.lastName);
+        setCurrentPage(1);
+      }
+    }
   };
 
   return (
@@ -319,7 +341,7 @@ export default function ResidentsPage() {
         {importProgress !== null && (
           <div className="IMPORT_PROGRESS_CONTAINER">
             <div className="IMPORT_PROGRESS_HEADER">
-              <div className="IMPORT_PROGRESS_TEXT">Restoring Database Identities & Accounts...</div>
+              <div className="IMPORT_PROGRESS_TEXT">Restoring Database Identities...</div>
               <div className="IMPORT_PROGRESS_PERCENT">{importProgress}%</div>
             </div>
             <div className="IMPORT_PROGRESS_BAR_TRACK">
@@ -378,7 +400,7 @@ export default function ResidentsPage() {
               <i className="fas fa-search RES_SEARCH_ICON"></i>
               <input
                 className="RES_SEARCH_INPUT"
-                placeholder="Search resident..."
+                placeholder="Search by name or Resident ID..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -454,9 +476,21 @@ export default function ResidentsPage() {
                         age = calcAge;
                       }
                     }
+                    
+                    const isNotificationGlow = activeHighlight === String(res.id);
+                    const isBlueGlow = blueHighlight === String(res.id);
 
                     return (
-                      <tr key={res.id}>
+                      <tr 
+                        key={res.id} 
+                        id={`res-row-${res.id}`}
+                        className={isNotificationGlow ? 'HINT_HIGHLIGHT' : ''}
+                        style={
+                          isBlueGlow 
+                            ? { backgroundColor: 'rgba(59, 130, 246, 0.2)', transition: 'none' } 
+                            : { transition: 'background-color 2s ease-out' }
+                        }
+                      >
                         <td>
                           <div className="RES_PROF_FLEX">
                             <div className="RES_AVATAR">{res.firstName?.charAt(0)}</div>
@@ -480,7 +514,6 @@ export default function ResidentsPage() {
                           </span>
                         </td>
                         <td className="RES_TABLE_ACTION_CELL">
-                          {/* 🛡️ THE NEW STATUS UPDATE DROPDOWN */}
                           <select
                             className="RES_ACTION_SELECT"
                             value=""
@@ -553,7 +586,7 @@ export default function ResidentsPage() {
           isOpen={isModalOpen}
           residentData={selectedResident}
           onClose={() => { setIsModalOpen(false); setSelectedResident(null); }}
-          onSuccess={() => fetchResidents(true)}
+          onSuccess={handleModalSuccess} 
         />
       )}
 

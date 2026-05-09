@@ -1,7 +1,59 @@
 /* =========================================
-   BLOTTER FILE EDITOR (Professional Light Theme)
+   BLOTTER FILE EDITOR (Adaptive Light/Dark Theme)
    Scoped Prefix: BLOT_
    ========================================= */
+
+:root {
+  /* ── Light Mode Variables ── */
+  --blot-bg-overlay: #f1f5f9;
+  --blot-bg-toolbar: #ffffff;
+  --blot-bg-sidebar: #ffffff;
+  --blot-bg-desk: #94a3b8; /* The gray background behind the paper */
+  --blot-bg-input: #f8fafc;
+  --blot-bg-hover: #f8fafc;
+  --blot-bg-dropdown-hover: #eff6ff;
+  
+  --blot-text-main: #0f172a;
+  --blot-text-muted: #64748b;
+  --blot-text-dropdown-sub: #64748b;
+  
+  --blot-border: #e2e8f0;
+  --blot-border-input: #cbd5e1;
+  --blot-border-focus: #2563eb;
+  
+  --blot-btn-tool: #ffffff;
+  --blot-btn-cancel: transparent;
+  
+  --blot-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  --blot-shadow-dropdown: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --blot-shadow-paper: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+}
+
+/* ── Dark Mode Variables ── */
+[data-theme='dark'] {
+  --blot-bg-overlay: #0f172a;
+  --blot-bg-toolbar: #1e293b;
+  --blot-bg-sidebar: #1e293b;
+  --blot-bg-desk: #0b1120; /* Darker desk for contrast against white paper */
+  --blot-bg-input: #0f172a;
+  --blot-bg-hover: #334155;
+  --blot-bg-dropdown-hover: #334155;
+  
+  --blot-text-main: #f8fafc;
+  --blot-text-muted: #94a3b8;
+  --blot-text-dropdown-sub: #94a3b8;
+  
+  --blot-border: #334155;
+  --blot-border-input: #475569;
+  --blot-border-focus: #60a5fa;
+  
+  --blot-btn-tool: #1e293b;
+  --blot-btn-cancel: transparent;
+  
+  --blot-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+  --blot-shadow-dropdown: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+  --blot-shadow-paper: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
+}
 
 /* --- 1. MAIN WINDOW OVERLAY --- */
 .BLOT_FILE_OVERLAY {
@@ -10,8 +62,8 @@
   left: 0;
   width: 100vw; 
   height: 100vh;
-  background-color: #f1f5f9 !important; /* Strictly light gray */
-  color: #0f172a !important; /* Strictly dark text */
+  background-color: var(--blot-bg-overlay) !important; 
+  color: var(--blot-text-main) !important; 
   z-index: 5000;
   display: flex;
   flex-direction: column;
@@ -22,15 +74,16 @@
 /* --- 2. TOP TOOLBAR --- */
 .BLOT_FILE_TOOLBAR {
   height: 64px;
-  background-color: #ffffff !important;
-  border-bottom: 1px solid #e2e8f0;
+  background-color: var(--blot-bg-toolbar) !important;
+  border-bottom: 1px solid var(--blot-border);
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 0 2rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--blot-shadow);
   flex-shrink: 0;
   z-index: 50;
+  color: var(--blot-text-main);
 }
 
 .BLOT_TOOL_GROUP {
@@ -42,11 +95,11 @@
   height: 36px;
   min-width: 36px;
   padding: 0 12px;
-  border: 1px solid #cbd5e1;
-  background: white;
+  border: 1px solid var(--blot-border-input);
+  background: var(--blot-btn-tool);
   border-radius: 6px;
   font-weight: 700;
-  color: #475569;
+  color: var(--blot-text-muted);
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
@@ -55,9 +108,9 @@
 }
 
 .BLOT_TOOL_GROUP button:hover {
-  background-color: #f8fafc;
-  border-color: #94a3b8;
-  color: #0f172a;
+  background-color: var(--blot-bg-hover);
+  border-color: var(--blot-text-muted);
+  color: var(--blot-text-main);
 }
 
 .BLOT_TOOL_ACTIONS {
@@ -86,8 +139,8 @@
   width: 380px;
   min-width: 380px;
   max-width: 380px;
-  background-color: #ffffff !important;
-  border-right: 1px solid #e2e8f0;
+  background-color: var(--blot-bg-sidebar) !important;
+  border-right: 1px solid var(--blot-border);
   display: flex;
   flex-direction: column;
   padding: 2rem;
@@ -99,11 +152,11 @@
 .BLOT_PANEL_HEADER {
   font-size: 0.95rem;
   font-weight: 800;
-  color: #1e293b;
+  color: var(--blot-text-main);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding-bottom: 1rem;
-  border-bottom: 2px solid #f1f5f9;
+  border-bottom: 2px solid var(--blot-bg-overlay);
   margin-bottom: 0.5rem;
 }
 
@@ -118,7 +171,7 @@
 .BLOT_INPUT_GROUP label {
   font-size: 0.75rem;
   font-weight: 700;
-  color: #64748b;
+  color: var(--blot-text-muted);
   text-transform: uppercase;
 }
 
@@ -126,28 +179,43 @@
 .BLOT_INPUT_GROUP select {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--blot-border-input);
   border-radius: 6px;
   font-size: 0.9rem;
-  color: #1e293b;
-  background-color: #f8fafc;
+  color: var(--blot-text-main);
+  background-color: var(--blot-bg-input);
   outline: none;
   transition: all 0.2s ease;
   box-sizing: border-box;
 }
 
+/* Editable Div inside Sidebar (Narrative Input) */
+.BLOT_EDITABLE_CONTENT {
+  color: var(--blot-text-main) !important;
+  background-color: var(--blot-bg-input) !important;
+  border-color: var(--blot-border-input) !important;
+}
+.BLOT_EDITABLE_CONTENT:empty:before {
+  content: attr(data-placeholder);
+  color: var(--blot-text-muted);
+  font-style: italic;
+  pointer-events: none;
+  display: block; /* For Firefox */
+}
+
 /* Specific styling to make the new file uploader match the theme */
 .BLOT_INPUT_GROUP input[type="file"] {
   padding: 6px;
-  background-color: #ffffff;
+  background-color: var(--blot-bg-input);
+  color: var(--blot-text-main);
   cursor: pointer;
 }
 
 .BLOT_INPUT_GROUP input:focus,
-.BLOT_INPUT_GROUP select:focus {
-  border-color: #2563eb;
-  background-color: #ffffff;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+.BLOT_INPUT_GROUP select:focus,
+.BLOT_EDITABLE_CONTENT:focus {
+  border-color: var(--blot-border-focus) !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1) !important;
 }
 
 /* Search Dropdown */
@@ -156,8 +224,8 @@
   top: 100%;
   left: 0;
   right: 0;
-  background: white;
-  border: 1px solid #cbd5e1;
+  background: var(--blot-bg-toolbar);
+  border: 1px solid var(--blot-border-input);
   border-radius: 8px;
   max-height: 200px;
   overflow-y: auto;
@@ -165,25 +233,25 @@
   margin-top: 6px;
   padding: 0;
   list-style: none;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--blot-shadow-dropdown);
 }
 
 .BLOT_DROPDOWN li {
   padding: 10px 14px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--blot-border);
   cursor: pointer;
   display: flex;
   flex-direction: column;
 }
 
-.BLOT_DROPDOWN li:hover { background-color: #eff6ff; }
-.BLOT_DROPDOWN .RES_NAME { font-weight: 600; color: #1e293b; font-size: 0.9rem; }
-.BLOT_DROPDOWN .RES_ID { font-size: 0.75rem; color: #64748b; }
+.BLOT_DROPDOWN li:hover { background-color: var(--blot-bg-dropdown-hover); }
+.BLOT_DROPDOWN .RES_NAME { font-weight: 600; color: var(--blot-text-main); font-size: 0.9rem; }
+.BLOT_DROPDOWN .RES_ID { font-size: 0.75rem; color: var(--blot-text-dropdown-sub); }
 
 /* --- 5. PREVIEW AREA (The "Desk") --- */
 .BLOT_PREVIEW_AREA {
   flex: 1;
-  background-color: #94a3b8; 
+  background-color: var(--blot-bg-desk); /* Adjusts in dark mode */
   display: flex;
   justify-content: center;
   padding: 3rem 2rem;
@@ -191,13 +259,14 @@
   scroll-behavior: smooth;
 }
 
-/* --- 6. A4 PAPER SHEET --- */
+/* --- 6. A4 PAPER SHEET --- 
+   🛡️ STRICTLY LIGHT MODE FOREVER. DO NOT LET DATA-THEME TOUCH THIS. */
 .BLOT_A4_PAGE {
   width: 210mm;
   min-height: 297mm; /* Standard A4 height */
-  background-color: #ffffff !important;
+  background-color: #ffffff !important; 
   color: #000000 !important;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--blot-shadow-paper);
   padding: 25mm;
   box-sizing: border-box;
   display: flex;
@@ -207,8 +276,8 @@
 
 /* Document Typography */
 .BLOT_A4_HEADER { text-align: center; margin-bottom: 15px; }
-.BLOT_HEADER_TEXT p { margin: 2px 0; font-family: 'Times New Roman', serif; font-size: 11pt; color: #000; }
-.BLOT_HEADER_TEXT h4 { margin: 10px 0; font-size: 14pt; font-weight: 900; font-family: 'Arial', sans-serif; color: #000; }
+.BLOT_HEADER_TEXT p { margin: 2px 0; font-family: 'Times New Roman', serif; font-size: 11pt; color: #000000 !important; }
+.BLOT_HEADER_TEXT h4 { margin: 10px 0; font-size: 14pt; font-weight: 900; font-family: 'Arial', sans-serif; color: #000000 !important; }
 .OFFICE { font-weight: bold; font-size: 10pt; letter-spacing: 0.5px; }
 
 .BLOT_A4_LINE { border-top: 2px solid black; margin: 10px 0 30px 0; }
@@ -221,7 +290,7 @@
   text-transform: uppercase;
   font-family: 'Arial', sans-serif;
   margin-bottom: 40px;
-  color: #000;
+  color: #000000 !important;
 }
 
 .BLOT_A4_CONTENT {
@@ -229,38 +298,34 @@
   font-family: 'Times New Roman', serif;
   font-size: 12pt;
   line-height: 1.6;
-  color: #000;
+  color: #000000 !important;
 }
 
-.BLOT_EDITABLE_CONTENT {
-  margin-top: 15px;
-  outline: none;
+/* The Live Preview Text */
+.BLOT_NARRATIVE_PREVIEW {
   white-space: pre-wrap;
-  cursor: text;
-  
-  /* 🛡️ PDF SAFETY: Forces any stray URLs to break instead of bleeding off the page */
   word-wrap: break-word;
   overflow-wrap: break-word;
   word-break: break-word;
-  color: #000;
+  color: #000000 !important;
 }
 
 /* --- 7. ACTION BUTTONS --- */
 .BLOT_BTN_CANCEL {
-  background: transparent;
-  border: 1px solid #cbd5e1;
-  color: #64748b;
+  background: var(--blot-btn-cancel);
+  border: 1px solid var(--blot-border-input);
+  color: var(--blot-text-muted);
   padding: 8px 16px;
   border-radius: 6px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
 }
-.BLOT_BTN_CANCEL:hover { background-color: #f8fafc; color: #0f172a; }
+.BLOT_BTN_CANCEL:hover { background-color: var(--blot-bg-hover); color: var(--blot-text-main); }
 
 .BLOT_BTN_SAVE {
   background-color: #dc2626; 
-  color: white;
+  color: white !important;
   padding: 8px 18px;
   border-radius: 6px;
   font-weight: 600;

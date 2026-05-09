@@ -56,7 +56,10 @@ const NATIONALITIES = [
 ];
 
 export const ResidentModal: React.FC<{
-  isOpen: boolean; onClose: () => void; onSuccess: (newRecord: any) => void; residentData: IResident | null;
+  isOpen: boolean; 
+  onClose: () => void; 
+  onSuccess: (newRecord: any) => void; 
+  residentData: IResident | null;
 }> = ({ isOpen, onClose, onSuccess, residentData }) => {
   const [formData, setFormData] = useState<IResident>(initialState);
   const [isLoading, setIsLoading] = useState(false);
@@ -299,6 +302,9 @@ export const ResidentModal: React.FC<{
           setTimeout(() => {
             setSuccessMessage('');
             setIsClosingPopup(false);
+            
+            // 🛡️ Ensure the result.data (which should contain the newly created/updated ID) is sent back
+            // to the page so it knows exactly what to highlight.
             onSuccess(result.data); 
             onClose();
           }, 300); 

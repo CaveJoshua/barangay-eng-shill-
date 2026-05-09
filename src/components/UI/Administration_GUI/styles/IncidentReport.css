@@ -432,14 +432,8 @@
 
 .AD-BLOT_ACTION_MENU_BTN:hover,
 .AD-BLOT_ACTION_MENU_BTN:focus { 
-    background: rgba(37, 99, 235, 0.08); 
-    border-color: var(--AD-BLOT-clr-primary);
-    color: var(--AD-BLOT-clr-primary); 
-}
-
-.AD-BLOT_ACTION_MENU_BTN:hover,
-.AD-BLOT_ACTION_MENU_BTN:focus { 
     background: var(--AD-BLOT-bg-hover); 
+    border-color: var(--AD-BLOT-clr-primary);
     color: var(--AD-BLOT-text-heading); 
 }
 
@@ -688,21 +682,33 @@
     background: var(--AD-BLOT-bg-hover);
 }
 
-/* ── ANIMATIONS & HIGHLIGHTS ──────────────────────── */
-@keyframes adBlotHintPulse {
-    0%   { background-color: transparent; }
-    20%  { background-color: var(--AD-BLOT-glass-yellow); }
-    80%  { background-color: var(--AD-BLOT-glass-yellow); }
-    100% { background-color: transparent; }
+/* ── 🛡️ ANIMATIONS & HIGHLIGHTS ──────────────────────── */
+.AD-BLOT_HINT_HIGHLIGHT {
+    animation: adBlotHintPulse 3s ease-out forwards;
 }
 
-.AD-BLOT_HINT_HIGHLIGHT {
-    animation: adBlotHintPulse 2.5s ease-in-out forwards;
+/* Light Mode Highlight Glow */
+@keyframes adBlotHintPulse {
+    0% { background-color: rgba(253, 224, 71, 0.6); } /* Strong Yellow */
+    70% { background-color: rgba(254, 240, 138, 0.2); } /* Fading Yellow */
+    100% { background-color: transparent; }
 }
 
 .AD-BLOT_HINT_HIGHLIGHT td:first-child {
     border-left: 4px solid var(--AD-BLOT-clr-warning) !important;
 }
+
+/* Dark Mode Highlight Glow */
+[data-theme='dark'] .AD-BLOT_HINT_HIGHLIGHT {
+    animation: adBlotHintPulseDark 3s ease-out forwards;
+}
+
+@keyframes adBlotHintPulseDark {
+    0% { background-color: rgba(234, 179, 8, 0.4); } /* Darker Yellow overlay */
+    70% { background-color: rgba(250, 204, 21, 0.1); }
+    100% { background-color: transparent; }
+}
+
 
 /* ── RESPONSIVE DESIGN ──────────────────────────────── */
 @media (max-width: 1100px) {
