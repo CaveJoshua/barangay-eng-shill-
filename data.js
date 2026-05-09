@@ -108,7 +108,7 @@ export const authenticateToken = (req, res, next) => {
 const corsOptions = {
   origin: (origin, callback) => {
     const allowedLocal = ['http://localhost:5173', 'http://127.0.0.1:5173'];
-    const isCloudflare = origin && origin.endsWith('.barangay-eng-shill.pages.dev');
+    const isCloudflare = origin && origin.endsWith('.barangay-engineer-s-hill.pages.dev');
 
     if (!origin || allowedLocal.includes(origin) || isCloudflare) {
       callback(null, true);
