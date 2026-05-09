@@ -17,8 +17,8 @@ type TabState = 'Officials' | 'Residents';
 const ITEMS_PER_PAGE = 10;
 
 export default function AccountManagement() {
-  // 🛡️ Access Control State (null = checking, true = granted, false = denied)
-  const [isSuperAdmin,       setIsSuperAdmin]      = useState<boolean | null>(null);
+  // 🛡️ ALIGNED ACCESS CONTROL STATE
+  const [hasAccess,          setHasAccess]       = useState<boolean | null>(null);
 
   const [accounts,         setAccounts]        = useState<IAccount[]>([]);
   const [error,            setError]           = useState('');
@@ -28,7 +28,7 @@ export default function AccountManagement() {
   const [selectedAccount,   setSelectedAccount] = useState<IAccount | null>(null);
   const [isResetOpen,      setIsResetOpen]     = useState(false);
   const [newPassword,      setNewPassword]     = useState('');
-  const [showPassword,     setShowPassword]    = useState(false); // 🛡️ NEW: Password visibility toggle
+  const [showPassword,     setShowPassword]    = useState(false); 
 
   // ── PAGINATION STATE ──
   const [currentPage,      setCurrentPage]     = useState(1);
@@ -37,36 +37,48 @@ export default function AccountManagement() {
   const isFetching = useRef(false);
   const isMounted = useRef(true);
 
-  // 🛡️ ── STRICT SUPERADMIN ROLE VERIFICATION ──
+  // 🛡️ ── ALIGNED DYNAMIC PERMISSION CHECK ──
   useEffect(() => {
     try {
-      const standaloneRole = localStorage.getItem('user_role'); 
-      const sessionData = localStorage.getItem('admin_session'); 
-      
-      let rawRole = standaloneRole || ''; 
+      const sessionStr = localStorage.getItem('admin_session');
+      let role = '';
+      let pos = '';
 
-      if (!rawRole && sessionData) {
-        const session = JSON.parse(sessionData);
-        rawRole = session?.role || session?.user_role || session?.profile?.role || '';
-      }
-      
-      const userRole = rawRole.toLowerCase().replace(/\s+/g, '');
+      if (sessionStr) {
+        const session = JSON.parse(sessionStr);
+        // Extract from wherever it might be nested
+        const rawRole = session.role || session.user?.role || session.user_role || '';
+        const rawPos = session.position || session.profile?.position || '';
 
-      if (userRole === 'superadmin') {
-        setIsSuperAdmin(true);
-        return;
+        // Normalize: remove all spaces and lowercase
+        role = rawRole.toLowerCase().replace(/\s+/g, '');
+        pos = rawPos.toLowerCase().replace(/\s+/g, '');
+      } else {
+        // Fallback
+        role = (localStorage.getItem('user_role') || '').toLowerCase().replace(/\s+/g, '');
       }
-      
-      setIsSuperAdmin(false);
-      
+
+      // The exact same whitelist as OfficialsPage
+      const whitelist = [
+        'superadmin',  
+        'punongbarangay', 
+        'barangaysecretary', 
+        'barangayhall'
+      ];
+
+      if (whitelist.includes(role) || whitelist.includes(pos)) {
+        setHasAccess(true);
+      } else {
+        setHasAccess(false);
+      }
     } catch (err) {
-      setIsSuperAdmin(false);
+      setHasAccess(false);
     }
   }, []);
   
   // ── Fetch (Smart Handshake) ───────────────────────────────────────────
   const fetchAccounts = useCallback(async (silent = false, signal?: AbortSignal) => {
-    if (!isMounted.current || isFetching.current || !isSuperAdmin) return;
+    if (!isMounted.current || isFetching.current || !hasAccess) return;
     
     if (!silent) setIsSyncing(true);
     isFetching.current = true;
@@ -86,10 +98,10 @@ export default function AccountManagement() {
       isFetching.current = false;
       if (isMounted.current) setIsSyncing(false);
     }
-  }, [accounts.length, isSuperAdmin]);
+  }, [accounts.length, hasAccess]);
 
   useEffect(() => {
-    if (isSuperAdmin !== true) return;
+    if (hasAccess !== true) return;
 
     isMounted.current = true;
     const valve = new AbortController();
@@ -118,7 +130,7 @@ export default function AccountManagement() {
       valve.abort();
       clearTimeout(timeoutId);
     };
-  }, [fetchAccounts, isSuperAdmin]);
+  }, [fetchAccounts, hasAccess]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -164,7 +176,7 @@ export default function AccountManagement() {
   }, [tableData, currentPage]);
 
 
-  if (isSuperAdmin === null) {
+  if (hasAccess === null) {
     return (
       <div className="ACC_PAGE_WRAP">
         <div className="ACC_MAIN_CONTAINER" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
@@ -174,8 +186,8 @@ export default function AccountManagement() {
     );
   }
 
-  // ── 🛑 UPGRADED DESIGN: Professional "Access Restricted" Card ──
-  if (isSuperAdmin === false) {
+  // ── 🛑 ALIGNED DESIGN: Professional "Access Restricted" Card ──
+  if (hasAccess === false) {
     return (
       <div className="ACC_PAGE_WRAP">
         <div className="ACC_MAIN_CONTAINER">

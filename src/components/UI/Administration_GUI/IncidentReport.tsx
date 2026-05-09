@@ -53,20 +53,9 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
 
   const isFetchingCases = useRef(false);
   const isMounted = useRef(true);
-
-  useEffect(() => {
-    if (highlightId) {
-      setActiveHighlight(highlightId);
-      const timer = setTimeout(() => setActiveHighlight(null), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [highlightId]);
-
-  useEffect(() => {
-    const handleClickOutside = () => setOpenDropdownId(null);
-    window.addEventListener('click', handleClickOutside);
-    return () => window.removeEventListener('click', handleClickOutside);
-  }, []);
+  
+  // Ref to ensure we only process a notification jump once per ID
+  const processedHighlightId = useRef<string | null>(null);
 
   const fetchCases = useCallback(async (silent = false, signal?: AbortSignal) => {
     if (!isMounted.current || isFetchingCases.current) return;
@@ -82,7 +71,6 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
           let rawStatus = c.status || 'Pending';
           const normalizedStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
           
-          // 🛡️ UPGRADED ENGINE: Reads the prefix to determine reality
           const caseNum = c.case_number || '';
           let docOrigin: 'Walk-in' | 'Online' = 'Walk-in';
 
@@ -91,7 +79,6 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
           } else if (caseNum.startsWith('WK-INC')) {
             docOrigin = 'Walk-in';
           } else {
-            // Fallback for legacy data without new prefix
             docOrigin = (c.complainant_id === 'WALK-IN' || !c.complainant_id) ? 'Walk-in' : 'Online';
           }
 
@@ -118,6 +105,39 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
       isFetchingCases.current = false;
       if (isMounted.current) setLoading(false);
     }
+  }, []);
+
+  // 🛡️ THE TARGETING ENGINE: Locates hidden cases and forces them into view
+  useEffect(() => {
+    if (highlightId && processedHighlightId.current !== highlightId && cases.length > 0) {
+      // Find the exact case they clicked on from the notification
+      const targetCase = cases.find(c => String(c.id) === String(highlightId) || c.case_number === highlightId);
+      
+      if (targetCase) {
+        processedHighlightId.current = highlightId; // Mark as processed to prevent loops
+
+        // 1. Force the correct tab to open so it isn't hidden
+        const validTabs = ['Pending', 'Active', 'Hearing', 'Settled', 'Rejected'];
+        if (validTabs.includes(targetCase.status)) {
+          setActiveTab(targetCase.status as any);
+        }
+
+        // 2. Isolate the row using search to bypass pagination hiding it on page 3
+        setSearchTerm(targetCase.case_number);
+        setCurrentPage(1);
+
+        // 3. Trigger the CSS highlight glow
+        setActiveHighlight(highlightId);
+        const timer = setTimeout(() => setActiveHighlight(null), 3000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [highlightId, cases]);
+
+  useEffect(() => {
+    const handleClickOutside = () => setOpenDropdownId(null);
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
   }, []);
 
   useEffect(() => {

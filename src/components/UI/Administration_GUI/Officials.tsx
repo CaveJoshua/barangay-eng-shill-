@@ -6,7 +6,7 @@ import { ApiService } from '../api';
 interface IOfficial {
   id: string;
   full_name: string;
-  position: 'Punong Barangay' | 'Barangay Secretary' | 'Barangay Treasurer' | 'Barangay Kagawad' | 'SK Chairperson' | 'Barangay Health Worker' | 'Barangay Nutrition Scholar';
+  position: string;
   term_start: string;
   term_end: string;
   status: 'Active' | 'End of Term' | 'Resigned' | 'Archived' | 'Inactive' | 'Former';
@@ -25,115 +25,109 @@ export default function OfficialsPage() {
   const isMounted = useRef(true);
 
   /**
-   * 🛡️ ZERO TRUST FETCH LOGIC (WHITELIST ONLY)
-   * Allowed: Superadmin, Admin, Punong Barangay, Barangay Secretary, Barangay Hall
+   * 🛡️ DYNAMIC PERMISSION CHECK
+   * Resolves the "punongBarangay" vs "punong barangay" spacing/casing issue.
    */
+  const checkPermissions = useCallback(() => {
+    try {
+      const sessionStr = localStorage.getItem('admin_session');
+      if (!sessionStr) return false;
+
+      const session = JSON.parse(sessionStr);
+      
+      // Extract role and position (check multiple possible locations in the object)
+      const rawRole = session.role || session.user?.role || '';
+      const rawPos = session.position || session.profile?.position || '';
+
+      // Normalize: remove all spaces and lowercase (e.g., "Punong Barangay" -> "punongbarangay")
+      const role = rawRole.toLowerCase().replace(/\s+/g, '');
+      const pos = rawPos.toLowerCase().replace(/\s+/g, '');
+
+      const whitelist = [
+        'superadmin',  
+        'punongbarangay', 
+        'barangaysecretary', 
+        'barangayhall'
+      ];
+
+      return whitelist.includes(role) || whitelist.includes(pos);
+    } catch (e) {
+      console.error("Permission check failed", e);
+      return false;
+    }
+  }, []);
+
   const fetchOfficials = useCallback(async (signal?: AbortSignal) => {
     if (!isMounted.current) return;
+    
+    // 1. Check permissions locally first
+    const allowed = checkPermissions();
+    
+    if (!allowed) {
+      setHasAccess(false);
+      setLoading(false);
+      setError("Access Restricted: Only the authorized users are authorized.");
+      return;
+    }
+
+    // 2. Access Granted -> Fetch Data
+    setHasAccess(true);
     setLoading(true);
     
     try {
-      // --- 🛡️ VERIFICATION STEP: WHO IS LOGGED IN? ---
-      const activeId = localStorage.getItem('profile_id') || localStorage.getItem('account_id');
-      
-      if (!activeId) {
-        setHasAccess(false);
-        return;
-      }
-
-      const myProfile = await ApiService.getProfile(activeId, signal);
-      
-      if (!isMounted.current) return;
-      if (!myProfile || myProfile.error) {
-        setHasAccess(false);
-        return;
-      }
-
-      // Normalize position and role for strict comparison
-      const myPosition = (myProfile.position || '').toLowerCase().trim();
-      const myRole = (myProfile.role || '').toLowerCase().trim();
-      
-      // ✅ WHITELIST CHECK (Includes Admin Bypass)
-      const isAllowed = 
-        myRole === 'superadmin' ||
-        myRole === 'admin' ||
-        myPosition === 'punong barangay' || 
-        myPosition === 'barangay secretary' || 
-        myPosition === 'barangay hall';
-
-      if (!isAllowed) {
-        setHasAccess(false);
-        setError("Access Restricted: Only the Punong Barangay, Secretary, Hall Staff, or System Admins are authorized.");
-        return;
-      }
-
-      // --- 🛡️ DATA FETCH STEP ---
       const data = await ApiService.getOfficials(signal);
 
       if (!isMounted.current) return;
       if (!data || data.error) {
-        setHasAccess(false); 
+        setError(data?.error || "Failed to load directory.");
         return;
       }
 
-      // ✅ ACCESS GRANTED
-      setHasAccess(true);
       const now = new Date();
-        
       const processedData = data.map((item: IOfficial) => {
         let currentStatus = item.status;
-          
         if (item.term_end) {
           const endDate = new Date(item.term_end);
           if (!isNaN(endDate.getTime()) && endDate < now && currentStatus === 'Active') {
-            currentStatus = 'End of Term';
+            currentStatus = 'End of Term' as any;
           }
         }
-          
         return { ...item, status: currentStatus };
       });
 
       setOfficials(processedData);
       setError('');
-
     } catch (err: any) {
       if (err.name !== 'AbortError' && isMounted.current) {
-        console.error("[FETCH ERROR]", err);
-        if (hasAccess === null) setHasAccess(true); 
-        setError('Cannot reach server. Sync failed.');
+        setError('Connection Error: Sync with server failed.');
       }
     } finally {
       if (isMounted.current) setLoading(false);
     }
-  }, [hasAccess]);
+  }, [checkPermissions]);
 
   useEffect(() => {
     isMounted.current = true;
     const valve = new AbortController();
-    
     fetchOfficials(valve.signal);
-    
     return () => {
       isMounted.current = false;
       valve.abort();
     };
   }, [fetchOfficials]);
 
-  const handleAddNew = () => {
-    setIsModalOpen(true);
-  };
-
   const filteredOfficials = useMemo(() => {
     return officials.filter(o => {
-      if (o.status !== 'Active') return false;
+      // Only show Active in the main directory
+      const isActive = o.status.toLowerCase() === 'active';
+      if (!isActive) return false;
 
       if (!searchTerm.trim()) return true;
-
       const lowerSearch = searchTerm.toLowerCase();
-      const safeName = (o.full_name || '').toLowerCase();
-      const safePosition = (o.position || '').toLowerCase();
-      
-      return safeName.includes(lowerSearch) || safePosition.includes(lowerSearch);
+      return (
+        o.full_name.toLowerCase().includes(lowerSearch) || 
+        o.position.toLowerCase().includes(lowerSearch)
+      );
     });
   }, [officials, searchTerm]);
 
@@ -147,26 +141,12 @@ export default function OfficialsPage() {
               <i className="fas fa-shield-alt OFFIC_DENIED_ICON"></i>
             </div>
             <h2 className="OFFIC_DENIED_TITLE">Access Restricted</h2>
-            <p className="OFFIC_DENIED_SUB">
-              Your current administrative role does not have the required permissions to view the Officials Directory.
-            </p>
-            {error && <p style={{ color: '#ef4444', marginTop: '0.5rem', fontSize: '0.85rem', fontWeight: 600 }}>{error}</p>}
-            <div className="OFFIC_DENIED_CODE" style={{ marginTop: '1.5rem' }}>ERROR 403 &mdash; FORBIDDEN</div>
+            <p className="OFFIC_DENIED_SUB">{error}</p>
+            <div className="OFFIC_DENIED_CODE">ERROR 403 &mdash; FORBIDDEN</div>
           </div>
         </div>
       </div>
     );
-  }
-
-  // --- ⏳ RENDER: LOADING STATE ---
-  if (hasAccess === null) {
-    return (
-      <div className="OFFIC_PAGE_WRAP">
-        <div className="OFFIC_SPINNER_WRAP">
-          <div className="OFFIC_SYNC_SPINNER"></div>
-        </div>
-      </div>
-    ); 
   }
 
   // --- 🔓 RENDER: MAIN UI ---
@@ -179,7 +159,7 @@ export default function OfficialsPage() {
             <h1 className="OFFIC_PAGE_TITLE">Barangay Officials</h1>
             <p className="OFFIC_PAGE_SUB">Directory of currently active elected and appointed personnel.</p>
           </div>
-          <button className="OFFIC_ADD_BTN" onClick={handleAddNew}>
+          <button className="OFFIC_ADD_BTN" onClick={() => setIsModalOpen(true)}>
             <i className="fas fa-user-plus"></i> Add Official
           </button>
         </div>
@@ -197,12 +177,6 @@ export default function OfficialsPage() {
             </div>
           </div>
 
-          {error && (
-            <div className="OFFIC_ERROR_MSG">
-              <i className="fas fa-exclamation-circle"></i> {error}
-            </div>
-          )}
-
           <div className="OFFIC_TABLE_WRAP">
             <table className="OFFIC_TABLE_MAIN">
               <thead>
@@ -214,27 +188,25 @@ export default function OfficialsPage() {
                 </tr>
               </thead>
               <tbody>
-                {loading && officials.length === 0 ? (
-                   <tr><td colSpan={4} className="OFFIC_TABLE_LOAD"><div className="OFFIC_SYNC_SPINNER"></div>Syncing with server...</td></tr>
+                {loading ? (
+                   <tr><td colSpan={4} className="OFFIC_TABLE_LOAD"><div className="OFFIC_SYNC_SPINNER"></div>Syncing...</td></tr>
                 ) : filteredOfficials.length === 0 ? (
-                   <tr><td colSpan={4} className="OFFIC_TABLE_EMPTY">No active officials found. (Check Archive for past records)</td></tr>
+                   <tr><td colSpan={4} className="OFFIC_TABLE_EMPTY">No active officials found matching your search.</td></tr>
                 ) : (
                   filteredOfficials.map((off) => (
                     <tr key={off.id}>
                       <td className="OFFIC_NAME_CELL">
                         <div className="OFFIC_AVATAR_FLEX">
-                          <div className={`OFFIC_AVATAR_CIRCLE ${off.position === 'Punong Barangay' ? 'CAPTAIN' : 'STAFF'}`}>
-                            {(off.full_name || 'X').charAt(0)}
+                          <div className={`OFFIC_AVATAR_CIRCLE ${off.position.includes('Punong') ? 'CAPTAIN' : 'STAFF'}`}>
+                            {off.full_name.charAt(0)}
                           </div>
                           {off.full_name}
                         </div>
                       </td>
                       <td>{off.position}</td>
-                      <td>{off.term_start || 'N/A'}</td>
+                      <td>{off.term_start}</td>
                       <td className="OFFIC_ALIGN_RIGHT">
-                        <span className="OFFIC_STATUS_BADGE ACTIVE">
-                          {off.status}
-                        </span>
+                        <span className="OFFIC_STATUS_BADGE ACTIVE">Active</span>
                       </td>
                     </tr>
                   ))

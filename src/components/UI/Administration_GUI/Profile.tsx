@@ -1,74 +1,109 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { ApiService, API_BASE_URL } from '../api'; 
 import './styles/Profile.css';
 
-const Profile: React.FC = () => {
-  // ── 1. ACCOUNT-SCOPED CACHE KEYS ──
-  // By generating keys based on the ID, users on the same PC will never see each other's cache.
-  const getActiveId = () => localStorage.getItem('profile_id') || localStorage.getItem('account_id') || 'unknown_user';
-  const activeId = getActiveId();
+// ── 1. SESSION FALLBACK (Safety Net) ──
+const getSessionFallback = () => {
+  const sessionStr = localStorage.getItem('admin_session') || localStorage.getItem('user_session') || localStorage.getItem('resident_session');
+  let s: any = {};
+  if (sessionStr) {
+    try { s = JSON.parse(sessionStr); } catch (e) { }
+  }
 
-  // ── 2. INITIALIZE STATE WITH SCOPED CACHE (Instant Render) ──
+  return {
+    id: s.account_id || s.official_id || s.resident_id || s.id || s.user?.id || localStorage.getItem('account_id') || 'unknown_user',
+    name: s.full_name || s.fullName || s.profileName || s.profile?.full_name || s.user?.name || localStorage.getItem('full_name') || '',
+    email: s.email || s.profile?.email || s.user?.email || '',
+    role: s.role || s.user_role || s.profile?.role || localStorage.getItem('user_role') || 'Resident',
+    phone: s.contact_number || s.phone || s.profile?.contact_number || ''
+  };
+};
+
+const Profile: React.FC = () => {
+  const fallbackInfo = useMemo(() => getSessionFallback(), []);
+  const activeId = fallbackInfo.id;
+
+  // ── 2. STATE INITIALIZATION ──
   const [theme, setTheme] = useState(() => localStorage.getItem(`sb_theme_${activeId}`) || 'light');
   
   const [formData, setFormData] = useState(() => {
-    const cached = localStorage.getItem(`sb_profile_cache_${activeId}`);
-    return cached ? JSON.parse(cached) : { fullName: '', email: '', role: '', phone: '' };
+    const cachedStr = localStorage.getItem(`sb_profile_cache_${activeId}`);
+    if (cachedStr) {
+      const cached = JSON.parse(cachedStr);
+      if (cached.fullName && cached.fullName.trim() !== '') return cached;
+    }
+    return {
+      fullName: fallbackInfo.name,
+      email: fallbackInfo.email,
+      role: fallbackInfo.role,
+      phone: fallbackInfo.phone
+    };
   });
   
   const [formErrors, setFormErrors] = useState({ email: '', phone: '' });
-
-  // If we have cached data specifically for THIS user, bypass the loading screen.
-  const [loading, setLoading]   = useState(() => !localStorage.getItem(`sb_profile_cache_${activeId}`)); 
+  const [loading, setLoading]   = useState(false); 
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError]       = useState('');
+
+  // 🛡️ THE FIX: Request Lock to prevent double-firing
+  const isFetching = useRef(false);
 
   // ── 3. APPLY THEME ON MOUNT ──
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  // ── 4. FETCH PROFILE & SILENTLY SYNC ──
+  // ── 4. FETCH PROFILE (Now loop-proofed) ──
   const fetchProfileData = useCallback(async (signal?: AbortSignal) => {
     if (activeId === 'unknown_user') {
       setError('Session Error: Please log out and back in.');
-      setLoading(false);
       return;
     }
+
+    // 🛡️ THE FIX: Block overlapping network requests
+    if (isFetching.current) return;
+    
+    isFetching.current = true;
+    setLoading(true);
     
     try {
       const data = await ApiService.getProfile(activeId, signal);
-      if (data === null) return;
+      
+      if (!data || Object.keys(data).length === 0) {
+        return; 
+      }
       
       const syncedData = {
-        fullName: data.full_name || data.fullName || 'Anonymous Official',
-        email:    data.email || '',
-        role:     data.role  || 'Official',
-        phone:    data.contact_number || data.phone || '',
+        fullName: data.full_name || fallbackInfo.name || 'Anonymous User',
+        email:    data.email || fallbackInfo.email || '',
+        role:     data.role || fallbackInfo.role || 'Resident',
+        phone:    data.contact_number || data.phone || fallbackInfo.phone || '',
       };
 
       setFormData(syncedData);
-      
-      // Update the SCOPED cache
       localStorage.setItem(`sb_profile_cache_${activeId}`, JSON.stringify(syncedData));
 
-      // Sync theme from database if available and different from current
-      if (data.theme_preference && data.theme_preference !== theme) {
-        setTheme(data.theme_preference);
-        document.documentElement.setAttribute('data-theme', data.theme_preference);
-        localStorage.setItem(`sb_theme_${activeId}`, data.theme_preference);
-      }
+      // 🛡️ THE FIX: Functional state update decoupled from the dependency array
+      setTheme(prevTheme => {
+        if (data.theme_preference && data.theme_preference !== prevTheme) {
+          document.documentElement.setAttribute('data-theme', data.theme_preference);
+          localStorage.setItem(`sb_theme_${activeId}`, data.theme_preference);
+          return data.theme_preference;
+        }
+        return prevTheme;
+      });
 
       setError('');
     } catch (err: any) {
-      if (err.name !== 'AbortError' && !formData.fullName) {
-        setError(err.message || 'Cannot reach server.');
+      if (err.name !== 'AbortError') {
+         console.warn("Profile sync failed, using local session.");
       }
     } finally {
       setLoading(false); 
+      isFetching.current = false;
     }
-  }, [activeId, theme, formData.fullName]);
+  }, [activeId, fallbackInfo]); // 🛡️ 'theme' removed from dependencies
 
   // ── 5. STRICT VALIDATION ENGINE ──
   const validateForm = () => {
@@ -76,13 +111,13 @@ const Profile: React.FC = () => {
     const newErrors = { email: '', phone: '' };
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!formData.email || !emailRegex.test(formData.email)) {
-      newErrors.email = 'Please provide a valid email format (e.g., example@gmail.com).';
+    if (formData.email && !emailRegex.test(formData.email)) {
+      newErrors.email = 'Please provide a valid email format.';
       isValid = false;
     }
 
     const phoneRegex = /^09\d{9}$/;
-    if (!formData.phone || !phoneRegex.test(formData.phone)) {
+    if (formData.phone && !phoneRegex.test(formData.phone)) {
       newErrors.phone = 'Phone number must be exactly 11 digits and start with "09".';
       isValid = false;
     }
@@ -94,23 +129,36 @@ const Profile: React.FC = () => {
   // ── 6. SAVE PROFILE DATA ──
   const handleSave = async () => {
     if (!validateForm()) return; 
-
     if (activeId === 'unknown_user') return alert('Session lost. Please log in again.');
     
     setIsSaving(true);
     try {
       const result = await ApiService.updateProfile(activeId, {
         full_name:      formData.fullName,
+        first_name:     formData.fullName.split(' ')[0], 
+        last_name:      formData.fullName.split(' ').slice(1).join(' '),
         email:          formData.email,
         contact_number: formData.phone,
+        phone:          formData.phone
       });
       
       if (result.success) {
         alert('Profile updated successfully!');
         setIsEditing(false);
-        // Instantly cache the new changes to THIS user's scoped cache
         localStorage.setItem(`sb_profile_cache_${activeId}`, JSON.stringify(formData));
-        fetchProfileData();
+        
+        // Patch the session data instantly
+        const sessionKeys = ['admin_session', 'user_session', 'resident_session'];
+        sessionKeys.forEach(key => {
+          const sessionStr = localStorage.getItem(key);
+          if (sessionStr) {
+             const s = JSON.parse(sessionStr);
+             if (s.profile) s.profile.full_name = formData.fullName;
+             s.full_name = formData.fullName;
+             localStorage.setItem(key, JSON.stringify(s));
+          }
+        });
+
       } else {
         throw new Error(result.error);
       }
@@ -127,21 +175,17 @@ const Profile: React.FC = () => {
 
     setTheme(newTheme);
     document.documentElement.setAttribute('data-theme', newTheme);
-    
-    // Save to SCOPED cache so it doesn't bleed to other users on this PC
     localStorage.setItem(`sb_theme_${activeId}`, newTheme);
 
     try {
       await fetch(`${API_BASE_URL}/accounts/theme`, {
         method: 'PATCH',
         credentials: 'include', 
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ theme: newTheme })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ theme: newTheme }) 
       });
     } catch (err) {
-      console.error("Failed to sync official theme to database:", err);
+      console.error("Failed to sync theme:", err);
     }
   };
 
@@ -174,28 +218,8 @@ const Profile: React.FC = () => {
     fetchProfileData(); 
   };
 
-  // ── 8. THE "FETCH FIRST" GUARDS ──
-  if (loading && !formData.fullName) {
-    return (
-      <div className="PF_LOADING_SCREEN">
-        <div className="PF_SPINNER"></div>
-        <p>Syncing Profile Data...</p>
-      </div>
-    );
-  }
-
-  if (error && !formData.fullName) {
-    return (
-      <div className="PF_CRITICAL_ERROR">
-         <h2>System Error</h2>
-         <p>{error}</p>
-         <button onClick={() => window.location.reload()}>Retry</button>
-      </div>
-    );
-  }
-
   // ── 9. MAIN RENDER ──
-  const avatarLetter = (formData.fullName || '?').charAt(0).toUpperCase();
+  const avatarLetter = (formData.fullName || fallbackInfo.name || '?').charAt(0).toUpperCase();
 
   return (
     <div className="PF_WIDE_CONTAINER">
@@ -224,10 +248,10 @@ const Profile: React.FC = () => {
             </div>
             <div className="PF_USER_INFO">
               <h2 className="PF_USER_DISPLAY_NAME">
-                {formData.fullName || '—'}
+                {formData.fullName || fallbackInfo.name || '—'}
               </h2>
               <span className="PF_USER_DISPLAY_ROLE">
-                {String(formData.role).toUpperCase()}
+                {String(formData.role || fallbackInfo.role).toUpperCase()}
               </span>
             </div>
           </div>
@@ -273,7 +297,7 @@ const Profile: React.FC = () => {
             <div className="PF_INPUT_GROUP">
               <label>System Role</label>
               <input
-                value={String(formData.role).toUpperCase()}
+                value={String(formData.role || fallbackInfo.role).toUpperCase()}
                 disabled
                 readOnly
                 className="PF_CLEAN_INPUT PF_DISABLED"

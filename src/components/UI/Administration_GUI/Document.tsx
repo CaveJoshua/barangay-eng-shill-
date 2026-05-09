@@ -56,6 +56,7 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
 
   // ─── Glowing Highlight ───
   const [activeHighlight, setActiveHighlight] = useState<string | null>(null);
+  const processedHighlightId = useRef<string | null>(null); // Added this to prevent infinite highlight loops
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -134,38 +135,35 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
     return () => { valve.abort(); clearInterval(interval); };
   }, [fetchRequests]);
 
-  // 🛡️ ── AUTO-SYNC HIGHLIGHTER ENGINE ──
-  // Listens for an ID from the Dashboard, switches to the correct tab, and flashes the row.
+  // 🛡️ ── AUTO-SYNC HIGHLIGHTER ENGINE (UPDATED TO SAFE REACT PATTERN) ──
+  // Listens for an ID from the Dashboard, isolates it via search, and flashes the row.
   useEffect(() => {
-    if (highlightId && requests.length > 0) {
-      const targetDoc = requests.find(d => d.id === highlightId || d.referenceNo === highlightId);
+    if (highlightId && processedHighlightId.current !== highlightId && requests.length > 0) {
+      const targetDoc = requests.find(d => String(d.id) === String(highlightId) || d.referenceNo === highlightId);
       
       if (targetDoc) {
+        processedHighlightId.current = highlightId;
+
         // 1. Switch to the correct tab automatically
         if (targetDoc.status === 'Completed' || targetDoc.status === 'Rejected') {
           setActiveTab('History');
         } else {
-          setActiveTab(targetDoc.status);
+          setActiveTab(targetDoc.status as any);
         }
 
-        // 2. Set the glowing state
-        setActiveHighlight(targetDoc.id);
+        // 2. Inject Search & Reset Pagination (so it isn't hidden on page 3)
+        setSearchTerm(targetDoc.referenceNo);
+        setCurrentPage(1);
 
-        // 3. Scroll to the row and flash it yellow
-        setTimeout(() => {
-          const rowElement = document.getElementById(`doc-row-${targetDoc.id}`);
-          if (rowElement) {
-            rowElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            rowElement.style.transition = 'background-color 0.5s ease';
-            rowElement.style.backgroundColor = '#fef08a'; // Flash Yellow
-            
-            // Remove the flash after 3 seconds
-            setTimeout(() => {
-              rowElement.style.backgroundColor = '';
-              setActiveHighlight(null);
-            }, 3000);
-          }
-        }, 300); // 300ms delay to let the tab finish rendering
+        // 3. Set the glowing state
+        setActiveHighlight(String(targetDoc.id));
+
+        // 4. Remove the flash after 3 seconds
+        const timer = setTimeout(() => {
+          setActiveHighlight(null);
+        }, 3000);
+
+        return () => clearTimeout(timer);
       }
     }
   }, [highlightId, requests]);
@@ -308,10 +306,10 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
                 <tr><td colSpan={activeTab === 'History' ? 5 : 6} className="MSG_ROW">No records found for this stage.</td></tr>
               ) : (
                 paginatedDocs.map(doc => {
-                  const isGlowing = activeHighlight === doc.referenceNo || activeHighlight === doc.id;
+                  const isGlowing = activeHighlight === doc.referenceNo || activeHighlight === String(doc.id);
 
                   return (
-                    // 🛡️ ID assigned to the row so the Auto-Scroller can find it
+                    // 🛡️ Applying the CSS Glow properly
                     <tr 
                       key={doc.id} 
                       id={`doc-row-${doc.id}`}

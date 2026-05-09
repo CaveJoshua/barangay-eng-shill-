@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ApiService } from '../api'; 
 
 // Polling interval set to 10 seconds for real-time responsiveness
@@ -19,21 +19,34 @@ interface LiveNotification {
   status: string;
 }
 
+// ── 1. ACTIVE ID EXTRACTOR (Role-Agnostic) ──
+const getActiveId = () => {
+  const sessionStr = localStorage.getItem('admin_session') || localStorage.getItem('user_session') || localStorage.getItem('resident_session');
+  let s: any = {};
+  if (sessionStr) {
+    try { s = JSON.parse(sessionStr); } catch (e) { }
+  }
+  return s.account_id || s.official_id || s.resident_id || s.id || s.user?.id || localStorage.getItem('account_id') || 'unknown_user';
+};
+
 const AdministratorNotification: React.FC<AdminNotifProps> = ({ onNavigate }) => {
+  // 🛡️ THE FIX: Scope local storage memory to the specific logged-in user
+  const activeId = useMemo(() => getActiveId(), []);
+  
   const [notifications, setNotifications] = useState<LiveNotification[]>([]);
   
-  // 💾 Memory for Read Notifications
+  // 💾 Memory for Read Notifications (User Scoped)
   const [readIds, setReadIds] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem('admin_read_notif_ids');
+      const saved = localStorage.getItem(`sb_notif_read_${activeId}`);
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
 
-  // 💾 Memory for Cleared Notifications (hidden from dropdown)
+  // 💾 Memory for Cleared Notifications (User Scoped)
   const [clearedIds, setClearedIds] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem('admin_cleared_notif_ids');
+      const saved = localStorage.getItem(`sb_notif_clear_${activeId}`);
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
@@ -43,15 +56,22 @@ const AdministratorNotification: React.FC<AdminNotifProps> = ({ onNavigate }) =>
   
   const notifsControllerRef = useRef<AbortController | null>(null);
   const notifsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // 🛡️ THE FIX: Strict Fetch Lock to prevent React Strict Mode duplicate polling
+  const isFetchingNotifs = useRef(false);
 
-  // 💾 Sync read/cleared IDs to local storage
+  // 💾 Sync read/cleared IDs to local storage (User Scoped)
   useEffect(() => {
-    localStorage.setItem('admin_read_notif_ids', JSON.stringify(readIds));
-  }, [readIds]);
+    if (activeId !== 'unknown_user') {
+      localStorage.setItem(`sb_notif_read_${activeId}`, JSON.stringify(readIds));
+    }
+  }, [readIds, activeId]);
 
   useEffect(() => {
-    localStorage.setItem('admin_cleared_notif_ids', JSON.stringify(clearedIds));
-  }, [clearedIds]);
+    if (activeId !== 'unknown_user') {
+      localStorage.setItem(`sb_notif_clear_${activeId}`, JSON.stringify(clearedIds));
+    }
+  }, [clearedIds, activeId]);
 
   // 🖱️ Close dropdown when clicking outside
   useEffect(() => {
@@ -66,6 +86,11 @@ const AdministratorNotification: React.FC<AdminNotifProps> = ({ onNavigate }) =>
 
   // ─── DIRECT FETCH LOGIC WITH STRICT ADMIN FILTERS ───
   const fetchLiveNotifs = useCallback(async () => {
+    if (activeId === 'unknown_user') return; // Do not fetch if session is dead
+    if (isFetchingNotifs.current) return;    // Block overlapping requests
+    
+    isFetchingNotifs.current = true;
+
     if (notifsControllerRef.current) notifsControllerRef.current.abort();
     notifsControllerRef.current = new AbortController();
 
@@ -85,13 +110,14 @@ const AdministratorNotification: React.FC<AdminNotifProps> = ({ onNavigate }) =>
           }
 
           // 🛡️ 2. ADMIN FILTER: HIDE ALREADY PROCESSED ITEMS
-          // If it says processing, completed, ready, or claimed, the admin doesn't need a bell notification.
+          // Added 'under review' to immediately hide processing items
           if (
             lowerMsg.includes('processing') || 
             lowerMsg.includes('completed') || 
             lowerMsg.includes('ready') || 
             lowerMsg.includes('claimed') ||
-            lowerMsg.includes('rejected')
+            lowerMsg.includes('rejected') ||
+            lowerMsg.includes('under review')
           ) {
             continue; 
           }
@@ -105,7 +131,7 @@ const AdministratorNotification: React.FC<AdminNotifProps> = ({ onNavigate }) =>
             adminMsg = adminMsg.replace(/is now pending/i, 'is awaiting review.');
           }
 
-          const caseMatch = rawMsg.match(/(BLTR|BL|INCD|TMP|BLT|ON-LN|WK-IN|REF)-[A-Z0-9-]+/i);
+          const caseMatch = rawMsg.match(/(ON-INC|WK-INC|BLTR|BL|INCD|TMP|BLT|ON-LN|WK-IN|REF)-[A-Z0-9-]+/i);
           const extractedRef = caseMatch ? caseMatch[0] : String(item.id);
 
           mappedNotifs.push({
@@ -121,20 +147,25 @@ const AdministratorNotification: React.FC<AdminNotifProps> = ({ onNavigate }) =>
 
         setNotifications(mappedNotifs);
 
-        // Sync backend read state
-        const backendReadIds = mappedNotifs.filter(n => n.status === 'read').map(n => n.id);
-        if (backendReadIds.length > 0) {
-            setReadIds(prev => Array.from(new Set([...prev, ...backendReadIds])));
-        }
+        // Sync backend read state dynamically without triggering loops
+        setReadIds(prevReadIds => {
+          const backendReadIds = mappedNotifs.filter(n => n.status === 'read').map(n => n.id);
+          const newIds = backendReadIds.filter(id => !prevReadIds.includes(id));
+          if (newIds.length > 0) {
+            return [...prevReadIds, ...newIds];
+          }
+          return prevReadIds;
+        });
       }
     } catch (err: any) {
       if (err.name !== 'AbortError') console.error("[NOTIFS] Sync Failure");
     } finally {
+      isFetchingNotifs.current = false;
       if (document.visibilityState === 'visible') {
         notifsTimer.current = setTimeout(fetchLiveNotifs, NOTIF_POLL_INTERVAL);
       }
     }
-  }, []);
+  }, [activeId]);
 
   useEffect(() => {
     fetchLiveNotifs();

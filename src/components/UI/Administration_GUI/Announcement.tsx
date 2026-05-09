@@ -58,18 +58,22 @@ export default function AnnouncementPage() {
     return () => valve.abort();
   }, [fetchAnnouncements]);
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("Permanently delete this announcement? This action is logged.")) return;
+  // 🛡️ THE FIX: Replaced handleDelete with handleArchive
+  const handleArchive = async (item: IAnnouncement) => {
+    if (!window.confirm("Move this announcement to archives? It will no longer be visible to residents.")) return;
     
     try {
-      const result = await ApiService.deleteAnnouncement(id);
+      // We pass the existing item data but force the status to 'Archived'
+      const payload = { ...item, status: 'Archived' };
+      const result = await ApiService.saveAnnouncement(item.id, payload);
+      
       if (result.success) {
         fetchAnnouncements();
       } else {
-        alert(`Delete failed: ${result.error}`);
+        alert(`Archive failed: ${result.error}`);
       }
     } catch (err) {
-      alert("System error during deletion.");
+      alert("System error during archiving.");
     }
   };
 
@@ -176,8 +180,9 @@ export default function AnnouncementPage() {
                     <button className="ANN_ICON_BTN" onClick={() => { setEditingItem(item); setIsModalOpen(true); }} title="Edit">
                       <i className="fas fa-pen"></i>
                     </button>
-                    <button className="ANN_ICON_BTN DEL" onClick={() => handleDelete(item.id)} title="Delete">
-                      <i className="fas fa-trash"></i>
+                    {/* 🛡️ THE FIX: Updated button UI to reflect Archiving instead of Deleting */}
+                    <button className="ANN_ICON_BTN ARC" onClick={() => handleArchive(item)} title="Archive">
+                      <i className="fas fa-archive"></i>
                     </button>
                   </div>
                 </div>

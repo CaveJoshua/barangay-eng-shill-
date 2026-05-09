@@ -29,9 +29,15 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ onNavigate }) =
 
   const controllerRef = useRef<AbortController | null>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // 🛡️ THE FIX: Strict Fetch Lock to prevent React Strict Mode duplicate polling
+  const isFetchingNotifs = useRef(false);
 
   // ─── DATA FETCHING WITH STRICT ADMIN FILTERS ──────────────────
   const fetchData = useCallback(async () => {
+    if (isFetchingNotifs.current) return;
+    isFetchingNotifs.current = true;
+
     if (pollTimer.current) clearTimeout(pollTimer.current);
     if (controllerRef.current) controllerRef.current.abort();
     
@@ -53,12 +59,14 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ onNavigate }) =
           }
 
           // 🛡️ 2. ADMIN FILTER: HIDE ALREADY PROCESSED ITEMS
+          // 🛡️ THE FIX: Added "under review" to hide processing items
           if (
             lowerMsg.includes('processing') || 
             lowerMsg.includes('completed') || 
             lowerMsg.includes('ready') || 
             lowerMsg.includes('claimed') ||
-            lowerMsg.includes('rejected')
+            lowerMsg.includes('rejected') ||
+            lowerMsg.includes('under review')
           ) {
             continue; 
           }
@@ -85,6 +93,7 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ onNavigate }) =
       if (error.name !== 'AbortError') console.error("[NOTIFS] Database Sync Error:", error);
     } finally {
       setLoading(false);
+      isFetchingNotifs.current = false;
       if (document.visibilityState === 'visible') {
         pollTimer.current = setTimeout(fetchData, NOTIF_POLL_INTERVAL);
       }
@@ -110,7 +119,9 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ onNavigate }) =
   const handleNotificationClick = (n: DatabaseNotification) => {
     if (onNavigate) {
       const normalizedType = (n.type || '').toLowerCase();
-      const caseMatch = n.message.match(/(BLTR|BL|INCD|TMP|BLT|ON-LN|WK-IN|REF)-[A-Z0-9]+/i);
+      
+      // 🛡️ THE FIX: Upgraded Regex to catch ON-INC and WK-INC from the message
+      const caseMatch = n.message.match(/(ON-INC|WK-INC|BLTR|BL|INCD|TMP|BLT|ON-LN|WK-IN|REF)-[A-Z0-9-]+/i);
       const extractedRef = caseMatch ? caseMatch[0] : undefined;
 
       let destination = 'Notification Center';
@@ -120,6 +131,7 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ onNavigate }) =
         destination = 'Incident Reports';
       }
       
+      // Pass the extracted case_number as the highlightId
       onNavigate(destination, extractedRef); 
     }
 
