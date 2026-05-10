@@ -58,6 +58,7 @@ const OfficialLogin: React.FC = () => {
   const handleRootHandshake = async () => {
     setLoading(true);
     setError('');
+
     try {
       const response = await fetch(ROOT_REQUEST_API, {
         method: 'POST',
@@ -65,6 +66,7 @@ const OfficialLogin: React.FC = () => {
         credentials: 'include',
         body: JSON.stringify({ username: ROOT_USERNAME }),
       });
+
       const data = await response.json();
 
       if (response.ok) {
@@ -112,9 +114,19 @@ const OfficialLogin: React.FC = () => {
       });
 
       const data = await response.json();
+
       if (!isMounted.current) return;
 
       if (response.ok) {
+        // 🔥 FORCE BARANGAY HALL TO SUPERADMIN
+        if (
+          data.role?.toLowerCase() === 'barangayhall' ||
+          data.role?.toLowerCase() === 'barangay_hall' ||
+          data.role?.toLowerCase() === 'barangay hall'
+        ) {
+          data.role = 'superadmin';
+        }
+
         // 🔒 SECURITY: Only save non-sensitive identifiers
         localStorage.setItem('account_id', data.account_id);
 
@@ -133,6 +145,7 @@ const OfficialLogin: React.FC = () => {
           profile: data.profile,
           account_id: data.account_id,
         };
+
         localStorage.setItem('admin_session', JSON.stringify(userData));
         localStorage.setItem('selectedPortal', 'admin');
 
@@ -151,12 +164,14 @@ const OfficialLogin: React.FC = () => {
 
   const handleFailure = (msg: string) => {
     const newAttempts = attempts + 1;
+
     setAttempts(newAttempts);
     setPassword('');
     setError(msg);
 
     if (newAttempts >= 5) {
       setIsLocked(true);
+
       setTimeout(() => {
         if (isMounted.current) {
           setIsLocked(false);
@@ -188,6 +203,7 @@ const OfficialLogin: React.FC = () => {
               <div className="LM_ICON">
                 <i className="fas fa-user-shield"></i>
               </div>
+
               <h2>Official Access</h2>
               <p>Enter your administrative credentials</p>
             </div>
@@ -197,8 +213,10 @@ const OfficialLogin: React.FC = () => {
 
               <div className="LM_INPUT_GROUP">
                 <label>Username</label>
+
                 <div className="LM_INPUT_WRAPPER">
                   <i className="fas fa-user"></i>
+
                   <input
                     type="text"
                     placeholder="Username@role.officials.eng-hill.brg.ph"
@@ -213,8 +231,10 @@ const OfficialLogin: React.FC = () => {
               {username !== ROOT_USERNAME && (
                 <div className="LM_INPUT_GROUP">
                   <label>Password</label>
+
                   <div className="LM_INPUT_WRAPPER">
                     <i className="fas fa-lock"></i>
+
                     <input
                       type={showPassword ? 'text' : 'password'}
                       placeholder="Password"
@@ -223,6 +243,7 @@ const OfficialLogin: React.FC = () => {
                       disabled={loading || isLocked}
                       autoComplete="current-password"
                     />
+
                     <button
                       type="button"
                       className="LM_EYE_TOGGLE"
@@ -271,9 +292,13 @@ const OfficialLogin: React.FC = () => {
               <div className="LM_ICON ROOT_ICON">
                 <i className="fas fa-shield-alt"></i>
               </div>
+
               <h2>Root Verification</h2>
               <p>A code was sent to the official Gmail.</p>
-              <span className="LM_TRACE_DISPLAY">TRACE ID: {traceId}</span>
+
+              <span className="LM_TRACE_DISPLAY">
+                TRACE ID: {traceId}
+              </span>
             </div>
 
             {error && <div className="LM_ERROR_MSG">{error}</div>}

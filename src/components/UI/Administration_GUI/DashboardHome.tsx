@@ -58,20 +58,22 @@ const parseAdminSession = () => {
       session?.username        ||
       'Administrator';
 
-    const rawRole  = userNode?.role || session?.role || 'official';
-    const position =
-      profile?.position ||
-      session?.position ||
-      (rawRole.toLowerCase() === 'superadmin' ? 'Superadmin' : '') ||
-      'Official';
+    const rawRole  = (userNode?.role || session?.role || 'official').toLowerCase().trim();
+    let position = profile?.position || session?.position || '';
 
-    const resolvedPosition =
-      rawRole.toLowerCase() === 'superadmin' ? 'Superadmin' : position || 'Official';
+    // 🛡️ THE FIX: Smart formatting for the specific Barangay Hall role
+    if (rawRole === 'barangayhall') {
+        position = 'Barangay Hall';
+    } else if (rawRole === 'superadmin') {
+        position = 'Superadmin';
+    } else if (!position) {
+        position = 'Official';
+    }
 
     return { 
         name: fullName, 
-        position: resolvedPosition, 
-        role: rawRole.toLowerCase(),
+        position: position, 
+        role: rawRole,
         initial: fullName.charAt(0).toUpperCase()
     };
   } catch (e) {
@@ -110,7 +112,6 @@ const PendingRow: React.FC<{ doc: IDocRequest; index: number; onClick: () => voi
 interface DashboardHomeProps {
   data: DashboardData;
   loading: boolean;
-  // 🛡️ THE FIX: onNavigate now accepts the ID
   onNavigate: (tabName: string, id?: string) => void;
 }
 
@@ -159,7 +160,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ data, loading, onNavigate
         )
         .slice(0, 5)
         .map((d: any) => ({
-          id:            d.id || d.record_id || 'N/A', // 🛡️ Ensured we capture the exact DB ID
+          id:            d.id || d.record_id || 'N/A', 
           referenceNo:   d.reference_no || d.referenceNo || `UNKNOWN-${Math.random()}`,
           residentName:  d.resident_name || d.residentName || 'Unknown',
           type:          d.type,
@@ -274,7 +275,6 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ data, loading, onNavigate
             ) : (
               <ul className="PR_LIST">
                 {pendingDocs.map((doc, i) => (
-                  // 🛡️ THE FIX: Passing doc.id to the navigation handler
                   <PendingRow key={doc.referenceNo} doc={doc} index={i} onClick={() => onNavigate('Document', doc.id)} />
                 ))}
               </ul>

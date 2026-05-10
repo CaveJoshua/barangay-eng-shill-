@@ -195,8 +195,8 @@ export default function AccountManagement() {
   const canChangePassword = useCallback((targetAcc: IAccount) => {
     const targetRole = (targetAcc.role || '').toLowerCase().replace(/\s+/g, '');
     
-    // No one can change 'barangayhall' password except a superadmin
-    if (targetRole === 'barangayhall' && currentUserRole !== 'superadmin') {
+    // 🛡️ THE FIX: Allow superadmin OR barangayhall itself to change the barangayhall password
+    if (targetRole === 'barangayhall' && currentUserRole !== 'superadmin' && currentUserRole !== 'barangayhall') {
       return false;
     }
 

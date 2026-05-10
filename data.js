@@ -100,6 +100,24 @@ export const authenticateToken = (req, res, next) => {
   });
 };
 
+// 🛡️ STRICT AUTHORIZATION MIDDLEWARE (Standardized)
+export const authorizeRoles = (allowedRoles) => {
+    return (req, res, next) => {
+        let userRole = req.user?.user_role || req.user?.role || req.user?.account_type || req.user?.type;
+        // Fallback for residents mapping
+        if (!userRole && (req.user?.record_id || req.user?.resident_id || req.user?.sub)) userRole = 'resident';
+        
+        if (!userRole || !allowedRoles.includes(userRole.toLowerCase().trim())) {
+            return res.status(403).json({ 
+                error: 'Forbidden', 
+                message: `Insufficient Permissions. Required roles: ${allowedRoles.join(', ')}` 
+            });
+        }
+        req.validatedRole = userRole.toLowerCase().trim();
+        next();
+    };
+};
+
 // ==========================================
 // 2. GLOBAL MIDDLEWARE & SECURITY HEADERS
 // ==========================================
@@ -238,7 +256,7 @@ ProfileRouter(router, supabase, authenticateToken);
 // 6. ANNOUNCEMENTS (FULL CRUD CAPABILITIES ADDED)
 // ==========================================
 
-// GET ALL
+// GET ALL (Remains Public/Unrestricted so residents and visitors can see them)
 router.get('/announcements', async (req, res) => {
     try {
         const { data, error } = await supabase
@@ -253,188 +271,203 @@ router.get('/announcements', async (req, res) => {
     }
 });
 
-// POST NEW
-router.post('/announcements', authenticateToken, async (req, res) => {
-    try {
-        const { title, content, category, priority, expires_at, image_url, status } = req.body;
+// POST NEW (Locked down to authorized roles only)
+router.post('/announcements', 
+    [authenticateToken, authorizeRoles(['admin', 'superadmin', 'staff', 'barangayhall'])], 
+    async (req, res) => {
+        try {
+            const { title, content, category, priority, expires_at, image_url, status } = req.body;
 
-        if (!title || !content || !expires_at) {
-            return res.status(400).json({ error: "Headline, details, and expiry date are required." });
-        }
-
-        let secureImageUrl = null;
-        
-        if (image_url && image_url.includes('base64,')) {
-            console.log("Uploading new image to Cloudinary...");
-            try {
-                secureImageUrl = await uploadImage(image_url, 'barangay_announcements');
-            } catch (uploadErr) {
-                console.error("Cloudinary Upload Failed:", uploadErr.message);
-                return res.status(500).json({ error: "Failed to upload image to cloud." });
+            if (!title || !content || !expires_at) {
+                return res.status(400).json({ error: "Headline, details, and expiry date are required." });
             }
+
+            let secureImageUrl = null;
+            
+            if (image_url && image_url.includes('base64,')) {
+                console.log("Uploading new image to Cloudinary...");
+                try {
+                    secureImageUrl = await uploadImage(image_url, 'barangay_announcements');
+                } catch (uploadErr) {
+                    console.error("Cloudinary Upload Failed:", uploadErr.message);
+                    return res.status(500).json({ error: "Failed to upload image to cloud." });
+                }
+            }
+
+            const { data, error } = await supabase
+                .from('announcements')
+                .insert([{
+                    title,
+                    content,
+                    category: category || 'Public Advisory',
+                    priority: priority || 'Low',
+                    expires_at,
+                    image_url: secureImageUrl || image_url, 
+                    status: status || 'Active'
+                }])
+                .select()
+                .single();
+
+            if (error) throw error;
+            
+            await logActivity(supabase, req.user?.username, 'CREATE_ANNOUNCEMENT', `Created: ${title}`);
+            res.status(201).json(data);
+        } catch (err) {
+            console.error("Post Error:", err.message);
+            res.status(500).json({ error: "Failed to save announcement." });
         }
-
-        const { data, error } = await supabase
-            .from('announcements')
-            .insert([{
-                title,
-                content,
-                category: category || 'Public Advisory',
-                priority: priority || 'Low',
-                expires_at,
-                image_url: secureImageUrl || image_url, 
-                status: status || 'Active'
-            }])
-            .select()
-            .single();
-
-        if (error) throw error;
-        
-        await logActivity(supabase, req.user?.username, 'CREATE_ANNOUNCEMENT', `Created: ${title}`);
-        res.status(201).json(data);
-    } catch (err) {
-        console.error("Post Error:", err.message);
-        res.status(500).json({ error: "Failed to save announcement." });
-    }
 });
 
-// PUT (UPDATE) EXISTING
-router.put('/announcements/:id', authenticateToken, async (req, res) => {
-    try {
-        const { id } = req.params;
-        const updates = { ...req.body };
+// PUT (UPDATE) EXISTING (Locked down)
+router.put('/announcements/:id', 
+    [authenticateToken, authorizeRoles(['admin', 'superadmin', 'staff', 'barangayhall'])], 
+    async (req, res) => {
+        try {
+            const { id } = req.params;
+            const updates = { ...req.body };
 
-        delete updates.id; 
-        delete updates.created_at;
+            delete updates.id; 
+            delete updates.created_at;
 
-        if (updates.image_url && updates.image_url.includes('base64,')) {
-            console.log("Updating image on Cloudinary...");
-            updates.image_url = await uploadImage(updates.image_url, 'barangay_announcements');
+            if (updates.image_url && updates.image_url.includes('base64,')) {
+                console.log("Updating image on Cloudinary...");
+                updates.image_url = await uploadImage(updates.image_url, 'barangay_announcements');
+            }
+
+            const { data, error } = await supabase
+                .from('announcements')
+                .update(updates)
+                .eq('id', id)
+                .select()
+                .maybeSingle();
+
+            if (error) throw error;
+            if (!data) return res.status(404).json({ error: "Post not found." });
+
+            await logActivity(supabase, req.user?.username, 'UPDATE_ANNOUNCEMENT', `Updated: ${updates.title || id}`);
+            res.status(200).json(data);
+        } catch (err) {
+            res.status(500).json({ error: "Failed to update announcement." });
         }
-
-        const { data, error } = await supabase
-            .from('announcements')
-            .update(updates)
-            .eq('id', id)
-            .select()
-            .maybeSingle();
-
-        if (error) throw error;
-        if (!data) return res.status(404).json({ error: "Post not found." });
-
-        await logActivity(supabase, req.user?.username, 'UPDATE_ANNOUNCEMENT', `Updated: ${updates.title || id}`);
-        res.status(200).json(data);
-    } catch (err) {
-        res.status(500).json({ error: "Failed to update announcement." });
-    }
 });
 
-// DELETE
-router.delete('/announcements/:id', authenticateToken, async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { error } = await supabase
-            .from('announcements')
-            .delete()
-            .eq('id', id);
+// DELETE (Locked down to higher-tier admins)
+router.delete('/announcements/:id', 
+    [authenticateToken, authorizeRoles(['admin', 'superadmin'])], 
+    async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { error } = await supabase
+                .from('announcements')
+                .delete()
+                .eq('id', id);
 
-        if (error) throw error;
-        
-        await logActivity(supabase, req.user?.username, 'DELETE_ANNOUNCEMENT', `Deleted ID: ${id}`);
-        res.status(200).json({ message: "Announcement removed." });
-    } catch (err) {
-        res.status(500).json({ error: "Failed to delete announcement." });
-    }
+            if (error) throw error;
+            
+            await logActivity(supabase, req.user?.username, 'DELETE_ANNOUNCEMENT', `Deleted ID: ${id}`);
+            res.status(200).json({ message: "Announcement removed." });
+        } catch (err) {
+            res.status(500).json({ error: "Failed to delete announcement." });
+        }
 });
 
 // ==========================================
 // 7. SYSTEM STATISTICS
 // ==========================================
-router.get('/stats', authenticateToken, async (req, res) => {
-  try {
-    const [pop, doc, blot, act] = await Promise.all([
-      supabase.from('residents_records').select('*', { count: 'exact', head: true }),
-      supabase.from('document_requests').select('*', { count: 'exact', head: true }),
-      supabase.from('blotter_cases').select('*', { count: 'exact', head: true }),
-      supabase.from('audit_logs').select('*', { count: 'exact', head: true })
-    ]);
+// Locked down so regular residents can't probe system-wide counts (like audit logs)
+router.get('/stats', 
+    [authenticateToken, authorizeRoles(['admin', 'superadmin', 'staff', 'barangayhall'])], 
+    async (req, res) => {
+        try {
+            const [pop, doc, blot, act] = await Promise.all([
+            supabase.from('residents_records').select('*', { count: 'exact', head: true }),
+            supabase.from('document_requests').select('*', { count: 'exact', head: true }),
+            supabase.from('blotter_cases').select('*', { count: 'exact', head: true }),
+            supabase.from('audit_logs').select('*', { count: 'exact', head: true })
+            ]);
 
-    // 🛡️ THE FIX: Server sends the synced identity data right alongside the stats
-    res.status(200).json({
-      stats: { 
-        totalPopulation: pop.count || 0, 
-        documentsIssued: doc.count || 0, 
-        blotterCases: blot.count || 0, 
-        systemActivities: act.count || 0 
-      },
-      barangayName: "Barangay Engineer's Hill",
-      systemName: "Smart Barangay",
-      adminName: req.user?.full_name || req.user?.username || 'Administrator',
-      position: req.user?.position || req.user?.role || 'Official'
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to retrieve system statistics.' });
-  }
+            res.status(200).json({
+            stats: { 
+                totalPopulation: pop.count || 0, 
+                documentsIssued: doc.count || 0, 
+                blotterCases: blot.count || 0, 
+                systemActivities: act.count || 0 
+            },
+            barangayName: "Barangay Engineer's Hill",
+            systemName: "Smart Barangay",
+            adminName: req.user?.full_name || req.user?.username || 'Administrator',
+            position: req.user?.position || req.user?.role || 'Official'
+            });
+        } catch (error) {
+            res.status(500).json({ error: 'Failed to retrieve system statistics.' });
+        }
 });
 
 // ==========================================
 // 8. DIRECT-LINK NOTIFICATION SYSTEM
 // ==========================================
-router.get('/notifications/summary', authenticateToken, async (req, res) => {
-    try {
-        const { data: docs, error: docErr } = await supabase
-            .from('document_requests')
-            .select('id, resident_name, type, date_requested')
-            .eq('status', 'Pending')
-            .not('tracking_code', 'ilike', '%WK-IN%')
-            .order('date_requested', { ascending: false })
-            .limit(10);
 
-        if (docErr) throw docErr;
+// Locked down to prevent PII leaks of other residents
+router.get('/notifications/summary', 
+    [authenticateToken, authorizeRoles(['admin', 'superadmin', 'staff', 'barangayhall'])], 
+    async (req, res) => {
+        try {
+            const { data: docs, error: docErr } = await supabase
+                .from('document_requests')
+                .select('id, resident_name, type, date_requested')
+                .eq('status', 'Pending')
+                .not('tracking_code', 'ilike', '%WK-IN%')
+                .order('date_requested', { ascending: false })
+                .limit(10);
 
-        const { data: blotters, error: bltErr } = await supabase
-            .from('blotter_cases')
-            .select('id, complainant_name, incident_type, created_at')
-            .eq('status', 'Pending')
-            .order('created_at', { ascending: false })
-            .limit(10);
+            if (docErr) throw docErr;
 
-        const feed = [
-            ...docs.map(d => ({
-                id: `DOC-${d.id}`,
-                title: 'New Request',
-                message: `${d.resident_name} requested ${d.type}`,
-                timestamp: d.date_requested,
-                category: 'document'
-            })),
-            ...(bltErr ? [] : blotters.map(b => ({
-                id: `BLT-${b.id}`,
-                title: 'New Blotter',
-                message: `Incident reported by ${b.complainant_name}`,
-                timestamp: b.created_at,
-                category: 'blotter'
-            })))
-        ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            const { data: blotters, error: bltErr } = await supabase
+                .from('blotter_cases')
+                .select('id, complainant_name, incident_type, created_at')
+                .eq('status', 'Pending')
+                .order('created_at', { ascending: false })
+                .limit(10);
 
-        res.status(200).json(feed);
-    } catch (err) {
-        console.error("[DIRECT NOTIF ERROR]", err.message);
-        res.status(500).json({ error: "Failed to fetch live feed." });
-    }
+            const feed = [
+                ...docs.map(d => ({
+                    id: `DOC-${d.id}`,
+                    title: 'New Request',
+                    message: `${d.resident_name} requested ${d.type}`,
+                    timestamp: d.date_requested,
+                    category: 'document'
+                })),
+                ...(bltErr ? [] : blotters.map(b => ({
+                    id: `BLT-${b.id}`,
+                    title: 'New Blotter',
+                    message: `Incident reported by ${b.complainant_name}`,
+                    timestamp: b.created_at,
+                    category: 'blotter'
+                })))
+            ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+            res.status(200).json(feed);
+        } catch (err) {
+            console.error("[DIRECT NOTIF ERROR]", err.message);
+            res.status(500).json({ error: "Failed to fetch live feed." });
+        }
 });
 
-router.get('/notifications/badge-count', authenticateToken, async (req, res) => {
-    try {
-        const { count: docCount } = await supabase
-            .from('document_requests')
-            .select('*', { count: 'exact', head: true })
-            .eq('status', 'Pending')
-            .not('tracking_code', 'ilike', '%WK-IN%');
+// Locked down to prevent probing of system states
+router.get('/notifications/badge-count', 
+    [authenticateToken, authorizeRoles(['admin', 'superadmin', 'staff', 'barangayhall'])], 
+    async (req, res) => {
+        try {
+            const { count: docCount } = await supabase
+                .from('document_requests')
+                .select('*', { count: 'exact', head: true })
+                .eq('status', 'Pending')
+                .not('tracking_code', 'ilike', '%WK-IN%');
 
-        res.status(200).json({ count: docCount || 0 });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+            res.status(200).json({ count: docCount || 0 });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
 });
 
 export default router;

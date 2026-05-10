@@ -84,7 +84,8 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
 
           return {
             ...c,
-            id: c.id || c.record_id || c.case_id,
+            // 🛡️ THE FIX: Added robust fallbacks for the ID mapping to prevent undefined 404s
+            id: c.id || c.record_id || c.case_id || c.blotter_id || c.incident_id || caseNum || 'UNKNOWN_ID',
             case_number: caseNum || 'PENDING_REG',
             complainant_name: c.complainant_name || 'Unknown Complainant',
             status: normalizedStatus,
@@ -110,23 +111,19 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
   // 🛡️ THE TARGETING ENGINE: Locates hidden cases and forces them into view
   useEffect(() => {
     if (highlightId && processedHighlightId.current !== highlightId && cases.length > 0) {
-      // Find the exact case they clicked on from the notification
       const targetCase = cases.find(c => String(c.id) === String(highlightId) || c.case_number === highlightId);
       
       if (targetCase) {
-        processedHighlightId.current = highlightId; // Mark as processed to prevent loops
+        processedHighlightId.current = highlightId; 
 
-        // 1. Force the correct tab to open so it isn't hidden
         const validTabs = ['Pending', 'Active', 'Hearing', 'Settled', 'Rejected'];
         if (validTabs.includes(targetCase.status)) {
           setActiveTab(targetCase.status as any);
         }
 
-        // 2. Isolate the row using search to bypass pagination hiding it on page 3
         setSearchTerm(targetCase.case_number);
         setCurrentPage(1);
 
-        // 3. Trigger the CSS highlight glow
         setActiveHighlight(highlightId);
         const timer = setTimeout(() => setActiveHighlight(null), 3000);
         return () => clearTimeout(timer);
@@ -191,6 +188,12 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
   }, [filteredCases, currentPage]);
 
   const handleStatusUpdate = async (caseId: string, payloadUpdates: any) => {
+    // 🛡️ THE FIX: Guard clause to prevent network requests with undefined IDs
+    if (!caseId || caseId === 'UNKNOWN_ID' || caseId === 'undefined') {
+        alert("Registry Error: Missing valid Case ID. Cannot perform update.");
+        return;
+    }
+
     try {
       const result = await ApiService.saveBlotter(caseId, payloadUpdates);
       if (result.success) {

@@ -10,11 +10,14 @@ const getSessionFallback = () => {
     try { s = JSON.parse(sessionStr); } catch (e) { }
   }
 
+  // Normalize the role to ensure 'barangayhall' is handled cleanly
+  let rawRole = s.role || s.user_role || s.profile?.role || localStorage.getItem('user_role') || 'Resident';
+  
   return {
     id: s.account_id || s.official_id || s.resident_id || s.id || s.user?.id || localStorage.getItem('account_id') || 'unknown_user',
     name: s.full_name || s.fullName || s.profileName || s.profile?.full_name || s.user?.name || localStorage.getItem('full_name') || '',
     email: s.email || s.profile?.email || s.user?.email || '',
-    role: s.role || s.user_role || s.profile?.role || localStorage.getItem('user_role') || 'Resident',
+    role: rawRole,
     phone: s.contact_number || s.phone || s.profile?.contact_number || ''
   };
 };
@@ -103,7 +106,7 @@ const Profile: React.FC = () => {
       setLoading(false); 
       isFetching.current = false;
     }
-  }, [activeId, fallbackInfo]); // 🛡️ 'theme' removed from dependencies
+  }, [activeId, fallbackInfo]); 
 
   // ── 5. STRICT VALIDATION ENGINE ──
   const validateForm = () => {
@@ -218,6 +221,15 @@ const Profile: React.FC = () => {
     fetchProfileData(); 
   };
 
+  // ── 8. HELPER: FORMAT ROLE ──
+  const getDisplayRole = (roleStr: string) => {
+    const cleanRole = String(roleStr || '').toLowerCase().replace(/\s+/g, '');
+    if (cleanRole === 'barangayhall') return 'BARANGAY HALL';
+    if (cleanRole === 'punongbarangay') return 'PUNONG BARANGAY';
+    if (cleanRole === 'barangaysecretary') return 'BARANGAY SECRETARY';
+    return String(roleStr).toUpperCase();
+  };
+
   // ── 9. MAIN RENDER ──
   const avatarLetter = (formData.fullName || fallbackInfo.name || '?').charAt(0).toUpperCase();
 
@@ -251,7 +263,7 @@ const Profile: React.FC = () => {
                 {formData.fullName || fallbackInfo.name || '—'}
               </h2>
               <span className="PF_USER_DISPLAY_ROLE">
-                {String(formData.role || fallbackInfo.role).toUpperCase()}
+                {getDisplayRole(formData.role || fallbackInfo.role)}
               </span>
             </div>
           </div>
@@ -297,7 +309,7 @@ const Profile: React.FC = () => {
             <div className="PF_INPUT_GROUP">
               <label>System Role</label>
               <input
-                value={String(formData.role || fallbackInfo.role).toUpperCase()}
+                value={getDisplayRole(formData.role || fallbackInfo.role)}
                 disabled
                 readOnly
                 className="PF_CLEAN_INPUT PF_DISABLED"

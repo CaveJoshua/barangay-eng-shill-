@@ -152,14 +152,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
     };
   }, [fetchStats]);
 
-  // ─── 🛡️ DYNAMIC MENU FILTERING (FIXED FOR PUNONG BARANGAY) ─────────────────
+  // ─── 🛡️ DYNAMIC MENU FILTERING (FIXED FOR PUNONG BARANGAY & BARANGAY HALL) ───
   const getVisibleMenuItems = () => {
     const role = userInfo.role;
     const pos = userInfo.position.toLowerCase();
+    
+    // Normalize to safely check without spaces
+    const normalizedRole = role.replace(/\s+/g, '');
+    const normalizedPos = pos.replace(/\s+/g, '');
 
-    // Admins and Top Officials get absolute access
-    const isSysAdmin = role === 'admin' || role === 'superadmin';
-    const isHighOfficial = pos === 'punong barangay' || pos === 'barangay secretary';
+    // Admins, Top Officials, and Barangay Hall get absolute access
+    const isSysAdmin = role === 'admin' || role === 'superadmin' || normalizedRole === 'barangayhall';
+    const isHighOfficial = pos === 'punong barangay' || pos === 'barangay secretary' || normalizedPos === 'barangayhall';
 
     const allItems = [
       { name: 'Dashboard',          icon: 'fas fa-th-large' },
@@ -176,13 +180,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
     ];
 
     return allItems.filter(item => {
-      // 1. Captains, Secretaries, and System Admins see EVERYTHING.
+      // 1. Captains, Secretaries, System Admins, and Barangay Hall see EVERYTHING.
       if (isSysAdmin || isHighOfficial) return true;
 
       // 2. Hide sensitive modules from regular Kagawads/Staff
       if (item.name === 'Account Management' || item.name === 'Audit Log') return false;
 
-      // 3. Officials Directory visibility for specific roles
+      // 3. Officials Directory visibility for specific roles (Fallback)
       if (item.name === 'Officials') {
         return pos === 'barangay hall';
       }

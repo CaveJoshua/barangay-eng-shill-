@@ -1,6 +1,6 @@
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
+import bcrypt  from 'bcryptjs';
+import jwt     from 'jsonwebtoken';
+import crypto  from 'crypto';
 import { logActivity } from './Auditlog.js';
 import { sendAutoMail } from './Mailer.js';
 
@@ -19,14 +19,19 @@ const verifyPassword = (inputPassword, storedPassword) => {
         : inputPassword === storedPassword;
 };
 
-// ── HELPER: DERIVE SYSTEM ROLE ──
-const deriveRoleFromPosition = (position, fallbackRole) => {
+// ── 🛡️ THE FIX: BULLETPROOF ROLE DERIVATION ──
+const deriveRoleFromPosition = (position, fallbackRole, username = '') => {
+    // 1. Explicit override for the barangayhall account
+    const cleanUser = String(username).toLowerCase().replace(/\s+/g, '');
+    if (cleanUser === 'barangayhall') return 'barangayhall';
+
     if (!position) return fallbackRole ? fallbackRole.toLowerCase().trim() : 'staff';
     const pos = position.toLowerCase();
     
     // Both Master Gmail and Punong Barangay receive Superadmin access
     if (pos.includes('super admin') || pos.includes('punong')) return 'superadmin';
     if (pos.includes('secretary') || pos.includes('treasurer') || pos.includes('kagawad') || pos.includes('sk')) return 'admin';
+    if (pos.includes('barangay hall')) return 'barangayhall';
     
     return fallbackRole ? fallbackRole.toLowerCase().trim() : 'staff';
 };
@@ -151,7 +156,9 @@ export const OfficialsLoginRouter = (router, supabase) => {
             if (!verifyPassword(password, accountData.password)) return res.status(401).json({ error: 'Invalid password.' });
 
             const position = accountData.officials?.position || 'Official';
-            const userRole = deriveRoleFromPosition(position, accountData.role);
+            
+            // 🛡️ THE FIX: Pass the username into the derivator so it catches the 'barangayhall' account perfectly
+            const userRole = deriveRoleFromPosition(position, accountData.role, accountData.username);
             const isMasterAccount = position === 'Super Admin';
 
             const token = jwt.sign({

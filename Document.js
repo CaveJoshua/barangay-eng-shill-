@@ -35,7 +35,8 @@ const notifyAllAdmins = async (supabase, title, message, type = 'document') => {
         if (fetchError) throw fetchError;
         if (!officials || officials.length === 0) return;
 
-        const validRoles = ['admin', 'superadmin', 'staff'];
+        // 🛡️ THE FIX: Add 'barangayhall' so they get system notifications too
+        const validRoles = ['admin', 'superadmin', 'staff', 'barangayhall'];
         const targetAdmins = officials.filter(off => 
             off.role && validRoles.includes(off.role.toLowerCase().trim())
         );
@@ -82,7 +83,8 @@ const checkSessionRole = (allowedRoles) => {
 export const documentRouter = (router, supabase, authenticateToken) => {
 
     // ── 1. GET CONFIG: DOCUMENT TYPES ──
-    router.get('/documents/types', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff', 'resident']), async (req, res) => {
+    // 🛡️ THE FIX: Added 'barangayhall' to all RBAC arrays
+    router.get('/documents/types', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff', 'resident', 'barangayhall']), async (req, res) => {
         try {
             const documentTypes = [
                 { id: 'brgy_clearance', label: 'Barangay Clearance', price: 200, icon: 'fa-file-certificate' },
@@ -99,7 +101,7 @@ export const documentRouter = (router, supabase, authenticateToken) => {
     });
 
     // ── 2. GET REGISTRY: FETCH ALL DOCUMENTS ──
-    router.get('/documents', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff', 'resident']), async (req, res) => {
+    router.get('/documents', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff', 'resident', 'barangayhall']), async (req, res) => {
         try {
             let query = supabase.from('document_requests').select('*');
             
@@ -133,7 +135,7 @@ export const documentRouter = (router, supabase, authenticateToken) => {
     });
 
     // ── 2.5 THE RESIDENT ROUTING POINT ──
-    router.get('/documents/resident/:id', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff', 'resident']), async (req, res) => {
+    router.get('/documents/resident/:id', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff', 'resident', 'barangayhall']), async (req, res) => {
         try {
             const { id } = req.params;
             const { data, error } = await supabase
@@ -151,7 +153,7 @@ export const documentRouter = (router, supabase, authenticateToken) => {
     });
 
     // ── 3. POST: SAVE REQUEST (THE ID FACTORY) ──
-    router.post('/documents/save', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff', 'resident']), async (req, res) => {
+    router.post('/documents/save', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff', 'resident', 'barangayhall']), async (req, res) => {
         try {
             const r = req.body;
             const actor = req.user?.username || req.user?.sub || 'Resident';
@@ -171,12 +173,10 @@ export const documentRouter = (router, supabase, authenticateToken) => {
             // =========================================================
             // 🛡️ STRICT 2x A DAY LIMITER (Database-Backed)
             // =========================================================
-            // Get the start of the current day (Midnight)
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             const startOfDay = today.toISOString();
 
-            // Ask Supabase to count requests made by this resident today
             const { count, error: countError } = await supabase
                 .from('document_requests')
                 .select('*', { count: 'exact', head: true })
@@ -188,7 +188,6 @@ export const documentRouter = (router, supabase, authenticateToken) => {
                 return res.status(500).json({ success: false, error: "Failed to verify security limits." });
             }
 
-            // Enforce the strict limit
             if (count >= 2) {
                 return res.status(429).json({ 
                     success: false, 
@@ -252,7 +251,7 @@ export const documentRouter = (router, supabase, authenticateToken) => {
     });
 
     // ── 4. PUT: FULL UPDATE (WITH REJECTION REASON) ──
-    router.put('/documents/:id', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff']), async (req, res) => {
+    router.put('/documents/:id', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff', 'barangayhall']), async (req, res) => {
         try {
             const { id } = req.params;
             const r = req.body;
@@ -297,7 +296,7 @@ export const documentRouter = (router, supabase, authenticateToken) => {
     });
 
     // ── 5. PATCH: QUICK STATUS UPDATE (WITH PRICE SUPPORT) ──
-    router.patch('/documents/:id/status', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff']), async (req, res) => {
+    router.patch('/documents/:id/status', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff', 'barangayhall']), async (req, res) => {
         try {
             const { status, rejection_reason, price } = req.body;
             const actor = req.user?.username || 'Staff';
@@ -342,7 +341,7 @@ export const documentRouter = (router, supabase, authenticateToken) => {
     });
 
     // ── 6. DELETE: PURGE ──
-    router.delete('/documents/:id', authenticateToken, checkSessionRole(['admin', 'superadmin']), async (req, res) => {
+    router.delete('/documents/:id', authenticateToken, checkSessionRole(['admin', 'superadmin', 'barangayhall']), async (req, res) => {
         try {
             const actor = req.user?.username || 'Admin';
             const { error } = await supabase.from('document_requests').delete().eq('id', req.params.id);
