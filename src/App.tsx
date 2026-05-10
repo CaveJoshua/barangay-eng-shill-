@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import AppRoutes from './Approutes';
+import AppRoutes from './AppRoutes';
 import { CaptchaModal } from './components/UI/Community_GUI/CaptchaModal';
 import './App.css';
 
