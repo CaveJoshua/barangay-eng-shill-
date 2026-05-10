@@ -190,7 +190,7 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
             <div className="LM_HEADER">
               <div className="LM_ICON"><i className="fas fa-envelope"></i></div>
               <h2>Account Recovery</h2>
-              <p>Enter your registered email address.</p>
+              <p>Enter your registered email or username.</p>
             </div>
             
             {error && (
@@ -201,12 +201,14 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
             )}
             
             <div className="LM_INPUT_GROUP">
-              <label>Email Address</label>
+              {/* 🛠️ CHANGED: Label updated to include Username */}
+              <label>Email Address or Username</label> 
               <div className="LM_INPUT_WRAPPER">
                 <i className="fas fa-at"></i>
+                {/* 🛠️ CHANGED: type="email" to type="text" so "barangayhall" doesn't fail browser validation */}
                 <input 
-                  type="email" 
-                  placeholder="official@example.com" 
+                  type="text" 
+                  placeholder="Email or Username" 
                   value={email} 
                   onChange={(e) => setEmail(e.target.value)} 
                   disabled={isBlocked}

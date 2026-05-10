@@ -20,40 +20,52 @@ export default function OfficialsPage() {
   const [error, setError] = useState('');
   
   const [hasAccess, setHasAccess] = useState<boolean | null>(null); 
+  const [canAddOfficial, setCanAddOfficial] = useState(false); // 🛡️ NEW: Track Write Access
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const isMounted = useRef(true);
 
   /**
    * 🛡️ DYNAMIC PERMISSION CHECK
-   * Resolves the "punongBarangay" vs "punong barangay" spacing/casing issue.
+   * Split into View Access vs Write Access to safely allow 'admin' to read only.
    */
   const checkPermissions = useCallback(() => {
     try {
       const sessionStr = localStorage.getItem('admin_session');
-      if (!sessionStr) return false;
+      if (!sessionStr) return { canView: false, canAdd: false };
 
       const session = JSON.parse(sessionStr);
       
-      // Extract role and position (check multiple possible locations in the object)
       const rawRole = session.role || session.user?.role || '';
       const rawPos = session.position || session.profile?.position || '';
 
-      // Normalize: remove all spaces and lowercase (e.g., "Punong Barangay" -> "punongbarangay")
       const role = rawRole.toLowerCase().replace(/\s+/g, '');
       const pos = rawPos.toLowerCase().replace(/\s+/g, '');
 
-      const whitelist = [
+      // Admins can see the page
+      const viewWhitelist = [
+        'superadmin', 
+        'admin', // 👈 Added admin here
+        'punongbarangay', 
+        'barangaysecretary', 
+        'barangayhall'
+      ];
+
+      // Admins CANNOT add officials
+      const addWhitelist = [
         'superadmin',  
         'punongbarangay', 
         'barangaysecretary', 
         'barangayhall'
       ];
 
-      return whitelist.includes(role) || whitelist.includes(pos);
+      return {
+        canView: viewWhitelist.includes(role) || viewWhitelist.includes(pos),
+        canAdd: addWhitelist.includes(role) || addWhitelist.includes(pos)
+      };
     } catch (e) {
       console.error("Permission check failed", e);
-      return false;
+      return { canView: false, canAdd: false };
     }
   }, []);
 
@@ -61,17 +73,18 @@ export default function OfficialsPage() {
     if (!isMounted.current) return;
     
     // 1. Check permissions locally first
-    const allowed = checkPermissions();
+    const perms = checkPermissions();
     
-    if (!allowed) {
+    if (!perms.canView) {
       setHasAccess(false);
       setLoading(false);
       setError("Access Restricted: Only the authorized users are authorized.");
       return;
     }
 
-    // 2. Access Granted -> Fetch Data
+    // 2. Access Granted -> Fetch Data & Set Add Permission
     setHasAccess(true);
+    setCanAddOfficial(perms.canAdd);
     setLoading(true);
     
     try {
@@ -159,9 +172,13 @@ export default function OfficialsPage() {
             <h1 className="OFFIC_PAGE_TITLE">Barangay Officials</h1>
             <p className="OFFIC_PAGE_SUB">Directory of currently active elected and appointed personnel.</p>
           </div>
-          <button className="OFFIC_ADD_BTN" onClick={() => setIsModalOpen(true)}>
-            <i className="fas fa-user-plus"></i> Add Official
-          </button>
+          
+          {/* 🛡️ CONDITIONALLY RENDER ADD BUTTON */}
+          {canAddOfficial && (
+            <button className="OFFIC_ADD_BTN" onClick={() => setIsModalOpen(true)}>
+              <i className="fas fa-user-plus"></i> Add Official
+            </button>
+          )}
         </div>
 
         <div className="OFFIC_TABLE_CONTAINER">
@@ -217,12 +234,14 @@ export default function OfficialsPage() {
         </div>
       </div>
 
-      <Officials_modal 
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSuccess={() => fetchOfficials()}
-        existingOfficials={officials as any} 
-      />
+      {isModalOpen && canAddOfficial && (
+        <Officials_modal 
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSuccess={() => fetchOfficials()}
+          existingOfficials={officials as any} 
+        />
+      )}
     </div>
   );
 }

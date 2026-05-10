@@ -19,13 +19,16 @@ const ITEMS_PER_PAGE = 10;
 export default function AccountManagement() {
   // 🛡️ ALIGNED ACCESS CONTROL STATE
   const [hasAccess,          setHasAccess]       = useState<boolean | null>(null);
+  const [canViewOfficials,   setCanViewOfficials]= useState<boolean>(false); 
+  const [canEditPasswords,   setCanEditPasswords]= useState<boolean>(false);
+  const [currentUserRole,    setCurrentUserRole] = useState<string>(''); 
 
   const [accounts,         setAccounts]        = useState<IAccount[]>([]);
   const [error,            setError]           = useState('');
   const [isSyncing,        setIsSyncing]       = useState(false);
   const [activeTab,        setActiveTab]       = useState<TabState>('Officials');
-  const [searchTerm,        setSearchTerm]      = useState('');
-  const [selectedAccount,   setSelectedAccount] = useState<IAccount | null>(null);
+  const [searchTerm,       setSearchTerm]      = useState('');
+  const [selectedAccount,  setSelectedAccount] = useState<IAccount | null>(null);
   const [isResetOpen,      setIsResetOpen]     = useState(false);
   const [newPassword,      setNewPassword]     = useState('');
   const [showPassword,     setShowPassword]    = useState(false); 
@@ -46,28 +49,64 @@ export default function AccountManagement() {
 
       if (sessionStr) {
         const session = JSON.parse(sessionStr);
-        // Extract from wherever it might be nested
         const rawRole = session.role || session.user?.role || session.user_role || '';
         const rawPos = session.position || session.profile?.position || '';
 
-        // Normalize: remove all spaces and lowercase
         role = rawRole.toLowerCase().replace(/\s+/g, '');
         pos = rawPos.toLowerCase().replace(/\s+/g, '');
       } else {
-        // Fallback
         role = (localStorage.getItem('user_role') || '').toLowerCase().replace(/\s+/g, '');
       }
 
-      // The exact same whitelist as OfficialsPage
-      const whitelist = [
+      // Prioritize whichever has a value
+      const activeRole = pos || role;
+      setCurrentUserRole(activeRole);
+
+      // 👁️ VIEW ALL ACCESS: Can see both tabs (Officials & Residents)
+      const fullViewWhitelist = [
         'superadmin',  
+        'punongbarangay', 
+        'barangaysecretary', 
+        'barangayhall',
+        // --- View Only Roles Below ---
+        'kagawad',
+        'barangaykagawad', 
+        'skchairperson',
+        'barangayskchairperson',
+        'treasurer',
+        'barangaytreasurer'
+      ];
+
+      // ✏️ EDIT ACCESS: Roles that can actually change passwords
+      // Notice: Kagawad, SK, and Treasurer are NOT here, so they can only view.
+      const editAllRoles = [
+        'superadmin', 
         'punongbarangay', 
         'barangaysecretary', 
         'barangayhall'
       ];
 
-      if (whitelist.includes(role) || whitelist.includes(pos)) {
+      // 👁️ VIEW RESTRICTED ACCESS: Can ONLY see Resident Accounts
+      const residentViewWhitelist = [
+        'bhw',
+        'barangayhealthworker'
+      ];
+
+      // Check Edit permissions
+      if (editAllRoles.includes(role) || editAllRoles.includes(pos)) {
+        setCanEditPasswords(true);
+      } else {
+        setCanEditPasswords(false);
+      }
+
+      // Check View Permissions 
+      if (fullViewWhitelist.includes(role) || fullViewWhitelist.includes(pos)) {
         setHasAccess(true);
+        setCanViewOfficials(true);
+      } else if (residentViewWhitelist.includes(role) || residentViewWhitelist.includes(pos)) {
+        setHasAccess(true);
+        setCanViewOfficials(false);
+        setActiveTab('Residents'); 
       } else {
         setHasAccess(false);
       }
@@ -152,6 +191,30 @@ export default function AccountManagement() {
     } catch (err: any) { alert(`Reset failed: ${err.message}`); }
   };
 
+  // 🛡️ Row-Level Password Reset Permission Check
+  const canChangePassword = useCallback((targetAcc: IAccount) => {
+    const targetRole = (targetAcc.role || '').toLowerCase().replace(/\s+/g, '');
+    
+    // No one can change 'barangayhall' password except a superadmin
+    if (targetRole === 'barangayhall' && currentUserRole !== 'superadmin') {
+      return false;
+    }
+
+    // If they are in the editAllRoles whitelist (determined on mount)
+    if (canEditPasswords) {
+      return true;
+    }
+
+    // BHW restricted strictly to editing residents
+    if (currentUserRole === 'bhw' || currentUserRole === 'barangayhealthworker') {
+      return targetAcc.source === 'resident';
+    }
+
+    // View-only roles (like Kagawad, SK, Treasurer) hit this and return false
+    return false;
+  }, [currentUserRole, canEditPasswords]);
+
+
   // ── Filter + Search Logic ─────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const q = searchTerm.toLowerCase().trim();
@@ -166,7 +229,8 @@ export default function AccountManagement() {
   const officialAccounts = filtered.filter(a => a.source === 'official');
   const residentAccounts = filtered.filter(a => a.source === 'resident');
   
-  const tableData = activeTab === 'Officials' ? officialAccounts : residentAccounts;
+  // 🛡️ Ensure they can't see officials even if they hack the activeTab state
+  const tableData = (activeTab === 'Officials' && canViewOfficials) ? officialAccounts : residentAccounts;
 
   // ── PAGINATION SLICING ──
   const totalPages = Math.ceil(tableData.length / ITEMS_PER_PAGE);
@@ -245,7 +309,7 @@ export default function AccountManagement() {
           <div className="ACC_STAT_COL ACC_STAT_WIDE">
             <div className="ACC_STAT_TITLE">QUICK SUMMARY</div>
             <div className="ACC_STAT_SUB">
-              Manage credentials and security settings for all system users across the barangay network.
+              Manage credentials and security settings for {canViewOfficials ? 'all system users' : 'resident accounts'} across the barangay network.
             </div>
           </div>
 
@@ -274,12 +338,14 @@ export default function AccountManagement() {
         </div>
 
         <div className="ACC_TABS_CONTAINER">
-          <button
-            className={`ACC_TAB_BTN ${activeTab === 'Officials' ? 'ACTIVE' : ''}`}
-            onClick={() => setActiveTab('Officials')}
-          >
-            Officials &amp; System Admins
-          </button>
+          {canViewOfficials && (
+            <button
+              className={`ACC_TAB_BTN ${activeTab === 'Officials' ? 'ACTIVE' : ''}`}
+              onClick={() => setActiveTab('Officials')}
+            >
+              Officials &amp; System Admins
+            </button>
+          )}
           <button
             className={`ACC_TAB_BTN ${activeTab === 'Residents' ? 'ACTIVE' : ''}`}
             onClick={() => setActiveTab('Residents')}
@@ -333,18 +399,25 @@ export default function AccountManagement() {
                         </span>
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                          <button
-                            className="ACC_CHANGE_PASS_BTN"
-                            onClick={() => {
-                              setSelectedAccount(acc);
-                              setNewPassword('');
-                              setShowPassword(false);
-                              setIsResetOpen(true);
-                            }}
-                          >
-                            <i className="fas fa-lock" /> Change Password
-                          </button>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                          {/* 🛡️ Renders "Restricted" text for Kagawad, SK, Treasurer automatically! */}
+                          {canChangePassword(acc) ? (
+                            <button
+                              className="ACC_CHANGE_PASS_BTN"
+                              onClick={() => {
+                                setSelectedAccount(acc);
+                                setNewPassword('');
+                                setShowPassword(false);
+                                setIsResetOpen(true);
+                              }}
+                            >
+                              <i className="fas fa-lock" /> Change Password
+                            </button>
+                          ) : (
+                            <span className="ACC_TEXT_MUTED" style={{ fontSize: '0.8rem', fontStyle: 'italic', paddingRight: '8px' }}>
+                              <i className="fas fa-ban" style={{ marginRight: '4px' }}/> Restricted
+                            </span>
+                          )}
                         </div>
                       </td>
                     </tr>
