@@ -1,3 +1,9 @@
+/* ============================================ */
+/* LOGIN PAGE STYLES (renamed from Login_modal.css) */
+/* ⚠️ ALL ORIGINAL LM_ CLASSES PRESERVED */
+/* AdminRecoveryModal depends on these */
+/* ============================================ */
+
 /* --- 1. STAGE & OVERLAY (Fixed Solid Background) --- */
 .LM_MODAL_OVERLAY {
   position: fixed;

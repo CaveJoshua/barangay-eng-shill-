@@ -4,7 +4,6 @@ import CommunityLoginModal from '../../buttons/Community_login_modal';
 import './Styles/Community.css';
 import { API_BASE_URL } from '../api';
 
-// --- STRICT CATEGORY COLOR MAPPING ---
 const CATEGORY_MAP: Record<string, { indicator: string; text: string }> = {
   'Public Advisory': { indicator: 'color-blue', text: 'text-blue' },
   'Senior Citizen': { indicator: 'color-purple', text: 'text-purple' },
@@ -14,11 +13,10 @@ const CATEGORY_MAP: Record<string, { indicator: string; text: string }> = {
 };
 
 interface CommunityProps {
-  onExit?: () => void;
-  onLoginSuccess?: (user: any) => void;
+  onLoginSuccess?: (user: any) => void; 
 }
 
-const Community: React.FC<CommunityProps> = ({ onExit, onLoginSuccess }) => {
+const Community: React.FC<CommunityProps> = ({ onLoginSuccess }) => {
   const [activeFilter, setActiveFilter] = useState('All');
   const [selectedArticle, setSelectedArticle] = useState<NewsItem | null>(null);
   const [newsList, setNewsList] = useState<NewsItem[]>([]);
@@ -55,21 +53,14 @@ const Community: React.FC<CommunityProps> = ({ onExit, onLoginSuccess }) => {
 
   const filters = ['All', 'Public Advisory', 'Senior Citizen', 'Health & Safety', 'Youth & Sports', 'Community Project'];
 
-  // ── 🛡️ FILTER LOGIC WITH EXPIRATION CHECK ──
   const filteredNews = useMemo(() => {
-    const now = new Date(); // Get current date/time
+    const now = new Date(); 
 
     return newsList.filter((n: any) => {
-      // 1. Hide anything explicitly marked as Archived
       const isArchived = n.status === 'Archived';
-      
-      // 2. Hide anything where the expiration date has passed
       const isExpired = n.expires_at ? new Date(n.expires_at) < now : false;
 
-      // If it's archived or expired, filter it out completely
       if (isArchived || isExpired) return false;
-
-      // 3. Apply standard category filter
       return activeFilter === 'All' || n.category === activeFilter;
     });
   }, [newsList, activeFilter]);
@@ -88,9 +79,7 @@ const Community: React.FC<CommunityProps> = ({ onExit, onLoginSuccess }) => {
             </div>
           </div>
           <div className="C_NAV_RIGHT">
-            <button className="C_EXIT_LINK" onClick={onExit}>
-              <i className="fas fa-sign-out-alt"></i> <span>EXIT</span>
-            </button>
+            {/* 🛡️ Intentionally left empty as requested */}
           </div>
         </nav>
 
@@ -142,7 +131,6 @@ const Community: React.FC<CommunityProps> = ({ onExit, onLoginSuccess }) => {
 
                 return (
                   <article key={news.id} className="C_NEWS_ITEM" onClick={() => setSelectedArticle(news)}>
-                    {/* FIXED INDICATOR */}
                     <div className={`C_CATEGORY_INDICATOR ${colorMap.indicator}`}></div>
 
                     <div className="C_NEWS_PREVIEW_IMG">

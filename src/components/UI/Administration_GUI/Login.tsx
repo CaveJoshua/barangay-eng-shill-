@@ -1,33 +1,44 @@
-import React, { useState } from 'react';
-import Login_modal from '../../buttons/Official_Login_modal'; 
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import './styles/Login.css';
 
 interface LoginProps {
-  // 🛡️ FIX 1: Allow onSelectPortal to carry the userData payload up to App.tsx
-  onSelectPortal: (target: 'admin' | 'community', userData?: any) => void;
+  onSelectPortal: (target: 'admin' | 'community') => void;
 }
 
-const Login: React.FC<LoginProps> = ({ onSelectPortal }) => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+/**
+ * 🏠 MAIN LOGIN PAGE (Portal Selection)
+ *
+ * Admin Portal → /officialslogin (admin login page)
+ * Community Portal → /community (resident landing/login)
+ *
+ * After resident logs in via Community, they go to /resident dashboard
+ */
 
-  // 🛡️ FIX 2: Accept userData from the modal, and pass it to the portal
-  const handleLoginSuccess = (userData: any) => {
-    setIsModalOpen(false);
-    onSelectPortal('admin', userData);
+const Login: React.FC<LoginProps> = ({ onSelectPortal }) => {
+  const navigate = useNavigate();
+
+  // ✅ Admin Portal → Goes to dedicated admin login page
+  const handleAdminClick = () => {
+    onSelectPortal('admin');
+    navigate('/officialslogin');
+  };
+
+  // ✅ Community Portal → Goes to resident landing/login first
+  // (NOT directly to /resident, that's the dashboard AFTER login)
+  const handleCommunityClick = () => {
+    onSelectPortal('community');
+    navigate('/community');
   };
 
   return (
     <div className="LG_PAGE_STAGE">
-      {/* 1. Cinematic Background & Glass Overlay */}
       <div className="LG_HERO_BG">
         <div className="LG_STAIN_GLASS"></div>
       </div>
-      
-      {/* 2. Main Content Wrapper (Centered) */}
+
       <div className="LG_MAIN_WRAPPER">
         <div className="LG_PORTAL_CONTAINER">
-          
-          {/* Professional Header / Branding */}
           <header className="LG_BRANDING">
             <div className="LG_LOGO_HEX">
               <i className="fas fa-landmark"></i>
@@ -35,21 +46,32 @@ const Login: React.FC<LoginProps> = ({ onSelectPortal }) => {
             <h1 className="LG_HERO_TITLE">
               Barangay <span className="LG_ACCENT">Engineers Hill</span>
             </h1>
-            <p className="LG_HERO_SUBTITLE"></p>
+            <p className="LG_HERO_SUBTITLE">Smart Barangay System</p>
           </header>
 
-          {/* Interactive Portal Cards */}
           <div className="LG_PORTAL_GRID">
-            
             {/* Community Portal Card */}
-            <div className="LG_PORTAL_CARD" onClick={() => onSelectPortal('community')}>
+            <div
+              className="LG_PORTAL_CARD"
+              onClick={handleCommunityClick}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  handleCommunityClick();
+                }
+              }}
+            >
               <div className="LG_CARD_BODY">
                 <div className="LG_ICON_HALO LG_GREEN">
                   <i className="fas fa-users"></i>
                 </div>
                 <div className="LG_CARD_TEXT">
                   <h2>Resident Services</h2>
-                  <p>Access public announcements, file incident reports, and request barangay documents.</p>
+                  <p>
+                    Access public announcements, file incident reports, and
+                    request barangay documents.
+                  </p>
                 </div>
               </div>
               <div className="LG_CARD_FOOTER">
@@ -59,14 +81,27 @@ const Login: React.FC<LoginProps> = ({ onSelectPortal }) => {
             </div>
 
             {/* Admin Portal Card */}
-            <div className="LG_PORTAL_CARD" onClick={() => setIsModalOpen(true)}>
+            <div
+              className="LG_PORTAL_CARD"
+              onClick={handleAdminClick}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  handleAdminClick();
+                }
+              }}
+            >
               <div className="LG_CARD_BODY">
                 <div className="LG_ICON_HALO LG_NAVY">
                   <i className="fas fa-shield-alt"></i>
                 </div>
                 <div className="LG_CARD_TEXT">
                   <h2>Official Login</h2>
-                  <p>Secure administrative access for Barangay Officials and authorized system staff.</p>
+                  <p>
+                    Secure administrative access for Barangay Officials and
+                    authorized system staff.
+                  </p>
                 </div>
               </div>
               <div className="LG_CARD_FOOTER">
@@ -74,24 +109,13 @@ const Login: React.FC<LoginProps> = ({ onSelectPortal }) => {
                 <i className="fas fa-lock"></i>
               </div>
             </div>
-
           </div>
 
-          {/* System Footer */}
           <footer className="LG_STAGE_FOOTER">
-            <p>&copy; SMART BARANGAY SYSTEM </p>
+            <p>&copy; SMART BARANGAY SYSTEM</p>
           </footer>
         </div>
       </div>
-
-      {/* Login Modal Overlay */}
-      {isModalOpen && (
-        <Login_modal 
-          onClose={() => setIsModalOpen(false)} 
-          // 🛡️ FIX 3: It now correctly catches the payload and fires the updated handler
-          onSuccess={handleLoginSuccess} 
-        />
-      )}
     </div>
   );
 };
