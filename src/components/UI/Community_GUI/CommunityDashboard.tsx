@@ -13,7 +13,7 @@ import CommunityResetPasswordModal from '../../buttons/Community_Resetpassword_m
 // 🛡️ IMPORT PREVIEW COMPONENTS
 import Community_Preview from '../../forms/Community_preview';
 import type { NewsItem } from '../../forms/Community_preview';
-import { CaptchaModal } from 'Captcha/CaptchaModal';
+import { CaptchaModal } from '../../../../public/Captcha/CaptchaModal';
 
 type DashboardView = 'Announcements' | 'Blotter' | 'Documents';
 
