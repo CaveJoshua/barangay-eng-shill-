@@ -114,7 +114,8 @@ const Announcement_modal: React.FC<{
                   <option value="Public Advisory">Public Advisory</option>
                   <option value="Senior Citizen">Senior Citizen</option>
                   <option value="Health & Safety">Health & Safety</option>
-                  <option value="Events">Events</option>
+                  <option value="Youth & Sports">Youth & Sports</option>
+                  <option value="Community Project">Community Project</option>
                 </select>
               </div>
               <div className="AM_GROUP">

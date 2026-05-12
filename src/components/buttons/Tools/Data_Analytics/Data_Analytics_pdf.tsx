@@ -63,6 +63,35 @@ const doughnutOpts = {
   },
 };
 
+// 🎯 THE FIX: Inject the segment value plugin so the PDF displays numbers on the slices
+const segmentValuePlugin = {
+  id: 'segmentValue',
+  afterDatasetsDraw(chart: any) {
+    const { ctx } = chart;
+    chart.data.datasets.forEach((dataset: any, datasetIndex: number) => {
+      const meta = chart.getDatasetMeta(datasetIndex);
+      meta.data.forEach((arc: any, index: number) => {
+        const value = dataset.data[index];
+        if (!value || value === 0) return;
+
+        const sweep = Math.abs(arc.endAngle - arc.startAngle);
+        if (sweep < (Math.PI / 180) * 12) return;
+
+        const pos = arc.tooltipPosition();
+        ctx.save();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold 12px ${MONO}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+        ctx.shadowBlur = 3;
+        ctx.fillText(String(value), pos.x, pos.y);
+        ctx.restore();
+      });
+    });
+  },
+};
+
 // ─── Strict UI Components ─────────────────────────────────────────────────────
 const Section = ({ label }: { label: string }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '36px 0 16px', width: '100%' }}>
@@ -171,7 +200,7 @@ export default function Data_Analytics_pdf({ onClose, initialFilter = 'All' }: P
 
       const pdf = new jsPDF('p', 'mm', 'a4');
       const a4Width = 210;
-     
+      
       const captureOpts = { 
         scale: 2, 
         backgroundColor: '#f8fafc',
@@ -377,17 +406,19 @@ export default function Data_Analytics_pdf({ onClose, initialFilter = 'All' }: P
                   </ChartBlock>
 
                   <ChartBlock width="calc(33.333% - 11px)" title="Document Types" sub={initialFilter === 'All' ? 'All records mapped' : `Filtered: ${initialFilter}`} strictHeight="200px" meaning="Displays the proportion of each document type requested. Helps identify the most frequently processed clearances or certificates.">
+                    {/* 🛡️ INJECTED THE PLUGIN HERE FOR PDF */}
                     <Doughnut data={{
                       labels: docLabels,
                       datasets: [{ data: docData, backgroundColor: TYPE_PAL.slice(0, docLabels.length), borderColor: '#ffffff', borderWidth: 2 }],
-                    }} options={doughnutOpts} />
+                    }} options={doughnutOpts} plugins={[segmentValuePlugin]} />
                   </ChartBlock>
 
                   <ChartBlock width="calc(33.333% - 11px)" title="Sex Distribution" sub="residents_records.sex" strictHeight="200px" meaning="Shows the demographic breakdown of residents by sex, based on the total registered population in the system.">
+                    {/* 🛡️ INJECTED THE PLUGIN HERE FOR PDF */}
                     <Doughnut data={{
                       labels: sexLabels,
                       datasets: [{ data: sexData, backgroundColor: ['#3b82f6', '#ec4899'].slice(0, sexLabels.length), borderColor: '#ffffff', borderWidth: 2 }],
-                    }} options={doughnutOpts} />
+                    }} options={doughnutOpts} plugins={[segmentValuePlugin]} />
                   </ChartBlock>
                 </div>
 
