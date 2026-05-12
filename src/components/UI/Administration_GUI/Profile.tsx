@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { ApiService, API_BASE_URL } from '../api'; 
 import './styles/Profile.css';
 
-// ── 1. SESSION FALLBACK (Safety Net) ──
+// ── 1. SESSION FALLBACK (Universal Safety Net) ──
 const getSessionFallback = () => {
   const sessionStr = localStorage.getItem('admin_session') || localStorage.getItem('user_session') || localStorage.getItem('resident_session');
   let s: any = {};
@@ -10,7 +10,7 @@ const getSessionFallback = () => {
     try { s = JSON.parse(sessionStr); } catch (e) { }
   }
 
-  // Normalize the role to ensure 'barangayhall' is handled cleanly
+  // Normalizes the initial cache before the server overrides it
   let rawRole = s.role || s.user_role || s.profile?.role || localStorage.getItem('user_role') || 'Resident';
   
   return {
@@ -49,7 +49,7 @@ const Profile: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError]       = useState('');
 
-  // 🛡️ THE FIX: Request Lock to prevent double-firing
+  // Request Lock to prevent double-firing
   const isFetching = useRef(false);
 
   // ── 3. APPLY THEME ON MOUNT ──
@@ -57,14 +57,13 @@ const Profile: React.FC = () => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  // ── 4. FETCH PROFILE (Now loop-proofed) ──
+  // ── 4. UNIVERSAL FETCH PROFILE ──
   const fetchProfileData = useCallback(async (signal?: AbortSignal) => {
     if (activeId === 'unknown_user') {
       setError('Session Error: Please log out and back in.');
       return;
     }
 
-    // 🛡️ THE FIX: Block overlapping network requests
     if (isFetching.current) return;
     
     isFetching.current = true;
@@ -77,6 +76,7 @@ const Profile: React.FC = () => {
         return; 
       }
       
+      // 🛡️ Auto-Adjust based on the Universal Backend Payload
       const syncedData = {
         fullName: data.full_name || fallbackInfo.name || 'Anonymous User',
         email:    data.email || fallbackInfo.email || '',
@@ -87,7 +87,6 @@ const Profile: React.FC = () => {
       setFormData(syncedData);
       localStorage.setItem(`sb_profile_cache_${activeId}`, JSON.stringify(syncedData));
 
-      // 🛡️ THE FIX: Functional state update decoupled from the dependency array
       setTheme(prevTheme => {
         if (data.theme_preference && data.theme_preference !== prevTheme) {
           document.documentElement.setAttribute('data-theme', data.theme_preference);
@@ -150,7 +149,7 @@ const Profile: React.FC = () => {
         setIsEditing(false);
         localStorage.setItem(`sb_profile_cache_${activeId}`, JSON.stringify(formData));
         
-        // Patch the session data instantly
+        // Patch the active session dynamically
         const sessionKeys = ['admin_session', 'user_session', 'resident_session'];
         sessionKeys.forEach(key => {
           const sessionStr = localStorage.getItem(key);
@@ -221,13 +220,29 @@ const Profile: React.FC = () => {
     fetchProfileData(); 
   };
 
-  // ── 8. HELPER: FORMAT ROLE ──
+  // ── 8. 🛡️ UNIVERSAL ROLE FORMATTER ──
   const getDisplayRole = (roleStr: string) => {
     const cleanRole = String(roleStr || '').toLowerCase().replace(/\s+/g, '');
-    if (cleanRole === 'barangayhall') return 'BARANGAY HALL';
-    if (cleanRole === 'punongbarangay') return 'PUNONG BARANGAY';
-    if (cleanRole === 'barangaysecretary') return 'BARANGAY SECRETARY';
-    return String(roleStr).toUpperCase();
+    
+    const roleMap: Record<string, string> = {
+      'superadmin': 'SUPER ADMIN',
+      'admin': 'ADMINISTRATOR',
+      'barangayhall': 'BARANGAY HALL',
+      'punongbarangay': 'PUNONG BARANGAY',
+      'barangaysecretary': 'BARANGAY SECRETARY',
+      'secretary': 'BARANGAY SECRETARY',
+      'barangaytreasurer': 'BARANGAY TREASURER',
+      'treasurer': 'BARANGAY TREASURER',
+      'barangaykagawad': 'BARANGAY KAGAWAD',
+      'kagawad': 'BARANGAY KAGAWAD',
+      'skchairperson': 'SK CHAIRPERSON',
+      'bhw': 'BARANGAY HEALTH WORKER',
+      'barangayhealthworker': 'BARANGAY HEALTH WORKER',
+      'resident': 'RESIDENT',
+      'staff': 'BARANGAY STAFF'
+    };
+
+    return roleMap[cleanRole] || String(roleStr).toUpperCase();
   };
 
   // ── 9. MAIN RENDER ──

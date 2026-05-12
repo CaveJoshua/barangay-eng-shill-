@@ -28,6 +28,9 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedResident, setSelectedResident] = useState<IResident | null>(null);
 
+  // 🛡️ SECURITY STATE
+  const [canManageData, setCanManageData] = useState<boolean>(false);
+
   // PROGRESS & REPORTING STATES
   const [importProgress, setImportProgress] = useState<number | null>(null);
   const [importSummary, setImportSummary] = useState<IImportSummary | null>(null);
@@ -38,9 +41,44 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 🛡️ HIGHLIGHT TARGETING REFS
-  const [activeHighlight, setActiveHighlight] = useState<string | null>(null); // For Notifications (Yellow)
-  const [blueHighlight, setBlueHighlight] = useState<string | null>(null); // For New Residents (Blue)
+  const [activeHighlight, setActiveHighlight] = useState<string | null>(null); 
+  const [blueHighlight, setBlueHighlight] = useState<string | null>(null); 
   const processedHighlightId = useRef<string | null>(null);
+
+  // ==========================================================
+  // 🛡️ DYNAMIC PERMISSION CHECK (RBAC)
+  // ==========================================================
+  useEffect(() => {
+    try {
+      const sessionStr = localStorage.getItem('admin_session');
+      let role = '';
+      let pos = '';
+
+      if (sessionStr) {
+        const session = JSON.parse(sessionStr);
+        role = (session.role || session.user?.role || session.user_role || '').toLowerCase().replace(/\s+/g, '');
+        pos = (session.position || session.profile?.position || '').toLowerCase().replace(/\s+/g, '');
+      } else {
+        role = (localStorage.getItem('user_role') || '').toLowerCase().replace(/\s+/g, '');
+      }
+
+      const activeRole = pos || role;
+      
+      // Strict Whitelist for Data Handlers
+      const allowedRoles = [
+        'superadmin', 
+        'barangaysecretary', 
+        'secretary', 
+        'barangayhall', 
+        'bhw', 
+        'barangayhealthworker'
+      ];
+
+      setCanManageData(allowedRoles.includes(activeRole));
+    } catch (err) {
+      setCanManageData(false);
+    }
+  }, []);
 
   // ==========================================================
   // SYSTEM GUARD: PREVENT DATA INTERRUPTION DURING IMPORT
@@ -122,9 +160,9 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
   // DIRECT STATUS UPDATE ENGINE
   // ==========================================================
   const handleUpdateStatus = async (resident: IResident, newStatus: string) => {
-    const isArchiveBound = ['Deceased', 'Relocated', 'Archived'].includes(newStatus);
-    const msg = isArchiveBound 
-      ? `Mark resident as ${newStatus}? They will be moved to the Archive Vault.`
+    const isDeactivationBound = ['Deceased', 'Relocated', 'Archived', 'Inactive'].includes(newStatus);
+    const msg = isDeactivationBound 
+      ? `CRITICAL: Marking resident as '${newStatus}' will completely vanish them from this registry and DEACTIVATE their system account. Proceed?`
       : `Change resident status to ${newStatus}?`;
 
     if (!window.confirm(msg)) return;
@@ -146,22 +184,6 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
     }
   };
 
-  const handleArchive = async (id: string | undefined) => {
-    if (!id) return;
-    if (!window.confirm('Archive this resident identity? This action is logged.')) return;
-    const previousResidents = [...residents];
-    try {
-      setResidents(prev => prev.filter(r => r.id !== id));
-      const response = await ApiService.deleteResident(id);
-      if (!response.success) throw new Error(response.error || 'Server rejected archive request');
-      fetchResidents(true);
-    } catch (err: any) {
-      console.error('[ARCHIVE ERROR]:', err.message);
-      alert(`Archive failed: ${err.message}. Check connection.`);
-      setResidents(previousResidents);
-    }
-  };
-
   // ==========================================================
   // FILTER & SEARCH ENGINE
   // ==========================================================
@@ -169,7 +191,7 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
     return residents.filter((res) => {
       const currentStatus = (res.activityStatus || 'Active').toUpperCase();
       
-      if (['ARCHIVED', 'DECEASED', 'RELOCATED'].includes(currentStatus)) return false;
+      if (['ARCHIVED', 'DECEASED', 'RELOCATED', 'INACTIVE'].includes(currentStatus)) return false;
 
       const fullName = `${res.lastName || ''}, ${res.firstName || ''}`.toLowerCase();
       const searchStr = searchTerm.toLowerCase();
@@ -182,7 +204,6 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
 
       if (filter === 'All Residents') return true;
       if (filter === 'Active Residents') return currentStatus === 'ACTIVE';
-      if (filter === 'Inactive/Leave') return currentStatus === 'INACTIVE' || currentStatus === 'LEAVE';
 
       let age = 0;
       if (res.dob) {
@@ -258,12 +279,11 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
     });
   };
 
-  // 🛡️ MODAL SUCCESS HANDLER (Applies the Blue Glow)
+  // 🛡️ MODAL SUCCESS HANDLER
   const handleModalSuccess = (newRecord?: any) => {
     fetchResidents(true);
     
     if (newRecord) {
-      // Backend might return the id as 'id', 'record_id', or 'resident_id'
       const targetId = newRecord.id || newRecord.record_id || newRecord.resident_id;
       
       setFilter('All Residents');
@@ -274,7 +294,6 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
         setBlueHighlight(String(targetId));
         setTimeout(() => setBlueHighlight(null), 3000);
       } else if (newRecord.lastName) {
-        // Fallback search if ID is somehow missing
         setSearchTerm(newRecord.lastName);
         setCurrentPage(1);
       }
@@ -321,7 +340,6 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
             >
               <option>All Residents</option>
               <option>Active Residents</option>
-              <option>Inactive/Leave</option>
               <option>Minors (0-17)</option>
               <option>Adults (18-59)</option>
               <option>Seniors (60+)</option>
@@ -407,22 +425,35 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
             </div>
 
             <div className="RES_ACTION_GROUP">
-              <button
-                className="RES_BTN_ALT BTN_IMPORT"
-                disabled={importProgress !== null}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <i className="fas fa-file-import"></i>
-                {importProgress !== null ? 'SYNCING...' : 'Import CSV'}
-              </button>
-              <input
-                type="file"
-                accept=".csv"
-                className="RES_HIDDEN_FILE"
-                ref={fileInputRef}
-                onChange={handleSecureImport} 
-              />
+              {/* 🛡️ LOCKED DOWN: Only Data Handlers can Backup/Restore */}
+              {canManageData && (
+                <>
+                  <button
+                    className="RES_BTN_ALT BTN_IMPORT"
+                    disabled={importProgress !== null}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <i className="fas fa-file-import"></i>
+                    {importProgress !== null ? 'SYNCING...' : 'Import CSV'}
+                  </button>
+                  <input
+                    type="file"
+                    accept=".csv"
+                    className="RES_HIDDEN_FILE"
+                    ref={fileInputRef}
+                    onChange={handleSecureImport} 
+                  />
 
+                  <button
+                    className="RES_BTN_ALT BTN_EXPORT"
+                    onClick={() => exportResidentsToCSV(residents)}
+                  >
+                    <i className="fas fa-database"></i> Export Backup
+                  </button>
+                </>
+              )}
+
+              {/* 👁️ VERIFY CHAIN IS GLOBALLY AVAILABLE */}
               <button
                 className="RES_BTN_ALT RES_BTN_VERIFY"
                 onClick={() => setIsVerifyModalOpen(true)}
@@ -430,19 +461,15 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
                 <i className="fas fa-link"></i> Verify Chain
               </button>
 
-              <button
-                className="RES_BTN_ALT BTN_EXPORT"
-                onClick={() => exportResidentsToCSV(residents)}
-              >
-                <i className="fas fa-database"></i> Export Backup
-              </button>
-
-              <button
-                className="RES_ADD_BTN"
-                onClick={() => { setSelectedResident(null); setIsModalOpen(true); }}
-              >
-                <i className="fas fa-plus"></i> Add Identity
-              </button>
+              {/* 🛡️ LOCKED DOWN: Only Data Handlers can Add Identities */}
+              {canManageData && (
+                <button
+                  className="RES_ADD_BTN"
+                  onClick={() => { setSelectedResident(null); setIsModalOpen(true); }}
+                >
+                  <i className="fas fa-plus"></i> Add Identity
+                </button>
+              )}
             </div>
           </div>
 
@@ -455,7 +482,7 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
                   <th>PUROK</th>
                   <th>OCCUPATION</th>
                   <th>STATUS</th>
-                  <th className="RES_TABLE_ACTION_HEADER">ACTIONS</th>
+                  <th className="RES_TABLE_ACTION_HEADER" style={{ textAlign: 'right', paddingRight: '1rem' }}>ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
@@ -513,32 +540,37 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
                             {res.activityStatus || 'Active'}
                           </span>
                         </td>
-                        <td className="RES_TABLE_ACTION_CELL">
-                          <select
-                            className="RES_ACTION_SELECT"
-                            value=""
-                            onChange={(e) => {
-                              const action = e.target.value;
-                              if (action === 'edit') {
-                                setSelectedResident(res);
-                                setIsModalOpen(true);
-                              } else if (action === 'archive') {
-                                handleArchive(res.id);
-                              } else if (action.startsWith('status_')) {
-                                handleUpdateStatus(res, action.replace('status_', ''));
-                              }
-                            }}
-                          >
-                            <option value="" disabled>Manage Record</option>
-                            <option value="edit">Edit Full Profile</option>
-                            <optgroup label="Update Status">
-                              <option value="status_Active">Set as Active</option>
-                              <option value="status_Inactive">Set as Inactive (Leave)</option>
-                              <option value="status_Relocated">Set as Relocated (Move to Archive)</option>
-                              <option value="status_Deceased">Set as Deceased (Move to Archive)</option>
-                            </optgroup>
-                            <option value="archive">Archive Record (Default)</option>
-                          </select>
+                        <td className="RES_TABLE_ACTION_CELL" style={{ textAlign: 'right' }}>
+                          {/* 🛡️ LOCKED DOWN: Only Data Handlers can modify or deactivate records */}
+                          {canManageData ? (
+                            <select
+                              className="RES_ACTION_SELECT"
+                              value=""
+                              onChange={(e) => {
+                                const action = e.target.value;
+                                if (action === 'edit') {
+                                  setSelectedResident(res);
+                                  setIsModalOpen(true);
+                                } else if (action.startsWith('status_')) {
+                                  handleUpdateStatus(res, action.replace('status_', ''));
+                                }
+                              }}
+                            >
+                              <option value="" disabled>Manage Record</option>
+                              <option value="edit">Edit Full Profile</option>
+                              
+                              <optgroup label="Account Deactivation & Archive">
+                                <option value="status_Inactive">Set as Inactive (Deactivate Account)</option>
+                                <option value="status_Relocated">Set as Relocated (Move to Archive)</option>
+                                <option value="status_Deceased">Set as Deceased (Move to Archive)</option>
+                              </optgroup>
+                              {/* Force Archive Removed Successfully */}
+                            </select>
+                          ) : (
+                            <span style={{ fontSize: '0.8rem', fontStyle: 'italic', color: '#94a3b8', paddingRight: '12px' }}>
+                              <i className="fas fa-ban" style={{ marginRight: '4px' }}/> Restricted
+                            </span>
+                          )}
                         </td>
                       </tr>
                     );

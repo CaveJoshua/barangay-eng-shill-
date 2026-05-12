@@ -218,12 +218,21 @@ export default function AccountManagement() {
   // ── Filter + Search Logic ─────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const q = searchTerm.toLowerCase().trim();
-    return accounts.filter(acc =>
-      !q ||
-      acc.username?.toLowerCase().includes(q) ||
-      acc.role?.toLowerCase().includes(q) ||
-      acc.profileName?.toLowerCase().includes(q)
-    );
+    return accounts.filter(acc => {
+      // 🛡️ THE GHOST PROTOCOL: Instantly banish inactive/archived users from the roster
+      const currentStatus = (acc.status || 'Active').toUpperCase();
+      if (['INACTIVE', 'ARCHIVED', 'DECEASED', 'RELOCATED', 'SUSPENDED'].includes(currentStatus)) {
+        return false;
+      }
+
+      // Standard Search Logic
+      if (!q) return true;
+      return (
+        acc.username?.toLowerCase().includes(q) ||
+        acc.role?.toLowerCase().includes(q) ||
+        acc.profileName?.toLowerCase().includes(q)
+      );
+    });
   }, [accounts, searchTerm]);
 
   const officialAccounts = filtered.filter(a => a.source === 'official');
@@ -309,7 +318,7 @@ export default function AccountManagement() {
           <div className="ACC_STAT_COL ACC_STAT_WIDE">
             <div className="ACC_STAT_TITLE">QUICK SUMMARY</div>
             <div className="ACC_STAT_SUB">
-              Manage credentials and security settings for {canViewOfficials ? 'all system users' : 'resident accounts'} across the barangay network.
+              Manage active credentials and security settings for {canViewOfficials ? 'all system users' : 'resident accounts'} across the barangay network.
             </div>
           </div>
 
@@ -429,7 +438,7 @@ export default function AccountManagement() {
 
           <div className="ACC_PAGINATION_BAR">
              <div className="ACC_PAG_INFO">
-               Showing {paginatedData.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0} to {Math.min(currentPage * ITEMS_PER_PAGE, tableData.length)} of {tableData.length} accounts
+               Showing {paginatedData.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0} to {Math.min(currentPage * ITEMS_PER_PAGE, tableData.length)} of {tableData.length} active accounts
              </div>
              <div className="ACC_PAG_NAV">
                 <button 

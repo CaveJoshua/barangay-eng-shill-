@@ -13,7 +13,7 @@ import { createHandler } from 'graphql-http/lib/use/express';
 
 // Modular Imports
 import dataRoutes from './data.js';
-import { startPulse, handleShutdown } from './Regulator.js';
+import { startPulse, handleShutdown } from 'Captcha/Regulator.js';
 
 dotenv.config();
 

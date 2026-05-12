@@ -39,7 +39,6 @@ const normalizePayload = (val) => {
         fourPsIdNumber: val.fourPsIdNumber || val.four_ps_id_number,
         soloParentIdNumber: val.soloParentIdNumber || val.solo_parent_id_number,
         seniorIdNumber: val.seniorIdNumber || val.senior_id_number,
-        // 🛡️ Ensure Status is captured properly
         activityStatus: val.activityStatus || val.activity_status || 'Active' 
     };
 };
@@ -85,7 +84,7 @@ const residentSchema = z.preprocess(normalizePayload, z.object({
     fourPsIdNumber: phIdString(20),     
     soloParentIdNumber: phIdString(25), 
     seniorIdNumber: phIdString(20),
-    activityStatus: safeString // 🛡️ Status validation
+    activityStatus: safeString 
 }).passthrough());
 
 const validatePayload = (schema) => (req, res, next) => {
@@ -114,10 +113,9 @@ const verifyIntegrity = (record) => {
 // =========================================================
 // 🛡️ 4. STRICT AUTHORIZATION MIDDLEWARE
 // =========================================================
-// This strictly checks roles AFTER authentication has populated req.user
 const authorizeRoles = (allowedRoles) => {
     return (req, res, next) => {
-        const role = (req.user?.user_role || req.user?.role || '').toLowerCase();
+        const role = (req.user?.user_role || req.user?.role || '').toLowerCase().replace(/\s+/g, '');
         if (!allowedRoles.includes(role)) { 
             return res.status(403).json({ 
                 error: 'Forbidden', 
@@ -128,11 +126,14 @@ const authorizeRoles = (allowedRoles) => {
     };
 };
 
+// 🛡️ DEFINED DATA HANDLERS (Matches Frontend restrictions)
+const DATA_HANDLERS = ['superadmin', 'admin', 'barangaysecretary', 'secretary', 'barangayhall', 'bhw', 'barangayhealthworker'];
+
 export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
     
     // REBUILD LEDGER
     router.post('/residents/ledger/rebuild', 
-        [authenticateToken, authorizeRoles(['admin', 'superadmin', 'barangayhall'])], 
+        [authenticateToken, authorizeRoles(['superadmin', 'admin'])], 
         async (req, res) => {
             try {
                 const { data: all, error } = await supabase.from('residents_records').select('*');
@@ -146,9 +147,9 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
         }
     );
 
-    // GET: 🛡️ NO FILTERS (Sends all records so Archive and Residents pages route locally)
+    // GET: 👁️ VIEW ONLY (Globally accessible to logged-in officials)
     router.get('/residents', 
-        [authenticateToken, authorizeRoles(['admin', 'superadmin', 'staff', 'barangayhall'])], 
+        [authenticateToken], 
         async (req, res) => {
             try {
                 const { data, error } = await supabase.from('residents_records').select('*').order('last_name', { ascending: true });
@@ -158,9 +159,9 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
         }
     );
 
-    // POST: Create Resident + Account
+    // POST: 🛡️ CREATE RESIDENT (Locked to Data Handlers)
     router.post('/residents', 
-        [authenticateToken, authorizeRoles(['admin', 'superadmin', 'staff', 'barangayhall']), validatePayload(residentSchema)], 
+        [authenticateToken, authorizeRoles(DATA_HANDLERS), validatePayload(residentSchema)], 
         async (req, res) => {
             try {
                 const r = req.body;
@@ -203,7 +204,7 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                 if (pErr) throw pErr;
 
                 try {
-                    // 🎯 FORMAT: jcb981@residents
+                    // 🎯 CREATE ASSOCIATED ACCOUNT
                     const f = profile.first_name[0] || '';
                     const m = profile.middle_name ? profile.middle_name[0] : '';
                     const l = profile.last_name[0] || '';
@@ -226,15 +227,14 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
         }
     );
 
-    // PUT: UPDATE RESIDENT
+    // PUT: 🛡️ UPDATE RESIDENT & ACCOUNT STATUS (Locked to Data Handlers)
     router.put('/residents/:id', 
-        [authenticateToken, authorizeRoles(['admin', 'superadmin', 'staff', 'barangayhall']), validatePayload(residentSchema)], 
+        [authenticateToken, authorizeRoles(DATA_HANDLERS), validatePayload(residentSchema)], 
         async (req, res) => {
             try {
                 const r = req.body;
                 const newHash = generateGenesisHash(r.firstName, r.middleName, r.lastName, r.dob);
 
-                // 🛡️ THE FIX: Ensure activity_status is actively updated in the database
                 const updates = {
                     first_name: r.firstName,
                     middle_name: r.middleName,
@@ -266,24 +266,40 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                     four_ps_id_number: r.fourPsIdNumber || null,
                     solo_parent_id_number: r.soloParentIdNumber || null,
                     senior_id_number: r.seniorIdNumber || null,
-                    activity_status: r.activityStatus // 🛡️ Status correctly mapped and saved
+                    activity_status: r.activityStatus 
                 };
 
                 const { data, error } = await supabase.from('residents_records').update(updates).eq('record_id', req.params.id).select();
                 if (error) throw error;
                 
+                // 🛡️ THE GHOST PROTOCOL: Synchronize the Resident's Account Status
+                let accountStatus = 'Active';
+                if (['Deceased', 'Relocated', 'Archived', 'Inactive'].includes(r.activityStatus)) {
+                    accountStatus = 'Archived'; // Locks them out of the system
+                }
+                
+                await supabase.from('residents_account')
+                    .update({ status: accountStatus })
+                    .eq('resident_id', req.params.id);
+
                 logActivity(supabase, req.user.username, 'IDENTITY_REPLACED', req.params.id).catch(() => {});
                 res.json(data[0]);
             } catch (err) { res.status(500).json({ error: "Identity replacement failed." }); }
         }
     );
 
-    // DELETE: Quick Archive
+    // DELETE: 🛡️ ARCHIVE RECORD & DEACTIVATE ACCOUNT (Locked to Data Handlers)
     router.delete('/residents/:id', 
-        [authenticateToken, authorizeRoles(['admin', 'superadmin'])], 
+        [authenticateToken, authorizeRoles(DATA_HANDLERS)], 
         async (req, res) => {
             try {
+                // 1. Archive the Resident Record
                 await supabase.from('residents_records').update({ activity_status: 'Archived' }).eq('record_id', req.params.id);
+                
+                // 2. Archive & Lock the System Account
+                await supabase.from('residents_account').update({ status: 'Archived' }).eq('resident_id', req.params.id);
+                
+                logActivity(supabase, req.user.username, 'RESIDENT_ARCHIVED', req.params.id).catch(() => {});
                 res.json({ success: true });
             } catch (err) { res.status(500).json({ error: "Archiving failed." }); }
         }

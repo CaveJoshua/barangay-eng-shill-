@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import Document_view from '../../forms/Community_Document_view'; 
 import Community_Document_Request from '../../buttons/Community_Document_Request'; 
-import "./Styles/Community_Document.css";
-import "./Styles/Community_Document_mobile.css";
+import "./Styles/CommunityDocument.css";
+import "./Styles/CommunityDocumentmobile.css";
 
 interface DocumentProps {
   data: any[]; 

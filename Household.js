@@ -2,7 +2,7 @@ import { logActivity } from './Auditlog.js';
 
 /**
  * HOUSEHOLD ROUTER - ZERO TRUST ARCHITECTURE
- * Features: Atomic Member Transfers, Automated Audit Logs, and Secure Cookie RBAC.
+ * Features: Atomic Member Transfers, Automated Audit Logs, Secure Cookie RBAC, and Archive Vaulting.
  */
 
 // --- 🛡️ INTERNAL RBAC GUARD ---
@@ -27,6 +27,7 @@ export const HouseholdRouter = (router, supabase, authenticateToken) => {
         [authenticateToken, authorizeRoles(['admin', 'superadmin', 'staff', 'barangayhall'])], 
         async (req, res) => {
             try {
+                // Fetches all records (Active and Archived) so the frontend Ghost Protocol can filter them
                 const { data: households, error: hhError } = await supabase
                     .from('households')
                     .select('*')
@@ -52,7 +53,9 @@ export const HouseholdRouter = (router, supabase, authenticateToken) => {
                         address: hh.address || '',
                         membersCount: members.length,
                         is4Ps: members.some(m => m.is_4ps === true),
-                        isIndigent: false 
+                        isIndigent: false,
+                        status: hh.status || 'Active',
+                        is_archived: hh.is_archived || false
                     };
                 });
 
@@ -127,7 +130,7 @@ export const HouseholdRouter = (router, supabase, authenticateToken) => {
                 // Create House
                 const { data: newHH, error: hhError } = await supabase
                     .from('households')
-                    .insert([{ household_number: hh_num, head_id, zone, address }])
+                    .insert([{ household_number: hh_num, head_id, zone, address, status: 'Active', is_archived: false }])
                     .select().single();
 
                 if (hhError) throw hhError;
@@ -207,7 +210,42 @@ export const HouseholdRouter = (router, supabase, authenticateToken) => {
         }
     );
 
-    // 5. DELETE HOUSEHOLD (Safe Unlinking)
+    // 5. PATCH HOUSEHOLD 🛡️ (The Ghost Protocol Archive Endpoint)
+    router.patch('/households/:id', 
+        [authenticateToken, authorizeRoles(['admin', 'superadmin', 'staff', 'barangayhall'])], 
+        async (req, res) => {
+            try {
+                const { id } = req.params;
+                const { status, is_archived } = req.body;
+                const actor = req.user?.username || 'Admin';
+
+                // Safeguard: Free the residents so they aren't trapped in an archived household block
+                await supabase.from('residents_records')
+                    .update({ household_id: null, relationship_to_head: null })
+                    .eq('household_id', id);
+
+                // Update the household record to "Archived" status
+                const { error } = await supabase.from('households')
+                    .update({ 
+                        status: status || 'Archived', 
+                        is_archived: is_archived !== undefined ? is_archived : true, 
+                        updated_at: new Date() 
+                    })
+                    .eq('id', id);
+
+                if (error) throw error;
+
+                logActivity(supabase, actor, 'HOUSEHOLD_ARCHIVED', `Vault Sync: Household ID ${id} moved to the Archive.`)
+                    .catch(e => console.error("Audit Fail:", e.message));
+
+                res.status(200).json({ message: "Household successfully archived." });
+            } catch (err) {
+                res.status(500).json({ error: "Failed to archive household record." });
+            }
+        }
+    );
+
+    // 6. DELETE HOUSEHOLD (Hard Purge - Optional Superadmin Action)
     router.delete('/households/:id', 
         [authenticateToken, authorizeRoles(['admin', 'superadmin'])], 
         async (req, res) => {

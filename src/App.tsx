@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import AppRoutes from './AppRoutes';
-import { CaptchaModal } from './components/UI/Community_GUI/CaptchaModal';
+import { CaptchaModal } from 'Captcha/CaptchaModal';
 import './App.css';
 
 const App: React.FC = () => {

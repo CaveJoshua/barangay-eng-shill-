@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import './Styles/Community_Authentication.css';
 import { ApiService } from '../api';
 
 interface Props {

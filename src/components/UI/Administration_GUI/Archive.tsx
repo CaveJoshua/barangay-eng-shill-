@@ -30,7 +30,7 @@ export default function Archive() {
   const isMounted = useRef(true);
   const isFetching = useRef(false);
 
-  // --- 1. TARGETED HANDSHAKE (Only fetch what is needed) ---
+  // --- 1. TARGETED HANDSHAKE (Only fetch what is needed & filter terminal states) ---
   const fetchSpecificArchive = useCallback(async (tab: ArchiveTab, signal?: AbortSignal) => {
     if (isFetching.current) return;
     
@@ -45,6 +45,7 @@ export default function Archive() {
         case 'Documents':
           data = await ApiService.getDocuments(signal);
           if (data && isMounted.current) {
+            // 🛡️ Captures vanished documents
             setDocuments(data.filter((d: any) => {
               const stat = String(d.status || '').trim().toLowerCase();
               return ['completed', 'rejected', 'archived'].includes(stat);
@@ -54,6 +55,7 @@ export default function Archive() {
         case 'Blotter':
           data = await ApiService.getBlotters(signal);
           if (data && isMounted.current) {
+            // 🛡️ Captures vanished incident reports
             setBlotters(data.filter((b: any) => {
               const stat = String(b.status || '').trim().toLowerCase();
               return ['settled', 'archived', 'dismissed', 'rejected'].includes(stat);
@@ -63,7 +65,7 @@ export default function Archive() {
         case 'Residents':
           data = await ApiService.getResidents(signal);
           if (data && isMounted.current) {
-            // 🛡️ Bulletproof catch: Forces lowercase to ignore case-sensitivity mismatches
+            // 🛡️ Captures vanished resident identities
             setResidents(data.filter((r: any) => {
               const stat = String(r.status || r.activity_status || r.activityStatus || '').trim().toLowerCase();
               return ['archived', 'deceased', 'relocated', 'inactive'].includes(stat);
@@ -73,6 +75,7 @@ export default function Archive() {
         case 'Officials':
           data = await ApiService.getOfficials(signal);
           if (data && isMounted.current) {
+            // 🛡️ Captures former officials and expired terms
             setOfficials(data.filter((o: any) => {
               const stat = String(o.status || '').trim().toLowerCase();
               const isExpired = o.term_end && !isNaN(new Date(o.term_end).getTime()) && new Date(o.term_end) < now;
@@ -160,7 +163,9 @@ export default function Archive() {
 
       case 'Officials':
         return officials.filter(o => {
-          return (filterStatus === 'All' || filterStatus === 'Archived') &&
+          // Officials have complex terminal states (expired vs inactive)
+          const stat = String(o.status || '').trim().toLowerCase();
+          return (filterStatus === 'All' || stat === filterStatus.toLowerCase() || filterStatus === 'Archived') &&
             ((o.full_name || '').toLowerCase().includes(q) || (o.position || '').toLowerCase().includes(q));
         }).sort((a, b) => new Date(b.term_end || b.updated_at || 0).getTime() - new Date(a.term_end || a.updated_at || 0).getTime());
 
@@ -199,7 +204,7 @@ export default function Archive() {
       case 'Documents': return ['All', 'Completed', 'Rejected', 'Archived'];
       case 'Blotter': return ['All', 'Settled', 'Dismissed', 'Archived', 'Rejected'];
       case 'Residents': return ['All', 'Archived', 'Deceased', 'Relocated', 'Inactive'];
-      case 'Officials': return ['All', 'Archived']; 
+      case 'Officials': return ['All', 'Archived', 'Inactive', 'Resigned']; 
       case 'Households': return ['All', 'Archived', 'Inactive', 'Relocated'];
       case 'Announcements': return ['All', 'Archived'];
       default: return ['All'];
@@ -218,7 +223,7 @@ export default function Archive() {
            </div>
            <div className={`${styles.ARC_STAT_COL} ${styles.ARC_STAT_WIDE}`}>
               <div className={styles.ARC_STAT_TITLE}>ARCHIVE DIRECTORY</div>
-              <div className={styles.ARC_STAT_SUB}>Access permanently closed cases, former officials, and finalized records.</div>
+              <div className={styles.ARC_STAT_SUB}>Access permanently closed cases, deactivated accounts, and finalized records.</div>
            </div>
            <div className={styles.ARC_TOTAL_COL}>
               <div className={styles.ARC_BIG_NUMBER}>{filteredData.length}</div>
@@ -276,7 +281,9 @@ export default function Archive() {
                        if (activeTab === 'Announcements') currentStatus = 'ARCHIVED';
                        if (activeTab === 'Officials') {
                          const isExpired = item.term_end && !isNaN(new Date(item.term_end).getTime()) && new Date(item.term_end) < new Date();
-                         if (isExpired) currentStatus = 'END OF TERM';
+                         if (isExpired && currentStatus !== 'INACTIVE' && currentStatus !== 'RESIGNED') {
+                             currentStatus = 'END OF TERM';
+                         }
                        }
                        
                        const badgeClass = styles[`STATUS_${currentStatus.replace(/\s+/g, '_')}`] || styles.STATUS_DEFAULT;

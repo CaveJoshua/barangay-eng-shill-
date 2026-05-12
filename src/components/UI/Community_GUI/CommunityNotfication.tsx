@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { ApiService } from '../api'; // 🎯 THE FIX: Import ApiService for direct fetching
-import "./Styles/Community_Notification.css";
+import "./Styles/CommunityNotification.css";
 
 interface NotificationProps {
   notifications?: any[]; 

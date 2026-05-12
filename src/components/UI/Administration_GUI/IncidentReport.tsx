@@ -32,8 +32,8 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   
-  // 🛡️ DEFAULT TO 'ACTIVE' as it's the primary workflow for admins
-  const [activeTab, setActiveTab] = useState<'Pending' | 'Active' | 'Hearing' | 'Settled' | 'Rejected'>('Active');
+  // 🛡️ PIPELINE TABS: Exclusively Active States
+  const [activeTab, setActiveTab] = useState<'Pending' | 'Active' | 'Hearing'>('Active');
   
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -53,8 +53,6 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
 
   const isFetchingCases = useRef(false);
   const isMounted = useRef(true);
-  
-  // Ref to ensure we only process a notification jump once per ID
   const processedHighlightId = useRef<string | null>(null);
 
   const fetchCases = useCallback(async (silent = false, signal?: AbortSignal) => {
@@ -84,7 +82,6 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
 
           return {
             ...c,
-            // 🛡️ THE FIX: Added robust fallbacks for the ID mapping to prevent undefined 404s
             id: c.id || c.record_id || c.case_id || c.blotter_id || c.incident_id || caseNum || 'UNKNOWN_ID',
             case_number: caseNum || 'PENDING_REG',
             complainant_name: c.complainant_name || 'Unknown Complainant',
@@ -108,7 +105,7 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
     }
   }, []);
 
-  // 🛡️ THE TARGETING ENGINE: Locates hidden cases and forces them into view
+  // 🛡️ THE TARGETING ENGINE (With Archive Guard)
   useEffect(() => {
     if (highlightId && processedHighlightId.current !== highlightId && cases.length > 0) {
       const targetCase = cases.find(c => String(c.id) === String(highlightId) || c.case_number === highlightId);
@@ -116,7 +113,13 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
       if (targetCase) {
         processedHighlightId.current = highlightId; 
 
-        const validTabs = ['Pending', 'Active', 'Hearing', 'Settled', 'Rejected'];
+        // 🛡️ THE FIX: Ignore notifications for cases that have already been vanished
+        if (['Settled', 'Rejected', 'Archived'].includes(targetCase.status)) {
+            console.warn("Targeted case is already in the Archive Vault.");
+            return;
+        }
+
+        const validTabs = ['Pending', 'Active', 'Hearing'];
         if (validTabs.includes(targetCase.status)) {
           setActiveTab(targetCase.status as any);
         }
@@ -170,12 +173,14 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
   const stats = useMemo(() => ({
     pending: cases.filter(c => c.status === 'Pending').length,
     active: cases.filter(c => c.status === 'Active').length,
-    hearing: cases.filter(c => c.status === 'Hearing').length,
-    settled: cases.filter(c => c.status === 'Settled').length,
+    hearing: cases.filter(c => c.status === 'Hearing').length
   }), [cases]);
 
   const filteredCases = useMemo(() => {
     return cases.filter((c) => {
+      // 🛡️ THE GHOST PROTOCOL: Instantly drop terminal states to clear the pipeline
+      if (['Settled', 'Rejected', 'Archived'].includes(c.status)) return false;
+
       const matchSearch = `${c.case_number} ${c.complainant_name} ${c.respondent}`.toLowerCase().includes(searchTerm.toLowerCase());
       return matchSearch && c.status === activeTab;
     });
@@ -188,7 +193,6 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
   }, [filteredCases, currentPage]);
 
   const handleStatusUpdate = async (caseId: string, payloadUpdates: any) => {
-    // 🛡️ THE FIX: Guard clause to prevent network requests with undefined IDs
     if (!caseId || caseId === 'UNKNOWN_ID' || caseId === 'undefined') {
         alert("Registry Error: Missing valid Case ID. Cannot perform update.");
         return;
@@ -232,14 +236,14 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
         <header className="AD-BLOT_HEADER_FLEX">
           <div>
             <h1 className="AD-BLOT_PAGE_TITLE">Incident Reports</h1>
-            <p className="AD-BLOT_PAGE_SUB">Managing <strong>WK-INC</strong> (Walk-in) and <strong>ON-INC</strong> (Online) registries.</p>
+            <p className="AD-BLOT_PAGE_SUB">Managing active <strong>WK-INC</strong> (Walk-in) and <strong>ON-INC</strong> (Online) registries.</p>
           </div>
           <button className="AD-BLOT_ADD_BTN" onClick={() => { setSelectedCase(null); setIsModalOpen(true); }}>
             <i className="fas fa-file-signature"></i> File Walk-in Report
           </button>
         </header>
 
-        {/* ── KPI METRICS ── */}
+        {/* ── KPI METRICS (Active Only) ── */}
         <section className="AD-BLOT_STATS_GRID">
           <div className={`AD-BLOT_STAT_CARD AD-BLOT_CLICKABLE ${activeTab === 'Pending' ? 'AD-BLOT_ACTIVE_CARD' : ''}`} onClick={() => setActiveTab('Pending')}>
             <div className="AD-BLOT_STAT_INFO">
@@ -264,20 +268,12 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
             </div>
             <div className="AD-BLOT_STAT_ICON_WRAP AD-BLOT_ICON_BLUE"><i className="fas fa-gavel"></i></div>
           </div>
-
-          <div className={`AD-BLOT_STAT_CARD AD-BLOT_CLICKABLE ${activeTab === 'Settled' ? 'AD-BLOT_ACTIVE_CARD' : ''}`} onClick={() => setActiveTab('Settled')}>
-            <div className="AD-BLOT_STAT_INFO">
-              <span className="AD-BLOT_STAT_NUM">{stats.settled}</span>
-              <span className="AD-BLOT_STAT_LABEL">Closed Cases</span>
-            </div>
-            <div className="AD-BLOT_STAT_ICON_WRAP AD-BLOT_ICON_GREEN"><i className="fas fa-archive"></i></div>
-          </div>
         </section>
 
         {/* ── FILTER TOOLS ── */}
         <section className="AD-BLOT_SEARCH_ROW">
           <div className="AD-BLOT_TABS_ROW">
-            {(['Pending', 'Active', 'Hearing', 'Settled', 'Rejected'] as const).map(tab => (
+            {(['Pending', 'Active', 'Hearing'] as const).map(tab => (
               <button key={tab} className={`AD-BLOT_TAB_BTN ${activeTab === tab ? 'AD-BLOT_ACTIVE' : ''}`} onClick={() => setActiveTab(tab)}>
                 {tab}
               </button>
@@ -288,7 +284,7 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
              <i className="fas fa-search AD-BLOT_SEARCH_ICON"></i>
              <input
               className="AD-BLOT_SEARCH_INPUT"
-              placeholder="Search by name or case prefix (WK/ON)..."
+              placeholder="Search active cases or prefix (WK/ON)..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -316,7 +312,7 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
                 ) : error ? (
                   <tr><td colSpan={7} className="AD-BLOT_TABLE_EMPTY" style={{color: 'var(--AD-BLOT-clr-danger)'}}>{error}</td></tr>
                 ) : paginatedCases.length === 0 ? (
-                  <tr><td colSpan={7} className="AD-BLOT_TABLE_EMPTY" style={{ textAlign: 'center', padding: '4rem' }}>No records found in {activeTab.toUpperCase()} queue.</td></tr>
+                  <tr><td colSpan={7} className="AD-BLOT_TABLE_EMPTY" style={{ textAlign: 'center', padding: '4rem' }}>No active records found in {activeTab.toUpperCase()} queue.</td></tr>
                 ) : (
                   paginatedCases.map((c) => {
                     const isGlowing = activeHighlight === String(c.id) || activeHighlight === String(c.case_number);
@@ -375,15 +371,16 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
                                 </button>
                               )}
 
+                              {/* 🛡️ Explicitly marked as Archive actions */}
                               {c.status === 'Hearing' && (
                                 <button className="SUCCESS" onClick={() => { handleStatusUpdate(c.id, { status: 'Settled' }); setOpenDropdownId(null); }}>
-                                  <i className="fas fa-handshake"></i> Mark as Settled
+                                  <i className="fas fa-handshake"></i> Mark as Settled (Archive)
                                 </button>
                               )}
 
                               {(c.status === 'Pending' || c.status === 'Active') && (
                                 <button className="DANGER" onClick={() => { setRejectModal({ isOpen: true, caseId: c.id, reason: '' }); setOpenDropdownId(null); }}>
-                                  <i className="fas fa-trash-alt"></i> Deny Entry
+                                  <i className="fas fa-trash-alt"></i> Deny Entry (Archive)
                                 </button>
                               )}
                             </div>
@@ -399,7 +396,7 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
 
           <div className="AD-BLOT_PAGINATION_BAR">
             <div className="AD-BLOT_PAGINATION_INFO">
-              Viewing {paginatedCases.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredCases.length)} of {filteredCases.length} entries
+              Viewing {paginatedCases.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredCases.length)} of {filteredCases.length} active entries
             </div>
             <div className="AD-BLOT_NAV_GROUP">
               <button className="AD-BLOT_NAV_BTN" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}><i className="fas fa-chevron-left"></i> Previous</button>
@@ -443,7 +440,7 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
             <textarea rows={4} value={rejectModal.reason} placeholder="State why this report is being rejected..." onChange={e => setRejectModal(p => ({ ...p, reason: e.target.value }))} />
             <div className="AD-BLOT_MODAL_ACTIONS">
               <button className="AD-BLOT_PAGE_BTN" onClick={() => setRejectModal(p => ({ ...p, isOpen: false }))}>Cancel</button>
-              <button className="AD-BLOT_ADD_BTN" onClick={submitRejection} style={{ backgroundColor: 'var(--AD-BLOT-clr-danger)' }}>Reject & Remove</button>
+              <button className="AD-BLOT_ADD_BTN" onClick={submitRejection} style={{ backgroundColor: 'var(--AD-BLOT-clr-danger)' }}>Reject & Archive</button>
             </div>
           </div>
         </div>

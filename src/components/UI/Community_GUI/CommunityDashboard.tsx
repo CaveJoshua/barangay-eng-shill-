@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import "./Styles/Community_Dashboard.css";
-import "./Styles/Community_Bulletin_view.css"; 
+import "./Styles/CommunityDashboard.css";
+import "./Styles/CommunityIncident.css"; 
 import { useDashboardLogic } from './useDashboardLogic';
 
 // ── SUB-MODULES ──
@@ -13,7 +13,7 @@ import CommunityResetPasswordModal from '../../buttons/Community_Resetpassword_m
 // 🛡️ IMPORT PREVIEW COMPONENTS
 import Community_Preview from '../../forms/Community_preview';
 import type { NewsItem } from '../../forms/Community_preview';
-import { CaptchaModal } from './CaptchaModal';
+import { CaptchaModal } from 'Captcha/CaptchaModal';
 
 type DashboardView = 'Announcements' | 'Blotter' | 'Documents';
 

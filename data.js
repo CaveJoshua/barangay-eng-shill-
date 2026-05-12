@@ -17,19 +17,19 @@ import { uploadImage } from './cloud.js';
 // Modular Imports
 import { documentRouter } from './Document.js';
 import { AuditlogRouter, logActivity } from './Auditlog.js'; 
-import { RbacRouter } from './Rbac_acc.js'; 
+import { RbacRouter } from './Rbac.js'; 
 import { AccountManagementRouter } from './Account_Management.js';
-import { ResidentsRecordRouter } from './Residents_record.js'; 
+import { ResidentsRecordRouter } from './ResidentsRecord.js'; 
 import { OfficialsRouter } from './Officials.js'; 
 import { HouseholdRouter } from './Household.js';
-import { OfficialsLoginRouter } from './Officials_login.js';
-import { BlotterRouter } from './Blotter.js'; 
+import { OfficialsLoginRouter } from './OfficialsLogin.js';
+import { BlotterRouter } from './IncidentReport.js'; 
 import { ProfileRouter } from './Profile.js';
-import { ResidentsLoginRouter } from './Resident_login.js';
-import { NotificationRouter } from './notification.js'; 
-import { CaptchaRouter } from './captcha.js';
+import { ResidentsLoginRouter } from './ResidentLogin.js';
+import { NotificationRouter } from './Notification.js'; 
+import { CaptchaRouter } from 'Captcha/captcha.js';
 // 🛡️ SECURITY REGULATOR IMPORT
-import { createSecurityRegulator } from './Regulator.js';
+import { createSecurityRegulator } from 'Captcha/Regulator.js';
 
 dotenv.config();
 

@@ -32,8 +32,8 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
-  // Pipeline Tabs
-  const [activeTab, setActiveTab] = useState<'Pending' | 'Processing' | 'Ready' | 'History'>('Pending');
+  // Pipeline Tabs (🛡️ Removed 'History' - This is now an Active-Only Pipeline)
+  const [activeTab, setActiveTab] = useState<'Pending' | 'Processing' | 'Ready'>('Pending');
   const [searchTerm, setSearchTerm] = useState('');
   
   // Pagination
@@ -56,7 +56,7 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
 
   // ─── Glowing Highlight ───
   const [activeHighlight, setActiveHighlight] = useState<string | null>(null);
-  const processedHighlightId = useRef<string | null>(null); // Added this to prevent infinite highlight loops
+  const processedHighlightId = useRef<string | null>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -135,8 +135,7 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
     return () => { valve.abort(); clearInterval(interval); };
   }, [fetchRequests]);
 
-  // 🛡️ ── AUTO-SYNC HIGHLIGHTER ENGINE (UPDATED TO SAFE REACT PATTERN) ──
-  // Listens for an ID from the Dashboard, isolates it via search, and flashes the row.
+  // 🛡️ ── AUTO-SYNC HIGHLIGHTER ENGINE ──
   useEffect(() => {
     if (highlightId && processedHighlightId.current !== highlightId && requests.length > 0) {
       const targetDoc = requests.find(d => String(d.id) === String(highlightId) || d.referenceNo === highlightId);
@@ -144,25 +143,18 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
       if (targetDoc) {
         processedHighlightId.current = highlightId;
 
-        // 1. Switch to the correct tab automatically
+        // 🛡️ THE FIX: If the notification is for an archived doc, ignore the tab switch
         if (targetDoc.status === 'Completed' || targetDoc.status === 'Rejected') {
-          setActiveTab('History');
-        } else {
-          setActiveTab(targetDoc.status as any);
+          console.warn("Targeted document is already in the Archive Vault.");
+          return;
         }
 
-        // 2. Inject Search & Reset Pagination (so it isn't hidden on page 3)
+        setActiveTab(targetDoc.status as any);
         setSearchTerm(targetDoc.referenceNo);
         setCurrentPage(1);
 
-        // 3. Set the glowing state
         setActiveHighlight(String(targetDoc.id));
-
-        // 4. Remove the flash after 3 seconds
-        const timer = setTimeout(() => {
-          setActiveHighlight(null);
-        }, 3000);
-
+        const timer = setTimeout(() => { setActiveHighlight(null); }, 3000);
         return () => clearTimeout(timer);
       }
     }
@@ -175,17 +167,16 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
   // ── FILTERING LOGIC ──
   const filteredDocs = useMemo(() => {
     return requests.filter(doc => {
+      // 🛡️ THE GHOST PROTOCOL: Instantly banish Completed/Rejected to the Archive
+      if (['Completed', 'Rejected'].includes(doc.status)) return false;
+
       const searchMatch = 
         (doc.residentName || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
         (doc.referenceNo || '').toLowerCase().includes(searchTerm.toLowerCase());
 
       if (!searchMatch) return false;
 
-      if (activeTab === 'History') {
-        return doc.status === 'Completed' || doc.status === 'Rejected';
-      } else {
-        return doc.status === activeTab;
-      }
+      return doc.status === activeTab;
     });
   }, [requests, activeTab, searchTerm]);
 
@@ -225,7 +216,7 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
       <div className="DOC_TOP_BAR">
         <div className="DOC_TITLE_GROUP">
           <h1>Document Pipeline</h1>
-          <p>Process, review, and finalize resident clearances and certificates.</p>
+          <p>Process, review, and finalize active resident clearances and certificates.</p>
         </div>
         <button 
           className="DOC_MANUAL_CREATE_BTN" 
@@ -235,7 +226,7 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
         </button>
       </div>
 
-      {/* KPI STATS PANEL - NOW CLICKABLE */}
+      {/* KPI STATS PANEL */}
       <div className="DOC_STATS_GRID">
         {['Pending', 'Processing', 'Ready'].map(status => {
           const count = requests.filter(r => r.status === status).length;
@@ -261,7 +252,7 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
       {/* SEARCH & WORKFLOW TABS */}
       <div className="DOC_CONTROLS_BAR">
         <div className="DOC_TAB_GROUP">
-          {['Pending', 'Processing', 'Ready', 'History'].map(tab => (
+          {['Pending', 'Processing', 'Ready'].map(tab => (
             <button 
               key={tab} 
               className={`DOC_TAB_ITEM ${activeTab === tab ? 'ACTIVE' : ''}`} 
@@ -276,7 +267,7 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
           <i className="fas fa-search"></i>
           <input 
             type="text" 
-            placeholder="Search resident name or REF #..." 
+            placeholder="Search active resident or REF #..." 
             value={searchTerm} 
             onChange={e => setSearchTerm(e.target.value)} 
           />
@@ -294,22 +285,21 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
                 <th>DOCUMENT TYPE</th>
                 <th>DATE REQUESTED</th>
                 <th>PIPELINE STAGE</th>
-                {activeTab !== 'History' && <th style={{textAlign: 'right'}}>ACTION</th>}
+                <th style={{textAlign: 'right'}}>ACTION</th>
               </tr>
             </thead>
             <tbody>
               {loading && !requests.length ? (
-                <tr><td colSpan={activeTab === 'History' ? 5 : 6} className="MSG_ROW">Syncing records...</td></tr>
+                <tr><td colSpan={6} className="MSG_ROW">Syncing records...</td></tr>
               ) : error ? (
-                <tr><td colSpan={activeTab === 'History' ? 5 : 6} className="MSG_ROW ERROR">{error}</td></tr>
+                <tr><td colSpan={6} className="MSG_ROW ERROR">{error}</td></tr>
               ) : paginatedDocs.length === 0 ? (
-                <tr><td colSpan={activeTab === 'History' ? 5 : 6} className="MSG_ROW">No records found for this stage.</td></tr>
+                <tr><td colSpan={6} className="MSG_ROW">No active records found for this stage.</td></tr>
               ) : (
                 paginatedDocs.map(doc => {
                   const isGlowing = activeHighlight === doc.referenceNo || activeHighlight === String(doc.id);
 
                   return (
-                    // 🛡️ Applying the CSS Glow properly
                     <tr 
                       key={doc.id} 
                       id={`doc-row-${doc.id}`}
@@ -338,52 +328,49 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
                       <td><span className={`DOC_STATUS_PILL ${doc.status}`}>{doc.status}</span></td>
                       
                       {/* ACTION DROPDOWN */}
-                      {activeTab !== 'History' && (
-                        <td className="DOC_ACTION_CELL">
-                          <button 
-                            className="DOC_ACTION_MENU_BTN"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenDropdownId(openDropdownId === doc.id ? null : doc.id);
-                            }}
-                          >
-                            Manage <i className="fas fa-chevron-down"></i>
-                          </button>
+                      <td className="DOC_ACTION_CELL">
+                        <button 
+                          className="DOC_ACTION_MENU_BTN"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenDropdownId(openDropdownId === doc.id ? null : doc.id);
+                          }}
+                        >
+                          Manage <i className="fas fa-chevron-down"></i>
+                        </button>
 
-                          {/* SMART DROPDOWN MENU */}
-                          {openDropdownId === doc.id && (
-                            <div className="DOC_DROPDOWN_MENU" onClick={(e) => e.stopPropagation()}>
-                              <button onClick={() => { setSelectedDoc(doc); setIsViewModalOpen(true); setOpenDropdownId(null); }}>
-                                <i className="fas fa-search"></i> Review Details
+                        {openDropdownId === doc.id && (
+                          <div className="DOC_DROPDOWN_MENU" onClick={(e) => e.stopPropagation()}>
+                            <button onClick={() => { setSelectedDoc(doc); setIsViewModalOpen(true); setOpenDropdownId(null); }}>
+                              <i className="fas fa-search"></i> Review Details
+                            </button>
+
+                            {doc.status === 'Pending' && (
+                              <button className="PRIMARY" onClick={() => { handleStatusUpdate(doc.id, 'Processing'); setOpenDropdownId(null); }}>
+                                <i className="fas fa-check-circle"></i> Approve Request
                               </button>
+                            )}
 
-                              {doc.status === 'Pending' && (
-                                <button className="PRIMARY" onClick={() => { handleStatusUpdate(doc.id, 'Processing'); setOpenDropdownId(null); }}>
-                                  <i className="fas fa-check-circle"></i> Approve Request
-                                </button>
-                              )}
+                            {doc.status === 'Processing' && (
+                              <button className="SUCCESS" onClick={() => { handleStatusUpdate(doc.id, 'Ready'); setOpenDropdownId(null); }}>
+                                <i className="fas fa-print"></i> Mark as Ready
+                              </button>
+                            )}
 
-                              {doc.status === 'Processing' && (
-                                <button className="SUCCESS" onClick={() => { handleStatusUpdate(doc.id, 'Ready'); setOpenDropdownId(null); }}>
-                                  <i className="fas fa-print"></i> Mark as Ready
-                                </button>
-                              )}
+                            {doc.status === 'Ready' && (
+                              <button className="SUCCESS" onClick={() => { handleStatusUpdate(doc.id, 'Completed'); setOpenDropdownId(null); }}>
+                                <i className="fas fa-clipboard-check"></i> Mark Completed (Archive)
+                              </button>
+                            )}
 
-                              {doc.status === 'Ready' && (
-                                <button className="SUCCESS" onClick={() => { handleStatusUpdate(doc.id, 'Completed'); setOpenDropdownId(null); }}>
-                                  <i className="fas fa-clipboard-check"></i> Mark Completed
-                                </button>
-                              )}
-
-                              {(doc.status === 'Pending' || doc.status === 'Processing') && (
-                                <button className="DANGER" onClick={() => { setRejectModal({ isOpen: true, docId: doc.id, reason: '' }); setOpenDropdownId(null); }}>
-                                  <i className="fas fa-ban"></i> Reject Request
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                      )}
+                            {(doc.status === 'Pending' || doc.status === 'Processing') && (
+                              <button className="DANGER" onClick={() => { setRejectModal({ isOpen: true, docId: doc.id, reason: '' }); setOpenDropdownId(null); }}>
+                                <i className="fas fa-ban"></i> Reject Request (Archive)
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </td>
                     </tr>
                   )
                 })
@@ -395,7 +382,7 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
         {/* PAGINATION BAR */}
         <div className="DOC_PAGINATION_BAR">
           <div className="DOC_PAGINATION_INFO">
-            Showing {filteredDocs.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredDocs.length)} of {filteredDocs.length} entries
+            Showing {filteredDocs.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredDocs.length)} of {filteredDocs.length} active entries
           </div>
           <div className="DOC_NAV_GROUP">
             <button 
@@ -474,7 +461,7 @@ export default function DocumentsPage({ highlightId }: DocumentPageProps) {
                 className="DOC_ADD_BTN"
                 onClick={submitRejection} 
               >
-                <i className="fas fa-ban"></i> Confirm Reject
+                <i className="fas fa-ban"></i> Confirm Reject & Archive
               </button>
             </div>
           </div>
