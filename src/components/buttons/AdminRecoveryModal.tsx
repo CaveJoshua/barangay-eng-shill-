@@ -15,6 +15,9 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
   
+  // 🛡️ NEW: State to track if the user is using the Master Email fallback
+  const [useFallback, setUseFallback] = useState<boolean>(false);
+
   // UI State matching Login Modal
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -78,7 +81,7 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
     if (view === 'NEW_PASSWORD') setView('OTP_INPUT');
   };
 
-  // 1. Request OTP (Modified to allow calling from the Resend button)
+  // 1. Request OTP (Modified to pass fallback choice to backend)
   const handleRequestOtp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (lockoutRemaining > 0) return;
@@ -88,12 +91,18 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
     setMessage('');
 
     try {
-      const response = await ApiService.requestPasswordResetOTP(email);
+      // 🛡️ THE FIX: Pass `useFallback` to the API so the backend knows where to route the mail
+      const response = await ApiService.requestPasswordResetOTP(email, useFallback);
       if (!isMounted.current) return;
       
       if (response.success) {
         setView('OTP_INPUT');
-        setMessage(response.message || 'Security code sent! Please check your email.');
+        setMessage(
+          response.message || 
+          (useFallback 
+            ? 'Emergency code sent to Barangay Hall Master Email.' 
+            : 'Security code sent! Please check your email.')
+        );
       } else {
         throw new Error(response.error || 'Failed to send reset code.');
       }
@@ -190,7 +199,7 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
             <div className="LM_HEADER">
               <div className="LM_ICON"><i className="fas fa-envelope"></i></div>
               <h2>Account Recovery</h2>
-              <p>Enter your registered email or username.</p>
+              <p>Enter your registered username or email.</p>
             </div>
             
             {error && (
@@ -201,14 +210,12 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
             )}
             
             <div className="LM_INPUT_GROUP">
-              {/* 🛠️ CHANGED: Label updated to include Username */}
-              <label>Email Address or Username</label> 
+              <label>Account Identifier</label> 
               <div className="LM_INPUT_WRAPPER">
                 <i className="fas fa-at"></i>
-                {/* 🛠️ CHANGED: type="email" to type="text" so "barangayhall" doesn't fail browser validation */}
                 <input 
                   type="text" 
-                  placeholder="Email or Username" 
+                  placeholder="Username or Registered Email" 
                   value={email} 
                   onChange={(e) => setEmail(e.target.value)} 
                   disabled={isBlocked}
@@ -217,8 +224,48 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
               </div>
             </div>
 
-            <button className="LM_SUBMIT_BTN" disabled={isBlocked}>
-              {lockoutRemaining > 0 ? `Please Wait (${lockoutRemaining}s)` : loading ? <i className="fas fa-spinner fa-spin"></i> : 'Send Reset Link'}
+            {/* 🛡️ NEW: Recovery Method Selection */}
+            <div className="LM_INPUT_GROUP" style={{ marginTop: '1rem' }}>
+              <label style={{ marginBottom: '8px', display: 'block', fontSize: '0.85rem', color: '#64748b' }}>
+                Where should we send the verification code?
+              </label>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
+                  <input 
+                    type="radio" 
+                    name="recoveryMode" 
+                    checked={!useFallback} 
+                    onChange={() => setUseFallback(false)}
+                    disabled={isBlocked}
+                    style={{ accentColor: '#3b82f6', width: '16px', height: '16px' }}
+                  />
+                  <span>My Registered Email Address</span>
+                </label>
+                
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
+                  <input 
+                    type="radio" 
+                    name="recoveryMode" 
+                    checked={useFallback} 
+                    onChange={() => setUseFallback(true)}
+                    disabled={isBlocked}
+                    style={{ accentColor: '#d97706', width: '16px', height: '16px' }}
+                  />
+                  <span style={{ color: useFallback ? '#b45309' : 'inherit', fontWeight: useFallback ? '600' : 'normal' }}>
+                    Barangay Hall Master Email <small style={{ fontWeight: 'normal', color: '#94a3b8' }}>(Lost Access)</small>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <button className="LM_SUBMIT_BTN" disabled={isBlocked} style={useFallback ? { backgroundColor: '#d97706', color: 'white' } : {}}>
+              {lockoutRemaining > 0 
+                ? `Please Wait (${lockoutRemaining}s)` 
+                : loading 
+                  ? <i className="fas fa-spinner fa-spin"></i> 
+                  : useFallback ? 'Request Master Code' : 'Send Reset Link'
+              }
             </button>
             <button type="button" className="LM_FORGOT_LINK" onClick={onClose} disabled={isBlocked}>
               Back to Login
@@ -230,9 +277,17 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
         {view === 'OTP_INPUT' && (
           <form className="LM_FORM" onSubmit={handleVerifyOtp}>
             <div className="LM_HEADER">
-              <div className="LM_ICON"><i className="fas fa-key"></i></div>
+              <div className="LM_ICON" style={useFallback ? { color: '#d97706', backgroundColor: '#fef3c7' } : {}}><i className="fas fa-key"></i></div>
               <h2>Enter Security Code</h2>
-              {message && !error ? <p className="LM_SUCCESS_MSG_TEXT">{message}</p> : <p>Check your email for the 6-character code.</p>}
+              {message && !error ? (
+                <p className="LM_SUCCESS_MSG_TEXT">{message}</p>
+              ) : (
+                <p>
+                  {useFallback 
+                    ? "Contact the Super Admin for the code sent to the Master account." 
+                    : "Check your email for the 6-character code."}
+                </p>
+              )}
             </div>
             
             {error && (
@@ -252,6 +307,7 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
                 value={otp} 
                 onChange={(e) => setOtp(e.target.value)} 
                 disabled={isBlocked}
+                style={useFallback ? { borderColor: '#d97706', color: '#b45309' } : {}}
                 required 
               />
 
@@ -267,7 +323,7 @@ const AdminRecoveryModal: React.FC<AdminRecoveryModalProps> = ({ onClose }) => {
               </div>
             </div>
 
-            <button className="LM_SUBMIT_BTN" disabled={isBlocked}>
+            <button className="LM_SUBMIT_BTN" disabled={isBlocked} style={useFallback ? { backgroundColor: '#d97706', color: 'white' } : {}}>
               {lockoutRemaining > 0 ? `Locked (${lockoutRemaining}s)` : loading ? <i className="fas fa-spinner fa-spin"></i> : 'Verify Code'}
             </button>
           </form>

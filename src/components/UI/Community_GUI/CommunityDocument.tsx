@@ -94,24 +94,35 @@ const Community_Document: React.FC<DocumentProps> = ({
         ? 'Completed'
         : (item.status || 'Pending');
 
-      // 🎯 THE FIX: Bulletproof Price Extraction & Display Logic
+      // ═══════════════════════════════════════════════════════════════════════
+      // 🎯 PRICE DISPLAY (matches backend Document.js rule)
+      // ─────────────────────────────────────────────────────────────────────
+      //   "To be assessed"  →  ONLY when status is Pending AND price is 0.
+      //   Everything else   →  show the actual peso amount, including ₱0.00
+      //                        (e.g. a Completed Indigency).
+      //
+      //   ❌ OLD BUG: when status was non-pending and price was 0, this block
+      //   fell through to "To be assessed" — wiping out the backend's ₱0.00
+      //   for Completed Indigency requests.
+      // ═══════════════════════════════════════════════════════════════════════
       const rawStatusStr = String(item.status || 'Pending').toLowerCase();
       const isPendingPhase = ['pending', 'new'].includes(rawStatusStr);
-      
-      // Safely strip any letters or currency symbols out so we get a pure number
-      const cleanPriceStr = String(item.price || item.fee || 0).replace(/[^0-9.]/g, '');
-      const numericPrice = parseFloat(cleanPriceStr);
 
-      let finalPriceDisplay = 'To be assessed';
-      
-      // If the hook already sent a perfectly formatted string, trust it
-      if (item.priceDisplay && item.priceDisplay !== 'To be assessed') {
-          finalPriceDisplay = item.priceDisplay;
+      const cleanPriceStr = String(item.price || item.fee || 0).replace(/[^0-9.]/g, '');
+      const parsed = parseFloat(cleanPriceStr);
+      const numericPrice = isNaN(parsed) ? 0 : parsed;
+
+      let finalPriceDisplay: string;
+
+      // 1. If the dashboard hook already produced a clean ₱-prefixed string, trust it.
+      if (typeof item.priceDisplay === 'string' && item.priceDisplay.startsWith('₱')) {
+        finalPriceDisplay = item.priceDisplay;
+      }
+      // 2. Otherwise, compute from status + price using the SAME rule everywhere.
+      else if (isPendingPhase && numericPrice === 0) {
+        finalPriceDisplay = 'To be assessed';
       } else {
-          // If not, calculate it based on status and actual numeric value
-          if (!isPendingPhase) {
-              finalPriceDisplay = !isNaN(numericPrice) && numericPrice > 0 ? `₱${numericPrice.toFixed(2)}` : 'To be assessed';
-          }
+        finalPriceDisplay = `₱${numericPrice.toFixed(2)}`;
       }
 
       return {
@@ -125,7 +136,7 @@ const Community_Document: React.FC<DocumentProps> = ({
         isWalkIn,
         requestMethod: isWalkIn ? 'Walk-in' : 'Online',
         purpose: item.purpose || 'No details provided',
-        priceDisplay: finalPriceDisplay, // 🎯 Assigned the fixed price string here
+        priceDisplay: finalPriceDisplay,
         rejectionReason: rawReason.trim() !== '' ? rawReason : null
       };
     });
@@ -264,7 +275,7 @@ const Community_Document: React.FC<DocumentProps> = ({
               
               <div className="CM_DOC_INFO_GROUP">
                 <label>Document Fee</label>
-                <p style={{ color: selectedDoc.priceDisplay.includes('assess') ? '#f59e0b' : '#10b981', fontWeight: 800 }}>
+                <p style={{ color: selectedDoc.priceDisplay.toLowerCase().includes('assess') ? '#f59e0b' : '#10b981', fontWeight: 800 }}>
                   {selectedDoc.priceDisplay}
                 </p>
               </div>

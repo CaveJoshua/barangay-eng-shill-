@@ -11,14 +11,11 @@ const checkSessionRole = (allowedRoles) => {
         const userRole = (req.user?.user_role || req.user?.role || '').toLowerCase().trim();
         
         if (!userRole || !allowedRoles.includes(userRole)) {
-            console.log(`[RBAC REJECTED] Attempted Role="${userRole}", Path=${req.path}`);
             return res.status(403).json({ 
                 error: 'Forbidden', 
                 message: `Security Policy Violation: Requires [${allowedRoles.join(', ')}].` 
             });
         }
-        
-        req.validatedRole = userRole;
         next();
     };
 };
@@ -39,13 +36,14 @@ const getRolePrefix = (position) => {
     return 'staff';
 };
 
-// 🔧 NEW: Helper to extract lowercase initials from a full name
 const getInitials = (fullName) => {
     if (!fullName) return 'x';
+    // Removes special characters like ' from "Engineer's" to keep initials clean
     return fullName
         .trim()
-        .split(/\s+/) // Splits by spaces
-        .map(word => word.charAt(0)) // Grabs the first letter of each word
+        .replace(/[^a-zA-Z\s]/g, '') 
+        .split(/\s+/)
+        .map(word => word.charAt(0))
         .join('')
         .toLowerCase();
 };
@@ -81,13 +79,7 @@ export const OfficialsRouter = (router, supabase, authenticateToken) => {
     router.post('/officials/request-otp', authenticateToken, checkSessionRole(['barangayhall', 'admin', 'superadmin']), async (req, res) => {
         try {
             const { email } = req.body;
-            if (!email || !email.includes('@')) return res.status(400).json({ error: "Valid Gmail is required for Master Account verification." });
-
-            for (const [key, value] of masterOtpStore.entries()) {
-                if (value.email === email.toLowerCase().trim()) {
-                    masterOtpStore.delete(key);
-                }
-            }
+            if (!email || !email.includes('@')) return res.status(400).json({ error: "Valid Gmail required." });
 
             const otpCode = generateSecureCode(6);
             const traceId = crypto.randomUUID();
@@ -95,65 +87,60 @@ export const OfficialsRouter = (router, supabase, authenticateToken) => {
             masterOtpStore.set(traceId, {
                 code: otpCode,
                 email: email.toLowerCase().trim(),
-                expires: Date.now() + 300000,
+                expires: Date.now() + 300000, // 5 mins
                 attempts: 0
             });
 
             const emailBody = `
                 <div style="font-family: sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
                     <h2 style="color: #2563eb;">Master Authorization Code</h2>
-                    <p>Use the code below to authorize <b>${email}</b> as the Barangay Hall Master Account.</p>
+                    <p>Use the code below to authorize the Barangay Hall Master Account.</p>
                     <h1 style="background: #f8fafc; padding: 15px; text-align: center; letter-spacing: 5px; color: #d97706;">${otpCode}</h1>
-                    <p style="color: #64748b; font-size: 12px;">This code expires in exactly 5 minutes. Trace ID: ${traceId}</p>
+                    <p style="color: #64748b; font-size: 12px;">Trace ID: ${traceId}</p>
                 </div>
             `;
 
-            const sent = await sendAutoMail(email, "🔒 Master Account Verification", "SECURITY SYSTEM", emailBody);
+            await sendAutoMail(email, "🔒 Master Account Verification", "SECURITY SYSTEM", emailBody);
             
-            if (!sent) {
-                console.warn(`⚠️ [MAILER_FAILURE]: Could not send to ${email}. Check your connection.`);
-                console.log(`✅ [DEVELOPER_BYPASS]: YOUR VERIFICATION CODE IS: ${otpCode}`);
-            }
-
-            res.status(200).json({ 
-                success: true, 
-                trace_id: traceId,
-                message: sent ? "Code sent to Gmail." : "System Handshake Active. Check server console for code." 
-            });
+            res.status(200).json({ success: true, trace_id: traceId });
         } catch (err) {
-            res.status(500).json({ error: "Logical handshake failure." });
+            res.status(500).json({ error: "Handshake failure." });
         }
     });
 
     // --- 👔 ADD OFFICIAL & AUTHORIZE ---
     router.post('/officials', authenticateToken, checkSessionRole(['barangayhall', 'admin', 'superadmin']), async (req, res) => {
         try {
-            const { full_name, position, term_start, term_end, status, contact_number, otp, trace_id } = req.body;
-            const isBarangayHall = position === 'Barangay Hall' || position === 'Super Admin';
+            // 🛡️ THE FIX: Destructure 'email' separately from 'full_name'
+            const { full_name, position, term_start, term_end, status, contact_number, otp, trace_id, email } = req.body;
+            const isBarangayHall = position === 'Barangay Hall';
 
             if (isBarangayHall) {
-                if (!otp || !trace_id) return res.status(400).json({ error: 'Verification code required for Master Account.' });
+                if (!otp || !trace_id || !email) return res.status(400).json({ error: 'Verification data missing.' });
 
                 const record = masterOtpStore.get(trace_id);
-                if (!record || record.email !== full_name.toLowerCase().trim()) {
-                    return res.status(403).json({ error: 'Invalid or missing handshake session.' });
+                
+                // 🛡️ THE FIX: Check OTP against the 'email' field, not 'full_name'
+                if (!record || record.email !== email.toLowerCase().trim()) {
+                    return res.status(403).json({ error: 'Invalid security handshake.' });
                 }
                 if (Date.now() > record.expires) {
                     masterOtpStore.delete(trace_id);
-                    return res.status(400).json({ error: 'Verification code expired.' });
+                    return res.status(400).json({ error: 'Code expired.' });
                 }
                 if (record.code !== otp.toUpperCase().trim()) {
                     record.attempts += 1;
                     if (record.attempts >= 3) masterOtpStore.delete(trace_id);
-                    return res.status(401).json({ error: 'Invalid verification code.' });
+                    return res.status(401).json({ error: 'Invalid code.' });
                 }
                 masterOtpStore.delete(trace_id);
             }
 
+            // Create Official Profile
             const { data: profile, error: profileError } = await supabase
                 .from('officials')
                 .insert([{
-                    full_name,
+                    full_name, // Saves as "Barangay Engineer's Hill" for Hall mode
                     position,
                     term_start: isBarangayHall ? null : (term_start || null),
                     term_end: isBarangayHall ? null : (term_end || null), 
@@ -164,26 +151,23 @@ export const OfficialsRouter = (router, supabase, authenticateToken) => {
 
             if (profileError) throw profileError;
 
-            // 🔧 UPDATED: Dynamic Initials-based Username Generation
-            const prefix = getRolePrefix(position); // e.g., 'pb', 'bk'
-            const initials = getInitials(full_name); // e.g., 'fma'
+            // Generate Credentials
+            const prefix = getRolePrefix(position); 
+            const initials = getInitials(full_name); // Results in 'beh' for "Barangay Engineer's Hill"
             
             const { count } = await supabase.from('officials_accounts').select('*', { count: 'exact', head: true });
-            
-            // Format: fma002
             const generatedId = `${initials}${String((count || 0) + 1).padStart(3, '0')}`; 
-            
-            // Format: fma002@pb.officials.eng-hill.brg.ph
             const finalUsername = `${generatedId}@${prefix}.officials.eng-hill.brg.ph`; 
             
             let plainPassword = "";
-            let systemRole = isBarangayHall ? 'barangayhall' : (position.toLowerCase().includes('punong') ? 'barangayhall' : 'admin');
+            // Super Admin and Punong Barangay get 'superadmin' role
+            let systemRole = (isBarangayHall || position.toLowerCase().includes('punong')) ? 'superadmin' : 'admin';
 
             if (isBarangayHall) {
-                plainPassword = `${generatedId}123456`;
+                plainPassword = `${generatedId}123456`; // beh001123456
             } else {
-                const nameParts = profile.full_name.trim().split(/\s+/);
-                plainPassword = `${nameParts[0].toLowerCase()}123456`; // Still uses first name for password (e.g., felizardo123456)
+                const firstName = full_name.trim().split(/\s+/)[0].toLowerCase();
+                plainPassword = `${firstName}123456`;
             }
 
             const { error: accountError } = await supabase
@@ -200,15 +184,16 @@ export const OfficialsRouter = (router, supabase, authenticateToken) => {
 
             await logActivity(supabase, req.user?.username || 'System', 'AUTHORIZE_OFFICIAL', `Granted ${position} access to ${full_name}`);
 
+            // Send Credentials if it's the Master Account
             if (isBarangayHall) {
                 const welcomeMsg = `
-                    <h2>Welcome to the System Portal</h2>
-                    <p>Your Barangay Hall account has been authorized.</p>
+                    <h2>System Authorized</h2>
+                    <p><b>Account:</b> ${full_name}</p>
                     <p><b>Username:</b> ${finalUsername}</p>
                     <p><b>Password:</b> ${plainPassword}</p>
-                    <p style="color: red;">Log in immediately and update your password.</p>
+                    <p style="color: red;">Update password upon first login.</p>
                 `;
-                await sendAutoMail(full_name, "🔒 System Authorized: Barangay Hall Credentials", "PORTAL AUTH", welcomeMsg);
+                await sendAutoMail(email, "🔒 System Credentials: Barangay Hall", "PORTAL AUTH", welcomeMsg);
             }
 
             res.status(201).json({ 
@@ -240,7 +225,7 @@ export const OfficialsRouter = (router, supabase, authenticateToken) => {
             const { id } = req.params; 
             const { data: official } = await supabase.from('officials').select('position').eq('id', id).single();
             
-            if (official?.position === 'Barangay Hall' || official?.position === 'Super Admin') {
+            if (official?.position === 'Barangay Hall') {
                 return res.status(403).json({ error: 'System Lock: Master account cannot be archived.' });
             }
             

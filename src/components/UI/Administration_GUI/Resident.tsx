@@ -45,8 +45,14 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
   const [blueHighlight, setBlueHighlight] = useState<string | null>(null); 
   const processedHighlightId = useRef<string | null>(null);
 
+  // 🔒 FIX: Ref to track live importProgress inside interval without stale closure
+  const importProgressRef = useRef<number | null>(null);
+  useEffect(() => {
+    importProgressRef.current = importProgress;
+  }, [importProgress]);
+
   // ==========================================================
-  // 🛡️ DYNAMIC PERMISSION CHECK (RBAC)
+  // 🛡️ DYNAMIC PERMISSION CHECK (RBAC) - UPDATED
   // ==========================================================
   useEffect(() => {
     try {
@@ -62,8 +68,6 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
         role = (localStorage.getItem('user_role') || '').toLowerCase().replace(/\s+/g, '');
       }
 
-      const activeRole = pos || role;
-      
       // Strict Whitelist for Data Handlers
       const allowedRoles = [
         'superadmin', 
@@ -71,10 +75,15 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
         'secretary', 
         'barangayhall', 
         'bhw', 
-        'barangayhealthworker'
+        'barangayhealthworker',
+        'punongbarangay' // Added to cover specific positions
       ];
 
-      setCanManageData(allowedRoles.includes(activeRole));
+      // Check both role and position to ensure one doesn't accidentally lock out the other
+      const hasAllowedRole = allowedRoles.includes(role);
+      const hasAllowedPosition = allowedRoles.includes(pos);
+
+      setCanManageData(hasAllowedRole || hasAllowedPosition);
     } catch (err) {
       setCanManageData(false);
     }
@@ -147,7 +156,12 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
     fetchResidents(false, valve.signal);
 
     const autoLoader = setInterval(() => {
-      if (document.visibilityState === 'visible') fetchResidents(true, valve.signal);
+      // 🔒 FIX: Do NOT fire auto-refresh while a CSV import is in progress.
+      // Doing so risks sending a competing request that could confuse
+      // the backend or trigger abort signals mid-upload.
+      if (document.visibilityState === 'visible' && importProgressRef.current === null) {
+        fetchResidents(true, valve.signal);
+      }
     }, 300000); 
     
     return () => {
@@ -430,7 +444,9 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
                 <>
                   <button
                     className="RES_BTN_ALT BTN_IMPORT"
-                    disabled={importProgress !== null}
+                    // 🔒 FIX: Also disabled while isSyncing to prevent a double-trigger
+                    // race where importProgress is still null but a sync is already running.
+                    disabled={importProgress !== null || isSyncing}
                     onClick={() => fileInputRef.current?.click()}
                   >
                     <i className="fas fa-file-import"></i>

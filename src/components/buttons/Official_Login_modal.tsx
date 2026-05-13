@@ -13,7 +13,7 @@ export interface AuthResponse {
   role: string;
   account_id: string;
   profile: any;
-  // ❌ access_token is intentionally removed here for security
+  access_token?: string; // 🛠️ RESTORED: Now expecting the token from the backend
 }
 
 type PageView = 'LOGIN' | 'ROOT_OTP';
@@ -138,12 +138,19 @@ const OfficialLogin: React.FC = () => {
           sessionStorage.setItem('trace_id', traceId);
         }
 
+        // 🛠️ RESTORED: Save the access token so GraphQL can use it
+        if (data.access_token) {
+          localStorage.setItem('access_token', data.access_token);
+          localStorage.setItem('token', data.access_token); // Fallback copy to ensure it is caught
+        }
+
         // ✅ Save admin session for restoration & route guards
         const userData = {
           username: data.username,
           role: data.role,
           profile: data.profile,
           account_id: data.account_id,
+          access_token: data.access_token, // Added here just in case your API reads from the session object
         };
 
         localStorage.setItem('admin_session', JSON.stringify(userData));

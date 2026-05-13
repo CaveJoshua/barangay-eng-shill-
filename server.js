@@ -12,8 +12,8 @@ import { buildSchema } from 'graphql';
 import { createHandler } from 'graphql-http/lib/use/express';
 
 // Modular Imports
-import dataRoutes from './data.js';
-import { startPulse, handleShutdown } from 'Captcha/Regulator.js';
+import dataRoutes from './Data.js';
+import { startPulse, handleShutdown } from './src/components/Captcha/Regulator.js';
 
 dotenv.config();
 

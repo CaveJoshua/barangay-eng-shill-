@@ -27,9 +27,9 @@ import { BlotterRouter } from './IncidentReport.js';
 import { ProfileRouter } from './Profile.js';
 import { ResidentsLoginRouter } from './ResidentLogin.js';
 import { NotificationRouter } from './Notification.js'; 
-import { CaptchaRouter } from 'Captcha/captcha.js';
+import { CaptchaRouter } from './src/components/Captcha/captcha.js';
 // 🛡️ SECURITY REGULATOR IMPORT
-import { createSecurityRegulator } from 'Captcha/Regulator.js';
+import { createSecurityRegulator } from './src/components/Captcha/Regulator.js';
 
 dotenv.config();
 

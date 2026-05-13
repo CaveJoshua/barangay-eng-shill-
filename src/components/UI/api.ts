@@ -315,8 +315,8 @@ export const ApiService = {
     triggerAction(`${API_BASE_URL}/auth/root-request`, 'POST', { username: 'SYSTEM_ROOT_ADMIN' }, signal),
 
   // ── OTP / PASSWORD RESET ────────────────────────────────────────────────────
-  requestPasswordResetOTP: (email: string) =>
-    triggerAction(AUTH_REQUEST_OTP, 'POST', { email }),
+  requestPasswordResetOTP: (email: string, useFallback: boolean = false) =>
+    triggerAction(AUTH_REQUEST_OTP, 'POST', { email, useFallback }),
 
   verifyOTP: (email: string, otp: string) =>
     triggerAction(AUTH_VERIFY_OTP, 'POST', { email, otp }),
@@ -326,14 +326,12 @@ export const ApiService = {
 
   // ── IDENTITY & PROFILE (OPTIMIZED) ──────────────────────────────────────────
   getProfile: (id: string, signal?: AbortSignal, forceSync = false) => {
-    // If a fetch is already running for this user, hijack it instead of creating a new one
     if (!forceSync && profileFetchMutex && lastProfileId === id) {
       return profileFetchMutex;
     }
     
     lastProfileId = id;
     profileFetchMutex = valveFetch(`${PROFILE_API}/${id}`, signal).finally(() => {
-      // Clear the mutex lock after 1.5 seconds so manual refreshes work normally later
       setTimeout(() => { profileFetchMutex = null; }, 1500);
     });
     
@@ -405,12 +403,47 @@ export const ApiService = {
   getAnnouncements: (signal?: AbortSignal) =>
     valveFetch(ANNOUNCEMENT_API, signal),
 
-  saveAnnouncement: (id: string | null, payload: any) =>
-    triggerAction(
-      id ? `${ANNOUNCEMENT_API}/${id}` : ANNOUNCEMENT_API,
-      id ? 'PUT' : 'POST',
-      payload,
-    ),
+  // 🛡️ THE FIX: Custom Fetch for saveAnnouncement to bypass the 15s timeout
+  saveAnnouncement: async (id: string | null, payload: any) => {
+    try {
+      const url = id ? `${ANNOUNCEMENT_API}/${id}` : ANNOUNCEMENT_API;
+      const method = id ? 'PUT' : 'POST';
+
+      // We create a specific AbortController just for this heavy request
+      // and give it a generous 60-second breathing room for Cloudinary uploads.
+      const uploadController = new AbortController();
+      const uploadTimeout = setTimeout(() => uploadController.abort(), 60_000);
+
+      const response = await fetch(failover.resolve(url), {
+        method,
+        headers: getAuthHeaders(false, method),
+        credentials: 'include',
+        body: JSON.stringify(payload),
+        signal: uploadController.signal
+      });
+
+      clearTimeout(uploadTimeout);
+
+      // Security fallback to handle unauthorized/captcha states properly
+      if (response.status === 401 || response.status === 403 || response.status === 428) {
+          return triggerAction(url, method, payload); 
+      }
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { success: false, error: data?.error || `Request failed with status ${response.status}` };
+      }
+
+      return { success: true, data };
+
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        return { success: false, error: 'Upload timed out. Please try a smaller image.' };
+      }
+      return { success: false, error: err.message };
+    }
+  },
 
   deleteAnnouncement: (id: string) =>
     triggerAction(`${ANNOUNCEMENT_API}/${id}`, 'DELETE'),

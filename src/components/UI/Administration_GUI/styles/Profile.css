@@ -131,7 +131,6 @@
   transition: border-color 0.3s ease;
 }
 
-/* FIX: Was hardcoded #eff6ff / #3b82f6 — invisible in dark mode */
 .PF_AVATAR_PLACEHOLDER {
   width: 100%;
   height: 100%;
@@ -249,8 +248,6 @@
   padding: 0;
 }
 
-/* FIX: Preview card — was present in CSS but never rendered in JSX.
-        JSX now includes the mock window markup so this actually shows. */
 .PF_THEME_PREVIEW {
   width: 100%;
   aspect-ratio: 16 / 10;
@@ -321,7 +318,7 @@
 .PF_MOCK_LINE:nth-child(2) { width: 85%; }
 .PF_MOCK_LINE:nth-child(3) { width: 70%; }
 
-/* Mock window — dark variant (used by the dark-mode preview card) */
+/* Mock window — dark variant */
 .DARK_WINDOW {
   background: #1e293b;
   border-color: #334155;
@@ -353,7 +350,6 @@
   transition: border-color 0.3s ease;
 }
 
-/* FIX: Added transitions and hover states — buttons were flat/unresponsive */
 .PF_BTN_EDIT {
   background-color: var(--TEXT-main);
   color: var(--L-bg);
@@ -405,7 +401,151 @@
 .PF_BTN_CANCEL:active                { transform: scale(0.98); }
 .PF_BTN_CANCEL:disabled              { opacity: 0.45; cursor: not-allowed; }
 
-/* ── 10. RESPONSIVE ──────────────────────────────────────── */
+/* ── 10. SECURITY MODAL (DARK MODE SUPPORTED) ────────────── */
+.PF_MODAL_OVERLAY {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.PF_MODAL_BOX {
+  background-color: var(--L-bg);
+  padding: 32px;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  margin: 0 20px;
+  border: 1px solid var(--L-border);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.PF_MODAL_TITLE {
+  margin: 0 0 8px 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--TEXT-main);
+  transition: color 0.3s ease;
+}
+
+.PF_MODAL_DESC {
+  font-size: 13px;
+  color: var(--TEXT-sub);
+  margin-bottom: 24px;
+  line-height: 1.5;
+  transition: color 0.3s ease;
+}
+
+.PF_MODAL_ERROR {
+  background: #fee2e2;
+  color: #b91c1c;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 20px;
+  border: 1px solid #fecaca;
+}
+
+[data-theme="dark"] .PF_MODAL_ERROR {
+  background-color: #450a0a;
+  color: #f87171;
+  border-color: #7f1d1d;
+}
+
+.PF_MODAL_FORM {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.PF_MODAL_HEADER_ROW {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+
+.PF_MODAL_LABEL {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--TEXT-sub);
+  margin-bottom: 6px;
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  transition: color 0.3s ease;
+}
+
+.PF_MODAL_INPUT_WRAP {
+  position: relative;
+}
+
+.PF_MODAL_INPUT_WRAP input {
+  width: 100%;
+  padding-right: 40px;
+  box-sizing: border-box;
+}
+
+.PF_MODAL_EYE_BTN {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: var(--TEXT-sub);
+  background: none;
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+}
+
+.PF_MODAL_EYE_BTN:hover {
+  color: var(--TEXT-main);
+}
+
+.PF_MODAL_FORGOT_LINK {
+  background: none;
+  border: none;
+  color: var(--color-brand);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.2s ease;
+}
+
+.PF_MODAL_FORGOT_LINK:hover {
+  text-decoration: underline;
+  filter: brightness(1.2);
+}
+
+.PF_MODAL_ACTIONS_ROW {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--L-border);
+  transition: border-color 0.3s ease;
+}
+
+.PF_OTP_INPUT_OVERRIDE {
+  letter-spacing: 4px;
+  text-align: center;
+  font-weight: bold;
+}
+
+/* ── 11. RESPONSIVE ──────────────────────────────────────── */
 @media (max-width: 768px) {
   .PF_WIDE_CONTAINER { padding: 2rem 15px 4rem 15px; gap: 1.5rem; }
   .PF_PAGE_HEADER h1 { font-size: 1.75rem; }

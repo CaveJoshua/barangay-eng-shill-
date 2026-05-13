@@ -1,21 +1,51 @@
 /**
  * ANNOUNCEMENT ROUTER MODULE
- * Updated: Handles image processing via backend to avoid frontend CORS/Preset errors.
+ * Updated: Features a Backend Image Compression Engine to lower resolution,
+ * maintain high quality, and drastically reduce file size before Cloudinary upload.
  */
 
 import { uploadImage } from './cloud.js'; 
+import sharp from 'sharp';
+
+// ==========================================
+// 🛡️ BACKEND IMAGE COMPRESSION ENGINE
+// Resizes to max 1280px and applies 80% JPEG compression
+// ==========================================
+const optimizeBase64Image = async (base64Str) => {
+    try {
+        // Extract the raw base64 payload from the Data URL
+        const matches = base64Str.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        if (!matches || matches.length !== 3) return base64Str; 
+
+        const buffer = Buffer.from(matches[2], 'base64');
+
+        // Process with Sharp: Resize and compress
+        const compressedBuffer = await sharp(buffer)
+            .resize({ 
+                width: 1280, 
+                height: 1280, 
+                fit: 'inside', // Keeps aspect ratio, scales down if larger
+                withoutEnlargement: true // Never scales up small images
+            })
+            .jpeg({ quality: 80, progressive: true }) // 80% quality is visually lossless but tiny file size
+            .toBuffer();
+
+        // Reconstruct the Base64 string for Cloudinary
+        return `data:image/jpeg;base64,${compressedBuffer.toString('base64')}`;
+    } catch (error) {
+        console.error("[IMAGE_OPTIMIZATION_ERROR]", error.message);
+        return base64Str; // Fallback to original payload if compression fails
+    }
+};
 
 export const AnnouncementRouter = (router, supabase) => {
 
     // ==========================================
-    // 1. GET ALL ANNOUNCEMENTS (UPDATED: Filters Expired)
+    // 1. GET ALL ANNOUNCEMENTS
     // ==========================================
     router.get('/announcements', async (req, res) => {
         try {
-            // Get today's exact date and time in ISO format
             const today = new Date().toISOString();
-
-            // Check if the frontend is specifically asking for 'all' (Admin mode)
             const isAdmin = req.query.admin === 'true';
 
             let query = supabase
@@ -24,11 +54,11 @@ export const AnnouncementRouter = (router, supabase) => {
                 .order('priority', { ascending: false }) 
                 .order('created_at', { ascending: false });
 
-            // If it's NOT the admin dashboard, filter out expired and inactive ones
+            // Filter out expired and inactive for regular users
             if (!isAdmin) {
                 query = query
-                    .eq('status', 'Active')    // Only get Active status
-                    .gte('expires_at', today); // Only get dates greater than or equal to today
+                    .eq('status', 'Active')    
+                    .gte('expires_at', today); 
             }
 
             const { data, error } = await query;
@@ -54,14 +84,14 @@ export const AnnouncementRouter = (router, supabase) => {
 
             let secureImageUrl = null;
             
-            // Kung may pinadalang image_url (Base64 string mula sa frontend)
+            // 🛡️ COMPRESSION INTERCEPT
             if (image_url && image_url.startsWith('data:image')) {
-                console.log("Uploading new image to Cloudinary...");
+                console.log("Compressing and uploading new image to Cloudinary...");
                 try {
-                    secureImageUrl = await uploadImage(image_url, 'barangay_announcements');
+                    const optimizedImage = await optimizeBase64Image(image_url);
+                    secureImageUrl = await uploadImage(optimizedImage, 'barangay_announcements');
                 } catch (uploadErr) {
                     console.error("Cloudinary Upload Failed:", uploadErr.message);
-                    // Opsyonal: Ituloy pa rin ang save kahit walang image, o mag-error
                 }
             }
 
@@ -73,7 +103,7 @@ export const AnnouncementRouter = (router, supabase) => {
                     category: category || 'Public Advisory',
                     priority: priority || 'Low',
                     expires_at,
-                    image_url: secureImageUrl, // Eto yung binalik ni Cloudinary
+                    image_url: secureImageUrl,
                     status: 'Active'
                 }])
                 .select()
@@ -98,10 +128,16 @@ export const AnnouncementRouter = (router, supabase) => {
             delete updates.id; 
             delete updates.created_at;
 
-            // Check kung ang image_url ay bago (Base64) o dati na (URL)
+            // 🛡️ COMPRESSION INTERCEPT FOR EDITS
             if (updates.image_url && updates.image_url.startsWith('data:image')) {
-                console.log("Updating image on Cloudinary...");
-                updates.image_url = await uploadImage(updates.image_url, 'barangay_announcements');
+                console.log("Compressing and updating image on Cloudinary...");
+                try {
+                    const optimizedImage = await optimizeBase64Image(updates.image_url);
+                    updates.image_url = await uploadImage(optimizedImage, 'barangay_announcements');
+                } catch (uploadErr) {
+                    console.error("Cloudinary Update Failed:", uploadErr.message);
+                    delete updates.image_url; // Prevent saving a broken base64 string if upload fails
+                }
             }
 
             const { data, error } = await supabase

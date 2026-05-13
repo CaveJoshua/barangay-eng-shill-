@@ -245,17 +245,9 @@ const AppRoutes = () => {
     setUser(null);
     setSelectedPortal(null);
 
-    localStorage.removeItem('resident_session');
-    localStorage.removeItem('admin_session');
-    localStorage.removeItem('app_current_view');
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('user_role');
-    localStorage.removeItem('account_id');
-    localStorage.removeItem('profile_id');
-    localStorage.removeItem('selectedPortal');
-    localStorage.removeItem('admin_active_tab');
-    localStorage.removeItem('resident_active_tab');
-    sessionStorage.removeItem('trace_id');
+    // 🛡️ THE FIX: Wipe EVERYTHING from local and session storage instantly
+    localStorage.clear();
+    sessionStorage.clear();
 
     try {
       await fetch(`${API_BASE_URL}/admin/logout`, {

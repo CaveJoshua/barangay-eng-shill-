@@ -25,8 +25,8 @@
 import chalk from 'chalk';
 import os    from 'os';
 import crypto from 'crypto';
-import { IDS } from 'Captcha/IDS.js';
-import { IPS } from 'Captcha/IPS.js';
+import { IDS } from './IDS.js';
+import { IPS } from './IPS.js';
 
 const theme = {
     pulse:   chalk.bold.blue,

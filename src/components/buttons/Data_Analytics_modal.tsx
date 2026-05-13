@@ -79,10 +79,6 @@ const doughnutOpts = {
   },
 };
 
-// 🎯 Custom Chart.js plugin: paints the raw count directly on each donut slice
-// so users can read values at a glance without hovering. White text + soft dark
-// shadow keeps it legible across every brand color we use. Skips zero values
-// and slices too thin to label cleanly (< 12° of arc) so nothing overlaps.
 const segmentValuePlugin = {
   id: 'segmentValue',
   afterDatasetsDraw(chart: any) {
@@ -93,7 +89,6 @@ const segmentValuePlugin = {
         const value = dataset.data[index];
         if (!value || value === 0) return;
 
-        // Skip slices smaller than 12° — labels would collide with neighbours
         const sweep = Math.abs(arc.endAngle - arc.startAngle);
         if (sweep < (Math.PI / 180) * 12) return;
 
@@ -103,7 +98,6 @@ const segmentValuePlugin = {
         ctx.font = `bold 12px ${MONO}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        // soft dark halo so the white reads against any slice color
         ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
         ctx.shadowBlur = 3;
         ctx.fillText(String(value), pos.x, pos.y);
@@ -122,7 +116,6 @@ const Section = ({ label }: { label: string }) => (
   </div>
 );
 
-// UPDATED: Added flex styling so charts dynamically fill vertical whitespace
 const ChartBlock = ({
   title, sub, chartClass, meaning, dropdown, children,
 }: {
@@ -159,7 +152,6 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
   const [allDocs, setAllDocs] = useState<DocRecord[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Local states for the three specific distribution charts
   const [localPurok, setLocalPurok] = useState<string>('All');
   const [localDocType, setLocalDocType] = useState<string>('All');
   const [localSex, setLocalSex] = useState<string>('All');
@@ -200,7 +192,9 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
     const dailyStats = calculateDailyStats(enrichedDocs);
     const typeStats = calculateTypeStats(enrichedDocs);
     const purokStats = calculatePurokStats(enrichedDocs);
-    const topResidents = calculateTopResidents(enrichedDocs);
+    
+    // 🛡️ THE FIX: Slice the array to only return the top 5 residents max
+    const topResidents = calculateTopResidents(enrichedDocs).slice(0, 5);
     
     const sexDist = calculateSexDistribution(residents);
     const ageDist = calculateAgeDistribution(residents);
@@ -254,33 +248,39 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
   const TYPE_PAL = ['#3b82f6', '#14b8a6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6'];
   const typeKeys = Object.keys(E.typeCounts || {});
 
-  // ─── Dynamic Data for Filtered Charts ───────────────────────────────────────
-  
   // 1. Purok Chart Data
-  const purokLabels = localPurok === 'All' ? Object.keys(E.purokCounts || {}) : [localPurok];
+  const allPurokKeys = Object.keys(E.purokCounts || {});
+  const purokLabels = localPurok === 'All' ? allPurokKeys : [localPurok];
   const purokData = localPurok === 'All' 
     ? Object.values(E.purokCounts || {}) 
     : [E.purokCounts?.[localPurok] || 0];
+  const purokColors = localPurok === 'All'
+    ? allPurokKeys.map((_, i) => BLUES[i % BLUES.length])
+    : [BLUES[allPurokKeys.indexOf(localPurok) % BLUES.length]];
 
   // 2. Doc Type Chart Data
   const docLabels = localDocType === 'All' ? typeKeys : [localDocType];
   const docData = localDocType === 'All' 
     ? typeKeys.map(k => (E.typeCounts as Record<string, number>)[k]) 
     : [(E.typeCounts as Record<string, number>)?.[localDocType] || 0];
+  const docColors = localDocType === 'All'
+    ? typeKeys.map((_, i) => TYPE_PAL[i % TYPE_PAL.length])
+    : [TYPE_PAL[typeKeys.indexOf(localDocType) % TYPE_PAL.length]];
 
-  // 3. Sex Chart Data (UPDATED: Removed "Other")
+  // 3. Sex Chart Data
   const sexMap: Record<string, number> = { 'Male': E.male || 0, 'Female': E.female || 0 };
   const sexLabels = localSex === 'All' ? ['Male', 'Female'] : [localSex];
   const sexData = localSex === 'All' 
     ? [E.male || 0, E.female || 0] 
     : [sexMap[localSex] || 0];
+  const sexColors = localSex === 'All'
+    ? ['#3b82f6', '#ec4899']
+    : [localSex === 'Male' ? '#3b82f6' : '#ec4899'];
 
-  // ─── Dropdown Components ────────────────────────────────────────────────────
-  
   const DropdownPurok = (
     <select className="da-filter-select" style={{ width: '100%', padding: '6px' }} value={localPurok} onChange={(e) => setLocalPurok(e.target.value)}>
       <option value="All">All Puroks</option>
-      {[1, 2, 3, 4, 5, 6, 7].map(num => (
+      {[1, 2, 3, 4, 5, 6, 7, 8].map(num => (
         <option key={num} value={`Purok ${num}`}>Purok {num}</option>
       ))}
     </select>
@@ -553,7 +553,7 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
                   datasets: [{
                     label: 'Requests',
                     data: purokData,
-                    backgroundColor: purokLabels.map((_, i) => BLUES[i % BLUES.length]),
+                    backgroundColor: purokColors,
                     borderRadius: 4,
                     borderSkipped: false,
                   }],
@@ -567,14 +567,12 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
                 dropdown={DropdownDoc}
                 meaning="Displays the proportion of each document type requested. Helps identify the most frequently processed clearances or certificates."
               >
-                {/* 🎯 plugins prop attaches the segmentValuePlugin so each slice
-                    shows its raw count without requiring a hover */}
                 <Doughnut
                   data={{
                     labels: docLabels,
                     datasets: [{
                       data: docData,
-                      backgroundColor: TYPE_PAL.slice(0, docLabels.length),
+                      backgroundColor: docColors, 
                       borderColor: '#ffffff',
                       borderWidth: 2,
                       hoverOffset: 4,
@@ -592,13 +590,12 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
                 dropdown={DropdownSex}
                 meaning="Shows the demographic breakdown of residents by sex, based on the total registered population in the system."
               >
-                {/* 🎯 same plugin — count painted directly on each slice */}
                 <Doughnut
                   data={{
                     labels: sexLabels,
                     datasets: [{
                       data: sexData,
-                      backgroundColor: ['#3b82f6', '#ec4899'].slice(0, sexLabels.length),
+                      backgroundColor: sexColors,
                       borderColor: '#ffffff',
                       borderWidth: 2,
                       hoverOffset: 4,
@@ -612,7 +609,6 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
 
             <Section label="Demographics" />
             <div className="da-grid-2">
-              {/* REMOVED chartClass="da-chart-mini" so it dynamically grows to fill the vertical gap */}
               <ChartBlock
                 title="Age Group Spread"
                 sub="residents_records.dob → computed_age"

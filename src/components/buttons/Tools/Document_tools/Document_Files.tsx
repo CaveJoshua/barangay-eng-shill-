@@ -9,26 +9,108 @@ interface DocumentFileProps {
   initialData?: any;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SINGLE SOURCE OF TRUTH — type → default fee (mirrors /documents/types config)
+// ═══════════════════════════════════════════════════════════════════════════
+const TYPE_FEE_MAP: Record<string, string> = {
+  'Barangay Clearance': '200.00',
+  'Certificate of Residency': '75.00',
+  'Certificate of Indigency': '0.00',
+  'Barangay Certification': '500.00',
+  'Affidavit of Barangay Official': '50.00',
+};
+
+// The five canonical values used by the <select> in the sidebar.
+const DROPDOWN_OPTIONS = [
+  'Barangay Clearance',
+  'Certificate of Indigency',
+  'Certificate of Residency',
+  'Barangay Certification',
+  'Affidavit of Barangay Official',
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🎯 THE DROPDOWN FIX — TYPE NORMALIZER
+// ───────────────────────────────────────────────────────────────────────────
+// Problem: the admin list/queue passes initialData to this editor, but:
+//   • the key might be `type`, `documentType`, `document_type`, or `docType`
+//   • the value might be the DB's `'Barangay Certificate (jobseeker)'`, an
+//     id like `'biz_permit'`, or a casing variant — NONE of which match an
+//     <option value="..."> in the dropdown.
+// When the controlled <select>'s value has no matching option, the browser
+// silently shows the FIRST option (Barangay Clearance) — making it look like
+// the editor "didn't fetch" the type. This normalizer maps anything sensible
+// to one of the five real dropdown options so the <select> always reflects
+// the actual document being edited.
+// ═══════════════════════════════════════════════════════════════════════════
+const normalizeDocumentType = (raw: any): string => {
+  if (!raw) return 'Barangay Clearance';
+  const s = String(raw).toLowerCase().trim();
+
+  // 1. Exact match against a real option (fast path)
+  for (const opt of DROPDOWN_OPTIONS) {
+    if (opt.toLowerCase() === s) return opt;
+  }
+
+  // 2. Keyword match — covers DB variants, IDs, and casing differences
+  if (s.includes('indigen')) return 'Certificate of Indigency';
+  if (s.includes('residen')) return 'Certificate of Residency';
+  if (s.includes('affidavit') || s.includes('good_moral') || s.includes('good moral')) {
+    return 'Affidavit of Barangay Official';
+  }
+  if (s.includes('jobseeker') || s.includes('biz_permit') || s.includes('certification')) {
+    return 'Barangay Certification';
+  }
+  if (s.includes('clearance') || s.includes('brgy_clearance')) {
+    return 'Barangay Clearance';
+  }
+
+  // 3. Final fallback
+  return 'Barangay Clearance';
+};
+
+// Pull `type` out of whatever key variant the parent used.
+const extractRawType = (data: any): string | undefined => {
+  if (!data) return undefined;
+  return data.type
+      || data.documentType
+      || data.document_type
+      || data.docType
+      || data.doc_type
+      || data.request_type;
+};
+
 export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, initialData }) => {
   const [zoom, setZoom] = useState<number>(100);
   const [showDropdown, setShowDropdown] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Skip the very first run of the type→fees auto-sync so we never overwrite
+  // a feesPaid value that came in via initialData.
+  const isInitialTypeMount = useRef(true);
+  // Track which initialData record we last initialized from, so opening a
+  // DIFFERENT document inside the same mounted editor still re-syncs the type.
+  const lastInitialIdRef = useRef<any>(initialData?.id ?? null);
+
+  // 🎯 Resolve the initial dropdown value ONCE, normalized.
+  const normalizedInitialType = normalizeDocumentType(extractRawType(initialData));
+
   const [docConfig, setDocConfig] = useState({
-    // ✅ THE KEY FIX: Pass the existing DB record's id so the engine
-    // can UPDATE the row instead of INSERTing a duplicate.
     id: initialData?.id || null,
 
     residentId: initialData?.residentId || '',
     residentName: initialData?.residentName || '',
     address: '',
-    type: initialData?.type || 'Barangay Clearance',
+    type: normalizedInitialType,
     purpose: initialData?.purpose || '',
     dateIssued: new Date().toISOString().split('T')[0],
     ctcNo: '',
     orNo: '',
-    feesPaid: initialData?.feesPaid || '200.00',
+    feesPaid:
+      initialData?.feesPaid ||
+      TYPE_FEE_MAP[normalizedInitialType] ||
+      '200.00',
     certificateNo: `2026-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`,
     guardianName: '',
     guardianAge: '',
@@ -36,16 +118,11 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
     guardianResidency: '',
     tableRows: [['', '', '']],
 
-    // 🎯 NEW: typed witness records — surfaces in the Affidavit & Jobseeker schemas
-    // and is also editable in the document preview itself.
     witnesses: initialData?.witnesses || [
       { name: '', address: '', contactNo: '' }
     ],
 
-    // Force manual creations and newly opened Pending requests straight to 'Processing'
     status: (!initialData?.status || initialData?.status === 'Pending') ? 'Processing' : initialData.status,
-
-    // Walk-in is always the default for this DocumentFile (admin side)
     requestMethod: initialData?.requestMethod || 'Walk-in',
   });
 
@@ -58,9 +135,52 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
     docConfig.residentId
   );
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🛡️ RE-SYNC ON initialData CHANGE
+  // When the parent passes a DIFFERENT document (e.g. admin clicks another
+  // request in the queue without unmounting the editor), reinitialize the
+  // dropdown + fees + id from that new record. Without this, the editor would
+  // be stuck on whatever was opened first.
+  // ═══════════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    const incomingId = initialData?.id ?? null;
+    if (incomingId !== lastInitialIdRef.current) {
+      lastInitialIdRef.current = incomingId;
+      const t = normalizeDocumentType(extractRawType(initialData));
+      setDocConfig(prev => ({
+        ...prev,
+        id: incomingId,
+        type: t,
+        residentId: initialData?.residentId || prev.residentId,
+        residentName: initialData?.residentName || prev.residentName,
+        purpose: initialData?.purpose || prev.purpose,
+        feesPaid: initialData?.feesPaid || TYPE_FEE_MAP[t] || prev.feesPaid,
+        status: (!initialData?.status || initialData?.status === 'Pending') ? 'Processing' : initialData.status,
+        requestMethod: initialData?.requestMethod || prev.requestMethod,
+      }));
+      // The auto-sync effect below would otherwise overwrite the freshly set
+      // feesPaid; treat this as another "initial" run to keep them aligned.
+      isInitialTypeMount.current = true;
+    }
+  }, [initialData]);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Type → Fees cascade: when the admin manually changes the dropdown, sync
+  // feesPaid to match. Skips the initial mount + any re-init from initialData.
+  // ═══════════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (isInitialTypeMount.current) {
+      isInitialTypeMount.current = false;
+      return;
+    }
+    const mapped = TYPE_FEE_MAP[docConfig.type];
+    if (mapped !== undefined) {
+      setDocConfig(prev => ({ ...prev, feesPaid: mapped }));
+    }
+  }, [docConfig.type]);
+
   const handleSurfaceEdit = (key: string, value: string) => {
     setDocConfig(prev => {
-      // Special logic to handle table cell edits (table-index-row-col)
       if (key.startsWith('table-')) {
         const parts = key.split('-');
         const rIdx = parseInt(parts[2]);
@@ -70,25 +190,20 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
         newTableRows[rIdx][cIdx] = value;
         return { ...prev, tableRows: newTableRows };
       }
-      // 🎯 NEW: route witness-N-field edits coming from the preview (witness-0-name, etc.)
-      // back into docConfig.witnesses. The schema renders these with editableKey="witness-N-field".
       if (key.startsWith('witness-')) {
         const parts = key.split('-');
         const wIdx = parseInt(parts[1]);
-        const field = parts[2]; // 'name' | 'address' | 'contactNo'
+        const field = parts[2];
         const newWitnesses = [...(prev.witnesses || [])];
         if (!newWitnesses[wIdx]) newWitnesses[wIdx] = { name: '', address: '', contactNo: '' };
-        // Strip HTML wrappers so saved values are clean plain text
         const plain = value.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
         newWitnesses[wIdx] = { ...newWitnesses[wIdx], [field]: plain };
         return { ...prev, witnesses: newWitnesses };
       }
-      // Standard text edits
       return { ...prev, [key]: value };
     });
   };
 
-  // 🎯 NEW: witness row handlers (sidebar input table)
   const handleWitnessChange = (idx: number, field: 'name' | 'address' | 'contactNo', value: string) => {
     setDocConfig(prev => {
       const newWitnesses = [...(prev.witnesses || [])];
@@ -98,12 +213,9 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
     });
   };
 
-  
-
   const handleRemoveWitness = (idx: number) => {
     setDocConfig(prev => {
       const newWitnesses = (prev.witnesses || []).filter((_: any, i: number) => i !== idx);
-      // Always keep at least one row so the schema has something to render
       return {
         ...prev,
         witnesses: newWitnesses.length > 0 ? newWitnesses : [{ name: '', address: '', contactNo: '' }]
@@ -139,10 +251,6 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
     setIsSidebarOpen(false);
   };
 
-  // ✅ After PDF downloads successfully:
-  // 1. The engine has already updated/inserted the DB record as 'Completed'
-  // 2. onSuccess() fires → triggers refresh() in the parent (Community_Document / Admin list)
-  // 3. The community document list re-fetches and shows the updated 'Completed' status
   const executePrintAndSave = async () => {
     const success = await handleSaveAndDownload();
     if (success) {
@@ -169,8 +277,6 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
 
   const isJobseeker = docConfig.type === 'Barangay Certification';
   const isAffidavit = docConfig.type === 'Affidavit of Barangay Official';
-  // 🎯 Witnesses are now AFFIDAVIT-ONLY (the Jobseeker has its own "Witnessed by" line
-  // baked into the schema; it doesn't need a separate witness input table).
   const showWitnesses = isAffidavit;
 
   return (
@@ -190,7 +296,6 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
             <div className="tool-divider"></div>
             <button className="tool-btn">≡</button>
             <button className="tool-btn">→</button>
-            {/* 🎯 Save (💾) tool removed — saving is handled exclusively by the Print/Download flow */}
           </div>
         </div>
 
@@ -413,7 +518,6 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
               </div>
             )}
 
-            {/* 🎯 NEW: Witnesses input table (Affidavit + Jobseeker only) */}
             {showWitnesses && (
               <div className="dynamic-fade-in" style={{ marginTop: '20px' }}>
                 <div className="section-label text-purple">👥 WITNESSES</div>
@@ -495,8 +599,6 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
                     </div>
                   </div>
                 ))}
-
-                
               </div>
             )}
 

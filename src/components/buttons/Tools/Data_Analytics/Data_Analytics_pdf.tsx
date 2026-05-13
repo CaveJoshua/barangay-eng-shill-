@@ -167,7 +167,9 @@ export default function Data_Analytics_pdf({ onClose, initialFilter = 'All' }: P
     const dailyStats = calculateDailyStats(filteredDocs);
     const typeStats = calculateTypeStats(filteredDocs);
     const purokStats = calculatePurokStats(filteredDocs);
-    const topResidents = calculateTopResidents(filteredDocs);
+    
+    // 🛡️ THE FIX: Slice to max 5 items for the PDF table as well
+    const topResidents = calculateTopResidents(filteredDocs).slice(0, 5);
     
     const sexDist = calculateSexDistribution(residents);
     const ageDist = calculateAgeDistribution(residents);
@@ -238,14 +240,29 @@ export default function Data_Analytics_pdf({ onClose, initialFilter = 'All' }: P
   const TYPE_PAL = ['#3b82f6', '#14b8a6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6'];
   const typeKeys = Object.keys(E.typeCounts || {});
 
+  // ─── Dynamic Data for Filtered Charts (WITH COLOR LOCKING) ────────────────
+
+  // 1. Purok Chart Data & Color Lock
   const purokLabels = Object.keys(E.purokCounts || {});
   const purokData = Object.values(E.purokCounts || {});
+  const standardPuroks = ['Purok 1', 'Purok 2', 'Purok 3', 'Purok 4', 'Purok 5', 'Purok 6', 'Purok 7', 'Purok 8'];
+  const purokColors = purokLabels.map(label => {
+      const idx = standardPuroks.indexOf(label);
+      return BLUES[(idx !== -1 ? idx : 0) % BLUES.length];
+  });
   
+  // 2. Doc Type Chart Data & Color Lock
   const docLabels = typeKeys;
   const docData = typeKeys.map(k => (E.typeCounts as Record<string, number>)[k]);
+  const docColors = docLabels.map(label => {
+      const idx = E.availableDocTypes.indexOf(label);
+      return TYPE_PAL[(idx !== -1 ? idx : 0) % TYPE_PAL.length];
+  });
   
+  // 3. Sex Chart Data & Color Lock
   const sexLabels = ['Male', 'Female'];
   const sexData = [E.male || 0, E.female || 0];
+  const sexColors = sexLabels.map(label => label === 'Male' ? '#3b82f6' : '#ec4899');
 
   return (
     <div className="pdf-overlay" onClick={onClose}>
@@ -401,23 +418,21 @@ export default function Data_Analytics_pdf({ onClose, initialFilter = 'All' }: P
                   <ChartBlock width="calc(33.333% - 11px)" title="Purok Demand" sub="doc → resident_id → purok" strictHeight="200px" meaning="Compares the total volume of requests originating from each Purok. Useful for identifying which local areas require the most administrative attention.">
                     <Bar data={{
                       labels: purokLabels,
-                      datasets: [{ label: 'Requests', data: purokData, maxBarThickness: 45, backgroundColor: purokLabels.map((_, i) => BLUES[i % BLUES.length]), borderRadius: 4, borderSkipped: false }],
+                      datasets: [{ label: 'Requests', data: purokData, maxBarThickness: 45, backgroundColor: purokColors, borderRadius: 4, borderSkipped: false }],
                     }} options={chartOpts()} />
                   </ChartBlock>
 
                   <ChartBlock width="calc(33.333% - 11px)" title="Document Types" sub={initialFilter === 'All' ? 'All records mapped' : `Filtered: ${initialFilter}`} strictHeight="200px" meaning="Displays the proportion of each document type requested. Helps identify the most frequently processed clearances or certificates.">
-                    {/* 🛡️ INJECTED THE PLUGIN HERE FOR PDF */}
                     <Doughnut data={{
                       labels: docLabels,
-                      datasets: [{ data: docData, backgroundColor: TYPE_PAL.slice(0, docLabels.length), borderColor: '#ffffff', borderWidth: 2 }],
+                      datasets: [{ data: docData, backgroundColor: docColors, borderColor: '#ffffff', borderWidth: 2 }],
                     }} options={doughnutOpts} plugins={[segmentValuePlugin]} />
                   </ChartBlock>
 
                   <ChartBlock width="calc(33.333% - 11px)" title="Sex Distribution" sub="residents_records.sex" strictHeight="200px" meaning="Shows the demographic breakdown of residents by sex, based on the total registered population in the system.">
-                    {/* 🛡️ INJECTED THE PLUGIN HERE FOR PDF */}
                     <Doughnut data={{
                       labels: sexLabels,
-                      datasets: [{ data: sexData, backgroundColor: ['#3b82f6', '#ec4899'].slice(0, sexLabels.length), borderColor: '#ffffff', borderWidth: 2 }],
+                      datasets: [{ data: sexData, backgroundColor: sexColors, borderColor: '#ffffff', borderWidth: 2 }],
                     }} options={doughnutOpts} plugins={[segmentValuePlugin]} />
                   </ChartBlock>
                 </div>

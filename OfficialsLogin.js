@@ -122,14 +122,15 @@ export const OfficialsLoginRouter = (router, supabase) => {
                 // 🔒 PRODUCTION GRADE COOKIE 
                 res.cookie('auth_token', token, { 
                     httpOnly: true, 
-                    secure: true, // Force true since you are on Cloudflare HTTPS
-                    sameSite: isProduction ? 'none' : 'lax', // Required 'none' if frontend and backend domains differ
-                    maxAge: 86400000 // 24 hours
+                    secure: true, 
+                    sameSite: isProduction ? 'none' : 'lax', 
+                    maxAge: 86400000 
                 });
                 
-                // ❌ LEAK REMOVED: No more access_token in the JSON body
+                // 🛠️ RESTORED: access_token added back to the JSON payload
                 return res.status(200).json({
                     message: 'Root Authentication successful',
+                    access_token: token, 
                     account_id: 'SYSTEM-ROOT-0000',
                     username: 'SYSTEM_ROOT_ADMIN',
                     role: 'superadmin', 
@@ -157,7 +158,6 @@ export const OfficialsLoginRouter = (router, supabase) => {
 
             const position = accountData.officials?.position || 'Official';
             
-            // 🛡️ THE FIX: Pass the username into the derivator so it catches the 'barangayhall' account perfectly
             const userRole = deriveRoleFromPosition(position, accountData.role, accountData.username);
             const isMasterAccount = position === 'Super Admin';
 
@@ -176,9 +176,10 @@ export const OfficialsLoginRouter = (router, supabase) => {
                 maxAge: 86400000 
             });
 
-            // ❌ LEAK REMOVED: No more access_token in the JSON body
+            // 🛠️ RESTORED: access_token added back to the JSON payload
             res.status(200).json({
                 message: 'Authentication successful',
+                access_token: token, 
                 account_id: accountData.account_id,
                 username: accountData.username,
                 role: userRole, 
@@ -235,8 +236,11 @@ export const OfficialsLoginRouter = (router, supabase) => {
                     maxAge: 86400000
                 });
 
-                // ❌ LEAK REMOVED: Do not send the new token back in the JSON body
-                res.status(200).json({ message: 'Token rotated successfully.' });
+                // 🛠️ RESTORED: access_token added back to the JSON payload
+                res.status(200).json({ 
+                    message: 'Token rotated successfully.',
+                    access_token: newToken 
+                });
             });
         } catch (err) {
             res.status(500).json({ error: 'Refresh failed.' });

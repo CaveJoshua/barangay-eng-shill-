@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './styles/Community_Resetpassword_modal.css'; 
 import { API_BASE_URL, ApiService } from '../UI/api'; 
 
@@ -17,9 +17,23 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
   resident, 
   onSuccess, 
   onClose, 
-  requireOtp = true 
+  requireOtp = false // Default to false unless explicitly requested for manual changes
 }) => {
-  const [step, setStep] = useState<ModalStep>(requireOtp ? 'REQUEST_OTP' : 'UPDATE_PASSWORD');
+  
+  // ── SMART DETECTION: Is this a first-time mandatory reset? ──
+  const checkIsMandatory = useCallback(() => {
+    const sessionStr = localStorage.getItem('resident_session');
+    const sessionData = sessionStr ? JSON.parse(sessionStr) : null;
+    return resident?.requires_reset === true || sessionData?.requires_reset === true;
+  }, [resident]);
+
+  const isMandatory = checkIsMandatory();
+  
+  // 🛡️ THE FIX: If it's a mandatory first-time reset, NEVER require an OTP.
+  // They just logged in, so they are already authenticated. Go straight to password update.
+  const actuallyRequireOtp = isMandatory ? false : requireOtp;
+
+  const [step, setStep] = useState<ModalStep>(actuallyRequireOtp ? 'REQUEST_OTP' : 'UPDATE_PASSWORD');
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -31,13 +45,14 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── AGGRESSIVE MEMORY CLEANUP ──
-  const resetState = () => {
-    setStep(requireOtp ? 'REQUEST_OTP' : 'UPDATE_PASSWORD');
+  const resetState = useCallback(() => {
+    const mandatory = checkIsMandatory();
+    setStep((mandatory ? false : requireOtp) ? 'REQUEST_OTP' : 'UPDATE_PASSWORD');
     setOtp('');
     setNewPassword('');
     setConfirmPassword('');
     setError('');
-  };
+  }, [checkIsMandatory, requireOtp]);
 
   useEffect(() => {
     if (isOpen) {
@@ -47,7 +62,7 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
       setNewPassword('');
       setConfirmPassword('');
     }
-  }, [isOpen, requireOtp]);
+  }, [isOpen, resetState]);
 
   useEffect(() => {
     if (countdown > 0) {
@@ -152,7 +167,8 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
           'Authorization': `Bearer ${token}` 
         },
         body: JSON.stringify({ 
-          password: newPassword
+          password: newPassword,
+          otp: actuallyRequireOtp ? otp : undefined 
         })
       });
 
@@ -162,6 +178,7 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
           throw new Error(data.error || 'Server rejected the security update.');
       }
 
+      // Update the local session so they aren't prompted again
       const savedSession = localStorage.getItem('resident_session');
       if (savedSession) {
           const session = JSON.parse(savedSession);
@@ -186,7 +203,8 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
     <div className="CM_RESET_OVERLAY">
       <div className="CM_RESET_CARD">
         
-        {onClose && (
+        {/* 🛡️ THE FIX: Remove the close button if this is a mandatory first-time reset */}
+        {onClose && !isMandatory && (
           <button 
             onClick={onClose} 
             className="CM_RESET_CLOSE_BTN" 
@@ -245,8 +263,15 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
           <>
             <div className="CM_RESET_HEADER">
               <div className="CM_RESET_ICON"><i className="fas fa-user-lock"></i></div>
-              <h2>Enforce New Protocol</h2>
-              <p>Hello <strong>{resident?.first_name || 'Resident'}</strong>, establish your new encrypted access key.</p>
+              
+              {/* 🛡️ THE FIX: Dynamic Titles based on Mandatory status */}
+              <h2>{isMandatory ? 'Action Required' : 'Enforce New Protocol'}</h2>
+              <p>
+                {isMandatory 
+                  ? `Welcome ${resident?.first_name || 'Resident'}! Please secure your account by changing your default password.`
+                  : `Hello ${resident?.first_name || 'Resident'}, establish your new encrypted access key.`
+                }
+              </p>
             </div>
 
             <div className="CM_SUCCESS_NOTICE">

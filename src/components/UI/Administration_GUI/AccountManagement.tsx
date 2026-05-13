@@ -14,6 +14,8 @@ interface IAccount {
 }
 
 type TabState = 'Officials' | 'Residents';
+type ResetStep = 'INIT' | 'OTP' | 'PASSWORD';
+
 const ITEMS_PER_PAGE = 10;
 
 export default function AccountManagement() {
@@ -28,10 +30,17 @@ export default function AccountManagement() {
   const [isSyncing,        setIsSyncing]       = useState(false);
   const [activeTab,        setActiveTab]       = useState<TabState>('Officials');
   const [searchTerm,       setSearchTerm]      = useState('');
+  
+  // ── RESET MODAL STATE ──
   const [selectedAccount,  setSelectedAccount] = useState<IAccount | null>(null);
   const [isResetOpen,      setIsResetOpen]     = useState(false);
+  const [resetStep,        setResetStep]       = useState<ResetStep>('INIT');
+  const [resetOtp,         setResetOtp]        = useState('');
+  const [useFallback,      setUseFallback]     = useState<boolean>(false);
   const [newPassword,      setNewPassword]     = useState('');
   const [showPassword,     setShowPassword]    = useState(false); 
+  const [modalLoading,     setModalLoading]    = useState(false);
+  const [modalError,       setModalError]      = useState('');
 
   // ── PAGINATION STATE ──
   const [currentPage,      setCurrentPage]     = useState(1);
@@ -175,20 +184,76 @@ export default function AccountManagement() {
     setCurrentPage(1);
   }, [activeTab, searchTerm]);
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
+  // ── MODAL HANDLERS (3-STEP VERIFICATION) ───────────────────────────────────
+
+  const handleRequestResetOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedAccount) return;
+    setModalLoading(true);
+    setModalError('');
+
+    try {
+      const response = await ApiService.requestPasswordResetOTP(selectedAccount.username, useFallback);
+      if (response.success) {
+        setResetStep('OTP');
+      } else {
+        throw new Error(response.error || 'Failed to send verification code.');
+      }
+    } catch (err: any) {
+      setModalError(err.message);
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const handleVerifyResetOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedAccount) return;
+    setModalLoading(true);
+    setModalError('');
+
+    try {
+      const response = await ApiService.verifyOTP(selectedAccount.username, resetOtp);
+      if (response.success) {
+        setResetStep('PASSWORD');
+      } else {
+        throw new Error(response.error || 'Invalid or expired code.');
+      }
+    } catch (err: any) {
+      setModalError(err.message);
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
   const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPassword.length < 8) return alert('Minimum 8 characters.');
+    if (newPassword.length < 8) return setModalError('Minimum 8 characters required.');
     if (!selectedAccount) return;
+    
+    setModalLoading(true);
+    setModalError('');
+
     try {
-      const result = await ApiService.resetPassword(selectedAccount.id, { password: newPassword });
+      const result = await ApiService.resetPassword(selectedAccount.id, { 
+        password: newPassword,
+        otp: resetOtp // Send OTP in case backend validates it on this endpoint too
+      });
       if (result.success) {
         alert('Password updated successfully.');
         setIsResetOpen(false);
         setNewPassword('');
+        setResetOtp('');
         setShowPassword(false);
-      } else { throw new Error(result.error); }
-    } catch (err: any) { alert(`Reset failed: ${err.message}`); }
+        setResetStep('INIT');
+      } else { 
+        throw new Error(result.error); 
+      }
+    } catch (err: any) { 
+      setModalError(`Reset failed: ${err.message}`); 
+    } finally {
+      setModalLoading(false);
+    }
   };
 
   // 🛡️ Row-Level Password Reset Permission Check
@@ -409,14 +474,17 @@ export default function AccountManagement() {
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
-                          {/* 🛡️ Renders "Restricted" text for Kagawad, SK, Treasurer automatically! */}
                           {canChangePassword(acc) ? (
                             <button
                               className="ACC_CHANGE_PASS_BTN"
                               onClick={() => {
                                 setSelectedAccount(acc);
                                 setNewPassword('');
+                                setResetOtp('');
                                 setShowPassword(false);
+                                setResetStep('INIT');
+                                setUseFallback(false);
+                                setModalError('');
                                 setIsResetOpen(true);
                               }}
                             >
@@ -466,44 +534,140 @@ export default function AccountManagement() {
           <div className="ACC_MODAL_BOX">
             <h2><i className="fas fa-user-shield" /> Security Reset</h2>
             <p>Update credentials for <strong>{selectedAccount?.profileName}</strong>.</p>
-            <form onSubmit={handlePasswordReset}>
-              
-              <div className="ACC_INPUT_GROUP">
-                <label htmlFor="acc-new-password">New Password</label>
-                <div className="ACC_PASS_INPUT_WRAPPER">
-                  <i className="fas fa-key ACC_INPUT_ICON"></i>
-                  <input
-                    id="acc-new-password"
-                    name="new-password"
-                    type={showPassword ? "text" : "password"}
-                    required
-                    minLength={8}
-                    autoComplete="new-password"
-                    className="ACC_PRO_INPUT"
-                    placeholder="Enter at least 8 characters..."
-                    value={newPassword}
-                    onChange={e => setNewPassword(e.target.value)}
-                  />
-                  <button 
-                    type="button" 
-                    className="ACC_PASS_TOGGLE" 
-                    onClick={() => setShowPassword(!showPassword)}
-                    tabIndex={-1}
-                  >
-                    <i className={showPassword ? "fas fa-eye-slash" : "fas fa-eye"}></i>
+            
+            {modalError && (
+              <div style={{ padding: '10px', backgroundColor: '#fee2e2', color: '#b91c1c', borderRadius: '4px', marginBottom: '15px', fontSize: '0.85rem' }}>
+                <i className="fas fa-exclamation-triangle" style={{ marginRight: '5px' }}></i> {modalError}
+              </div>
+            )}
+
+            {/* ── STEP 1: REQUEST OTP ── */}
+            {resetStep === 'INIT' && (
+              <form onSubmit={handleRequestResetOtp}>
+                <div className="ACC_INPUT_GROUP" style={{ marginBottom: '20px' }}>
+                  <label style={{ marginBottom: '8px', display: 'block', fontSize: '0.9rem', color: '#475569' }}>
+                    Where should we send the verification code?
+                  </label>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '10px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
+                      <input 
+                        type="radio" 
+                        name="recoveryMode" 
+                        checked={!useFallback} 
+                        onChange={() => setUseFallback(false)}
+                        disabled={modalLoading}
+                        style={{ accentColor: '#3b82f6', width: '16px', height: '16px' }}
+                      />
+                      <span>User's Registered Email</span>
+                    </label>
+                    
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
+                      <input 
+                        type="radio" 
+                        name="recoveryMode" 
+                        checked={useFallback} 
+                        onChange={() => setUseFallback(true)}
+                        disabled={modalLoading}
+                        style={{ accentColor: '#d97706', width: '16px', height: '16px' }}
+                      />
+                      <span style={{ color: useFallback ? '#b45309' : 'inherit', fontWeight: useFallback ? '600' : 'normal' }}>
+                        Barangay Hall Master Email <small style={{ fontWeight: 'normal', color: '#94a3b8' }}>(Fallback)</small>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="ACC_MODAL_ACTIONS">
+                  <button type="button" className="ACC_BTN_CANCEL" onClick={() => setIsResetOpen(false)} disabled={modalLoading}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="ACC_BTN_SAVE" disabled={modalLoading} style={useFallback ? { backgroundColor: '#d97706', borderColor: '#b45309' } : {}}>
+                    {modalLoading ? <i className="fas fa-spinner fa-spin" /> : 'Send Code'}
                   </button>
                 </div>
-              </div>
+              </form>
+            )}
 
-              <div className="ACC_MODAL_ACTIONS">
-                <button type="button" className="ACC_BTN_CANCEL" onClick={() => setIsResetOpen(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="ACC_BTN_SAVE">
-                  Update Password
-                </button>
-              </div>
-            </form>
+            {/* ── STEP 2: VERIFY OTP ── */}
+            {resetStep === 'OTP' && (
+              <form onSubmit={handleVerifyResetOtp}>
+                <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '15px' }}>
+                  A verification code has been sent. Please enter it below to authorize this password change.
+                </p>
+                <div className="ACC_INPUT_GROUP">
+                  <label>6-Character Code</label>
+                  <div className="ACC_PASS_INPUT_WRAPPER">
+                    <i className="fas fa-key ACC_INPUT_ICON" style={useFallback ? { color: '#d97706' } : {}}></i>
+                    <input
+                      type="text"
+                      required
+                      maxLength={6}
+                      autoComplete="off"
+                      className="ACC_PRO_INPUT"
+                      placeholder="000000"
+                      value={resetOtp}
+                      onChange={e => setResetOtp(e.target.value.toUpperCase())}
+                      disabled={modalLoading}
+                      style={useFallback ? { borderColor: '#d97706', color: '#b45309', letterSpacing: '2px', fontWeight: 'bold' } : { letterSpacing: '2px', fontWeight: 'bold' }}
+                    />
+                  </div>
+                </div>
+
+                <div className="ACC_MODAL_ACTIONS">
+                  <button type="button" className="ACC_BTN_CANCEL" onClick={() => { setResetStep('INIT'); setResetOtp(''); }} disabled={modalLoading}>
+                    Back
+                  </button>
+                  <button type="submit" className="ACC_BTN_SAVE" disabled={modalLoading} style={useFallback ? { backgroundColor: '#d97706', borderColor: '#b45309' } : {}}>
+                    {modalLoading ? <i className="fas fa-spinner fa-spin" /> : 'Verify Code'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* ── STEP 3: NEW PASSWORD ── */}
+            {resetStep === 'PASSWORD' && (
+              <form onSubmit={handlePasswordReset}>
+                <div className="ACC_INPUT_GROUP">
+                  <label htmlFor="acc-new-password">New Password</label>
+                  <div className="ACC_PASS_INPUT_WRAPPER">
+                    <i className="fas fa-lock ACC_INPUT_ICON"></i>
+                    <input
+                      id="acc-new-password"
+                      name="new-password"
+                      type={showPassword ? "text" : "password"}
+                      required
+                      minLength={8}
+                      autoComplete="new-password"
+                      className="ACC_PRO_INPUT"
+                      placeholder="Enter at least 8 characters..."
+                      value={newPassword}
+                      onChange={e => setNewPassword(e.target.value)}
+                      disabled={modalLoading}
+                    />
+                    <button 
+                      type="button" 
+                      className="ACC_PASS_TOGGLE" 
+                      onClick={() => setShowPassword(!showPassword)}
+                      tabIndex={-1}
+                      disabled={modalLoading}
+                    >
+                      <i className={showPassword ? "fas fa-eye-slash" : "fas fa-eye"}></i>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="ACC_MODAL_ACTIONS">
+                  <button type="button" className="ACC_BTN_CANCEL" onClick={() => setIsResetOpen(false)} disabled={modalLoading}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="ACC_BTN_SAVE" disabled={modalLoading}>
+                    {modalLoading ? <i className="fas fa-spinner fa-spin" /> : 'Update Password'}
+                  </button>
+                </div>
+              </form>
+            )}
+
           </div>
         </div>
       )}

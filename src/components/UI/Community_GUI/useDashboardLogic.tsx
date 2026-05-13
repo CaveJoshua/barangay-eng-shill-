@@ -74,18 +74,28 @@ export const useDashboardLogic = (onLogout: () => void) => {
             const rawStatus = d.status ? String(d.status).trim() : 'Pending';
             const normalizedStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
             
-            // Handle both Pending and New as the "Assessment" phase
+            // Pending + New are the "Assessment" phase (admin hasn't set the fee yet)
             const isPendingPhase = ['Pending', 'New'].includes(normalizedStatus);
             
-            // 🎯 THE FIX: Strip letters/currency symbols so parseFloat doesn't return NaN
+            // Strip letters/currency symbols so parseFloat doesn't return NaN
             const cleanPriceStr = String(d.price || d.fee || 0).replace(/[^0-9.]/g, '');
             const rawPrice = parseFloat(cleanPriceStr);
-            const validPrice = isNaN(rawPrice) ? 0 : rawPrice; // Fallback to 0 if totally invalid
+            const validPrice = isNaN(rawPrice) ? 0 : rawPrice;
 
-            // 🎯 THE FIX: Calculate display price securely
-            const displayPrice = isPendingPhase
+            // ═══════════════════════════════════════════════════════════════════
+            // 🎯 PRICE DISPLAY — MATCHES BACKEND RULE (Document.js)
+            // ───────────────────────────────────────────────────────────────────
+            //   "To be assessed"  →  ONLY when status is Pending AND price is 0.
+            //   Everything else   →  show the actual peso amount, including ₱0.00
+            //                        (e.g. Indigency once Approved/Completed).
+            //
+            //   ❌ OLD BUG: `(validPrice === 0 ? 'To be assessed' : …)` overrode the
+            //   backend even after the admin marked the doc Completed, so Indigency
+            //   stayed stuck on "To be assessed" forever.
+            // ═══════════════════════════════════════════════════════════════════
+            const displayPrice = (isPendingPhase && validPrice === 0)
               ? 'To be assessed'
-              : (validPrice === 0 ? 'To be assessed' : `₱${validPrice.toFixed(2)}`);
+              : `₱${validPrice.toFixed(2)}`;
 
             const rawReason = d.rejection_reason || d.rejectionReason || d.reason || d.rejection_message || '';
             

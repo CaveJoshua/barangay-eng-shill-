@@ -39,7 +39,7 @@ const normalizePayload = (val) => {
         fourPsIdNumber: val.fourPsIdNumber || val.four_ps_id_number,
         soloParentIdNumber: val.soloParentIdNumber || val.solo_parent_id_number,
         seniorIdNumber: val.seniorIdNumber || val.senior_id_number,
-        activityStatus: val.activityStatus || val.activity_status || 'Active' 
+        activityStatus: val.activityStatus || val.activity_status || 'Active'
     };
 };
 
@@ -79,20 +79,20 @@ const residentSchema = z.preprocess(normalizePayload, z.object({
     is4Ps: csvBoolean,
     isSoloParent: csvBoolean,
     isSeniorCitizen: csvBoolean,
-    voterIdNumber: phIdString(25),      
-    pwdIdNumber: phIdString(25),        
-    fourPsIdNumber: phIdString(20),     
-    soloParentIdNumber: phIdString(25), 
+    voterIdNumber: phIdString(25),
+    pwdIdNumber: phIdString(25),
+    fourPsIdNumber: phIdString(20),
+    soloParentIdNumber: phIdString(25),
     seniorIdNumber: phIdString(20),
-    activityStatus: safeString 
+    activityStatus: safeString
 }).passthrough());
 
 const validatePayload = (schema) => (req, res, next) => {
-    try { 
-        req.body = schema.parse(req.body); 
-        next(); 
-    } catch (error) { 
-        return res.status(400).json({ error: "Validation Failed", details: error.errors }); 
+    try {
+        req.body = schema.parse(req.body);
+        next();
+    } catch (error) {
+        return res.status(400).json({ error: "Validation Failed", details: error.errors });
     }
 };
 
@@ -116,24 +116,103 @@ const verifyIntegrity = (record) => {
 const authorizeRoles = (allowedRoles) => {
     return (req, res, next) => {
         const role = (req.user?.user_role || req.user?.role || '').toLowerCase().replace(/\s+/g, '');
-        if (!allowedRoles.includes(role)) { 
-            return res.status(403).json({ 
-                error: 'Forbidden', 
-                message: `Insufficient clearance. Required roles: ${allowedRoles.join(', ')}` 
-            }); 
+        if (!allowedRoles.includes(role)) {
+            return res.status(403).json({
+                error: 'Forbidden',
+                message: `Insufficient clearance. Required roles: ${allowedRoles.join(', ')}`
+            });
         }
         next();
     };
+};
+
+// =========================================================
+// 🔒 5. ANTI-DUPLICATE ENGINE
+// Checks full name, contact number, and email independently.
+// excludeId: pass the record_id when updating so the record
+//            doesn't collide with itself.
+// Returns an array of collision objects, empty if clean.
+// =========================================================
+const checkDuplicates = async (supabase, { firstName, middleName, lastName, contact_number, email }, excludeId = null) => {
+    const collisions = [];
+
+    // ── 5a. Full Name Match (case-insensitive, trims whitespace) ──
+    // Strategy: pull candidates by last_name first (indexed), then
+    // compare first + middle in JS to avoid ilike performance hits
+    // on large tables.
+    const { data: nameMatches } = await supabase
+        .from('residents_records')
+        .select('record_id, first_name, middle_name, last_name')
+        .ilike('last_name', lastName.trim())
+        .ilike('first_name', firstName.trim())
+        .neq('activity_status', 'Archived'); // Archived records are excluded from collision
+
+    if (nameMatches?.length) {
+        const normMiddle = (middleName || '').trim().toLowerCase();
+        for (const match of nameMatches) {
+            if (excludeId && match.record_id === excludeId) continue;
+            const existingMiddle = (match.middle_name || '').trim().toLowerCase();
+            // Treat blank vs blank as a match; treat blank vs non-blank as distinct
+            if (existingMiddle === normMiddle) {
+                collisions.push({
+                    field: 'full_name',
+                    message: `A resident named "${match.first_name} ${match.middle_name || ''} ${match.last_name}".trim() already exists in the registry.`
+                });
+            }
+        }
+    }
+
+    // ── 5b. Contact Number Match ──
+    const safePhone = (contact_number || '').trim().replace(/\s+/g, '');
+    if (safePhone) {
+        const { data: phoneMatches } = await supabase
+            .from('residents_records')
+            .select('record_id, first_name, last_name, contact_number')
+            .eq('contact_number', safePhone)
+            .neq('activity_status', 'Archived');
+
+        if (phoneMatches?.length) {
+            for (const match of phoneMatches) {
+                if (excludeId && match.record_id === excludeId) continue;
+                collisions.push({
+                    field: 'contact_number',
+                    message: `Contact number "${safePhone}" is already registered to ${match.first_name} ${match.last_name}.`
+                });
+            }
+        }
+    }
+
+    // ── 5c. Email Match ──
+    const safeEmail = (email || '').trim().toLowerCase();
+    if (safeEmail && safeEmail.includes('@')) {
+        const { data: emailMatches } = await supabase
+            .from('residents_records')
+            .select('record_id, first_name, last_name, email')
+            .ilike('email', safeEmail)
+            .neq('activity_status', 'Archived');
+
+        if (emailMatches?.length) {
+            for (const match of emailMatches) {
+                if (excludeId && match.record_id === excludeId) continue;
+                collisions.push({
+                    field: 'email',
+                    message: `Email "${safeEmail}" is already registered to ${match.first_name} ${match.last_name}.`
+                });
+            }
+        }
+    }
+
+    return collisions;
 };
 
 // 🛡️ DEFINED DATA HANDLERS (Matches Frontend restrictions)
 const DATA_HANDLERS = ['superadmin', 'admin', 'barangaysecretary', 'secretary', 'barangayhall', 'bhw', 'barangayhealthworker'];
 
 export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
-    
+
     // REBUILD LEDGER
-    router.post('/residents/ledger/rebuild', 
-        [authenticateToken, authorizeRoles(['superadmin', 'admin'])], 
+    router.post('/residents/ledger/rebuild',
+        [authenticateToken, authorizeRoles(['superadmin', 'admin'])],
         async (req, res) => {
             try {
                 const { data: all, error } = await supabase.from('residents_records').select('*');
@@ -148,8 +227,8 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
     );
 
     // GET: 👁️ VIEW ONLY (Globally accessible to logged-in officials)
-    router.get('/residents', 
-        [authenticateToken], 
+    router.get('/residents',
+        [authenticateToken],
         async (req, res) => {
             try {
                 const { data, error } = await supabase.from('residents_records').select('*').order('last_name', { ascending: true });
@@ -160,15 +239,33 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
     );
 
     // POST: 🛡️ CREATE RESIDENT (Locked to Data Handlers)
-    router.post('/residents', 
-        [authenticateToken, authorizeRoles(DATA_HANDLERS), validatePayload(residentSchema)], 
+    router.post('/residents',
+        [authenticateToken, authorizeRoles(DATA_HANDLERS), validatePayload(residentSchema)],
         async (req, res) => {
             try {
                 const r = req.body;
+
+                // 🔒 ANTI-DUPLICATE GATE — runs before any insert
+                const collisions = await checkDuplicates(supabase, {
+                    firstName: r.firstName,
+                    middleName: r.middleName,
+                    lastName: r.lastName,
+                    contact_number: r.contact_number,
+                    email: r.email
+                });
+
+                if (collisions.length > 0) {
+                    return res.status(409).json({
+                        error: 'Duplicate Detected',
+                        message: 'This record conflicts with an existing identity in the registry.',
+                        collisions
+                    });
+                }
+
                 const hash = generateGenesisHash(r.firstName, r.middleName, r.lastName, r.dob);
 
                 const { data: profile, error: pErr } = await supabase.from('residents_records').insert([{
-                    first_name: r.firstName, 
+                    first_name: r.firstName,
                     middle_name: r.middleName || '',
                     last_name: r.lastName,
                     sex: r.sex || 'Other',
@@ -180,11 +277,11 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                     birth_place: r.birthPlace || '',
                     nationality: r.nationality || 'FILIPINO',
                     religion: r.religion || '',
-                    contact_number: r.contact_number || '', 
+                    contact_number: r.contact_number || '',
                     email: r.email || '',
                     current_address: r.currentAddress || '',
                     purok: r.purok || '',
-                    civil_status: r.civilStatus || 'Single', 
+                    civil_status: r.civilStatus || 'Single',
                     education: r.education || '',
                     employment_status: r.employmentStatus || 'Unemployed',
                     occupation: r.occupation || '',
@@ -198,7 +295,7 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                     four_ps_id_number: r.fourPsIdNumber || null,
                     solo_parent_id_number: r.soloParentIdNumber || null,
                     senior_id_number: r.seniorIdNumber || null,
-                    activity_status: r.activityStatus || 'Active' 
+                    activity_status: r.activityStatus || 'Active'
                 }]).select().single();
 
                 if (pErr) throw pErr;
@@ -209,14 +306,14 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                     const m = profile.middle_name ? profile.middle_name[0] : '';
                     const l = profile.last_name[0] || '';
                     const rand = Math.floor(100 + Math.random() * 899);
-                    
+
                     const username = `${f}${m}${l}${rand}@residents.eng-hill.brg.ph`.toLowerCase();
                     const pass = bcrypt.hashSync(`${profile.first_name.toLowerCase()}123456`, 10);
-                    
-                    await supabase.from('residents_account').insert([{ 
-                        resident_id: profile.record_id, username, password: pass, role: 'resident', status: 'Active' 
+
+                    await supabase.from('residents_account').insert([{
+                        resident_id: profile.record_id, username, password: pass, role: 'resident', status: 'Active'
                     }]);
-                    
+
                     logActivity(supabase, req.user.username, 'RESIDENT_CREATED', profile.record_id).catch(() => {});
                     res.status(201).json(profile);
                 } catch (aErr) {
@@ -228,11 +325,30 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
     );
 
     // PUT: 🛡️ UPDATE RESIDENT & ACCOUNT STATUS (Locked to Data Handlers)
-    router.put('/residents/:id', 
-        [authenticateToken, authorizeRoles(DATA_HANDLERS), validatePayload(residentSchema)], 
+    router.put('/residents/:id',
+        [authenticateToken, authorizeRoles(DATA_HANDLERS), validatePayload(residentSchema)],
         async (req, res) => {
             try {
                 const r = req.body;
+                const recordId = req.params.id;
+
+                // 🔒 ANTI-DUPLICATE GATE — excludes the current record from its own collision check
+                const collisions = await checkDuplicates(supabase, {
+                    firstName: r.firstName,
+                    middleName: r.middleName,
+                    lastName: r.lastName,
+                    contact_number: r.contact_number,
+                    email: r.email
+                }, recordId);
+
+                if (collisions.length > 0) {
+                    return res.status(409).json({
+                        error: 'Duplicate Detected',
+                        message: 'The updated data conflicts with an existing identity in the registry.',
+                        collisions
+                    });
+                }
+
                 const newHash = generateGenesisHash(r.firstName, r.middleName, r.lastName, r.dob);
 
                 const updates = {
@@ -266,39 +382,36 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                     four_ps_id_number: r.fourPsIdNumber || null,
                     solo_parent_id_number: r.soloParentIdNumber || null,
                     senior_id_number: r.seniorIdNumber || null,
-                    activity_status: r.activityStatus 
+                    activity_status: r.activityStatus
                 };
 
-                const { data, error } = await supabase.from('residents_records').update(updates).eq('record_id', req.params.id).select();
+                const { data, error } = await supabase.from('residents_records').update(updates).eq('record_id', recordId).select();
                 if (error) throw error;
-                
+
                 // 🛡️ THE GHOST PROTOCOL: Synchronize the Resident's Account Status
                 let accountStatus = 'Active';
                 if (['Deceased', 'Relocated', 'Archived', 'Inactive'].includes(r.activityStatus)) {
-                    accountStatus = 'Archived'; // Locks them out of the system
+                    accountStatus = 'Archived';
                 }
-                
+
                 await supabase.from('residents_account')
                     .update({ status: accountStatus })
-                    .eq('resident_id', req.params.id);
+                    .eq('resident_id', recordId);
 
-                logActivity(supabase, req.user.username, 'IDENTITY_REPLACED', req.params.id).catch(() => {});
+                logActivity(supabase, req.user.username, 'IDENTITY_REPLACED', recordId).catch(() => {});
                 res.json(data[0]);
             } catch (err) { res.status(500).json({ error: "Identity replacement failed." }); }
         }
     );
 
     // DELETE: 🛡️ ARCHIVE RECORD & DEACTIVATE ACCOUNT (Locked to Data Handlers)
-    router.delete('/residents/:id', 
-        [authenticateToken, authorizeRoles(DATA_HANDLERS)], 
+    router.delete('/residents/:id',
+        [authenticateToken, authorizeRoles(DATA_HANDLERS)],
         async (req, res) => {
             try {
-                // 1. Archive the Resident Record
                 await supabase.from('residents_records').update({ activity_status: 'Archived' }).eq('record_id', req.params.id);
-                
-                // 2. Archive & Lock the System Account
                 await supabase.from('residents_account').update({ status: 'Archived' }).eq('resident_id', req.params.id);
-                
+
                 logActivity(supabase, req.user.username, 'RESIDENT_ARCHIVED', req.params.id).catch(() => {});
                 res.json({ success: true });
             } catch (err) { res.status(500).json({ error: "Archiving failed." }); }

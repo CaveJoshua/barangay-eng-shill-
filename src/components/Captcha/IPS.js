@@ -1,7 +1,7 @@
 
 
 import chalk from 'chalk';
-import { logActivity } from '../../Auditlog.js';
+import { logActivity } from '../../../Auditlog.js';
 
 // ---------------------------------------------------------------------------
 // TTL-based lock store  (replaces the plain Set that had no expiry)

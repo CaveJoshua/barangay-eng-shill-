@@ -75,11 +75,9 @@ const notifyAllAdmins = async (supabase, title, message, type = 'blotter') => {
     } catch (err) { console.error("[ADMIN_NOTIF_ERROR]:", err.message); }
 };
 
-// 🛡️ STRICT AUTHORIZATION MIDDLEWARE (Standardized)
 const authorizeRoles = (allowedRoles) => {
     return (req, res, next) => {
         let userRole = req.user?.user_role || req.user?.role || req.user?.account_type || req.user?.type;
-        // Fallback for residents mapping
         if (!userRole && (req.user?.record_id || req.user?.resident_id || req.user?.sub)) userRole = 'resident';
         
         if (!userRole || !allowedRoles.includes(userRole.toLowerCase().trim())) {
@@ -120,74 +118,91 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
         }
     );
 
-    // POST: CREATE REPORT
+    // POST: CREATE REPORT (UPDATED FOR ABORT PROTECTION)
     router.post(['/blotter', '/blotters'], 
         [authenticateToken, authorizeRoles(['admin', 'superadmin', 'staff', 'resident', 'barangayhall'])], 
-        upload.array('evidence', 5), 
         async (req, res) => {
-            try {
-                const r = req.body;
-                const userRole = req.validatedRole;
-                const tokenResidentId = req.user?.record_id || req.user?.resident_id || req.user?.id || req.user?.sub;
-                
-                const isOnline = userRole === 'resident';
-                const secureComplainantId = isOnline ? (tokenResidentId || r.complainant_id) : (r.complainant_id || 'WALK-IN');
+            // 🛡️ MANUAL MULTER HANDLER
+            const multiUpload = upload.array('evidence', 5);
 
-                const prefix = isOnline ? 'ON-INC-' : 'WK-INC-';
-                const suffix = Date.now().toString().slice(-6); 
-                const generatedCaseNumber = r.case_number || `${prefix}${suffix}`;
-                const initialStatus = isOnline ? 'Pending' : 'Active';
-
-                let finalNarrative = await processNarrativeImages(r.narrative);
-
-                let uploadedImageLinks = [];
-                if (req.files && req.files.length > 0) {
-                    const formUploadPromises = req.files.map(async (file) => {
-                        try {
-                            const result = await cloudinary.uploader.upload(file.path, { folder: 'blotter_evidence' });
-                            fs.unlink(file.path).catch(e => console.warn("[CLEANUP WARNING]", e.message));
-                            return result.secure_url;
-                        } catch (uploadErr) {
-                            return null; 
-                        }
-                    });
-
-                    const formResults = await Promise.all(formUploadPromises);
-                    uploadedImageLinks = formResults.filter(url => url !== null);
-                    if (uploadedImageLinks.length > 0) {
-                        finalNarrative += ` ${uploadedImageLinks.map(url => `[ATTACHED EVIDENCE] ${url}`).join(' ')}`;
+            multiUpload(req, res, async (err) => {
+                if (err) {
+                    // 🛡️ CATCH THE ABORT: Gracefully handle client disconnects
+                    if (err.message === 'Request aborted' || err.code === 'ECONNRESET') {
+                        console.warn('⚠️ [BLOTTER] Resident cancelled upload or navigated away.');
+                        return res.status(204).end(); 
                     }
+                    return res.status(400).json({ error: "Upload failed.", details: err.message });
                 }
 
-                const dbPayload = {
-                    case_number: generatedCaseNumber,
-                    complainant_name: r.complainant_name,
-                    complainant_id: secureComplainantId,
-                    respondent: r.respondent,
-                    incident_type: r.incident_type,
-                    narrative: finalNarrative, 
-                    date_filed: r.date_filed || new Date().toISOString().split('T')[0],
-                    time_filed: r.time_filed || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-                    status: initialStatus 
-                };
+                try {
+                    const r = req.body;
+                    const userRole = req.validatedRole;
+                    const tokenResidentId = req.user?.record_id || req.user?.resident_id || req.user?.id || req.user?.sub;
+                    
+                    const isOnline = userRole === 'resident';
+                    const secureComplainantId = isOnline ? (tokenResidentId || r.complainant_id) : (r.complainant_id || 'WALK-IN');
 
-                const { data, error } = await supabase.from('blotter_cases').insert([dbPayload]).select().single();
-                if (error) throw error;
+                    const prefix = isOnline ? 'ON-INC-' : 'WK-INC-';
+                    const suffix = Date.now().toString().slice(-6); 
+                    const generatedCaseNumber = r.case_number || `${prefix}${suffix}`;
+                    const initialStatus = isOnline ? 'Pending' : 'Active';
 
-                res.status(201).json({ success: true, data });
+                    let finalNarrative = await processNarrativeImages(r.narrative);
 
-                logActivity(supabase, req.user.username || 'System', 'INCIDENT_REPORTED', `Case ${dbPayload.case_number} filed.`).catch(() => {});
-                if (isOnline) createNotification(supabase, secureComplainantId, "Report Received", `Under review.`, 'blotter').catch(() => {});
-                notifyAllAdmins(supabase, "New Incident", `Case ${dbPayload.case_number} filed.`, 'blotter').catch(() => {});
-                
-                if (process.env.SMTP_USER) {
-                    sendAutoMail(process.env.SMTP_USER, "New Incident Report", "Attention Required", `New report filed.<br>Case No: <strong>${dbPayload.case_number}</strong>`).catch(() => {});
+                    let uploadedImageLinks = [];
+                    if (req.files && req.files.length > 0) {
+                        const formUploadPromises = req.files.map(async (file) => {
+                            try {
+                                const result = await cloudinary.uploader.upload(file.path, { folder: 'blotter_evidence' });
+                                fs.unlink(file.path).catch(e => console.warn("[CLEANUP WARNING]", e.message));
+                                return result.secure_url;
+                            } catch (uploadErr) {
+                                return null; 
+                            }
+                        });
+
+                        const formResults = await Promise.all(formUploadPromises);
+                        uploadedImageLinks = formResults.filter(url => url !== null);
+                        if (uploadedImageLinks.length > 0) {
+                            finalNarrative += ` ${uploadedImageLinks.map(url => `[ATTACHED EVIDENCE] ${url}`).join(' ')}`;
+                        }
+                    }
+
+                    const dbPayload = {
+                        case_number: generatedCaseNumber,
+                        complainant_name: r.complainant_name,
+                        complainant_id: secureComplainantId,
+                        respondent: r.respondent,
+                        incident_type: r.incident_type,
+                        narrative: finalNarrative, 
+                        date_filed: r.date_filed || new Date().toISOString().split('T')[0],
+                        time_filed: r.time_filed || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+                        status: initialStatus 
+                    };
+
+                    const { data, error } = await supabase.from('blotter_cases').insert([dbPayload]).select().single();
+                    if (error) throw error;
+
+                    res.status(201).json({ success: true, data });
+
+                    logActivity(supabase, req.user.username || 'System', 'INCIDENT_REPORTED', `Case ${dbPayload.case_number} filed.`).catch(() => {});
+                    if (isOnline) createNotification(supabase, secureComplainantId, "Report Received", `Under review.`, 'blotter').catch(() => {});
+                    notifyAllAdmins(supabase, "New Incident", `Case ${dbPayload.case_number} filed.`, 'blotter').catch(() => {});
+                    
+                    if (process.env.SMTP_USER) {
+                        sendAutoMail(process.env.SMTP_USER, "New Incident Report", "Attention Required", `New report filed.<br>Case No: <strong>${dbPayload.case_number}</strong>`).catch(() => {});
+                    }
+
+                } catch (err) {
+                    console.error("[BLOTTER POST ERROR]:", err);
+                    // 🛡️ EMERGENCY CLEANUP: Remove temp files if DB insert fails
+                    if (req.files) {
+                        req.files.forEach(file => fs.unlink(file.path).catch(() => {}));
+                    }
+                    res.status(400).json({ error: err.message || "Failed to process request." });
                 }
-
-            } catch (err) {
-                console.error("[BLOTTER POST ERROR]:", err);
-                res.status(400).json({ error: err.message || "Failed to process request." });
-            }
+            });
         }
     );
 
@@ -201,13 +216,11 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
 
                 if (r.narrative) r.narrative = await processNarrativeImages(r.narrative);
 
-                // 1. Try to update an existing active case first.
-                const { data: caseData, error: caseErr } = await supabase.from('blotter_cases')
+                const { data: caseData } = await supabase.from('blotter_cases')
                     .update(r).eq('id', id).select().maybeSingle();
 
                 if (caseData) return res.json({ success: true, data: caseData });
 
-                // 2. If it wasn't an active case, it might be a pending request being activated
                 if (r.status === 'Active' || r.status === 'Hearing') {
                     const { data: reqData } = await supabase.from('blotter_requests').select('*').eq('id', id).maybeSingle();
                     
@@ -228,7 +241,6 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
                         const { data: migratedCase, error: insertErr } = await supabase.from('blotter_cases').insert([newCasePayload]).select().single();
                         if (insertErr) throw insertErr;
 
-                        // Purge from requests now that it is a full case
                         await supabase.from('blotter_requests').delete().eq('id', id);
                         createNotification(supabase, reqData.resident_id, "Report Accepted", "Your incident report is now active.", 'blotter').catch(() => {});
                         
@@ -244,7 +256,7 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
         }
     );
 
-    // PATCH: UPDATE STATUS (Hearings, Settlements)
+    // PATCH: UPDATE STATUS
     router.patch(['/blotter/:id/status', '/blotters/:id/status'], 
         [authenticateToken, authorizeRoles(['admin', 'superadmin', 'staff', 'barangayhall'])], 
         async (req, res) => {

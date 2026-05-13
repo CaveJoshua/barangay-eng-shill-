@@ -47,6 +47,9 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
   const [traceId, setTraceId] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   
+  // 🛡️ NEW STATE: Isolate the master email from the actual account name
+  const [masterEmail, setMasterEmail] = useState('');
+  
   const [residents, setResidents] = useState<IResident[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const searchWrapperRef = useRef<HTMLDivElement>(null);
@@ -103,6 +106,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
       setOtpSent(false);
       setVerificationCode('');
       setTraceId('');
+      setMasterEmail(''); // Reset email
     }
   }, [isOpen, officialToEdit]);
 
@@ -139,7 +143,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
   };
 
   const handleRequestOTP = async () => {
-    if (!formData.full_name || !formData.full_name.includes('@')) {
+    if (!masterEmail || !masterEmail.includes('@')) {
       return alert("Enter a valid Gmail address for Barangay Hall.");
     }
     setIsSendingOtp(true);
@@ -148,7 +152,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
         method: 'POST',
         headers: getAuthHeaders(false, 'POST'),
         credentials: 'include',
-        body: JSON.stringify({ email: formData.full_name })
+        body: JSON.stringify({ email: masterEmail }) // Send the dedicated email state
       });
       const result = await response.json();
       if (response.ok) {
@@ -168,8 +172,8 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.full_name) {
-      return alert("Full name/Gmail required.");
+    if (!isBarangayHallMode && !formData.full_name) {
+      return alert("Full name required.");
     }
 
     if (!isBarangayHallMode) {
@@ -194,11 +198,11 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
       const method = officialToEdit ? 'PUT' : 'POST';
       const url = officialToEdit ? `${OFFICIALS_API}/${officialToEdit.id}` : OFFICIALS_API;
 
-      // 🛡️ THE FIX: Barangay Hall is automatically superadmin
+      // 🛡️ Send the hardcoded full name and the master email in the payload
       const payload = {
         ...formData,
         role: isBarangayHallMode ? 'superadmin' : formData.role || 'staff',
-        ...(isBarangayHallMode && { otp: verificationCode, trace_id: traceId })
+        ...(isBarangayHallMode && { otp: verificationCode, trace_id: traceId, email: masterEmail })
       };
 
       const res = await fetch(url, {
@@ -247,19 +251,70 @@ ROLE: SUPERADMIN
         </div>
 
         <form onSubmit={handleSubmit} className="OM_FORM">
+          
+          <div className="OM_FORM_GROUP">
+            <label>Position / Role</label>
+            <select
+              className="OM_SELECT"
+              value={formData.position}
+              onChange={e => {
+                const newPos = e.target.value as any;
+                const isHall = newPos === 'Barangay Hall';
+                
+                setFormData({
+                  ...formData,
+                  position: newPos,
+                  // 🛡️ THE FIX: Auto-fill the proper entity name instantly
+                  full_name: isHall ? "Barangay Engineer's Hill" : '',
+                  term_start: isHall ? '' : new Date().toISOString().split('T')[0],
+                  term_end: '',
+                  role: isHall ? 'superadmin' : 'staff'
+                });
+                setOtpSent(false);
+                setVerificationCode('');
+                setShowDropdown(false);
+              }}
+            >
+              {POSITIONS.map(p => (
+                <option key={p} value={p} disabled={!canAddPosition(p)}>
+                  {p} {!canAddPosition(p) ? '(Filled)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 🛡️ If Barangay Hall, show the fixed Account Name */}
+          {isBarangayHallMode && (
+            <div className="OM_FORM_GROUP">
+              <label>System Account Name</label>
+              <input
+                type="text"
+                className="OM_INPUT"
+                value="Barangay Engineer's Hill"
+                disabled
+                style={{ backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 'bold' }}
+              />
+            </div>
+          )}
+
           <div className="OM_FORM_GROUP" ref={searchWrapperRef}>
-            <label>{isBarangayHallMode ? 'Barangay Hall Gmail' : 'Full Name'}</label>
+            <label>{isBarangayHallMode ? 'Master Gmail Address' : 'Full Name'}</label>
             <div style={{ display: 'flex', gap: '8px', position: 'relative' }}>
               <input
                 type={isBarangayHallMode ? "email" : "text"}
                 required
                 className="OM_INPUT"
                 placeholder={isBarangayHallMode ? "hall@gmail.com" : "Search or enter name..."}
-                value={formData.full_name}
+                // 🛡️ Bind directly to masterEmail if Hall Mode, otherwise bind to full_name
+                value={isBarangayHallMode ? masterEmail : formData.full_name}
                 onChange={e => {
                   const val = e.target.value;
-                  setFormData({ ...formData, full_name: isBarangayHallMode ? val.toLowerCase() : val.toUpperCase() });
-                  if (!isBarangayHallMode) setShowDropdown(true);
+                  if (isBarangayHallMode) {
+                    setMasterEmail(val.toLowerCase());
+                  } else {
+                    setFormData({ ...formData, full_name: val.toUpperCase() });
+                    setShowDropdown(true);
+                  }
                 }}
                 onFocus={() => !isBarangayHallMode && setShowDropdown(true)}
                 autoComplete="off"
@@ -271,7 +326,7 @@ ROLE: SUPERADMIN
                   type="button"
                   onClick={handleRequestOTP}
                   className="OM_BTN_SECONDARY"
-                  disabled={isSendingOtp}
+                  disabled={isSendingOtp || !masterEmail.includes('@')}
                   style={{ whiteSpace: 'nowrap', padding: '0 16px' }}
                 >
                   {isSendingOtp ? 'Sending...' : 'Send Code'}
@@ -292,34 +347,6 @@ ROLE: SUPERADMIN
                 </ul>
               )}
             </div>
-          </div>
-
-          <div className="OM_FORM_GROUP">
-            <label>Position / Role</label>
-            <select
-              className="OM_SELECT"
-              value={formData.position}
-              onChange={e => {
-                const newPos = e.target.value as any;
-                setFormData({
-                  ...formData,
-                  position: newPos,
-                  full_name: '',
-                  term_start: newPos === 'Barangay Hall' ? '' : new Date().toISOString().split('T')[0],
-                  term_end: '',
-                  role: newPos === 'Barangay Hall' ? 'superadmin' : 'staff'
-                });
-                setOtpSent(false);
-                setVerificationCode('');
-                setShowDropdown(false);
-              }}
-            >
-              {POSITIONS.map(p => (
-                <option key={p} value={p} disabled={!canAddPosition(p)}>
-                  {p} {!canAddPosition(p) ? '(Filled)' : ''} {p === 'Barangay Hall' ? '' : ''}
-                </option>
-              ))}
-            </select>
           </div>
 
           {isBarangayHallMode && otpSent && (

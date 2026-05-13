@@ -47,7 +47,6 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
     const findUserEmail = async (identifier) => {
         
         // --- 1. CHECK RESIDENTS ---
-        // A. Search by Username
         const { data: resAuth } = await supabase
             .from('residents_account')
             .select('resident_id, username')
@@ -63,7 +62,6 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
             return resProfile ? { email: resProfile.email, firstName: resProfile.first_name, accountId: resAuth.resident_id, role: 'resident' } : null;
         }
 
-        // B. Search by Email
         const { data: resProfileByEmail } = await supabase
             .from('residents_records')
             .select('record_id, email, first_name')
@@ -75,7 +73,6 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
         }
 
         // --- 2. CHECK OFFICIALS / ADMINS ---
-        // A. Search by Username
         const { data: offAuth } = await supabase
             .from('officials_accounts')
             .select('account_id, official_id, username')
@@ -91,7 +88,6 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
             return offProfile ? { email: offProfile.email, firstName: offProfile.full_name, accountId: offAuth.account_id, role: 'official' } : null;
         }
 
-        // B. Search by Email
         const { data: offProfileByEmail } = await supabase
             .from('officials')
             .select('id, email, full_name')
@@ -110,22 +106,19 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
         }
 
         // --- 3. NOT FOUND ---
-        // If they typed something that doesn't exist in any of the 4 places above.
         return null;
     };
 
     // =========================================================
-    // 1. GENERATE & SEND SECURE OTP (Public / Residents / Admins)
+    // 1. GENERATE & SEND SECURE OTP
     // =========================================================
     router.post('/accounts/request-otp', async (req, res) => {
         try {
-            const { email } = req.body; 
+            const { email, useFallback } = req.body; 
             if (!email) return res.status(400).json({ error: 'Identification required.' });
             
-            // The input can be a username OR an email, so we clean it up
             const identifier = email.toLowerCase().trim();
 
-            // 🛡️ RATE LIMITING
             const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
             const limitKey = `${clientIp}_${identifier}`;
 
@@ -134,38 +127,82 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
                 await burstLimiter.consume(limitKey, 1);
             } catch (rejRes) {
                 const secsToWait = Math.round(rejRes.msBeforeNext / 1000) || 60;
-                return res.status(429).json({ 
-                    error: `Too many requests. Please wait ${secsToWait} seconds before trying again.` 
-                });
+                return res.status(429).json({ error: `Too many requests. Please wait ${secsToWait} seconds.` });
             }
 
-            // Let the Smart Lookup figure out who this is
             const userData = await findUserEmail(identifier);
             
-            // 🛡️ REJECT: Return an explicit 404 error if the account does not exist
-            if (!userData || !userData.email) {
+            // 🛡️ THE FIX: Only fail if the user flat out does not exist in the DB
+            if (!userData) {
                 return res.status(404).json({ error: 'Account not found. Please check your details.' });
             }
 
-            const targetEmail = userData.email.toLowerCase();
+            // 🛡️ THE FIX: Dynamic mapping. If no email exists, attach the OTP to the Account ID instead.
+            const targetMapKey = (userData.email || userData.accountId).toLowerCase();
+            let destinationEmail = userData.email?.toLowerCase();
+
+            // 🛡️ ZERO-TRUST FALLBACK LOGIC
+            if (useFallback) {
+                const { data: hallData } = await supabase
+                    .from('officials')
+                    .select('email')
+                    .eq('position', 'Barangay Hall')
+                    .limit(1)
+                    .maybeSingle();
+
+                if (hallData && hallData.email) {
+                    destinationEmail = hallData.email.toLowerCase();
+                } else if (process.env.ROOT_ADMIN_EMAIL) {
+                    // Ultimate Lifeline if the DB record is corrupted/missing an email
+                    destinationEmail = process.env.ROOT_ADMIN_EMAIL.toLowerCase();
+                } else {
+                    return res.status(500).json({ error: 'System Error: Master Email is not configured.' });
+                }
+            } else if (!destinationEmail) {
+                // If they have no email and didn't select fallback, block them gracefully
+                return res.status(400).json({ error: 'No personal email registered. Please use the Barangay Hall Master Email (Fallback) option.' });
+            }
+
             const otpCode = generateSecureCode(6);
             
-            otpStore.set(targetEmail, { 
+            // Map the OTP securely to the target user
+            otpStore.set(targetMapKey, { 
                 code: otpCode, 
                 expires: Date.now() + 300000, // 5 minutes
                 attempts: 0
             });
 
-            const emailMessage = `
-                Hello <b>${userData.firstName}</b>,<br><br>
-                A password reset was requested for your account.<br><br>
-                Your 5-Minute Security Code is:<br>
-                <h1 style="color: #27ae60; letter-spacing: 6px; font-family: monospace; background: #f4f4f4; padding: 15px; border-radius: 8px; display: inline-block;">${otpCode}</h1><br>
-                <p><i>Note: This code is case-sensitive.</i></p>
-                If you did not request this, please secure your account immediately.
-            `;
+            // 📩 DYNAMIC EMAIL TEMPLATES
+            let emailMessage = '';
+            let subjectLine = '';
 
-            const isSent = await sendAutoMail(userData.email, "Password Reset Request", "ACCOUNT RECOVERY", emailMessage);
+            if (useFallback) {
+                subjectLine = "URGENT: Fallback Account Recovery Request";
+                emailMessage = `
+                    <div style="font-family: sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
+                        <h2 style="color: #d97706; margin-top: 0;">Emergency Password Reset Request</h2>
+                        <p>A user has requested an emergency password reset using the Master Fallback system.</p>
+                        <p><b>Target User:</b> ${userData.firstName} (${identifier})</p>
+                        <p><b>Account Role:</b> ${userData.role.toUpperCase()}</p>
+                        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+                        <p>Their 5-Minute Security Code is:</p>
+                        <h1 style="background: #fef3c7; padding: 15px; text-align: center; letter-spacing: 6px; color: #b45309; border-radius: 8px;">${otpCode}</h1>
+                        <p style="color: #64748b; font-size: 12px;">Only share this code after physically verifying the identity of the requester.</p>
+                    </div>
+                `;
+            } else {
+                subjectLine = "Password Reset Request";
+                emailMessage = `
+                    Hello <b>${userData.firstName}</b>,<br><br>
+                    A password reset was requested for your account.<br><br>
+                    Your 5-Minute Security Code is:<br>
+                    <h1 style="color: #27ae60; letter-spacing: 6px; font-family: monospace; background: #f4f4f4; padding: 15px; border-radius: 8px; display: inline-block;">${otpCode}</h1><br>
+                    <p><i>Note: This code is case-sensitive.</i></p>
+                    If you did not request this, please secure your account immediately.
+                `;
+            }
+
+            const isSent = await sendAutoMail(destinationEmail, subjectLine, "ACCOUNT RECOVERY", emailMessage);
 
             if (isSent) {
                 return res.status(200).json({ success: true, message: 'Security code dispatched.' });
@@ -190,19 +227,20 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
             const userData = await findUserEmail(identifier);
             if (!userData) return res.status(400).json({ error: 'Invalid verification target.' });
             
-            const targetEmail = userData.email.toLowerCase();
-            const stored = otpStore.get(targetEmail);
+            // 🛡️ Map checks against the dynamic key
+            const targetMapKey = (userData.email || userData.accountId).toLowerCase();
+            const stored = otpStore.get(targetMapKey);
 
             if (!stored) return res.status(400).json({ error: 'No active code found. Please request a new one.' });
             if (Date.now() > stored.expires) {
-                otpStore.delete(targetEmail);
+                otpStore.delete(targetMapKey);
                 return res.status(400).json({ error: 'Code has expired. Please request a new one.' });
             }
 
             if (stored.code !== otp.trim()) {
                 stored.attempts += 1;
                 if (stored.attempts >= 3) {
-                    otpStore.delete(targetEmail); 
+                    otpStore.delete(targetMapKey); 
                     return res.status(429).json({ error: 'Too many failed attempts. Code destroyed. Request a new one.' });
                 }
                 return res.status(400).json({ error: `Invalid code. ${3 - stored.attempts} attempts remaining.` });
@@ -214,65 +252,92 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
         }
     });
 
-  // =========================================================
-  // 3. CORE: PASSWORD RESET (Restricted: SUPERADMIN OR SELF)
-  // =========================================================
-  router.patch('/accounts/reset/:accountId', authenticateToken, async (req, res) => {
-      try {
-          const userRole = (req.user?.user_role || req.user?.role || '').toLowerCase().trim();
-          const loggedInUserId = req.user?.account_id || req.user?.sub; 
-          const targetId = req.params.accountId;
+    // =========================================================
+    // 3. CORE: PASSWORD RESET (Restricted: ADMIN DASHBOARD VIA OTP)
+    // =========================================================
+    router.patch('/accounts/reset/:accountId', authenticateToken, async (req, res) => {
+        try {
+            const userRole = (req.user?.user_role || req.user?.role || '').toLowerCase().trim();
+            const loggedInUserId = req.user?.account_id || req.user?.sub; 
+            const targetId = req.params.accountId;
 
-          // 🛡️ SECURITY GATEKEEPER:
-          const isSuperAdmin = userRole === 'superadmin';
-          const isSelf = String(loggedInUserId) === String(targetId);
+            const adminRoles = ['superadmin', 'punongbarangay', 'barangaysecretary', 'barangayhall'];
+            const isAdmin = adminRoles.includes(userRole);
+            const isSelf = String(loggedInUserId) === String(targetId);
 
-          if (!isSuperAdmin && !isSelf) {
-              return res.status(403).json({ error: 'Access Denied. You can only reset your own password.' });
-          }
+            if (!isAdmin && !isSelf) {
+                return res.status(403).json({ error: 'Access Denied. You lack permissions.' });
+            }
 
-          const { password } = req.body;
-          if (!password) return res.status(400).json({ error: 'New password is required.' });
+            const { password, otp } = req.body;
+            if (!password) return res.status(400).json({ error: 'New password is required.' });
 
-          const securePass = hashPassword(password);
+            // 🛡️ ENFORCE OTP
+            if (isAdmin && !isSelf) {
+                if (!otp) return res.status(400).json({ error: 'Security verification code is required.' });
 
-          // Try updating resident first
-          const { data: resData } = await supabase
-              .from('residents_account')
-              .update({ 
-                  password: securePass,
-                  requires_reset: false
-              }) 
-              .or(`account_id.eq.${targetId},resident_id.eq.${targetId}`)
-              .select();
+                let targetMapKey = null;
+                
+                const { data: resData } = await supabase.from('residents_records').select('email').eq('record_id', targetId).maybeSingle();
+                if (resData) {
+                    targetMapKey = resData.email || targetId;
+                } else {
+                    const { data: offAuth } = await supabase.from('officials_accounts').select('official_id').eq('account_id', targetId).maybeSingle();
+                    if (offAuth) {
+                        const { data: offData } = await supabase.from('officials').select('email').eq('id', offAuth.official_id).maybeSingle();
+                        targetMapKey = offData?.email ? offData.email : targetId;
+                    }
+                }
 
-          if (resData && resData.length > 0) {
-              return res.json({ success: true, message: 'Password updated successfully.' });
-          }
+                if (!targetMapKey) return res.status(404).json({ error: 'Target account corrupted.' });
 
-          // If superadmin, try updating official
-          if (isSuperAdmin) {
-              const { data: offData } = await supabase
-                  .from('officials_accounts')
-                  .update({ password: securePass })
-                  .eq('account_id', targetId)
-                  .select();
-              
-              if (offData && offData.length > 0) {
-                  return res.json({ success: true, message: 'Official password updated successfully.' });
-              }
-          }
+                const stored = otpStore.get(String(targetMapKey).toLowerCase());
+                if (!stored) return res.status(400).json({ error: 'No active verification code found.' });
+                if (Date.now() > stored.expires) {
+                    otpStore.delete(String(targetMapKey).toLowerCase());
+                    return res.status(400).json({ error: 'Verification code expired.' });
+                }
+                if (stored.code !== otp.trim()) {
+                    stored.attempts += 1;
+                    if (stored.attempts >= 3) otpStore.delete(String(targetMapKey).toLowerCase());
+                    return res.status(401).json({ error: 'Invalid verification code.' });
+                }
+                otpStore.delete(String(targetMapKey).toLowerCase());
+            }
 
-          return res.status(404).json({ error: 'Account not found.' });
+            const securePass = hashPassword(password);
 
-      } catch (err) {
-          console.error("❌ [CRITICAL RESET ERROR]:", err.message);
-          res.status(500).json({ error: 'Database synchronization failed.' });
-      }
-  });
+            const { data: resData } = await supabase
+                .from('residents_account')
+                .update({ password: securePass, requires_reset: false }) 
+                .or(`account_id.eq.${targetId},resident_id.eq.${targetId}`)
+                .select();
+
+            if (resData && resData.length > 0) {
+                return res.json({ success: true, message: 'Password updated successfully.' });
+            }
+
+            if (isAdmin || isSelf) {
+                const { data: offData } = await supabase
+                    .from('officials_accounts')
+                    .update({ password: securePass })
+                    .eq('account_id', targetId)
+                    .select();
+                
+                if (offData && offData.length > 0) {
+                    return res.json({ success: true, message: 'Official password updated successfully.' });
+                }
+            }
+
+            return res.status(404).json({ error: 'Account not found.' });
+
+        } catch (err) {
+            res.status(500).json({ error: 'Database synchronization failed.' });
+        }
+    });
 
     // =========================================================
-    // 4. PUBLIC: RESET PASSWORD VIA OTP
+    // 4. PUBLIC: RESET PASSWORD VIA OTP (Login Page)
     // =========================================================
     router.post('/accounts/public-reset', async (req, res) => {
         try {
@@ -280,33 +345,31 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
             const identifier = email?.toLowerCase().trim();
             
             const userData = await findUserEmail(identifier);
-            if (!userData || !userData.email) return res.status(400).json({ error: 'Account could not be verified.' });
+            if (!userData) return res.status(400).json({ error: 'Account could not be verified.' });
 
-            const targetEmail = userData.email.toLowerCase();
-            const stored = otpStore.get(targetEmail);
+            const targetMapKey = (userData.email || userData.accountId).toLowerCase();
+            const stored = otpStore.get(targetMapKey);
 
             if (!stored) return res.status(400).json({ error: 'No active code found. Please request a new one.' });
             if (Date.now() > stored.expires) {
-                otpStore.delete(targetEmail);
+                otpStore.delete(targetMapKey);
                 return res.status(400).json({ error: 'Code has expired. Please request a new one.' });
             }
 
             if (stored.code !== otp.trim()) {
                 stored.attempts += 1;
                 if (stored.attempts >= 3) {
-                    otpStore.delete(targetEmail); 
+                    otpStore.delete(targetMapKey); 
                     return res.status(429).json({ error: 'Too many failed attempts. Request a new one.' });
                 }
                 return res.status(400).json({ error: `Invalid code. ${3 - stored.attempts} attempts remaining.` });
             }
 
-            // 🛡️ UPDATE THE CORRECT TABLE BASED ON "WHO IS WHO"
             if (userData.role === 'official') {
                 const { error: updateError } = await supabase
                     .from('officials_accounts')
                     .update({ password: hashPassword(newPassword) })
                     .eq('account_id', userData.accountId);
-                
                 if (updateError) throw updateError;
             } else {
                 const { error: updateError } = await supabase
@@ -323,12 +386,10 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
                 } catch(ignoreErr) {}
             }
 
-            otpStore.delete(targetEmail);
-
+            otpStore.delete(targetMapKey);
             res.status(200).json({ success: true, message: 'Password reset successful.' });
 
         } catch (err) {
-            console.error("Public Reset Error:", err.message);
             res.status(500).json({ error: 'Database synchronization failed.' });
         }
     });
