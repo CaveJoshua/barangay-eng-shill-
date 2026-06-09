@@ -29,7 +29,8 @@ html, body, #root {
   --color-brand: #3b82f6;
 }
 
-[data-theme='dark'] {
+[data-theme='dark'],
+[data-resident-theme='dark'] {
   --L-bg: #1e293b;
   --L-border: #334155;
   --CONTENT-bg: #0f172a;

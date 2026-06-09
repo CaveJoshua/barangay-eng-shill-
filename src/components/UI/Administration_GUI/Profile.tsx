@@ -1,29 +1,18 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { API_BASE_URL } from '../api'; 
+import { API_BASE_URL } from '../api';
+import { ThemeManager } from '../ThemeManager';
 import './styles/Profile.css';
 
-// ── 0. GRAPHQL CLIENT (With Token Hunter) ──
+// ── 0. GRAPHQL CLIENT ──
 const gqlClient = async (query: string, variables: Record<string, any> = {}) => {
-  // 🛡️ THE FIX: Hunt for the token everywhere to stop "Unauthorized"
-  let token = localStorage.getItem('auth_token') || localStorage.getItem('access_token') || '';
-  
-  if (!token) {
-    const adminSession = localStorage.getItem('admin_session');
-    if (adminSession) {
-      try { token = JSON.parse(adminSession).token || ''; } catch (e) {}
-    }
-  }
-
   const response = await fetch(`${API_BASE_URL}/graphql/profile`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify({ query, variables })
   });
 
-  if (response.status === 401) throw new Error("Unauthorized: Token missing or expired.");
+  if (response.status === 401) throw new Error("Unauthorized: Session expired. Please log in again.");
 
   const json = await response.json();
   if (json.errors) throw new Error(json.errors[0].message);
@@ -67,7 +56,7 @@ const Profile: React.FC = () => {
   });
   
   const activeId = fallbackInfo.id;
-  const [theme, setTheme] = useState(() => localStorage.getItem(`sb_theme_${activeId}`) || 'light');
+  const [theme, setTheme] = useState(() => ThemeManager.loadAdmin(activeId));
   
   const [formErrors, setFormErrors] = useState({ email: '', phone: '' });
   const [loading, setLoading] = useState(false);
@@ -93,7 +82,7 @@ const Profile: React.FC = () => {
   const isFetching = useRef(false);
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
+    ThemeManager.applyAdmin(theme as 'light' | 'dark');
   }, [theme]);
 
   // ── 2. AVATAR UPLOAD HANDLER ──
@@ -148,8 +137,7 @@ const Profile: React.FC = () => {
 
       setTheme(prevTheme => {
         if (profile.theme_preference && profile.theme_preference !== prevTheme) {
-          document.documentElement.setAttribute('data-theme', profile.theme_preference);
-          localStorage.setItem(`sb_theme_${activeId}`, profile.theme_preference);
+          ThemeManager.saveAdmin(activeId, profile.theme_preference as 'light' | 'dark');
           return profile.theme_preference;
         }
         return prevTheme;
@@ -249,10 +237,9 @@ const Profile: React.FC = () => {
   };
 
   const handleThemeChange = async (newTheme: 'light' | 'dark') => {
-    if (theme === newTheme) return; 
+    if (theme === newTheme) return;
     setTheme(newTheme);
-    document.documentElement.setAttribute('data-theme', newTheme);
-    localStorage.setItem(`sb_theme_${activeId}`, newTheme);
+    ThemeManager.saveAdmin(activeId, newTheme);
 
     try {
       const mutation = `mutation UpdateTheme($t: String!) { updateTheme(theme: $t) { success } }`;

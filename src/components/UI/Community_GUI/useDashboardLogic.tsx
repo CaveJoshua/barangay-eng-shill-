@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ApiService } from '../api';
+import { ThemeManager } from '../ThemeManager';
 
 export const useDashboardLogic = (onLogout: () => void) => {
   const [resident, setResident] = useState<any>(null);
@@ -166,14 +167,17 @@ export const useDashboardLogic = (onLogout: () => void) => {
       const extractedUsername = userNode.username || profile.username || parsed.username || '';
 
       setResident({
-        ...parsed,         
-        ...profile,        
-        user: userNode,    
-        email: extractedEmail,       
-        username: extractedUsername, 
-        record_id: recordId, 
+        ...parsed,
+        ...profile,
+        user: userNode,
+        email: extractedEmail,
+        username: extractedUsername,
+        record_id: recordId,
         formattedName: safeName,
       });
+
+      // Apply the resident's saved theme immediately on dashboard load.
+      ThemeManager.applyResident(ThemeManager.loadResident(String(recordId)));
 
       fetchData(recordId);
     } catch (e) {

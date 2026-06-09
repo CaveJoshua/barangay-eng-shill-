@@ -31,18 +31,26 @@ export const verifyActionSecurity = async (): Promise<boolean> => {
         const response = await fetch(`${API_BASE_URL}/residents?limit=1`, {
             method: 'GET',
             headers: getAuthHeaders(),
-            credentials: 'include' 
+            credentials: 'include'
         });
 
         if (response.status === 401 || response.status === 403) {
-            alert("Action blocked: Session expired.");
+            alert("Action blocked: Session expired. Please log in again.");
+            return false;
+        }
+
+        if (!response.ok) {
+            // Fail closed — do not allow actions if security check cannot complete
+            alert("Action blocked: Security verification failed.");
             return false;
         }
 
         return window.confirm("Security Verification Passed. Proceed?");
-        
+
     } catch (error) {
         console.error("Security Check Failed", error);
-        return window.confirm("Security server unreachable. Proceed anyway?");
+        // Fail closed — unreachable server is not a reason to proceed
+        alert("Action blocked: Security server is unreachable. Please try again.");
+        return false;
     }
 };

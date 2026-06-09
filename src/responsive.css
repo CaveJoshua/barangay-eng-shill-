@@ -1,0 +1,68 @@
+/* =============================================================================
+   responsive.css — J-CVE-101203 global responsiveness & perceived-speed layer
+   -----------------------------------------------------------------------------
+   ADDITIVE ONLY. No colors, no desktop layout overrides. Everything here is
+   gated behind interaction states or small-screen media queries so existing
+   (working) desktop layouts are untouched.
+   ============================================================================= */
+
+/* 1. Respect the OS "reduce motion" setting (accessibility + avoids jank). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* 2. Snappy tactile feedback — makes clicks feel instant on pointer devices.
+   Scoped to (hover: hover) so touch screens don't get a sticky :active state. */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    transition: transform 0.06s ease, filter 0.12s ease, box-shadow 0.12s ease;
+  }
+
+  button:not(:disabled):active,
+  [role="button"]:not([aria-disabled="true"]):active {
+    transform: translateY(1px) scale(0.985);
+  }
+}
+
+/* 3. Mobile ergonomics — never let a dialog panel overflow a small viewport.
+   Targets the dialog PANEL class patterns used across the app (PF_MODAL_BOX,
+   LM_MODAL_CARD, CM_RESET_CARD, …) — NOT the backdrop overlay, so centering
+   is preserved. */
+@media (max-width: 600px) {
+  [class*="MODAL_CARD"],
+  [class*="MODAL_BOX"],
+  [class*="MODAL_CONTENT"],
+  [class*="MODAL_PANEL"],
+  [class*="MODAL_CONTAINER"],
+  [class*="RESET_CARD"] {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    max-height: 92vh !important;
+    overflow-y: auto !important;
+    box-sizing: border-box;
+  }
+
+  /* Guard against accidental horizontal scroll from wide fixed elements. */
+  html,
+  body {
+    overflow-x: hidden;
+  }
+}
+
+/* 4. Comfortable tap targets on coarse pointers (phones/tablets). */
+@media (pointer: coarse) {
+  button,
+  [role="button"],
+  input[type="checkbox"],
+  input[type="radio"] {
+    touch-action: manipulation; /* removes the 300ms tap delay */
+  }
+}

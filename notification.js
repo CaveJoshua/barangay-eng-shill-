@@ -15,7 +15,7 @@ export const NotificationRouter = (router, supabase, authenticateToken) => {
         try {
             const userRole = (req.user?.user_role || req.user?.role || 'resident').toLowerCase().trim();
             const authId = getAuthId(req.user);
-            const fetchLimit = parseInt(req.query.limit) || 50;
+            const fetchLimit = Math.min(parseInt(req.query.limit) || 50, 100);
 
             let query = supabase.from('notifications').select('*');
 
@@ -73,12 +73,52 @@ export const NotificationRouter = (router, supabase, authenticateToken) => {
     });
 
     // =========================================================
+    // 2.5 LATEST MARKER (lightweight poll — "is anything new?")
+    // Returns only the newest notification's id + timestamp (role-scoped)
+    // so the client can detect changes without pulling the whole feed.
+    // Wires up ApiService.getNotificationMarker(). (J-CVE-101203)
+    // =========================================================
+    router.get('/alerts/latest-marker', authenticateToken, async (req, res) => {
+        try {
+            const userRole = (req.user?.user_role || req.user?.role || 'resident').toLowerCase().trim();
+            const authId = getAuthId(req.user);
+
+            let query = supabase
+                .from('notifications')
+                .select('id, created_at')
+                .order('created_at', { ascending: false })
+                .limit(1);
+
+            if (userRole === 'resident') {
+                query = query.or(`user_id.eq.${authId},user_id.eq.system,user_id.is.null`);
+            } else {
+                query = query.not('message', 'ilike', '%(Walk-in)%');
+            }
+
+            const { data, error } = await query.maybeSingle();
+            if (error) throw error;
+
+            res.status(200).json({
+                marker: data?.created_at || null,
+                latest_id: data?.id || null,
+            });
+        } catch (err) {
+            console.error("[NOTIF_MARKER_ERROR]:", err.message);
+            res.status(500).json({ error: "Failed to fetch notification marker." });
+        }
+    });
+
+    // =========================================================
     // 3. CREATE NEW NOTIFICATION
     // =========================================================
     router.post('/alerts/create', authenticateToken, async (req, res) => {
         try {
+            const userRole = (req.user?.user_role || req.user?.role || 'resident').toLowerCase().trim();
+            const isAdmin = ['admin', 'superadmin', 'staff', 'barangayhall'].includes(userRole);
+            if (!isAdmin) return res.status(403).json({ error: 'Forbidden. Only staff can create notifications.' });
+
             const { user_id, title, message, type } = req.body;
-            
+
             if (!title || !message) {
                 return res.status(400).json({ error: "Title and message are required" });
             }
@@ -106,10 +146,29 @@ export const NotificationRouter = (router, supabase, authenticateToken) => {
     });
 
     // =========================================================
-    // 4. MARK SINGLE AS READ
+    // 4. MARK SINGLE AS READ (ownership enforced)
     // =========================================================
     router.put('/alerts/read/:id', authenticateToken, async (req, res) => {
         try {
+            const authId = String(getAuthId(req.user));
+            const userRole = (req.user?.user_role || req.user?.role || 'resident').toLowerCase().trim();
+
+            // Fetch the notification first to verify ownership
+            const { data: notif, error: fetchErr } = await supabase
+                .from('notifications')
+                .select('id, user_id')
+                .eq('id', req.params.id)
+                .maybeSingle();
+
+            if (fetchErr || !notif) return res.status(404).json({ error: 'Notification not found.' });
+
+            const isAdmin = ['admin', 'superadmin', 'staff', 'barangayhall'].includes(userRole);
+            const isOwner = String(notif.user_id) === authId || notif.user_id === 'system';
+
+            if (!isAdmin && !isOwner) {
+                return res.status(403).json({ error: 'Forbidden. You cannot modify this notification.' });
+            }
+
             const { error } = await supabase
                 .from('notifications')
                 .update({ is_read: true })
@@ -150,10 +209,28 @@ export const NotificationRouter = (router, supabase, authenticateToken) => {
     });
 
     // =========================================================
-    // 6. PERMANENT CLEAR SINGLE (DELETE - FOR TRASH CAN ICON)
+    // 6. PERMANENT CLEAR SINGLE (DELETE - ownership enforced)
     // =========================================================
     router.delete('/alerts/clear/:id', authenticateToken, async (req, res) => {
         try {
+            const authId = String(getAuthId(req.user));
+            const userRole = (req.user?.user_role || req.user?.role || 'resident').toLowerCase().trim();
+
+            const { data: notif, error: fetchErr } = await supabase
+                .from('notifications')
+                .select('id, user_id')
+                .eq('id', req.params.id)
+                .maybeSingle();
+
+            if (fetchErr || !notif) return res.status(404).json({ error: 'Notification not found.' });
+
+            const isAdmin = ['admin', 'superadmin', 'staff', 'barangayhall'].includes(userRole);
+            const isOwner = String(notif.user_id) === authId || notif.user_id === 'system';
+
+            if (!isAdmin && !isOwner) {
+                return res.status(403).json({ error: 'Forbidden. You cannot delete this notification.' });
+            }
+
             const { error } = await supabase
                 .from('notifications')
                 .delete()

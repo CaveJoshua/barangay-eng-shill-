@@ -3,7 +3,9 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-console.log("[MAILER DEBUG] Target User:", process.env.SMTP_USER ? "FOUND" : "NOT FOUND");
+if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+  throw new Error('[FATAL] SMTP_USER and SMTP_PASS must be set in environment.');
+}
 
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
@@ -14,8 +16,7 @@ const transporter = nodemailer.createTransport({
     pass: process.env.SMTP_PASS, // Use your 16-digit App Password here
   },
   tls: {
-    // 🛡️ This prevents Render from rejecting Google's self-signed certificates
-    rejectUnauthorized: false 
+    rejectUnauthorized: true
   }
 });
 

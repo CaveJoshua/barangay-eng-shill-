@@ -4,19 +4,35 @@ import crypto  from 'crypto';
 import { logActivity } from './Auditlog.js';
 import { sendAutoMail } from './Mailer.js';
 
-const JWT_SECRET = process.env.SUPABASE_JWT_SECRET || 'your_fallback_secret';
-const ROOT_EMAIL = process.env.ROOT_ADMIN_EMAIL || 'your_admin_email@gmail.com';
+const JWT_SECRET = process.env.SUPABASE_JWT_SECRET;
+if (!JWT_SECRET) throw new Error('[FATAL] SUPABASE_JWT_SECRET is not set.');
 
-// 🛡️ SECURITY FIX: Environment check
+const ROOT_EMAIL = process.env.ROOT_EMAIL;
+if (!ROOT_EMAIL) throw new Error('[FATAL] ROOT_EMAIL is not set in environment.');
+
 const isProduction = process.env.NODE_ENV === 'production';
 
+// OTP store: values are { codeHash, expires, cooldown, attempts, trace_id }
 const rootOtpStore = new Map();
 
-const verifyPassword = (inputPassword, storedPassword) => {
+// Hashes a plaintext OTP code using SHA-256 so it is never stored in memory as plaintext
+const hashOtp = (code) => crypto.createHash('sha256').update(code).digest('hex');
+
+// Uses crypto.randomInt for cryptographically secure OTP generation
+const generateSecureCode = (length = 6) => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    return Array.from({ length }, () => chars[crypto.randomInt(0, chars.length)]).join('');
+};
+
+// Async password verification — never blocks event loop, never compares plaintext
+const verifyPassword = async (inputPassword, storedPassword) => {
     if (!inputPassword || !storedPassword) return false;
-    return storedPassword.startsWith('$2') 
-        ? bcrypt.compareSync(inputPassword, storedPassword) 
-        : inputPassword === storedPassword;
+    if (!storedPassword.startsWith('$2')) {
+        // Password is not hashed — reject and flag for remediation
+        console.error('[SECURITY] Unhashed password detected in officials_accounts. Force-reset required.');
+        return false;
+    }
+    return bcrypt.compare(inputPassword, storedPassword);
 };
 
 // ── 🛡️ THE FIX: BULLETPROOF ROLE DERIVATION ──
@@ -34,11 +50,6 @@ const deriveRoleFromPosition = (position, fallbackRole, username = '') => {
     if (pos.includes('barangay hall')) return 'barangayhall';
     
     return fallbackRole ? fallbackRole.toLowerCase().trim() : 'staff';
-};
-
-const generateSecureCode = (length = 6) => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    return Array.from({ length }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
 };
 
 export const OfficialsLoginRouter = (router, supabase) => {
@@ -61,7 +72,7 @@ export const OfficialsLoginRouter = (router, supabase) => {
             const traceId = crypto.randomUUID();
 
             rootOtpStore.set('ROOT', {
-                code: otpCode,
+                codeHash: hashOtp(otpCode),  // stored as hash, never plaintext
                 trace_id: traceId,
                 expires: Date.now() + 300000, // 5 mins
                 cooldown: Date.now() + 60000, // 1 min
@@ -103,7 +114,7 @@ export const OfficialsLoginRouter = (router, supabase) => {
                     return res.status(400).json({ error: 'Code expired.' });
                 }
 
-                if (storedRoot.code !== otp.trim().toUpperCase()) {
+                if (hashOtp(otp.trim().toUpperCase()) !== storedRoot.codeHash) {
                     storedRoot.attempts += 1;
                     if (storedRoot.attempts >= 3) {
                         rootOtpStore.delete('ROOT');
@@ -115,9 +126,9 @@ export const OfficialsLoginRouter = (router, supabase) => {
                 rootOtpStore.delete('ROOT');
 
                 const token = jwt.sign({
-                    aud: 'authenticated', role: 'authenticated',          
-                    sub: 'SYSTEM-ROOT-0000', username: 'SYSTEM_ROOT_ADMIN', user_role: 'superadmin' 
-                }, JWT_SECRET, { expiresIn: '24h' });
+                    aud: 'authenticated', role: 'authenticated',
+                    sub: 'SYSTEM-ROOT-0000', username: 'SYSTEM_ROOT_ADMIN', user_role: 'superadmin'
+                }, JWT_SECRET, { expiresIn: '1h' });
 
                 // 🔒 PRODUCTION GRADE COOKIE 
                 res.cookie('auth_token', token, { 
@@ -127,15 +138,13 @@ export const OfficialsLoginRouter = (router, supabase) => {
                     maxAge: 86400000 
                 });
                 
-                // 🛠️ RESTORED: access_token added back to the JSON payload
                 return res.status(200).json({
                     message: 'Root Authentication successful',
-                    access_token: token, 
                     account_id: 'SYSTEM-ROOT-0000',
                     username: 'SYSTEM_ROOT_ADMIN',
-                    role: 'superadmin', 
-                    profile: { 
-                        record_id: 'SYSTEM-ROOT-0000', 
+                    role: 'superadmin',
+                    profile: {
+                        record_id: 'SYSTEM-ROOT-0000',
                         profileName: 'System Root Administrator',
                         position: 'System Owner',
                         role: 'superadmin'
@@ -147,14 +156,14 @@ export const OfficialsLoginRouter = (router, supabase) => {
             const { data: accountData, error: accountError } = await supabase
                 .from('officials_accounts')
                 .select(`
-                    account_id, username, password, role, official_id,
+                    account_id, username, password, role, official_id, theme_preference,
                     officials ( full_name, position, term_start, term_end )
                 `)
-                .eq('username', cleanUsername) 
+                .eq('username', cleanUsername)
                 .single();
 
             if (accountError || !accountData) return res.status(401).json({ error: 'Account not found.' });
-            if (!verifyPassword(password, accountData.password)) return res.status(401).json({ error: 'Invalid password.' });
+            if (!(await verifyPassword(password, accountData.password))) return res.status(401).json({ error: 'Invalid password.' });
 
             const position = accountData.officials?.position || 'Official';
             
@@ -162,9 +171,9 @@ export const OfficialsLoginRouter = (router, supabase) => {
             const isMasterAccount = position === 'Super Admin';
 
             const token = jwt.sign({
-                aud: 'authenticated', role: 'authenticated',          
+                aud: 'authenticated', role: 'authenticated',
                 sub: accountData.account_id, username: accountData.username, user_role: userRole
-            }, JWT_SECRET, { expiresIn: '24h' });
+            }, JWT_SECRET, { expiresIn: '1h' });
 
             logActivity(supabase, accountData.username, 'LOGIN', `${accountData.officials?.full_name} logged in.`).catch(() => {});
 
@@ -176,21 +185,20 @@ export const OfficialsLoginRouter = (router, supabase) => {
                 maxAge: 86400000 
             });
 
-            // 🛠️ RESTORED: access_token added back to the JSON payload
             res.status(200).json({
                 message: 'Authentication successful',
-                access_token: token, 
                 account_id: accountData.account_id,
                 username: accountData.username,
-                role: userRole, 
-                profile: { 
-                    record_id: accountData.official_id, 
+                role: userRole,
+                theme_preference: accountData.theme_preference || 'light',
+                profile: {
+                    record_id: accountData.official_id,
                     profileName: accountData.officials?.full_name,
                     position: position,
                     role: userRole,
-                    ...(isMasterAccount ? {} : { 
+                    ...(isMasterAccount ? {} : {
                         term_start: accountData.officials?.term_start,
-                        term_end: accountData.officials?.term_end 
+                        term_end: accountData.officials?.term_end
                     })
                 }
             });
@@ -214,33 +222,38 @@ export const OfficialsLoginRouter = (router, supabase) => {
     });
 
     // ==========================================
-    // 3. ZERO TRUST KEY ROTATION (REFRESH)
+    // 3. ADMIN SESSION REFRESH (separate from resident refresh)
+    // Re-issues the httpOnly admin cookie. Only valid within 24h of original issue.
     // ==========================================
-    router.post('/auth/refresh', (req, res) => {
+    router.post('/auth/admin/refresh', (req, res) => {
         try {
-            // 🛡️ MUST READ FROM COOKIES, NOT HEADERS
-            const token = req.cookies?.auth_token; 
-            if (!token) return res.status(401).json({ error: 'No token found in cookies.' });
+            const token = req.cookies?.auth_token;
+            if (!token) return res.status(401).json({ error: 'No admin session found.' });
 
+            // ignoreExpiration so we can accept an already-expired token and re-issue
+            // within a short grace window — this is what allows reactive refresh on 401.
             jwt.verify(token, JWT_SECRET, { ignoreExpiration: true }, (err, decoded) => {
-                if (err || !decoded) return res.status(403).json({ error: 'Invalid or tampered token' });
+                if (err || !decoded) return res.status(403).json({ error: 'Invalid or tampered token.' });
+
+                // Only allow refresh within 5 minutes of expiry to keep the window tight
+                const expiredAt = decoded.exp * 1000;
+                const GRACE_MS = 5 * 60 * 1000;
+                if (Date.now() > expiredAt + GRACE_MS) {
+                    res.clearCookie('auth_token', { httpOnly: true, secure: true, sameSite: isProduction ? 'none' : 'lax' });
+                    return res.status(401).json({ error: 'Session expired. Please log in again.' });
+                }
 
                 const { iat, exp, ...newPayload } = decoded;
-                const newToken = jwt.sign(newPayload, JWT_SECRET, { expiresIn: '24h' });
+                const newToken = jwt.sign(newPayload, JWT_SECRET, { expiresIn: '1h' });
 
-                // 🔒 SET THE NEW COOKIE
                 res.cookie('auth_token', newToken, {
-                    httpOnly: true, 
-                    secure: true, 
-                    sameSite: isProduction ? 'none' : 'lax', 
+                    httpOnly: true,
+                    secure: true,
+                    sameSite: isProduction ? 'none' : 'lax',
                     maxAge: 86400000
                 });
 
-                // 🛠️ RESTORED: access_token added back to the JSON payload
-                res.status(200).json({ 
-                    message: 'Token rotated successfully.',
-                    access_token: newToken 
-                });
+                res.status(200).json({ message: 'Session refreshed.' });
             });
         } catch (err) {
             res.status(500).json({ error: 'Refresh failed.' });

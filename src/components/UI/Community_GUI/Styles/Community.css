@@ -87,30 +87,30 @@ body {
 }
 
 .C_NAV_LEFT { display: flex; align-items: center; gap: 10px; }
-.C_LOGO_SHIELD { font-size: 1.2rem; color: #3b5998; }
+.C_LOGO_SHIELD { font-size: 1.2rem; color: #1d4ed8; }
 .C_BRAND_INFO strong { display: block; color: #0f172a !important; font-size: 0.85rem; line-height: 1; }
 .C_BRAND_INFO span { font-size: 0.65rem; color: #64748b !important; font-weight: 600; }
 
-.C_EXIT_LINK { 
-  background: #eff6ff !important; 
-  border: 1px solid #dbeafe !important;
-  cursor: pointer; 
-  color: #3b5998 !important;
-  font-weight: 700; 
-  font-size: 0.7rem; 
-  display: flex; 
-  align-items: center; 
+.C_EXIT_LINK {
+  background: #eff6ff !important;
+  border: 1px solid #bfdbfe !important;
+  cursor: pointer;
+  color: #1d4ed8 !important;
+  font-weight: 700;
+  font-size: 0.7rem;
+  display: flex;
+  align-items: center;
   gap: 6px;
-  padding: 0.4rem 0.8rem; 
-  border-radius: 6px; 
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
 }
 
 /* --- 5. SECTIONS --- */
 .C_HERO_HERO {
   width: 100%;
-  padding: 2rem 1rem; 
+  padding: 2rem 1rem;
   text-align: center;
-  background: linear-gradient(180deg, #f0f7ff 0%, #f8fafc 100%) !important;
+  background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 50%, #f8fafc 100%) !important;
 }
 
 .C_HERO_HERO h1 { font-size: 2.2rem; font-weight: 800; color: #0f172a !important; margin-bottom: 0.5rem; }
@@ -126,7 +126,7 @@ body {
 }
 
 .C_LOGIN_TRIGGER_BTN {
-  background-color: #3b5998 !important;
+  background-color: #1d4ed8 !important;
   color: white !important;
   margin-top: 20px;
   padding: 1rem 4.5rem;
@@ -134,11 +134,11 @@ body {
   font-weight: 800;
   border: none;
   cursor: pointer;
-  box-shadow: 0 4px 15px rgba(59, 89, 152, 0.2);
+  box-shadow: 0 4px 15px rgba(29, 78, 216, 0.28);
 }
 
 /* --- 6. ANNOUNCEMENT SYSTEM --- */
-.C_ANNOUNCEMENT_SECTION { 
+.C_ANNOUNCEMENT_SECTION {
   padding: 4rem 5%;
   max-width: 1440px;
   margin: 0 auto;
@@ -146,41 +146,41 @@ body {
   height: auto !important;
 }
 
-.C_FILTER_BAR { 
-  display: flex; 
-  gap: 0.75rem; 
-  overflow-x: auto; 
-  padding-bottom: 1rem; 
+.C_FILTER_BAR {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-bottom: 1rem;
   margin: 1.5rem 0;
-  scrollbar-width: none; 
+  scrollbar-width: none;
 }
 
 .C_FILTER_TAB {
   white-space: nowrap;
-  background: #ffffff !important; 
-  border: 1px solid #e2e8f0 !important; 
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
   padding: 0.6rem 1.4rem;
-  border-radius: 50px; 
-  font-weight: 700; 
-  font-size: 0.8rem; 
+  border-radius: 50px;
+  font-weight: 700;
+  font-size: 0.8rem;
   color: #64748b !important;
   cursor: pointer;
 }
 
-.C_FILTER_TAB.ACTIVE { background: #3b5998 !important; color: #ffffff !important; border-color: #3b5998 !important; }
+.C_FILTER_TAB.ACTIVE { background: #1d4ed8 !important; color: #ffffff !important; border-color: #1d4ed8 !important; }
 
-.C_ANNOUNCEMENT_GRID { 
-  display: grid; 
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); 
-  gap: 2rem; 
+.C_ANNOUNCEMENT_GRID {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 2rem;
   padding-bottom: 5rem;
 }
 
 .C_NEWS_ITEM {
-  background: #ffffff !important; 
-  border: 1px solid #e2e8f0 !important; 
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
   border-radius: 20px;
-  overflow: hidden; 
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   cursor: pointer;
@@ -198,12 +198,12 @@ body {
 
 .C_NEWS_BODY { padding: 1.75rem; display: flex; flex-direction: column; flex-grow: 1; }
 .C_NEWS_META { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-.C_NEWS_DATE { font-size: 0.75rem; font-weight: 700; color: #3b5998 !important; }
+.C_NEWS_DATE { font-size: 0.75rem; font-weight: 700; color: #1d4ed8 !important; }
 
-.C_NEWS_CAT { 
-  font-size: 0.65rem; 
-  text-transform: uppercase; 
-  font-weight: 800; 
+.C_NEWS_CAT {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  font-weight: 800;
   padding: 3px 10px;
   border-radius: 6px;
 }
@@ -211,14 +211,14 @@ body {
 .C_NEWS_BODY h4 { font-size: 1.2rem; font-weight: 800; margin-bottom: 0.75rem; color: #0f172a !important; line-height: 1.4; }
 .C_SNIPPET { font-size: 0.9rem; color: #64748b !important; line-height: 1.6; margin-bottom: 1.5rem; }
 
-.C_NEWS_LINK { 
+.C_NEWS_LINK {
   margin-top: auto;
-  background: #f8fafc !important; 
+  background: #f8fafc !important;
   border: 1px solid #e2e8f0 !important;
-  color: #0f172a !important; 
-  font-weight: 700; 
-  padding: 0.75rem; 
-  border-radius: 10px; 
+  color: #0f172a !important;
+  font-weight: 700;
+  padding: 0.75rem;
+  border-radius: 10px;
   text-align: center;
   font-size: 0.85rem;
 }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './styles/Community_login_modal.css';
-import { API_BASE_URL } from '../UI/api'; 
+import { API_BASE_URL } from '../UI/api';
+import { ThemeManager } from '../UI/ThemeManager';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -112,7 +113,12 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
       localStorage.setItem('user_role', 'resident');
       localStorage.setItem('resident_session', JSON.stringify(sessionData));
 
-      onLoginSuccess(sessionData); 
+      const recordId = data.profile?.record_id || data.user?.record_id;
+      const theme = (data.theme_preference as 'light' | 'dark') || 'light';
+      if (recordId) ThemeManager.saveResident(String(recordId), theme);
+      else ThemeManager.applyResident(theme);
+
+      onLoginSuccess(sessionData);
       onClose();
     } catch (err: any) {
       setError(err.message); 

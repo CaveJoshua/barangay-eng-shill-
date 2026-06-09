@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { logActivity } from './Auditlog.js';
 
 /**
@@ -125,7 +126,7 @@ export const HouseholdRouter = (router, supabase, authenticateToken) => {
                      throw new Error(`One or more members are already designated as Heads in Household ${headConflicts[0].household_number}.`);
                 }
 
-                const hh_num = `HH-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+                const hh_num = `HH-${new Date().getFullYear()}-${String(crypto.randomInt(1000, 9999))}`;
 
                 // Create House
                 const { data: newHH, error: hhError } = await supabase

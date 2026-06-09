@@ -123,6 +123,16 @@ export const documentRouter = (router, supabase, authenticateToken) => {
     router.get('/documents/resident/:id', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff', 'resident', 'barangayhall']), async (req, res) => {
         try {
             const { id } = req.params;
+            const userRole = req.validatedRole;
+
+            // Residents may only retrieve their own documents
+            if (userRole === 'resident') {
+                const ownId = String(req.user?.record_id || req.user?.resident_id || req.user?.sub);
+                if (ownId !== String(id)) {
+                    return res.status(403).json({ error: 'Forbidden. You can only view your own document history.' });
+                }
+            }
+
             const { data, error } = await supabase.from('document_requests').select('*').eq('resident_id', id).order('date_requested', { ascending: false });
 
             if (error) throw error;
@@ -201,12 +211,21 @@ export const documentRouter = (router, supabase, authenticateToken) => {
         }
     });
 
-    // ── 4. PUT: FULL UPDATE (ADMIN APPROVAL SYNC) ──
+    // ── 4. PUT: FULL UPDATE (ADMIN APPROVAL SYNC, field allowlist) ──
     router.put('/documents/:id', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff', 'barangayhall']), async (req, res) => {
         try {
             const { id } = req.params;
-            const r = req.body;
+            const { status, price, purpose, type, rejection_reason, tracking_code, date_released } = req.body;
             const actor = req.user?.username || 'Staff';
+
+            const r = {};
+            if (status           !== undefined) r.status            = status;
+            if (price            !== undefined) r.price             = price;
+            if (purpose          !== undefined) r.purpose           = purpose;
+            if (type             !== undefined) r.type              = type;
+            if (rejection_reason !== undefined) r.rejection_reason  = rejection_reason;
+            if (tracking_code    !== undefined) r.tracking_code     = tracking_code;
+            if (date_released    !== undefined) r.date_released     = date_released;
 
             const { data, error } = await supabase.from('document_requests').update(r).eq('id', id).select().single();
             if (error) throw error;
@@ -231,10 +250,21 @@ export const documentRouter = (router, supabase, authenticateToken) => {
         }
     });
 
-    // ── 5. PATCH: QUICK STATUS UPDATE ──
+    // ── 5. PATCH: QUICK STATUS UPDATE (field allowlist) ──
     router.patch('/documents/:id/status', authenticateToken, checkSessionRole(['admin', 'superadmin', 'staff', 'barangayhall']), async (req, res) => {
         try {
-            const { data, error } = await supabase.from('document_requests').update(req.body).eq('id', req.params.id).select().single();
+            const { status, price, rejection_reason, tracking_code } = req.body;
+            const allowed = {};
+            if (status           !== undefined) allowed.status            = status;
+            if (price            !== undefined) allowed.price             = price;
+            if (rejection_reason !== undefined) allowed.rejection_reason  = rejection_reason;
+            if (tracking_code    !== undefined) allowed.tracking_code     = tracking_code;
+
+            if (Object.keys(allowed).length === 0) {
+                return res.status(400).json({ error: 'No valid fields provided for update.' });
+            }
+
+            const { data, error } = await supabase.from('document_requests').update(allowed).eq('id', req.params.id).select().single();
             if (error) throw error;
 
             res.status(200).json({ 

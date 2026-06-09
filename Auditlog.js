@@ -36,8 +36,16 @@ export const logActivity = async (supabase, actor, action, details) => {
 
 export const AuditlogRouter = (router, supabase, authenticateToken) => {
   
-  // 1. GET ALL LOGS (Protected by Auth & Upgraded with Query Filters)
-  router.get('/audit', authenticateToken, async (req, res) => {
+  const authorizeAdminOnly = (req, res, next) => {
+    const role = (req.user?.user_role || req.user?.role || '').toLowerCase().trim();
+    if (!['admin', 'superadmin'].includes(role)) {
+      return res.status(403).json({ error: 'Forbidden', message: 'Audit logs are restricted to administrators.' });
+    }
+    next();
+  };
+
+  // 1. GET ALL LOGS (Restricted: admin and superadmin only)
+  router.get('/audit', authenticateToken, authorizeAdminOnly, async (req, res) => {
     try {
       // Allow the frontend dashboard to paginate and search
       const limit = parseInt(req.query.limit) || 100;
@@ -66,8 +74,8 @@ export const AuditlogRouter = (router, supabase, authenticateToken) => {
     }
   });
 
-  // 2. MANUAL TEST LOG (Kept for testing, but requires Auth)
-  router.post('/audit/test', authenticateToken, async (req, res) => {
+  // 2. MANUAL TEST LOG (Restricted: superadmin only)
+  router.post('/audit/test', authenticateToken, authorizeAdminOnly, async (req, res) => {
     try {
       const { actor, action, details } = req.body;
       

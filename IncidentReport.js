@@ -105,12 +105,21 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
         }
     );
 
-    // GET CASES BY RESIDENT ID
-    router.get(['/blotter/resident/:id', '/blotters/resident/:id'], 
-        [authenticateToken, authorizeRoles(['admin', 'superadmin', 'staff', 'barangayhall', 'resident'])], 
+    // GET CASES BY RESIDENT ID (IDOR: residents restricted to own records)
+    router.get(['/blotter/resident/:id', '/blotters/resident/:id'],
+        [authenticateToken, authorizeRoles(['admin', 'superadmin', 'staff', 'barangayhall', 'resident'])],
         async (req, res) => {
             try {
                 const { id } = req.params;
+                const userRole = req.validatedRole;
+
+                if (userRole === 'resident') {
+                    const ownId = String(req.user?.record_id || req.user?.resident_id || req.user?.sub);
+                    if (ownId !== String(id)) {
+                        return res.status(403).json({ error: 'Forbidden. You can only view your own incident reports.' });
+                    }
+                }
+
                 const { data: cases } = await supabase.from('blotter_cases').select('*').eq('complainant_id', id).order('created_at', { ascending: false });
                 const { data: requests } = await supabase.from('blotter_requests').select('*').eq('resident_id', id);
                 res.status(200).json([...(cases || []), ...(requests || []).map(r => ({ ...r, status: r.status || 'Pending' }))]);
@@ -207,17 +216,31 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
     );
 
     // PUT: UPDATE RECORD OR MIGRATE ONLINE TO ACTIVE
-    router.put(['/blotter/:id', '/blotters/:id'], 
-        [authenticateToken, authorizeRoles(['admin', 'superadmin', 'staff', 'barangayhall'])], 
+    router.put(['/blotter/:id', '/blotters/:id'],
+        [authenticateToken, authorizeRoles(['admin', 'superadmin', 'staff', 'barangayhall'])],
         async (req, res) => {
             try {
                 const r = req.body;
                 const { id } = req.params;
 
-                if (r.narrative) r.narrative = await processNarrativeImages(r.narrative);
+                const processedNarrative = r.narrative ? await processNarrativeImages(r.narrative) : undefined;
+
+                // Allowlist — only known columns can be updated, prevents mass assignment
+                const allowed = {};
+                if (r.complainant_name  !== undefined) allowed.complainant_name  = r.complainant_name;
+                if (r.respondent        !== undefined) allowed.respondent        = r.respondent;
+                if (r.incident_type     !== undefined) allowed.incident_type     = r.incident_type;
+                if (processedNarrative  !== undefined) allowed.narrative         = processedNarrative;
+                if (r.date_filed        !== undefined) allowed.date_filed        = r.date_filed;
+                if (r.time_filed        !== undefined) allowed.time_filed        = r.time_filed;
+                if (r.status            !== undefined) allowed.status            = r.status;
+                if (r.hearing_date      !== undefined) allowed.hearing_date      = r.hearing_date;
+                if (r.hearing_time      !== undefined) allowed.hearing_time      = r.hearing_time;
+                if (r.rejection_reason  !== undefined) allowed.rejection_reason  = r.rejection_reason;
+                if (r.resolution        !== undefined) allowed.resolution        = r.resolution;
 
                 const { data: caseData } = await supabase.from('blotter_cases')
-                    .update(r).eq('id', id).select().maybeSingle();
+                    .update(allowed).eq('id', id).select().maybeSingle();
 
                 if (caseData) return res.json({ success: true, data: caseData });
 

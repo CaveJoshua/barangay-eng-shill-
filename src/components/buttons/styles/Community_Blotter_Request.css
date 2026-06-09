@@ -2,15 +2,33 @@
    1. CORE VARIABLES & OVERLAY
    ========================================= */
 :root {
-  --cir-primary: #f59e0b;       /* Amber-500 */
-  --cir-primary-hover: #d97706; /* Amber-600 */
+  --cir-primary: #f59e0b;
+  --cir-primary-hover: #d97706;
   --cir-bg: #ffffff;
-  --cir-border: #e2e8f0;        /* Slate-200 */
-  --cir-text-main: #0f172a;     /* Slate-900 */
-  --cir-text-sub: #64748b;      /* Slate-500 */
+  --cir-border: #e2e8f0;
+  --cir-text-main: #0f172a;
+  --cir-text-sub: #64748b;
   --cir-input-bg: #ffffff;
   --cir-focus-ring: rgba(245, 158, 11, 0.2);
   --cir-radius: 12px;
+}
+
+[data-resident-theme='dark'] {
+  --cir-bg: #0f172a;
+  --cir-border: #334155;
+  --cir-text-main: #f1f5f9;
+  --cir-text-sub: #94a3b8;
+  --cir-input-bg: #1e293b;
+  --cir-focus-ring: rgba(245, 158, 11, 0.15);
+}
+
+[data-resident-theme='dark'] .CIR_CLOSE_BTN:hover {
+  background: #1e293b;
+  color: #ef4444;
+}
+
+[data-resident-theme='dark'] .CIR_HEADER_SECTION {
+  background: #0f172a;
 }
 
 .CIR_OVERLAY {

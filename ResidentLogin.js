@@ -106,7 +106,7 @@ export const ResidentsLoginRouter = (router, supabase) => {
             // B. Safe Account Fetch (Case-Insensitive)
             const { data: accountData, error: accountError } = await supabase
                 .from('residents_account')
-                .select('resident_id, username, password, requires_reset')
+                .select('resident_id, username, password, requires_reset, theme_preference')
                 .ilike('username', cleanUsername)
                 .maybeSingle();
 
@@ -171,14 +171,15 @@ export const ResidentsLoginRouter = (router, supabase) => {
             return res.status(200).json({
                 message: 'Login successful',
                 access_token: accessToken,
-                user: { 
-                    record_id: accountData.resident_id, 
-                    username: accountData.username, 
-                    full_name: safeFullName, 
-                    role: 'resident' 
+                theme_preference: accountData.theme_preference || 'light',
+                user: {
+                    record_id: accountData.resident_id,
+                    username: accountData.username,
+                    full_name: safeFullName,
+                    role: 'resident'
                 },
                 profile: {
-                    ...profileData, 
+                    ...profileData,
                     record_id: accountData.resident_id,
                     first_name: fName.toUpperCase(),
                     last_name: lName.toUpperCase(),

@@ -9,9 +9,6 @@ import https from 'https';
 import helmet from 'helmet';
 import jwt from 'jsonwebtoken'; 
 
-// --- NEW: Validation Libraries ---
-import { z } from 'zod';
-
 import { uploadImage } from './cloud.js';
 
 // Modular Imports
@@ -35,17 +32,8 @@ dotenv.config();
 
 const router = express.Router();
 
-const JWT_SECRET = process.env.SUPABASE_JWT_SECRET || process.env.JWT_SECRET || 'your_fallback_secret'; 
-
-/**
- * ==========================================
- * VALIDATION SCHEMAS (ZOD)
- * ==========================================
- */
-const loginSchemaZod = z.object({
-  username: z.string().min(1, "Username is required."),
-  password: z.string().min(1, "Password is required.")
-});
+const JWT_SECRET = process.env.SUPABASE_JWT_SECRET || process.env.JWT_SECRET;
+if (!JWT_SECRET) throw new Error('[FATAL] SUPABASE_JWT_SECRET is not set.');
 
 /**
  * ==========================================
@@ -93,7 +81,8 @@ export const authenticateToken = (req, res, next) => {
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
       console.error("[AUTH BOUNCER] Token Verification Failed:", err.message);
-      return res.status(403).json({ error: 'Invalid or expired token.' });
+      const isExpired = err.name === 'TokenExpiredError';
+      return res.status(isExpired ? 401 : 403).json({ error: isExpired ? 'Token expired.' : 'Invalid token.' });
     }
     req.user = user;
     next();
@@ -143,9 +132,16 @@ const corsOptions = {
 
 router.use(cors(corsOptions)); 
 
-// 🚨 CRITICAL FIX: Increased limit to 50mb to stop the 500 error when uploading Base64 images
-router.use(express.json({ limit: '200mb' }));
-router.use(express.urlencoded({ extended: true, limit: '200mb' }));
+// Announcement POST/PUT carry base64 images bound for Cloudinary — allow up to 50mb there.
+// Every other route (passwords, records, JSON forms) is capped at 10mb to prevent DoS.
+router.use((req, res, next) => {
+  const isImageUpload = ['POST', 'PUT'].includes(req.method) && /^\/announcements(\/|$)/.test(req.path);
+  express.json({ limit: isImageUpload ? '50mb' : '10mb' })(req, res, next);
+});
+router.use((req, res, next) => {
+  const isImageUpload = ['POST', 'PUT'].includes(req.method) && /^\/announcements(\/|$)/.test(req.path);
+  express.urlencoded({ extended: true, limit: isImageUpload ? '50mb' : '10mb' })(req, res, next);
+});
 
 // ==========================================
 // 2.5 ZERO TRUST SECURITY REGULATOR (IDS/IPS)
@@ -156,83 +152,17 @@ router.use(createSecurityRegulator(supabase));
 // ==========================================
 // 3. SECURITY HELPERS
 // ==========================================
-const verifyPassword = (inputPassword, storedPassword) => {
+const verifyPassword = async (inputPassword, storedPassword) => {
   if (!inputPassword || !storedPassword) return false;
-  if (storedPassword.startsWith('$2')) {
-    return bcrypt.compareSync(inputPassword, storedPassword);
+  if (!storedPassword.startsWith('$2')) {
+    console.error('[SECURITY] Unhashed password in residents_account. Force-reset required.');
+    return false;
   }
-  return inputPassword === storedPassword;
+  return bcrypt.compare(inputPassword, storedPassword);
 };
 
 // ==========================================
-// 4. AUTHENTICATION & LOGIN
-// ==========================================
-router.post('/login', async (req, res) => {
-  try {
-    const validation = loginSchemaZod.safeParse(req.body);
-    if (!validation.success) {
-      return res.status(400).json({ error: validation.error.errors[0].message });
-    }
-    const { username, password } = validation.data;
-    const cleanUsername = username ? username.trim().toLowerCase() : '';
-
-    const { data: accountData, error: accountError } = await supabase
-      .from('residents_account')
-      .select('*') 
-      .ilike('username', cleanUsername) 
-      .maybeSingle();
-
-    if (accountError || !accountData) return res.status(401).json({ error: 'Account not found.' });
-
-    const isValid = verifyPassword(password, accountData.password);
-    if (!isValid) return res.status(401).json({ error: 'Invalid password.' });
-
-    const targetResidentId = accountData.resident_id || accountData.record_id;
-    
-    // Select '*' so the frontend gets the email and ALL demographic data
-    const { data: profileData } = await supabase
-      .from('residents_records')
-      .select('*') 
-      .eq('record_id', targetResidentId)
-      .maybeSingle();
-
-    const fName = profileData?.first_name || '';
-    const lName = profileData?.last_name || '';
-    const safeFullName = (fName && lName) ? `${fName} ${lName}` : 'UNKNOWN RESIDENT';
-
-    const token = jwt.sign(
-      { 
-        account_id: accountData.account_id, 
-        username: accountData.username, 
-        role: accountData.role,
-        user_role: accountData.role, 
-        record_id: profileData ? profileData.record_id : null,
-        full_name: safeFullName,
-        // 🛡️ THE FIX: Inject the precise position directly into the token payload
-        position: profileData?.position || accountData.role || 'Official'
-      },
-      JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-
-    await logActivity(supabase, accountData.username, 'RESIDENT_LOGIN', 'Login successful');
-
-    res.json({ 
-        message: 'Login successful', 
-        token, 
-        role: accountData.role, 
-        profile: profileData,
-        user: accountData 
-    });
-
-  } catch (err) {
-    res.status(500).json({ error: 'Internal system error.' });
-  }
-});
-
-
-// ==========================================
-// 5. INITIALIZE PROTECTED MODULES
+// 4. INITIALIZE PROTECTED MODULES
 // ==========================================
 // 🛡️ SECURITY MODULES (Must be Public/Outside Auth)
 CaptchaRouter(router, supabase); 
@@ -324,14 +254,26 @@ router.put('/announcements/:id',
     async (req, res) => {
         try {
             const { id } = req.params;
-            const updates = { ...req.body };
+            const { title, content, category, priority, expires_at, image_url, status } = req.body;
 
-            delete updates.id; 
-            delete updates.created_at;
+            // Field allowlist — only update known columns
+            const updates = {};
+            if (title     !== undefined) updates.title      = title;
+            if (content   !== undefined) updates.content    = content;
+            if (category  !== undefined) updates.category   = category;
+            if (priority  !== undefined) updates.priority   = priority;
+            if (expires_at!== undefined) updates.expires_at = expires_at;
+            if (status    !== undefined) updates.status     = status;
 
-            if (updates.image_url && updates.image_url.includes('base64,')) {
-                console.log("Updating image on Cloudinary...");
-                updates.image_url = await uploadImage(updates.image_url, 'barangay_announcements');
+            if (image_url !== undefined) {
+                if (image_url && image_url.includes('base64,')) {
+                    console.log("Updating image on Cloudinary...");
+                    const uploadedUrl = await uploadImage(image_url, 'barangay_announcements');
+                    // Only persist if Cloudinary succeeded; don't fall back to raw base64
+                    if (uploadedUrl) updates.image_url = uploadedUrl;
+                } else {
+                    updates.image_url = image_url;
+                }
             }
 
             const { data, error } = await supabase
@@ -400,6 +342,47 @@ router.get('/stats',
             });
         } catch (error) {
             res.status(500).json({ error: 'Failed to retrieve system statistics.' });
+        }
+});
+
+// ==========================================
+// 7.5 RAW ANALYTICS AGGREGATE
+// ==========================================
+// Server-side analytics rollup. Admin-gated (mirrors /stats). Wires up
+// ApiService.getAnalytics() → previously pointed at a non-existent route. (J-CVE-101203)
+router.get('/analytics/raw',
+    [authenticateToken, authorizeRoles(['admin', 'superadmin', 'staff', 'barangayhall'])],
+    async (req, res) => {
+        try {
+            const [resCount, docs, blotters] = await Promise.all([
+                supabase.from('residents_records').select('*', { count: 'exact', head: true }),
+                supabase.from('document_requests').select('status, type, date_requested'),
+                supabase.from('blotter_cases').select('status, incident_type, created_at')
+            ]);
+
+            const tally = (rows, key) => (rows || []).reduce((acc, row) => {
+                const bucket = row?.[key] || 'Unspecified';
+                acc[bucket] = (acc[bucket] || 0) + 1;
+                return acc;
+            }, {});
+
+            res.status(200).json({
+                generatedAt: new Date().toISOString(),
+                totalResidents: resCount.count || 0,
+                documents: {
+                    total:    docs.data?.length || 0,
+                    byStatus: tally(docs.data, 'status'),
+                    byType:   tally(docs.data, 'type')
+                },
+                blotter: {
+                    total:    blotters.data?.length || 0,
+                    byStatus: tally(blotters.data, 'status'),
+                    byType:   tally(blotters.data, 'incident_type')
+                }
+            });
+        } catch (err) {
+            console.error("[ANALYTICS_RAW_ERROR]:", err.message);
+            res.status(500).json({ error: 'Failed to compute analytics.' });
         }
 });
 

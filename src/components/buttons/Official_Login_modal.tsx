@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LOGIN_API } from '../UI/api';
+import { ThemeManager } from '../UI/ThemeManager';
 import AdminRecoveryModal from './AdminRecoveryModal';
 import './styles/Login_modal.css';
 
@@ -13,7 +14,6 @@ export interface AuthResponse {
   role: string;
   account_id: string;
   profile: any;
-  access_token?: string; // 🛠️ RESTORED: Now expecting the token from the backend
 }
 
 type PageView = 'LOGIN' | 'ROOT_OTP';
@@ -127,7 +127,8 @@ const OfficialLogin: React.FC = () => {
           data.role = 'superadmin';
         }
 
-        // 🔒 SECURITY: Only save non-sensitive identifiers
+        // Auth relies entirely on the httpOnly cookie set by the backend.
+        // Only non-sensitive identifiers are stored in localStorage.
         localStorage.setItem('account_id', data.account_id);
 
         if (data.profile?.record_id) {
@@ -138,23 +139,19 @@ const OfficialLogin: React.FC = () => {
           sessionStorage.setItem('trace_id', traceId);
         }
 
-        // 🛠️ RESTORED: Save the access token so GraphQL can use it
-        if (data.access_token) {
-          localStorage.setItem('access_token', data.access_token);
-          localStorage.setItem('token', data.access_token); // Fallback copy to ensure it is caught
-        }
-
-        // ✅ Save admin session for restoration & route guards
+        // Session object for UI restoration — does NOT contain the auth token
         const userData = {
           username: data.username,
           role: data.role,
           profile: data.profile,
           account_id: data.account_id,
-          access_token: data.access_token, // Added here just in case your API reads from the session object
         };
 
         localStorage.setItem('admin_session', JSON.stringify(userData));
         localStorage.setItem('selectedPortal', 'admin');
+
+        // Save the server-returned theme to localStorage and apply it immediately.
+        ThemeManager.saveAdmin(data.account_id, (data.theme_preference as 'light' | 'dark') || 'light');
 
         // ✅ Navigate to admin dashboard
         navigate('/admin/dashboard', { replace: true });

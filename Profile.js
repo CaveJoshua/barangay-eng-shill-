@@ -1,9 +1,10 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { buildSchema } from 'graphql';
+import { buildSchema, NoSchemaIntrospectionCustomRule } from 'graphql';
 import { createHandler } from 'graphql-http/lib/use/express';
-import { logActivity } from './Auditlog.js'; 
-import { sendAutoMail } from './Mailer.js'; 
+import { logActivity } from './Auditlog.js';
+import { sendAutoMail } from './Mailer.js';
+import { RateLimiterMemory } from 'rate-limiter-flexible';
 
 const ALL_SYSTEM_ROLES = [
     'superadmin', 'admin', 'staff', 'barangayhall', 
@@ -19,8 +20,12 @@ const otpStore = new Map();
 
 const generateSecureCode = (length = 6) => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    return Array.from({ length }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
+    return Array.from({ length }, () => chars[crypto.randomInt(0, chars.length)]).join('');
 };
+
+const hashOtp = (code) => crypto.createHash('sha256').update(code).digest('hex');
+
+const otpRateLimiter = new RateLimiterMemory({ points: 3, duration: 60 * 10, blockDuration: 60 * 10 });
 
 const deriveSystemRole = (position) => {
     if (!position) return 'resident';
@@ -211,9 +216,16 @@ const profileResolvers = {
     },
 
     // 5. GRAPHQL: REQUEST OTP
-    requestOtp: async ({ email }, { supabase }) => {
+    requestOtp: async ({ email }, { supabase, req }) => {
         if (!email || !email.includes('@')) throw new Error("Valid email is required.");
         const targetEmail = email.toLowerCase().trim();
+
+        const clientIp = req?.headers?.['x-forwarded-for'] || req?.socket?.remoteAddress || 'unknown';
+        try {
+            await otpRateLimiter.consume(`${clientIp}_${targetEmail}`);
+        } catch {
+            throw new Error("Too many requests. Please wait before requesting another code.");
+        }
 
         const { data: official } = await supabase.from('officials').select('id').eq('email', targetEmail).maybeSingle();
         const { data: resident } = await supabase.from('residents_records').select('record_id').eq('email', targetEmail).maybeSingle();
@@ -221,20 +233,18 @@ const profileResolvers = {
         if (!official && !resident) throw new Error("No system account linked to this email was found.");
 
         const otpCode = generateSecureCode(6);
-        otpStore.set(targetEmail, { code: otpCode, expires: Date.now() + 300000, attempts: 0 });
+        otpStore.set(targetEmail, { codeHash: hashOtp(otpCode), expires: Date.now() + 300000, attempts: 0 });
 
         const emailBody = `
             <div style="font-family: sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
-                <h2 style="color: #2563eb;">Password Reset Authorization</h2>
+                <h2 style="color: #1d4ed8;">Password Reset Authorization</h2>
                 <p>Use the secure code below to reset the password for <b>${targetEmail}</b>.</p>
                 <h1 style="background: #f8fafc; padding: 15px; text-align: center; letter-spacing: 5px; color: #d97706;">${otpCode}</h1>
                 <p style="color: #64748b; font-size: 12px;">This code expires in exactly 5 minutes.</p>
             </div>
         `;
 
-        const sent = await sendAutoMail(targetEmail, "🔒 Password Reset OTP", "SECURITY SYSTEM", emailBody);
-        if (!sent) console.log(`✅ [DEVELOPER_BYPASS]: OTP for ${targetEmail} is: ${otpCode}`);
-
+        await sendAutoMail(targetEmail, "Password Reset OTP", "SECURITY SYSTEM", emailBody);
         return { success: true, message: "OTP sent successfully." };
     },
 
@@ -248,7 +258,7 @@ const profileResolvers = {
             otpStore.delete(targetEmail);
             throw new Error('OTP code expired.');
         }
-        if (record.code !== otp.toUpperCase().trim()) {
+        if (hashOtp(otp.toUpperCase().trim()) !== record.codeHash) {
             record.attempts += 1;
             if (record.attempts >= 3) otpStore.delete(targetEmail);
             throw new Error('Invalid verification code.');
@@ -263,7 +273,7 @@ const profileResolvers = {
         const targetEmail = email.toLowerCase().trim();
         const record = otpStore.get(targetEmail);
 
-        if (!record || record.code !== otp.toUpperCase().trim() || Date.now() > record.expires) {
+        if (!record || hashOtp(otp.toUpperCase().trim()) !== record.codeHash || Date.now() > record.expires) {
             throw new Error("Invalid or expired OTP session.");
         }
 
@@ -297,7 +307,7 @@ export const ProfileRouter = (router, supabase, authenticateToken) => {
         if (!userRole || !ALL_SYSTEM_ROLES.includes(userRole.toLowerCase().trim())) {
             return res.status(403).json({ errors: [{ message: 'Forbidden' }]});
         }
-        return createHandler({ schema: profileSchema, rootValue: profileResolvers, context: () => ({ req, supabase }) })(req, res);
+        return createHandler({ schema: profileSchema, rootValue: profileResolvers, context: () => ({ req, res, supabase }), validationRules: [NoSchemaIntrospectionCustomRule] })(req, res);
     });
 
     // ── REST GET FALLBACK (Maintains backward compatibility for Navbar/Sidebars) ──

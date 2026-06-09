@@ -3,6 +3,9 @@ import crypto from 'crypto';
 import { z } from 'zod';
 import { logActivity } from './Auditlog.js';
 
+// Generates a cryptographically random temporary password
+const generateTempPassword = () => crypto.randomBytes(12).toString('base64url');
+
 // =========================================================
 // 🛡️ 1. UNIVERSAL PAYLOAD NORMALIZER
 // =========================================================
@@ -305,13 +308,19 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                     const f = profile.first_name[0] || '';
                     const m = profile.middle_name ? profile.middle_name[0] : '';
                     const l = profile.last_name[0] || '';
-                    const rand = Math.floor(100 + Math.random() * 899);
+                    const rand = crypto.randomInt(100, 999);
 
                     const username = `${f}${m}${l}${rand}@residents.eng-hill.brg.ph`.toLowerCase();
-                    const pass = bcrypt.hashSync(`${profile.first_name.toLowerCase()}123456`, 10);
+                    const tempPass = generateTempPassword();
+                    const pass = await bcrypt.hash(tempPass, 12);
 
                     await supabase.from('residents_account').insert([{
-                        resident_id: profile.record_id, username, password: pass, role: 'resident', status: 'Active'
+                        resident_id: profile.record_id,
+                        username,
+                        password: pass,
+                        role: 'resident',
+                        status: 'Active',
+                        requires_reset: true  // forces password change on first login
                     }]);
 
                     logActivity(supabase, req.user.username, 'RESIDENT_CREATED', profile.record_id).catch(() => {});

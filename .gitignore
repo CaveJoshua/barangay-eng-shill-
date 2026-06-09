@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Secrets / environment (J-CVE-101203)
+.env
+.env.*
+!.env.example
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

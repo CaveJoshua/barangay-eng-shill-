@@ -299,22 +299,22 @@
 /* Standard Mobile Phones */
 @media (max-width: 480px) {
   .CM_LOGIN_OVERLAY {
-    padding: 0.75rem; 
+    padding: 0.75rem;
   }
-  
+
   .CM_LOGIN_CARD {
     padding: 2rem 1.5rem;
     border-radius: 20px;
     max-height: 95vh;
-    overflow-y: auto; 
+    overflow-y: auto;
   }
-  
+
   .CM_LOGIN_HEADER {
     margin-bottom: 1.5rem;
   }
 
-  .CM_LOGIN_HEADER h2 { 
-    font-size: 1.4rem; 
+  .CM_LOGIN_HEADER h2 {
+    font-size: 1.4rem;
   }
 
   .CM_LOGIN_FORM {
@@ -329,4 +329,66 @@
     top: 1rem;
     right: 1rem;
   }
+}
+
+/* ── DARK MODE ── */
+[data-resident-theme='dark'] .CM_LOGIN_CARD {
+  background: #0f172a;
+  border-color: #1e293b;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+[data-resident-theme='dark'] .CM_LOGIN_HEADER h2 {
+  color: #f1f5f9;
+}
+[data-resident-theme='dark'] .CM_LOGIN_HEADER p {
+  color: #94a3b8;
+}
+[data-resident-theme='dark'] .CM_INPUT_GROUP label {
+  color: #94a3b8;
+}
+[data-resident-theme='dark'] .CM_INPUT_WRAPPER input {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #f1f5f9;
+}
+[data-resident-theme='dark'] .CM_INPUT_WRAPPER input:focus {
+  background-color: #1e293b;
+  border-color: #3b82f6;
+}
+[data-resident-theme='dark'] .CM_INPUT_WRAPPER i {
+  color: #475569;
+}
+[data-resident-theme='dark'] .CM_LOGIN_ICON {
+  background: #1e293b;
+}
+[data-resident-theme='dark'] .CM_LOGIN_CLOSE {
+  background: #1e293b;
+  color: #94a3b8;
+}
+[data-resident-theme='dark'] .CM_LOGIN_CLOSE:hover {
+  background: #450a0a;
+  color: #ef4444;
+}
+[data-resident-theme='dark'] .CM_RETURN_BTN {
+  color: #64748b;
+}
+[data-resident-theme='dark'] .CM_RETURN_BTN:hover:not(:disabled) {
+  color: #f1f5f9;
+}
+[data-resident-theme='dark'] .CM_LOGIN_FOOTER {
+  border-top-color: #1e293b;
+}
+[data-resident-theme='dark'] .CM_ERROR_MSG {
+  background: #2d1a1a;
+  border-color: #7f1d1d;
+  color: #fca5a5;
+}
+[data-resident-theme='dark'] .CM_SUCCESS_MSG {
+  background: #052e16;
+  border-color: #14532d;
+  color: #86efac;
+}
+[data-resident-theme='dark'] .CM_LOGIN_SUBMIT:disabled {
+  background-color: #1e293b;
+  color: #475569;
 }

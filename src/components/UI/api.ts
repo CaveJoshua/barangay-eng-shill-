@@ -35,7 +35,7 @@ const failover = {
 
 // ── ENDPOINT REGISTRY ──────────────────────────────────────────────────────────
 export const LOGIN_API            = `${API_BASE_URL}/admin/login`;
-export const REFRESH_API          = `${API_BASE_URL}/auth/refresh`;
+export const REFRESH_API          = `${API_BASE_URL}/auth/admin/refresh`;
 export const ACCOUNTS_API         = `${API_BASE_URL}/rbac/accounts`;
 export const PROFILE_API          = `${API_BASE_URL}/officials/profile`;
 
@@ -55,13 +55,17 @@ export const NOTIF_LIVE_API       = `${API_BASE_URL}/alerts/live`;
 export const NOTIF_MARKER_API     = `${API_BASE_URL}/alerts/latest-marker`;
 export const NOTIF_COUNT_API      = `${API_BASE_URL}/alerts/count`;
 
-export const AUTH_REQUEST_OTP     = `${API_BASE_URL}/accounts/request-otp`;
-export const AUTH_VERIFY_OTP      = `${API_BASE_URL}/accounts/verify-otp`;
-export const AUTH_PASSWORD_UPDATE = `${API_BASE_URL}/accounts/public-reset`;
+// NOTE (J-CVE-101203): the legacy REST recovery endpoints (/accounts/request-otp,
+// /accounts/verify-otp, /accounts/public-reset) were retired in favour of the public
+// GraphQL endpoint AUTH_GRAPHQL_API (declared below).
 
 // 🛡️ CAPTCHA ENDPOINTS
 export const CAPTCHA_CHALLENGE_API = `${API_BASE_URL}/captcha/challenge`;
 export const CAPTCHA_VERIFY_API    = `${API_BASE_URL}/captcha/verify`;
+
+// 🕸️ GRAPHQL ENDPOINTS (J-CVE-101203 — native fetch flows migrated to GraphQL)
+export const AUTH_GRAPHQL_API    = `${API_BASE_URL}/graphql/auth`;     // public: OTP / password reset
+export const PROFILE_GRAPHQL_API = `${API_BASE_URL}/graphql/profile`;  // authed: profile / theme
 
 // ── CSRF HELPER ────────────────────────────────────────────────────────────────
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -78,10 +82,10 @@ export const getAuthHeaders = (isFormData = false, method = 'GET'): Record<strin
     headers['Content-Type'] = 'application/json';
   }
 
-  const token = localStorage.getItem('access_token');
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
+  // Admin auth: httpOnly cookie (credentials: 'include') — cookie is set server-side.
+  // Resident auth: short-lived access_token JWT stored in localStorage, sent as Bearer.
+  const accessToken = localStorage.getItem('access_token');
+  if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
 
   if (MUTATION_METHODS.has(method.toUpperCase())) {
     const csrf = getCsrfToken();
@@ -93,12 +97,12 @@ export const getAuthHeaders = (isFormData = false, method = 'GET'): Record<strin
 
 // ── SESSION CLEANUP ────────────────────────────────────────────────────────────
 const SESSION_KEYS = [
-  'access_token',
   'account_id',
   'profile_id',
   'admin_session',
   'resident_session',
-  'user_role',
+  'selectedPortal',
+  'access_token',
 ] as const;
 
 const handleAuthFailure = (): void => {
@@ -112,13 +116,20 @@ const handleAuthFailure = (): void => {
 // ── REFRESH MUTEX ──────────────────────────────────────────────────────────────
 let refreshMutex: Promise<boolean> | null = null;
 
+const RESIDENT_REFRESH_API = `${API_BASE_URL}/auth/refresh`;
+
 const attemptSilentRefresh = (): Promise<boolean> => {
   if (refreshMutex) return refreshMutex;
 
   const controller = new AbortController();
   const timeoutId  = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
 
-  refreshMutex = fetch(failover.resolve(REFRESH_API), {
+  // Residents use /auth/refresh (refresh_token httpOnly cookie → new access_token in body).
+  // Admins use /auth/admin/refresh (auth_token httpOnly cookie rotated server-side).
+  const isResident = !!localStorage.getItem('resident_session');
+  const refreshUrl = isResident ? RESIDENT_REFRESH_API : REFRESH_API;
+
+  refreshMutex = fetch(failover.resolve(refreshUrl), {
     method:      'POST',
     credentials: 'include',
     headers:     { 'Content-Type': 'application/json' },
@@ -126,10 +137,10 @@ const attemptSilentRefresh = (): Promise<boolean> => {
   })
     .then(async (res): Promise<boolean> => {
       if (!res.ok) return false;
-      const ct = res.headers.get('content-type') ?? '';
-      if (!ct.includes('application/json')) return false;
-      const data = await res.json();
-      if (data?.token) localStorage.setItem('access_token', data.token);
+      if (isResident) {
+        const data = await res.json().catch(() => ({}));
+        if (data.access_token) localStorage.setItem('access_token', data.access_token);
+      }
       return true;
     })
     .catch((err: any) => {
@@ -138,7 +149,7 @@ const attemptSilentRefresh = (): Promise<boolean> => {
     })
     .finally(() => {
       clearTimeout(timeoutId);
-      refreshMutex = null; 
+      refreshMutex = null;
     });
 
   return refreshMutex;
@@ -297,6 +308,65 @@ const triggerAction = async (
   }
 };
 
+// ── GRAPHQL TRANSPORT ─────────────────────────────────────────────────────────
+// Single POST transport for GraphQL endpoints. Returns the SAME envelope shape as
+// triggerAction ({ success, data?, error? }) so callers stay uniform. Resolver-level
+// failures arrive as HTTP 200 + { errors: [...] }, which we normalise to success:false.
+const gqlFetch = async (
+  url:        string,
+  query:      string,
+  variables:  Record<string, any> = {},
+  signal?:    AbortSignal,
+  isRetry     = false,
+): Promise<{ success: boolean; data?: any; error?: string }> => {
+  const [combinedSignal, cancelTimeout] = withTimeout(signal);
+
+  try {
+    const response = await fetch(failover.resolve(url), {
+      method:      'POST',
+      headers:     getAuthHeaders(false, 'POST'),
+      credentials: 'include',
+      signal:      combinedSignal,
+      body:        JSON.stringify({ query, variables }),
+    });
+
+    cancelTimeout();
+
+    // Authed GraphQL endpoints (e.g. /graphql/profile) can expire mid-session.
+    if (response.status === 401) {
+      if (isRetry) { handleAuthFailure(); return { success: false, error: 'Session expired. Please log in again.' }; }
+      const refreshed = await attemptSilentRefresh();
+      if (refreshed) return gqlFetch(url, query, variables, signal, true);
+      handleAuthFailure();
+      return { success: false, error: 'Session expired. Please log in again.' };
+    }
+
+    if (response.status === 428) {
+      window.dispatchEvent(new CustomEvent('trigger-captcha'));
+      return { success: false, error: 'HUMAN_VERIFICATION_REQUIRED' };
+    }
+
+    const json = await response.json().catch(() => ({}));
+
+    if (json?.errors?.length) {
+      return { success: false, error: json.errors[0]?.message || `Request failed (${response.status}).` };
+    }
+    return { success: true, data: json?.data };
+
+  } catch (err: any) {
+    cancelTimeout();
+
+    if (err?.name === 'AbortError') return { success: false, error: 'Request was cancelled.' };
+
+    if (!isRetry && isNetworkFailure(err) && CLOUD_API_URL) {
+      failover.activate();
+      return gqlFetch(url, query, variables, signal, isRetry);
+    }
+
+    return { success: false, error: err.message };
+  }
+};
+
 // ── FAST-BOOT PROFILE DEDUPLICATION (MUTEX) ──────────────────────────────────
 // This forces multiple components loading on boot to share ONE network request.
 let profileFetchMutex: Promise<any> | null = null;
@@ -314,35 +384,89 @@ export const ApiService = {
   rootHandshake: (signal?: AbortSignal) =>
     triggerAction(`${API_BASE_URL}/auth/root-request`, 'POST', { username: 'SYSTEM_ROOT_ADMIN' }, signal),
 
-  // ── OTP / PASSWORD RESET ────────────────────────────────────────────────────
-  requestPasswordResetOTP: (email: string, useFallback: boolean = false) =>
-    triggerAction(AUTH_REQUEST_OTP, 'POST', { email, useFallback }),
+  // ── OTP / PASSWORD RESET (GraphQL — public /graphql/auth) ────────────────────
+  // `email` is the identifier (username OR email). Error wording from the resolver
+  // is surfaced verbatim so the modals' lockout / anti-bruteforce parsing still works.
+  requestPasswordResetOTP: async (email: string, useFallback: boolean = false) => {
+    const r = await gqlFetch(
+      AUTH_GRAPHQL_API,
+      `mutation Req($id: String!, $fb: Boolean) { requestOtp(identifier: $id, useFallback: $fb) { success message } }`,
+      { id: email, fb: useFallback },
+    );
+    return r.success
+      ? { success: true, message: r.data?.requestOtp?.message }
+      : { success: false, error: r.error };
+  },
 
-  verifyOTP: (email: string, otp: string) =>
-    triggerAction(AUTH_VERIFY_OTP, 'POST', { email, otp }),
+  verifyOTP: async (email: string, otp: string) => {
+    const r = await gqlFetch(
+      AUTH_GRAPHQL_API,
+      `mutation Ver($id: String!, $o: String!) { verifyOtp(identifier: $id, otp: $o) { success message } }`,
+      { id: email, o: otp },
+    );
+    return r.success
+      ? { success: true, message: r.data?.verifyOtp?.message }
+      : { success: false, error: r.error };
+  },
 
-  updatePassword: (email: string, otp: string, newPassword: string) =>
-    triggerAction(AUTH_PASSWORD_UPDATE, 'POST', { email, otp, newPassword }),
+  updatePassword: async (email: string, otp: string, newPassword: string) => {
+    const r = await gqlFetch(
+      AUTH_GRAPHQL_API,
+      `mutation Reset($id: String!, $o: String!, $n: String!) { publicReset(identifier: $id, otp: $o, newPassword: $n) { success message } }`,
+      { id: email, o: otp, n: newPassword },
+    );
+    return r.success
+      ? { success: true, message: r.data?.publicReset?.message }
+      : { success: false, error: r.error };
+  },
 
-  // ── IDENTITY & PROFILE (OPTIMIZED) ──────────────────────────────────────────
+  // ── IDENTITY & PROFILE (GraphQL — authed /graphql/profile) ───────────────────
+  // The resolver identifies the user from the session token; `id` is kept only for
+  // the boot-time dedup mutex. Resolves to the profile object (or null) to preserve
+  // the previous REST contract used by navbar/sidebar consumers.
   getProfile: (id: string, signal?: AbortSignal, forceSync = false) => {
     if (!forceSync && profileFetchMutex && lastProfileId === id) {
       return profileFetchMutex;
     }
-    
+
     lastProfileId = id;
-    profileFetchMutex = valveFetch(`${PROFILE_API}/${id}`, signal).finally(() => {
-      setTimeout(() => { profileFetchMutex = null; }, 1500);
-    });
-    
+    profileFetchMutex = gqlFetch(
+      PROFILE_GRAPHQL_API,
+      `query { getProfile { id full_name username email contact_number role theme_preference avatar_url } }`,
+      {},
+      signal,
+    )
+      .then(r => (r.success ? r.data?.getProfile ?? null : null))
+      .finally(() => { setTimeout(() => { profileFetchMutex = null; }, 1500); });
+
     return profileFetchMutex;
   },
 
-  updateProfile: (id: string, payload: any) =>
-    triggerAction(`${PROFILE_API}/${id}`, 'PUT', payload),
+  updateProfile: async (_id: string, payload: any) => {
+    const r = await gqlFetch(
+      PROFILE_GRAPHQL_API,
+      `mutation Upd($fn: String, $em: String, $ph: String, $avatar: String) {
+         updateProfile(full_name: $fn, email: $em, contact_number: $ph, phone: $ph, avatar_url: $avatar) {
+           id full_name email contact_number avatar_url
+         }
+       }`,
+      { fn: payload?.full_name, em: payload?.email, ph: payload?.contact_number ?? payload?.phone, avatar: payload?.avatar_url },
+    );
+    return r.success
+      ? { success: true, data: r.data?.updateProfile }
+      : { success: false, error: r.error };
+  },
 
-  updateTheme: (theme: string) =>
-    triggerAction(`${API_BASE_URL}/accounts/theme`, 'PATCH', { theme }),
+  updateTheme: async (theme: string) => {
+    const r = await gqlFetch(
+      PROFILE_GRAPHQL_API,
+      `mutation UpdTheme($t: String!) { updateTheme(theme: $t) { success message } }`,
+      { t: theme },
+    );
+    return r.success
+      ? { success: true, data: r.data?.updateTheme }
+      : { success: false, error: r.error };
+  },
 
   // ── ACCOUNT MANAGEMENT (RBAC) ───────────────────────────────────────────────
   getAccounts: (signal?: AbortSignal) =>
@@ -359,7 +483,7 @@ export const ApiService = {
     valveFetch(RESIDENTS_API, signal),
 
   triggerLedgerBackfill: () =>
-    triggerAction(`${RESIDENTS_API}/ledger/backfill`, 'POST'),
+    triggerAction(`${RESIDENTS_API}/ledger/rebuild`, 'POST'),
 
   saveResident: (id: string | undefined, payload: any) =>
     triggerAction(

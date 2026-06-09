@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ThemeManager } from '../ThemeManager';
 import './Styles/CommunityProfile.css';
 
 // ── 🎯 Using your existing modal ──
@@ -18,7 +19,8 @@ const Community_Profile: React.FC<ProfileProps> = ({ resident, onClose }) => {
       recordId: 'N/A',
       address: "ENGINEER'S HILL",
       username: 'user',
-      email: 'NOT LINKED'
+      email: 'NOT LINKED',
+      mobile: 'NOT LINKED'
   });
 
   // ── 🛡️ DEEP IDENTITY EXTRACTION ──
@@ -33,13 +35,20 @@ const Community_Profile: React.FC<ProfileProps> = ({ resident, onClose }) => {
 
     const recordId = source.record_id || profileNode.record_id || userNode.record_id || userNode.account_id || source.account_id || 'N/A';
     
-    const email = source.email 
-               || profileNode.email 
-               || userNode.email 
-               || profileNode.gmail 
-               || profileNode.email_address 
+    const email = source.email
+               || profileNode.email
+               || userNode.email
+               || profileNode.gmail
+               || profileNode.email_address
                || 'NOT LINKED';
-               
+
+    const mobile = source.contact_number
+               || profileNode.contact_number
+               || userNode.contact_number
+               || source.phone
+               || profileNode.phone
+               || 'NOT LINKED';
+
     const username = source.username || userNode.username || profileNode.username || 'user';
     const address = profileNode.purok || profileNode.address || source.address || "ENGINEER'S HILL";
 
@@ -59,6 +68,7 @@ const Community_Profile: React.FC<ProfileProps> = ({ resident, onClose }) => {
     setProfileData({
         recordId,
         email,
+        mobile,
         username,
         address,
         displayName,
@@ -67,29 +77,21 @@ const Community_Profile: React.FC<ProfileProps> = ({ resident, onClose }) => {
 
     // ── THEME INITIALIZATION ──
     if (recordId !== 'N/A') {
-      const savedTheme = localStorage.getItem(`theme_${recordId}`);
-      const rootTheme = document.documentElement.getAttribute('data-resident-theme');
-      
-      if (savedTheme === 'dark' || rootTheme === 'dark') {
-        setIsDarkMode(true);
-        document.documentElement.setAttribute('data-resident-theme', 'dark');
-      } else {
-        setIsDarkMode(false);
-        document.documentElement.setAttribute('data-resident-theme', 'light');
-      }
+      const saved = ThemeManager.loadResident(recordId);
+      setIsDarkMode(saved === 'dark');
+      ThemeManager.applyResident(saved);
     }
   }, [resident]);
 
   // ── TOGGLE HANDLER ──
   const toggleTheme = () => {
-    const newTheme = !isDarkMode ? 'dark' : 'light';
-    document.documentElement.setAttribute('data-resident-theme', newTheme);
-    
-    if (profileData.recordId !== 'N/A') {
-      localStorage.setItem(`theme_${profileData.recordId}`, newTheme);
-    }
-    
+    const newTheme: 'light' | 'dark' = !isDarkMode ? 'dark' : 'light';
     setIsDarkMode(!isDarkMode);
+    if (profileData.recordId !== 'N/A') {
+      ThemeManager.saveResident(profileData.recordId, newTheme);
+    } else {
+      ThemeManager.applyResident(newTheme);
+    }
   };
 
   if (!resident) return null;
@@ -133,6 +135,12 @@ const Community_Profile: React.FC<ProfileProps> = ({ resident, onClose }) => {
                     <i className="fas fa-envelope"></i> GMAIL ADDRESS
                   </span>
                   <span className="C_P_DATA_VALUE">{profileData.email}</span>
+                </div>
+                <div className="C_P_DATA_ROW">
+                  <span className="C_P_DATA_LABEL">
+                    <i className="fas fa-mobile-alt"></i> MOBILE NUMBER
+                  </span>
+                  <span className="C_P_DATA_VALUE">{profileData.mobile}</span>
                 </div>
                 <div className="C_P_DATA_ROW">
                   <span className="C_P_DATA_LABEL">

@@ -1,12 +1,12 @@
 import React, { useEffect } from 'react';
 import AppRoutes from './AppRoutes';
 import { CaptchaModal } from './components/Captcha/CaptchaModal';
+import { ThemeManager } from './components/UI/ThemeManager';
 import './App.css';
 
 const App: React.FC = () => {
   useEffect(() => {
-    const savedTheme = localStorage.getItem('sb_theme') || 'light';
-    document.documentElement.setAttribute('data-theme', savedTheme);
+    ThemeManager.restoreFromSession();
   }, []);
 
   return (

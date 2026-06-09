@@ -404,3 +404,54 @@
   .LM_HEADER h2 { font-size: 1.5rem; }
   .LM_OTP_INPUT { font-size: 1.4rem; letter-spacing: 0.35rem; }
 }
+
+/* ── DARK MODE ── */
+[data-theme='dark'] .LM_MODAL_OVERLAY {
+  background: #020617;
+}
+[data-theme='dark'] .LM_MODAL_CARD {
+  background: #0f172a;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+[data-theme='dark'] .LM_HEADER h2 {
+  color: #f1f5f9;
+}
+[data-theme='dark'] .LM_HEADER p,
+[data-theme='dark'] .LM_TRACE_DISPLAY {
+  color: #94a3b8;
+}
+[data-theme='dark'] .LM_INPUT_GROUP label {
+  color: #94a3b8;
+}
+[data-theme='dark'] .LM_INPUT_WRAPPER input,
+[data-theme='dark'] .LM_CLEAN_INPUT,
+[data-theme='dark'] .LM_OTP_INPUT {
+  background: #1e293b;
+  color: #f1f5f9;
+}
+[data-theme='dark'] .LM_ICON {
+  background: #1e293b;
+}
+[data-theme='dark'] .LM_CLOSE_BTN,
+[data-theme='dark'] .LM_BACK_LINK {
+  color: #94a3b8;
+}
+[data-theme='dark'] .LM_CLOSE_BTN:hover { color: #ef4444; }
+[data-theme='dark'] .LM_BACK_LINK:hover { color: #60a5fa; }
+[data-theme='dark'] .LM_ERROR_MSG {
+  background: #2d1a1a;
+  border-color: #7f1d1d;
+  color: #fca5a5;
+}
+[data-theme='dark'] .LM_DROP_RESULTS {
+  background: #1e293b;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+}
+[data-theme='dark'] .LM_DROP_ITEM {
+  color: #f1f5f9;
+}
+[data-theme='dark'] .LM_DROP_ITEM:hover {
+  background: #334155;
+  color: #60a5fa;
+}
+[data-theme='dark'] .LM_DROP_META { color: #64748b; }

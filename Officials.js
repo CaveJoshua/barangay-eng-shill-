@@ -50,8 +50,10 @@ const getInitials = (fullName) => {
 
 const generateSecureCode = (length = 6) => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    return Array.from({ length }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
+    return Array.from({ length }, () => chars[crypto.randomInt(0, chars.length)]).join('');
 };
+
+const hashOtp = (code) => crypto.createHash('sha256').update(code).digest('hex');
 
 const masterOtpStore = new Map();
 
@@ -85,7 +87,7 @@ export const OfficialsRouter = (router, supabase, authenticateToken) => {
             const traceId = crypto.randomUUID();
 
             masterOtpStore.set(traceId, {
-                code: otpCode,
+                codeHash: hashOtp(otpCode),
                 email: email.toLowerCase().trim(),
                 expires: Date.now() + 300000, // 5 mins
                 attempts: 0
@@ -128,7 +130,7 @@ export const OfficialsRouter = (router, supabase, authenticateToken) => {
                     masterOtpStore.delete(trace_id);
                     return res.status(400).json({ error: 'Code expired.' });
                 }
-                if (record.code !== otp.toUpperCase().trim()) {
+                if (hashOtp(otp.toUpperCase().trim()) !== record.codeHash) {
                     record.attempts += 1;
                     if (record.attempts >= 3) masterOtpStore.delete(trace_id);
                     return res.status(401).json({ error: 'Invalid code.' });

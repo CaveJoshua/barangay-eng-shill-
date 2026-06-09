@@ -14,6 +14,7 @@ import Community from './components/UI/Community_GUI/Community';
 import Community_Dashboard from './components/UI/Community_GUI/CommunityDashboard';
 import OfficialLogin from './components/buttons/Official_Login_modal';
 import { API_BASE_URL } from './components/UI/api';
+import { ThemeManager } from './components/UI/ThemeManager';
 
 interface AuthContextType {
   selectedPortal: 'admin' | 'community' | null;
@@ -107,13 +108,20 @@ const StateSynchronizer: React.FC<{
     const adminSession = localStorage.getItem('admin_session');
     const residentSession = localStorage.getItem('resident_session');
 
-    // If localStorage has session data but state is null, sync it!
     if (adminSession && !user) {
-      setUser(JSON.parse(adminSession));
-      setSelectedPortal('admin');
+      try {
+        setUser(JSON.parse(adminSession));
+        setSelectedPortal('admin');
+      } catch {
+        localStorage.removeItem('admin_session');
+      }
     } else if (residentSession && !user) {
-      setUser(JSON.parse(residentSession));
-      setSelectedPortal('community');
+      try {
+        setUser(JSON.parse(residentSession));
+        setSelectedPortal('community');
+      } catch {
+        localStorage.removeItem('resident_session');
+      }
     }
   }, [location.pathname, user, setUser, setSelectedPortal]);
 
@@ -195,12 +203,11 @@ const RoutesWithLogout: React.FC<{
           }
         />
 
-        {/* ✅ Resident Dashboard */}
+        {/* ✅ Resident Dashboard — requires actual session, not just portal flag */}
         <Route
           path="/resident"
           element={
-            localStorage.getItem('resident_session') ||
-            localStorage.getItem('selectedPortal') === 'community' ? (
+            localStorage.getItem('resident_session') ? (
               <Community_Dashboard onLogout={logoutAndRedirect} />
             ) : (
               <Navigate to="/" replace />
@@ -229,15 +236,17 @@ const AppRoutes = () => {
     const savedPortal = localStorage.getItem('selectedPortal');
 
     if (adminSession) {
-      setUser(JSON.parse(adminSession));
-      setSelectedPortal('admin');
+      try { setUser(JSON.parse(adminSession)); setSelectedPortal('admin'); }
+      catch { localStorage.removeItem('admin_session'); }
     } else if (residentSession) {
-      setUser(JSON.parse(residentSession));
-      setSelectedPortal('community');
+      try { setUser(JSON.parse(residentSession)); setSelectedPortal('community'); }
+      catch { localStorage.removeItem('resident_session'); }
     } else if (savedPortal) {
       setSelectedPortal(savedPortal as 'admin' | 'community');
     }
 
+    // Apply the correct theme for whichever session just restored.
+    ThemeManager.restoreFromSession();
     setIsLoading(false);
   }, []);
 
@@ -245,19 +254,25 @@ const AppRoutes = () => {
     setUser(null);
     setSelectedPortal(null);
 
-    // 🛡️ THE FIX: Wipe EVERYTHING from local and session storage instantly
     localStorage.clear();
     sessionStorage.clear();
 
-    try {
-      await fetch(`${API_BASE_URL}/admin/logout`, {
+    // Reset both theme attributes so the next user starts clean.
+    ThemeManager.resetAll();
+
+    // Revoke both admin cookie and resident refresh token server-side
+    await Promise.allSettled([
+      fetch(`${API_BASE_URL}/admin/logout`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-      });
-    } catch (err) {
-      console.error('Failed to notify backend of logout:', err);
-    }
+      }),
+      fetch(`${API_BASE_URL}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    ]);
   }, []);
 
   if (isLoading) {
