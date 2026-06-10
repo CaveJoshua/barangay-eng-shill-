@@ -1,6 +1,7 @@
-import bcrypt  from 'bcryptjs';
-import jwt     from 'jsonwebtoken';
-import crypto  from 'crypto';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
+import nodemailer from 'nodemailer'; // 🛡️ INTEGRATED: Nodemailer fallback for emergency paths
 import { logActivity } from './Auditlog.js';
 import { sendAutoMail } from './Mailer.js';
 
@@ -12,12 +13,7 @@ if (!ROOT_EMAIL) throw new Error('[FATAL] ROOT_EMAIL is not set in environment.'
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-// 🍪 Cross-site cookie SameSite (Cloudflare deploy fix).
-// The Cloudflare Pages frontend and the API backend are on DIFFERENT sites, so the
-// admin auth cookie must be SameSite=None to be sent at all. We detect a real HTTPS
-// request — directly, or via a proxy's x-forwarded-proto header — instead of trusting
-// NODE_ENV, which many hosts don't set (that silently downgraded the cookie to
-// SameSite=Lax and broke admin auth, e.g. Account Management, once deployed).
+// 🍪 Cross-site cookie SameSite configuration (Cloudflare deployment adjustment).
 const getSameSite = (req) =>
     (req?.secure === true
         || String(req?.headers?.['x-forwarded-proto'] || '').split(',')[0].trim() === 'https'
@@ -40,23 +36,20 @@ const generateSecureCode = (length = 6) => {
 const verifyPassword = async (inputPassword, storedPassword) => {
     if (!inputPassword || !storedPassword) return false;
     if (!storedPassword.startsWith('$2')) {
-        // Password is not hashed — reject and flag for remediation
         console.error('[SECURITY] Unhashed password detected in officials_accounts. Force-reset required.');
         return false;
     }
     return bcrypt.compare(inputPassword, storedPassword);
 };
 
-// ── 🛡️ THE FIX: BULLETPROOF ROLE DERIVATION ──
+// ── 🛡️ ROLE DERIVATION ENGINE ──
 const deriveRoleFromPosition = (position, fallbackRole, username = '') => {
-    // 1. Explicit override for the barangayhall account
     const cleanUser = String(username).toLowerCase().replace(/\s+/g, '');
     if (cleanUser === 'barangayhall') return 'barangayhall';
 
     if (!position) return fallbackRole ? fallbackRole.toLowerCase().trim() : 'staff';
     const pos = position.toLowerCase();
     
-    // Both Master Gmail and Punong Barangay receive Superadmin access
     if (pos.includes('super admin') || pos.includes('punong')) return 'superadmin';
     if (pos.includes('secretary') || pos.includes('treasurer') || pos.includes('kagawad') || pos.includes('sk')) return 'admin';
     if (pos.includes('barangay hall')) return 'barangayhall';
@@ -84,7 +77,7 @@ export const OfficialsLoginRouter = (router, supabase) => {
             const traceId = crypto.randomUUID();
 
             rootOtpStore.set('ROOT', {
-                codeHash: hashOtp(otpCode),  // stored as hash, never plaintext
+                codeHash: hashOtp(otpCode),
                 trace_id: traceId,
                 expires: Date.now() + 300000, // 5 mins
                 cooldown: Date.now() + 60000, // 1 min
@@ -92,15 +85,64 @@ export const OfficialsLoginRouter = (router, supabase) => {
             });
 
             const emailMessage = `
-                <h2>Root Access Requested</h2>
-                <p>A Ghost Admin login attempt was initiated on your system.</p>
-                <p>Your Security Code is: <b style="font-size: 24px; color: #d97706; letter-spacing: 4px;">${otpCode}</b></p>
-                <p>Trace ID: <small>${traceId}</small></p>
-                <hr/>
-                <p><i>System Note: Root Admin accounts are timeless and bypass standard ledgers.</i></p>
+                An emergency Ghost Admin login attempt was initiated on your system.<br><br>
+                Your Security Code is: <br><br>
+                <span style="font-size: 24px; font-weight: bold; color: #d97706; background: #f1f5f9; padding: 10px; letter-spacing: 4px;">${otpCode}</span><br><br>
+                Trace ID: <small>${traceId}</small><br><br>
+                <i>System Note: Root Admin accounts bypass traditional operational ledgers.</i>
             `;
 
-            await sendAutoMail(ROOT_EMAIL, "URGENT: Root Access Code", "SECURITY SYSTEM", emailMessage);
+            let isSent = false;
+
+            // 📩 Attempt 1: Primary Mailer (Resend Engine)
+            try {
+                isSent = await sendAutoMail(ROOT_EMAIL, "URGENT: Root Access Code", "SECURITY SYSTEM", emailMessage);
+            } catch (resendErr) {
+                console.warn("[MAILER] Resend API execution failed during root token request. Pivoting to SMTP fallback...", resendErr.message);
+            }
+
+            // 🔁 Attempt 2: Secondary Mailer (Nodemailer SMTP Fallback)
+            if (!isSent) {
+                if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+                    try {
+                        const transporter = nodemailer.createTransport({
+                            host: process.env.SMTP_HOST,
+                            port: process.env.SMTP_PORT || 587,
+                            secure: process.env.SMTP_PORT == 464,
+                            auth: {
+                                user: process.env.SMTP_USER,
+                                pass: process.env.SMTP_PASS,
+                            },
+                        });
+
+                        const smtpFrom = process.env.SMTP_FROM || process.env.SMTP_USER || "no-reply@engineer-hill.gov.ph";
+
+                        await transporter.sendMail({
+                            from: `"Barangay Engineer's Hill Security" <${smtpFrom}>`,
+                            to: ROOT_EMAIL,
+                            subject: "URGENT: Root Access Code",
+                            html: `
+                                <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
+                                    <h2 style="color: #e67e22; border-bottom: 2px solid #e67e22; padding-bottom: 10px;">SECURITY SYSTEM</h2>
+                                    <p style="font-size: 16px; color: #34495e; line-height: 1.6;">${emailMessage}</p>
+                                </div>
+                            `
+                        });
+
+                        isSent = true;
+                        console.log(`[MAILER] Fallback SMTP route successfully delivered the root token.`);
+                    } catch (smtpErr) {
+                        console.error("[MAILER ERROR] Root SMTP fallback execution failed:", smtpErr.message);
+                    }
+                } else {
+                    console.warn("[MAILER WARNING] Root SMTP fallback skipped: Environmental parameters missing.");
+                }
+            }
+
+            if (!isSent) {
+                return res.status(500).json({ error: 'Failed to dispatch security code via primary and fallback interfaces.' });
+            }
+
             res.status(200).json({ success: true, trace_id: traceId });
         } catch (err) {
             res.status(500).json({ error: 'Failed to initiate security handshake.' });
@@ -142,7 +184,6 @@ export const OfficialsLoginRouter = (router, supabase) => {
                     sub: 'SYSTEM-ROOT-0000', username: 'SYSTEM_ROOT_ADMIN', user_role: 'superadmin'
                 }, JWT_SECRET, { expiresIn: '1h' });
 
-                // 🔒 PRODUCTION GRADE COOKIE 
                 res.cookie('auth_token', token, { 
                     httpOnly: true, 
                     secure: true, 
@@ -178,7 +219,6 @@ export const OfficialsLoginRouter = (router, supabase) => {
             if (!(await verifyPassword(password, accountData.password))) return res.status(401).json({ error: 'Invalid password.' });
 
             const position = accountData.officials?.position || 'Official';
-            
             const userRole = deriveRoleFromPosition(position, accountData.role, accountData.username);
             const isMasterAccount = position === 'Super Admin';
 
@@ -189,7 +229,6 @@ export const OfficialsLoginRouter = (router, supabase) => {
 
             logActivity(supabase, accountData.username, 'LOGIN', `${accountData.officials?.full_name} logged in.`, req).catch(() => {});
 
-            // 🔒 PRODUCTION GRADE COOKIE
             res.cookie('auth_token', token, { 
                 httpOnly: true, 
                 secure: true, 
@@ -224,7 +263,6 @@ export const OfficialsLoginRouter = (router, supabase) => {
     // 2. LOGOUT (KILL SWITCH)
     // ==========================================
     router.post('/admin/logout', (req, res) => {
-        // 🔒 CLEAR THE SECURE COOKIE
         res.clearCookie('auth_token', { 
             httpOnly: true, 
             secure: true, 
@@ -234,20 +272,16 @@ export const OfficialsLoginRouter = (router, supabase) => {
     });
 
     // ==========================================
-    // 3. ADMIN SESSION REFRESH (separate from resident refresh)
-    // Re-issues the httpOnly admin cookie. Only valid within 24h of original issue.
+    // 3. ADMIN SESSION REFRESH
     // ==========================================
     router.post('/auth/admin/refresh', (req, res) => {
         try {
             const token = req.cookies?.auth_token;
             if (!token) return res.status(401).json({ error: 'No admin session found.' });
 
-            // ignoreExpiration so we can accept an already-expired token and re-issue
-            // within a short grace window — this is what allows reactive refresh on 401.
             jwt.verify(token, JWT_SECRET, { ignoreExpiration: true }, (err, decoded) => {
                 if (err || !decoded) return res.status(403).json({ error: 'Invalid or tampered token.' });
 
-                // Only allow refresh within 5 minutes of expiry to keep the window tight
                 const expiredAt = decoded.exp * 1000;
                 const GRACE_MS = 5 * 60 * 1000;
                 if (Date.now() > expiredAt + GRACE_MS) {
