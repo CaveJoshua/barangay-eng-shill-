@@ -155,7 +155,7 @@ router.use(createSecurityRegulator(supabase));
 const verifyPassword = async (inputPassword, storedPassword) => {
   if (!inputPassword || !storedPassword) return false;
   if (!storedPassword.startsWith('$2')) {
-    console.error('[SECURITY] Unhashed password in residents_account. Force-reset required.');
+    console.error('[SECURITY] Unhashed password in database. Force-reset required.');
     return false;
   }
   return bcrypt.compare(inputPassword, storedPassword);
@@ -180,6 +180,83 @@ OfficialsRouter(router, supabase, authenticateToken);
 OfficialsLoginRouter(router, supabase); 
 BlotterRouter(router, supabase, authenticateToken); 
 ProfileRouter(router, supabase, authenticateToken);
+
+
+// ==========================================
+// 🔐 5. MASTER AUTHENTICATION ENDPOINT
+// Resolves the 404 Error: Maps to POST /api/auth
+// ==========================================
+router.post('/auth', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        if (!email || !password) {
+            return res.status(400).json({ error: "Email and password are required." });
+        }
+
+        // 1. Check Officials Account First
+        const { data: official, error: officialErr } = await supabase
+            .from('officials_account') // Adjust table name if different in your DB
+            .select('*')
+            .eq('email', email)
+            .single();
+
+        let userToAuth = null;
+        let role = null;
+
+        if (official) {
+            userToAuth = official;
+            role = official.role || 'admin'; 
+        } else {
+            // 2. Fallback to check Residents Account if not found in officials
+            const { data: resident, error: residentErr } = await supabase
+                .from('residents_account')
+                .select('*')
+                .eq('email', email)
+                .single();
+
+            if (resident) {
+                userToAuth = resident;
+                role = 'resident';
+            }
+        }
+
+        if (!userToAuth) {
+            return res.status(401).json({ error: "Invalid credentials." });
+        }
+
+        // 3. Verify Password using your helper function
+        const isValid = await verifyPassword(password, userToAuth.password);
+        if (!isValid) {
+            return res.status(401).json({ error: "Invalid credentials." });
+        }
+
+        // 4. Generate JWT Token
+        // Strip out the password hash before putting the user object into the token
+        const { password: _pw, ...safeUser } = userToAuth; 
+        const tokenPayload = { ...safeUser, role: role };
+
+        const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '12h' });
+
+        // 5. Issue HTTP-Only Cookie (Matches your authenticateToken middleware)
+        res.cookie('auth_token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            maxAge: 12 * 60 * 60 * 1000 // 12 hours
+        });
+
+        return res.status(200).json({ 
+            message: "Authentication successful", 
+            user: tokenPayload,
+            token: token 
+        });
+
+    } catch (error) {
+        console.error("[AUTH ERROR]", error.message);
+        return res.status(500).json({ error: "Internal Server Error" });
+    }
+});
 
 
 // ==========================================
