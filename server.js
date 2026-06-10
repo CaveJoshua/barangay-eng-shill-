@@ -33,7 +33,7 @@ const PORT = process.env.PORT || 8000;
 // 🛡️ CORS — explicit allowlist, no wildcard
 // ==========================================
 const ALLOWED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173'];
-const isCloudflareOrigin = (origin) => origin && origin.endsWith('.barangay-engineer-s-hill.pages.dev','.barangay-engineers-hill.pages.dev');
+const isCloudflareOrigin = (origin) => origin && origin.endsWith('.barangay-engineer-s-hill.pages.dev', '.barangay-engineers-hill.pages.dev');
 
 const corsOptions = {
     origin: (origin, callback) => {
@@ -119,8 +119,6 @@ app.all('/api/graphql',
 app.get('/developer-portal', 
     [authenticateToken, authorizeRoles(['admin', 'superadmin'])], 
     (req, res) => {
-        // 🛡️ SECONDARY GATE CHECK — value sourced from the ADMIN_GATE_KEY env var.
-        // (The literal key was previously hard-coded in this comment — removed in J-CVE-101203.)
         if (!req.query.key || req.query.key !== ADMIN_GATE_KEY) {
             return res.status(404).json({ error: "Not Found", message: "Resource restricted." });
         }
@@ -134,6 +132,44 @@ app.get('/developer-portal',
         }
     }
 );
+
+// ==========================================
+// 🩺 2.5 SYSTEM & MAILER DIAGNOSTICS
+// Public route to instantly verify server liveness and Resend API health
+// ==========================================
+app.get('/api/system/diagnostics', (req, res) => {
+    const resendKey = process.env.RESEND_API_KEY;
+    const resendFrom = process.env.RESEND_FROM;
+    
+    let mailerStatus = "ONLINE";
+    let mailerReason = "Resend API key is loaded and appears structurally valid.";
+
+    // Diagnostic logic to expose the exact "reason behind" any mailer failures
+    if (!resendKey) {
+        mailerStatus = "OFFLINE - CRITICAL";
+        mailerReason = "RESEND_API_KEY is missing from your environment variables. You must add it to the Render dashboard.";
+    } else if (!resendKey.startsWith('re_')) {
+        mailerStatus = "WARNING";
+        mailerReason = "RESEND_API_KEY is present, but does not start with 're_'. It is likely invalid or copy-pasted incorrectly.";
+    } else if (!resendFrom) {
+        mailerStatus = "WARNING";
+        mailerReason = "RESEND_API_KEY is active, but RESEND_FROM is missing. Emails will default to Resend's testing address.";
+    }
+
+    return res.status(200).json({
+        server: {
+            status: "ONLINE",
+            message: "Main Express API is awake and accepting traffic.",
+            timestamp: new Date().toISOString(),
+            environment: process.env.NODE_ENV || 'development'
+        },
+        mailer_integration: {
+            status: mailerStatus,
+            reason: mailerReason,
+            key_length: resendKey ? resendKey.length : 0
+        }
+    });
+});
 
 // ==========================================
 // 📂 3. STANDARD API ROUTES

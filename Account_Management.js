@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import nodemailer from 'nodemailer'; // 🛡️ ADDED: Nodemailer Import
 import { sendAutoMail } from './Mailer.js';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 
@@ -63,7 +64,6 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
         return null;
     };
 
-
     // =========================================================
     // 1. PUBLIC ENDPOINT: Request OTP
     // POST /api/accounts/request-otp
@@ -103,13 +103,63 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
             const otpCode = generateSecureCode(6);
             otpStore.set(targetMapKey, { codeHash: hashOtp(otpCode), expires: Date.now() + 300000, attempts: 0 });
 
+            // Prepare Email Payload
             let subjectLine = useFallback ? "URGENT: Fallback Account Recovery Request" : "Password Reset Request";
+            
             let emailMessage = useFallback 
-                ? `Emergency reset requested for ${userData.firstName}. Code: ${otpCode}` 
-                : `Hello ${userData.firstName}, your reset code is: ${otpCode}`;
+                ? `An emergency password reset was requested for <b>${userData.firstName}</b>.<br><br>The 5-Minute Security Code is: <br><br><span style="font-size: 24px; font-weight: bold; background: #f1f5f9; padding: 10px; letter-spacing: 4px;">${otpCode}</span><br><br>STRICTLY DO NOT SHARE THIS CODE WITH ANYONE TO PREVENT UNAUTHORIZED ACCESS AND COMPROMISE.` 
+                : `Hello <b>${userData.firstName}</b>,<br><br>A password reset was requested for your account. Your 5-Minute Security Code is:<br><br><span style="font-size: 24px; font-weight: bold; background: #f1f5f9; padding: 10px; letter-spacing: 4px;">${otpCode}</span><br><br>If you did not request this, please secure your account immediately.`;
 
-            const isSent = await sendAutoMail(destinationEmail, subjectLine, "ACCOUNT RECOVERY", emailMessage);
-            if (!isSent) return res.status(500).json({ error: 'Failed to dispatch email.' });
+            let isSent = false;
+
+            // 📩 ATTEMPT 1: Primary Mailer (Resend API)
+            try {
+                isSent = await sendAutoMail(destinationEmail, subjectLine, "ACCOUNT RECOVERY", emailMessage);
+            } catch (resendErr) {
+                console.warn("[MAILER] Resend API failed, preparing to use fallback...", resendErr.message);
+            }
+
+            // 🔁 ATTEMPT 2: Fallback Mailer (Nodemailer SMTP)
+            if (!isSent) {
+                // Failsafe check: ensures you don't crash if SMTP env vars aren't set yet
+                if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+                    try {
+                        const transporter = nodemailer.createTransport({
+                            host: process.env.SMTP_HOST,
+                            port: process.env.SMTP_PORT || 587,
+                            secure: process.env.SMTP_PORT == 465, 
+                            auth: {
+                                user: process.env.SMTP_USER,
+                                pass: process.env.SMTP_PASS,
+                            },
+                        });
+
+                        const smtpFrom = process.env.SMTP_FROM || process.env.SMTP_USER || "no-reply@engineer-hill.gov.ph";
+
+                        await transporter.sendMail({
+                            from: `"Barangay Engineer's Hill" <${smtpFrom}>`,
+                            to: destinationEmail,
+                            subject: subjectLine,
+                            html: `
+                                <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
+                                    <h2 style="color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px;">ACCOUNT RECOVERY</h2>
+                                    <p style="font-size: 16px; color: #34495e; line-height: 1.6;">${emailMessage}</p>
+                                </div>
+                            `
+                        });
+
+                        isSent = true;
+                        console.log(`[MAILER] Nodemailer successfully sent fallback email to ${destinationEmail}`);
+                    } catch (smtpErr) {
+                        console.error("[MAILER ERROR] Nodemailer fallback also failed:", smtpErr.message);
+                    }
+                } else {
+                    console.warn("[MAILER WARNING] Nodemailer fallback skipped: SMTP credentials are not configured in environment variables.");
+                }
+            }
+
+            // Final gate check
+            if (!isSent) return res.status(500).json({ error: 'Failed to dispatch email via Resend API and SMTP fallback.' });
 
             return res.status(200).json({ success: true, message: 'Security code dispatched.' });
 
@@ -196,8 +246,86 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
     // 4. AUTHENTICATED RESET (Admin Dashboard / First-time reset)
     // PATCH /api/accounts/reset/:accountId
     // =========================================================
-    // (This remains exactly the same as your previous code)
     router.patch('/accounts/reset/:accountId', authenticateToken, async (req, res) => {
-         // ... (Keep the exact code you already had here for this route)
+        try {
+            const userRole = (req.user?.user_role || req.user?.role || '').toLowerCase().trim();
+            const loggedInUserId = req.user?.account_id || req.user?.sub;
+            const targetId = req.params.accountId;
+
+            const adminRoles = ['superadmin', 'punongbarangay', 'barangaysecretary', 'barangayhall'];
+            const isAdmin = adminRoles.includes(userRole);
+            const isSelf = String(loggedInUserId) === String(targetId);
+
+            if (!isAdmin && !isSelf) {
+                return res.status(403).json({ error: 'Access Denied. You lack permissions.' });
+            }
+
+            const { password, otp } = req.body;
+            if (!password) return res.status(400).json({ error: 'New password is required.' });
+
+            if (isAdmin && !isSelf) {
+                if (!otp) return res.status(400).json({ error: 'Security verification code is required.' });
+
+                let targetMapKey = null;
+
+                const { data: resAccRow } = await supabase.from('residents_account').select('resident_id').eq('account_id', targetId).maybeSingle();
+
+                if (resAccRow?.resident_id) {
+                    const { data: resRecord } = await supabase.from('residents_records').select('email').eq('record_id', resAccRow.resident_id).maybeSingle();
+                    targetMapKey = resRecord?.email || resAccRow.resident_id;
+                } else {
+                    const { data: offAuth } = await supabase.from('officials_accounts').select('official_id').eq('account_id', targetId).maybeSingle();
+                    if (offAuth) {
+                        const { data: offData } = await supabase.from('officials').select('email').eq('id', offAuth.official_id).maybeSingle();
+                        targetMapKey = offData?.email ? offData.email : targetId;
+                    }
+                }
+
+                if (!targetMapKey) return res.status(404).json({ error: 'Target account corrupted.' });
+
+                const mapKey = String(targetMapKey).toLowerCase();
+                const stored = otpStore.get(mapKey);
+                if (!stored) return res.status(400).json({ error: 'No active verification code found.' });
+                if (Date.now() > stored.expires) {
+                    otpStore.delete(mapKey);
+                    return res.status(400).json({ error: 'Verification code expired.' });
+                }
+                if (hashOtp(otp.trim()) !== stored.codeHash) {
+                    stored.attempts += 1;
+                    if (stored.attempts >= 3) otpStore.delete(mapKey);
+                    return res.status(401).json({ error: 'Invalid verification code.' });
+                }
+                otpStore.delete(mapKey);
+            }
+
+            const securePass = hashPassword(password);
+
+            const { data: resData } = await supabase
+                .from('residents_account')
+                .update({ password: securePass, requires_reset: false })
+                .or(`account_id.eq.${targetId},resident_id.eq.${targetId}`)
+                .select();
+
+            if (resData && resData.length > 0) {
+                return res.json({ success: true, message: 'Password updated successfully.' });
+            }
+
+            if (isAdmin || isSelf) {
+                const { data: offData } = await supabase
+                    .from('officials_accounts')
+                    .update({ password: securePass })
+                    .eq('account_id', targetId)
+                    .select();
+
+                if (offData && offData.length > 0) {
+                    return res.json({ success: true, message: 'Official password updated successfully.' });
+                }
+            }
+
+            return res.status(404).json({ error: 'Account not found.' });
+
+        } catch (err) {
+            res.status(500).json({ error: 'Database synchronization failed.' });
+        }
     });
 };
