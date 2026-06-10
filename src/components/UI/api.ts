@@ -83,8 +83,9 @@ export const getAuthHeaders = (isFormData = false, method = 'GET'): Record<strin
   }
 
   // Admin auth: httpOnly cookie (credentials: 'include') — cookie is set server-side.
-  // Resident auth: short-lived access_token JWT stored in localStorage, sent as Bearer.
-  const accessToken = localStorage.getItem('access_token');
+  // Resident auth: short-lived access_token JWT stored in sessionStorage, sent as Bearer.
+  // sessionStorage is scoped to the tab and auto-clears on tab close / session end.
+  const accessToken = sessionStorage.getItem('access_token');
   if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
 
   if (MUTATION_METHODS.has(method.toUpperCase())) {
@@ -96,6 +97,8 @@ export const getAuthHeaders = (isFormData = false, method = 'GET'): Record<strin
 };
 
 // ── SESSION CLEANUP ────────────────────────────────────────────────────────────
+// sessionStorage auto-wipes on tab close / browser exit.
+// handleAuthFailure still clears explicitly for immediate forced logouts.
 const SESSION_KEYS = [
   'account_id',
   'profile_id',
@@ -109,7 +112,7 @@ const handleAuthFailure = (): void => {
   if (window.location.pathname === '/login') return;
 
   console.error('[AUTH] Session invalid — clearing state and redirecting.');
-  SESSION_KEYS.forEach(key => localStorage.removeItem(key));
+  SESSION_KEYS.forEach(key => sessionStorage.removeItem(key));
   window.location.href = '/login';
 };
 
@@ -126,7 +129,7 @@ const attemptSilentRefresh = (): Promise<boolean> => {
 
   // Residents use /auth/refresh (refresh_token httpOnly cookie → new access_token in body).
   // Admins use /auth/admin/refresh (auth_token httpOnly cookie rotated server-side).
-  const isResident = !!localStorage.getItem('resident_session');
+  const isResident = !!sessionStorage.getItem('resident_session');
   const refreshUrl = isResident ? RESIDENT_REFRESH_API : REFRESH_API;
 
   refreshMutex = fetch(failover.resolve(refreshUrl), {
@@ -139,7 +142,7 @@ const attemptSilentRefresh = (): Promise<boolean> => {
       if (!res.ok) return false;
       if (isResident) {
         const data = await res.json().catch(() => ({}));
-        if (data.access_token) localStorage.setItem('access_token', data.access_token);
+        if (data.access_token) sessionStorage.setItem('access_token', data.access_token);
       }
       return true;
     })
