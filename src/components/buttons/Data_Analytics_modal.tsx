@@ -32,6 +32,17 @@ const INK = '#0f172a';
 const RULE = '#e8ecf0';
 const BLUE = '#1641c9';
 
+// Canonical barangay document types shown in Data Analytics.
+const ANALYTICS_DOC_TYPES = [
+  { value: 'Barangay Clearance',             label: 'Barangay Clearance' },
+  { value: 'Certificate of Indigency',       label: 'Certificate of Indigency' },
+  { value: 'Certificate of Residency',       label: 'Certificate of Residency' },
+  { value: 'Barangay Certificate (Jobseeker)', label: 'Barangay Certificate (Jobseeker)' },
+  { value: 'Affidavit of Barangay Official', label: 'Affidavit of Barangay Official' },
+];
+
+const docTypeLabel = (v: string) => ANALYTICS_DOC_TYPES.find(t => t.value.toLowerCase() === v.toLowerCase())?.label ?? v;
+
 const chartOpts = (hideLegend = true) => ({
   maintainAspectRatio: false,
   plugins: {
@@ -185,15 +196,24 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
     const resMap = createResidentMap(residents);
     const enrichedDocs = enrichDocuments(allDocs, resMap);
 
-    const baseTypeStats = calculateTypeStats(enrichedDocs);
-    const availableDocTypes = Object.keys(baseTypeStats.typeCounts || {});
+    const typeStats = calculateTypeStats(enrichedDocs);
+
+    // 🛡️ THE FIX: Intercept the calculated counts and forcefully delete the unwanted variant
+    // Using .trim() kills hidden spaces, .toUpperCase() catches any casing quirks.
+    if (typeStats.typeCounts) {
+      Object.keys(typeStats.typeCounts).forEach(key => {
+        if (key.trim().toUpperCase() === 'BARANGAY CERTIFICATION') {
+           delete typeStats.typeCounts[key];
+        }
+      });
+    }
+
+    const availableDocTypes = Object.keys(typeStats.typeCounts || {});
 
     const monthlyStats = calculateMonthlyStats(enrichedDocs);
     const dailyStats = calculateDailyStats(enrichedDocs);
-    const typeStats = calculateTypeStats(enrichedDocs);
     const purokStats = calculatePurokStats(enrichedDocs);
     
-    // 🛡️ THE FIX: Slice the array to only return the top 5 residents max
     const topResidents = calculateTopResidents(enrichedDocs).slice(0, 5);
     
     const sexDist = calculateSexDistribution(residents);
@@ -226,7 +246,7 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
     return {
       ...monthlyStats,
       ...dailyStats,
-      ...typeStats,
+      ...typeStats, // We inject the scrubbed typeStats here
       ...purokStats,
       ...sexDist,
       ages: ageDist,
@@ -246,6 +266,8 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
 
   const BLUES = ['#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', '#60a5fa', '#93c5fd'];
   const TYPE_PAL = ['#3b82f6', '#14b8a6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6'];
+  
+  // Since we scrubbed the bad key out of the object itself, we can safely map all remaining keys
   const typeKeys = Object.keys(E.typeCounts || {});
 
   // 1. Purok Chart Data
@@ -259,13 +281,20 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
     : [BLUES[allPurokKeys.indexOf(localPurok) % BLUES.length]];
 
   // 2. Doc Type Chart Data
-  const docLabels = localDocType === 'All' ? typeKeys : [localDocType];
-  const docData = localDocType === 'All' 
-    ? typeKeys.map(k => (E.typeCounts as Record<string, number>)[k]) 
-    : [(E.typeCounts as Record<string, number>)?.[localDocType] || 0];
+  const canonicalTotal = typeKeys.reduce((sum, k) => sum + ((E.typeCounts as Record<string, number>)[k] || 0), 0);
+  
+  const activeDbKey = typeKeys.find(k => k.toLowerCase() === localDocType.toLowerCase()) || localDocType;
+  const selectedCount = (E.typeCounts as Record<string, number>)?.[activeDbKey] || 0;
+
+  const docLabels = localDocType === 'All'
+    ? typeKeys.map(docTypeLabel)
+    : [docTypeLabel(localDocType), 'Other Documents'];
+  const docData = localDocType === 'All'
+    ? typeKeys.map(k => (E.typeCounts as Record<string, number>)[k])
+    : [selectedCount, Math.max(0, canonicalTotal - selectedCount)];
   const docColors = localDocType === 'All'
     ? typeKeys.map((_, i) => TYPE_PAL[i % TYPE_PAL.length])
-    : [TYPE_PAL[typeKeys.indexOf(localDocType) % TYPE_PAL.length]];
+    : [TYPE_PAL[0], '#e2e8f0'];
 
   // 3. Sex Chart Data
   const sexMap: Record<string, number> = { 'Male': E.male || 0, 'Female': E.female || 0 };
@@ -289,8 +318,8 @@ export default function Data_Analytics({ isOpen, onClose }: AnalyticsProps) {
   const DropdownDoc = (
     <select className="da-filter-select" style={{ width: '100%', padding: '6px' }} value={localDocType} onChange={(e) => setLocalDocType(e.target.value)}>
       <option value="All">All Documents</option>
-      {E.availableDocTypes?.map((type: string) => (
-        <option key={type} value={type}>{type}</option>
+      {ANALYTICS_DOC_TYPES.map(({ value, label }) => (
+        <option key={value} value={value}>{label}</option>
       ))}
     </select>
   );

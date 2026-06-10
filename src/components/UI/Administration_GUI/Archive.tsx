@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { jsPDF } from 'jspdf';
 import styles from './styles/Archive.module.css';
 import { ApiService } from '../api';
 
-type ArchiveTab = 'Documents' | 'Blotter' | 'Residents' | 'Officials' | 'Households' | 'Announcements';
+type ArchiveTab = 'Documents' | 'Incidents' | 'Residents' | 'Officials' | 'Households' | 'Announcements';
 
 export default function Archive() {
   const [activeTab, setActiveTab] = useState<ArchiveTab>('Documents');
@@ -22,6 +23,9 @@ export default function Archive() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
+
+  // Preview modal (viewable + downloadable archived record)
+  const [previewItem, setPreviewItem] = useState<any | null>(null);
   
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
@@ -52,7 +56,7 @@ export default function Archive() {
             }));
           }
           break;
-        case 'Blotter':
+        case 'Incidents':
           data = await ApiService.getBlotters(signal);
           if (data && isMounted.current) {
             // 🛡️ Captures vanished incident reports
@@ -147,7 +151,7 @@ export default function Archive() {
             ((d.reference_no || '').toLowerCase().includes(q) || (d.resident_name || '').toLowerCase().includes(q));
         }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-      case 'Blotter':
+      case 'Incidents':
         return blotters.filter(b => {
           const stat = String(b.status || '').trim().toLowerCase();
           return (filterStatus === 'All' || stat === filterStatus.toLowerCase()) &&
@@ -202,13 +206,104 @@ export default function Archive() {
   const getFilterOptions = () => {
     switch (activeTab) {
       case 'Documents': return ['All', 'Completed', 'Rejected', 'Archived'];
-      case 'Blotter': return ['All', 'Settled', 'Dismissed', 'Archived', 'Rejected'];
+      case 'Incidents': return ['All', 'Settled', 'Dismissed', 'Archived', 'Rejected'];
       case 'Residents': return ['All', 'Archived', 'Deceased', 'Relocated', 'Inactive'];
-      case 'Officials': return ['All', 'Archived', 'Inactive', 'Resigned']; 
+      case 'Officials': return ['All', 'Archived', 'Inactive', 'Resigned'];
       case 'Households': return ['All', 'Archived', 'Inactive', 'Relocated'];
       case 'Announcements': return ['All', 'Archived'];
       default: return ['All'];
     }
+  };
+
+  // --- PREVIEW + DOWNLOAD HELPERS ---
+  const fmt = (v: any) => (v === null || v === undefined || v === '') ? '—' : String(v);
+
+  // Field set shown in the preview modal AND written to the PDF (one source of truth).
+  const getRecordFields = (tab: ArchiveTab, item: any): { label: string; value: string }[] => {
+    switch (tab) {
+      case 'Documents': return [
+        { label: 'Reference No.', value: fmt(item.reference_no) },
+        { label: 'Resident', value: fmt(item.resident_name) },
+        { label: 'Type', value: fmt(item.type) },
+        { label: 'Purpose', value: fmt(item.purpose) },
+        { label: 'Status', value: fmt(item.status) },
+        { label: 'Requested', value: formatDate(item.created_at) },
+        { label: 'Released', value: formatDate(item.date_released) },
+      ];
+      case 'Incidents': return [
+        { label: 'Case No.', value: fmt(item.case_number) },
+        { label: 'Complainant', value: fmt(item.complainant_name) },
+        { label: 'Respondent', value: fmt(item.respondent) },
+        { label: 'Incident Type', value: fmt(item.incident_type) },
+        { label: 'Narrative', value: fmt(item.narrative) },
+        { label: 'Status', value: fmt(item.status) },
+        { label: 'Date Filed', value: formatDate(item.date_filed) },
+        { label: 'Resolution', value: fmt(item.resolution) },
+      ];
+      case 'Residents': return [
+        { label: 'Record ID', value: fmt(item.record_id || item.id) },
+        { label: 'Full Name', value: `${fmt(item.first_name || item.firstName)} ${item.middle_name || ''} ${fmt(item.last_name || item.lastName)}`.replace(/\s+/g, ' ').trim() },
+        { label: 'Sex', value: fmt(item.sex) },
+        { label: 'Date of Birth', value: formatDate(item.dob) },
+        { label: 'Contact', value: fmt(item.contact_number) },
+        { label: 'Email', value: fmt(item.email) },
+        { label: 'Purok', value: fmt(item.purok) },
+        { label: 'Status', value: fmt(item.activity_status || item.activityStatus || item.status) },
+      ];
+      case 'Officials': return [
+        { label: 'Full Name', value: fmt(item.full_name) },
+        { label: 'Position', value: fmt(item.position) },
+        { label: 'Email', value: fmt(item.email) },
+        { label: 'Contact', value: fmt(item.contact_number) },
+        { label: 'Term Start', value: formatDate(item.term_start) },
+        { label: 'Term End', value: formatDate(item.term_end) },
+        { label: 'Status', value: fmt(item.status) },
+      ];
+      case 'Households': return [
+        { label: 'Household No.', value: fmt(item.household_number) },
+        { label: 'Head', value: fmt(item.head) },
+        { label: 'Zone', value: fmt(item.zone) },
+        { label: 'Address', value: fmt(item.address) },
+        { label: 'Status', value: fmt(item.status) },
+      ];
+      case 'Announcements': return [
+        { label: 'Title', value: fmt(item.title) },
+        { label: 'Category', value: fmt(item.category) },
+        { label: 'Priority', value: fmt(item.priority) },
+        { label: 'Content', value: fmt(item.content) },
+        { label: 'Expired On', value: formatDate(item.expires_at) },
+      ];
+      default: return [];
+    }
+  };
+
+  const handleDownloadPDF = (tab: ArchiveTab, item: any) => {
+    const fields = getRecordFields(tab, item);
+    const doc = new jsPDF();
+
+    doc.setFontSize(15);
+    doc.text("Barangay Engineer's Hill — Archived Record", 14, 18);
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`${tab} • Generated ${new Date().toLocaleString()}`, 14, 25);
+    doc.setDrawColor(200);
+    doc.line(14, 29, 196, 29);
+
+    doc.setTextColor(20);
+    let y = 40;
+    fields.forEach(({ label, value }) => {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text(`${label}:`, 14, y);
+      doc.setFont('helvetica', 'normal');
+      const lines = doc.splitTextToSize(String(value), 120);
+      doc.text(lines, 62, y);
+      y += Math.max(8, lines.length * 6);
+      if (y > 278) { doc.addPage(); y = 20; }
+    });
+
+    const idPart = item.reference_no || item.case_number || item.record_id || item.household_number || item.id || 'record';
+    doc.save(`archive_${tab}_${idPart}`.replace(/\s+/g, '_') + '.pdf');
   };
 
   return (
@@ -232,7 +327,7 @@ export default function Archive() {
         </div>
 
         <div className={styles.ARC_TABS_CONTAINER}>
-          {(['Documents', 'Blotter', 'Residents', 'Officials', 'Households', 'Announcements'] as ArchiveTab[]).map((tab) => (
+          {(['Documents', 'Incidents', 'Residents', 'Officials', 'Households', 'Announcements'] as ArchiveTab[]).map((tab) => (
             <button key={tab} className={`${styles.ARC_TAB_BTN} ${activeTab === tab ? styles.ACTIVE : ''}`} onClick={() => setActiveTab(tab)}>
               {tab}
             </button>
@@ -264,7 +359,7 @@ export default function Archive() {
                    <thead>
                      <tr>
                        {activeTab === 'Documents' && (<><th>REF NO.</th><th>RESIDENT</th><th>TYPE</th><th>FINALIZED</th></>)}
-                       {activeTab === 'Blotter' && (<><th>CASE NO.</th><th>COMPLAINANT</th><th>RESPONDENT</th><th>FILED</th></>)}
+                       {activeTab === 'Incidents' && (<><th>CASE NO.</th><th>COMPLAINANT</th><th>RESPONDENT</th><th>FILED</th></>)}
                        {activeTab === 'Residents' && (<><th>ID</th><th>FULL NAME</th><th>SEX</th><th>DOB</th></>)}
                        {activeTab === 'Officials' && (<><th>NAME</th><th>POSITION</th><th>TERM START</th><th>TERM END</th></>)}
                        {activeTab === 'Households' && (<><th>HH NO.</th><th>HEAD</th><th>ZONE</th><th>STATUS</th></>)}
@@ -289,11 +384,16 @@ export default function Archive() {
                        const badgeClass = styles[`STATUS_${currentStatus.replace(/\s+/g, '_')}`] || styles.STATUS_DEFAULT;
 
                        return (
-                       <tr key={item.id || item.record_id || index}>
+                       <tr
+                         key={item.id || item.record_id || index}
+                         onClick={() => setPreviewItem(item)}
+                         style={{ cursor: 'pointer' }}
+                         title="Click to preview & download"
+                       >
                          {activeTab === 'Documents' && (
                            <><td className={styles.ARC_ID_CELL}>{item.reference_no || 'N/A'}</td><td className={styles.ARC_NAME_CELL}>{item.resident_name}</td><td>{item.type}</td><td>{formatDate(item.created_at)}</td></>
                          )}
-                         {activeTab === 'Blotter' && (
+                         {activeTab === 'Incidents' && (
                            <><td className={styles.ARC_ID_CELL}>{item.case_number}</td><td className={styles.ARC_NAME_CELL}>{item.complainant_name}</td><td>{item.respondent}</td><td>{formatDate(item.date_filed)}</td></>
                          )}
                          {activeTab === 'Residents' && (
@@ -328,6 +428,52 @@ export default function Archive() {
         </div>
 
       </div>
+
+      {/* ── PREVIEW + DOWNLOAD MODAL ── */}
+      {previewItem && (
+        <div
+          onClick={() => setPreviewItem(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px' }}
+        >
+          <div
+            className="ARC_PREVIEW_PANEL"
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: '14px', width: 'min(560px, 100%)', maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,0.35)', overflow: 'hidden' }}
+          >
+            <div style={{ padding: '18px 22px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                  Archived {activeTab.replace(/s$/, '')} Record
+                </h3>
+                <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748b' }}>
+                  <i className="fas fa-lock" style={{ marginRight: 5 }} /> Read-only archive preview
+                </p>
+              </div>
+              <button onClick={() => setPreviewItem(null)} style={{ border: 'none', background: 'transparent', fontSize: '1.2rem', cursor: 'pointer', color: '#64748b' }}>
+                <i className="fas fa-times" />
+              </button>
+            </div>
+
+            <div style={{ padding: '12px 22px', overflowY: 'auto' }}>
+              {getRecordFields(activeTab, previewItem).map(({ label, value }) => (
+                <div key={label} style={{ display: 'flex', gap: '12px', padding: '9px 0', borderBottom: '1px dashed #eef2f7' }}>
+                  <div style={{ flex: '0 0 140px', fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{label}</div>
+                  <div style={{ flex: 1, fontSize: '0.88rem', color: '#0f172a', fontWeight: 500, wordBreak: 'break-word' }}>{value}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ padding: '14px 22px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button onClick={() => setPreviewItem(null)} style={{ padding: '9px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', fontWeight: 700, cursor: 'pointer', color: '#334155' }}>
+                Close
+              </button>
+              <button onClick={() => handleDownloadPDF(activeTab, previewItem)} style={{ padding: '9px 16px', borderRadius: '8px', border: 'none', background: '#2563eb', color: '#fff', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <i className="fas fa-download" /> Download PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

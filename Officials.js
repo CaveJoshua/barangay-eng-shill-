@@ -143,9 +143,10 @@ export const OfficialsRouter = (router, supabase, authenticateToken) => {
                 .from('officials')
                 .insert([{
                     full_name, // Saves as "Barangay Engineer's Hill" for Hall mode
+                    email: email ? email.toLowerCase().trim() : null, // 🛠️ FIX: persist email (was dropped → blank on Profile page)
                     position,
                     term_start: isBarangayHall ? null : (term_start || null),
-                    term_end: isBarangayHall ? null : (term_end || null), 
+                    term_end: isBarangayHall ? null : (term_end || null),
                     status: status || 'Active',
                     contact_number: isBarangayHall ? null : contact_number
                 }])
@@ -184,7 +185,7 @@ export const OfficialsRouter = (router, supabase, authenticateToken) => {
 
             if (accountError) throw accountError;
 
-            await logActivity(supabase, req.user?.username || 'System', 'AUTHORIZE_OFFICIAL', `Granted ${position} access to ${full_name}`);
+            await logActivity(supabase, req.user?.username || 'System', 'AUTHORIZE_OFFICIAL', `Granted ${position} access to ${full_name}`, req);
 
             // Send Credentials if it's the Master Account
             if (isBarangayHall) {

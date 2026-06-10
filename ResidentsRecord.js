@@ -114,6 +114,64 @@ const verifyIntegrity = (record) => {
 };
 
 // =========================================================
+// 🔗 LINKED HASH-CHAIN (derived — no schema change, J-CVE-101203)
+// Each resident is a block ordered by record_id. A block's hash folds
+// in the PREVIOUS block's hash, so tampering / reordering / deletion
+// breaks every block after it. The chain is recalculated on demand
+// (so edits naturally re-chain) and the head is anchored into audit_logs
+// to also detect record deletion.
+// =========================================================
+const GENESIS_PREV = '0'.repeat(64);
+
+const computeBlockHash = (prevHash, dataHash, recordId) =>
+    crypto.createHash('sha256').update(`${prevHash}|${dataHash}|${recordId}`).digest('hex');
+
+const buildResidentChain = (records) => {
+    const ordered = [...records].sort((a, b) => String(a.record_id).localeCompare(String(b.record_id)));
+
+    let prevHash = GENESIS_PREV;
+    let compromised = 0;
+    let unverified = 0;
+
+    const blocks = ordered.map((r, index) => {
+        const expected = generateGenesisHash(r.first_name, r.middle_name, r.last_name, r.dob);
+        const stored = r.genesis_hash || null;
+        const dataStatus = !stored ? 'unverified' : (stored === expected ? 'valid' : 'compromised');
+        if (dataStatus === 'compromised') compromised++;
+        if (dataStatus === 'unverified') unverified++;
+
+        // Fold the STORED data hash into the chain; a tampered field changes
+        // `expected` (surfacing as 'compromised') while `stored` stays put.
+        const dataHash = stored || expected;
+        const blockHash = computeBlockHash(prevHash, dataHash, r.record_id);
+
+        const block = { index, record_id: r.record_id, prev_hash: prevHash, data_hash: dataHash, block_hash: blockHash, data_status: dataStatus };
+        prevHash = blockHash;
+        return block;
+    });
+
+    return { blocks, head: prevHash, total: blocks.length, compromised, unverified };
+};
+
+// Reads the most recently anchored chain head from the audit log.
+const getAnchoredHead = async (supabase) => {
+    const { data } = await supabase
+        .from('audit_logs')
+        .select('details, timestamp')
+        .eq('action', 'LEDGER_ANCHOR')
+        .order('timestamp', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    if (!data) return null;
+
+    // `details` is the logActivity envelope { message, ... }; the message holds "head=<hash>".
+    let text = data.details;
+    try { text = JSON.parse(data.details)?.message ?? data.details; } catch { /* legacy plain string */ }
+    const m = String(text).match(/head=([a-f0-9]{64})/i);
+    return m ? { head: m[1], at: data.timestamp } : null;
+};
+
+// =========================================================
 // 🛡️ 4. STRICT AUTHORIZATION MIDDLEWARE
 // =========================================================
 const authorizeRoles = (allowedRoles) => {
@@ -213,7 +271,8 @@ const DATA_HANDLERS = ['superadmin', 'admin', 'barangaysecretary', 'secretary', 
 
 export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
 
-    // REBUILD LEDGER
+    // REBUILD LEDGER — re-sign every block's data hash, then rebuild the linked
+    // chain and ANCHOR the new head into the audit log (so deletion is detectable).
     router.post('/residents/ledger/rebuild',
         [authenticateToken, authorizeRoles(['superadmin', 'admin'])],
         async (req, res) => {
@@ -223,8 +282,48 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                 for (const r of all) {
                     const h = generateGenesisHash(r.first_name, r.middle_name, r.last_name, r.dob);
                     await supabase.from('residents_records').update({ genesis_hash: h }).eq('record_id', r.record_id);
+                    r.genesis_hash = h; // keep the in-memory copy fresh for the chain build
                 }
-                res.json({ message: "Global chain re-signed successfully." });
+
+                const chain = buildResidentChain(all);
+                await logActivity(
+                    supabase,
+                    req.user?.username || 'SYSTEM',
+                    'LEDGER_ANCHOR',
+                    `Re-signed & anchored linked chain head=${chain.head};blocks=${chain.total}`,
+                    req
+                ).catch(() => {});
+
+                res.json({ message: "Global chain re-signed & anchored.", head: chain.head, blocks: chain.total });
+            } catch (err) { res.status(500).json({ error: err.message }); }
+        }
+    );
+
+    // VERIFY LEDGER — recompute the linked chain on demand and compare its head
+    // against the last anchored head. Detects tampering (per-block) AND
+    // deletion/reordering (head vs anchor mismatch).
+    router.get('/residents/ledger/verify',
+        [authenticateToken, authorizeRoles(['superadmin', 'admin'])],
+        async (req, res) => {
+            try {
+                const { data: all, error } = await supabase
+                    .from('residents_records')
+                    .select('record_id, first_name, middle_name, last_name, dob, genesis_hash');
+                if (error) throw error;
+
+                const chain = buildResidentChain(all);
+                const anchor = await getAnchoredHead(supabase);
+
+                res.json({
+                    head: chain.head,
+                    total: chain.total,
+                    compromised: chain.compromised,
+                    unverified: chain.unverified,
+                    anchored_head: anchor?.head || null,
+                    anchored_at: anchor?.at || null,
+                    head_matches_anchor: anchor ? anchor.head === chain.head : null,
+                    blocks: chain.blocks
+                });
             } catch (err) { res.status(500).json({ error: err.message }); }
         }
     );
@@ -323,7 +422,7 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                         requires_reset: true  // forces password change on first login
                     }]);
 
-                    logActivity(supabase, req.user.username, 'RESIDENT_CREATED', profile.record_id).catch(() => {});
+                    logActivity(supabase, req.user.username, 'RESIDENT_CREATED', profile.record_id, req).catch(() => {});
                     res.status(201).json(profile);
                 } catch (aErr) {
                     await supabase.from('residents_records').delete().eq('record_id', profile.record_id);
@@ -407,7 +506,7 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                     .update({ status: accountStatus })
                     .eq('resident_id', recordId);
 
-                logActivity(supabase, req.user.username, 'IDENTITY_REPLACED', recordId).catch(() => {});
+                logActivity(supabase, req.user.username, 'IDENTITY_REPLACED', recordId, req).catch(() => {});
                 res.json(data[0]);
             } catch (err) { res.status(500).json({ error: "Identity replacement failed." }); }
         }
@@ -421,7 +520,7 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                 await supabase.from('residents_records').update({ activity_status: 'Archived' }).eq('record_id', req.params.id);
                 await supabase.from('residents_account').update({ status: 'Archived' }).eq('resident_id', req.params.id);
 
-                logActivity(supabase, req.user.username, 'RESIDENT_ARCHIVED', req.params.id).catch(() => {});
+                logActivity(supabase, req.user.username, 'RESIDENT_ARCHIVED', req.params.id, req).catch(() => {});
                 res.json({ success: true });
             } catch (err) { res.status(500).json({ error: "Archiving failed." }); }
         }

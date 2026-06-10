@@ -22,18 +22,36 @@ interface IFileProps {
 
 const STANDARD_TYPES = ["Noise Complaint", "Theft", "Physical Injury", "Threats"];
 
-const parseEvidence = (text: string) => {
-  if (!text) return { cleanText: '', evidenceUrls: [] as string[] };
-  const marker = '[ATTACHED EVIDENCE]';
-  const markerIndex = text.indexOf(marker);
-  if (markerIndex !== -1) {
-    const cleanText = text.substring(0, markerIndex).trim();
-    const urlSection = text.substring(markerIndex);
+const EVIDENCE_MARKER = '[ATTACHED EVIDENCE]';
+const VIDEO_MARKER = '[ATTACHED VIDEO]';
+
+// Splits a narrative into its text, evidence image URLs, and a single video URL.
+const parseAttachments = (text: string) => {
+  if (!text) return { cleanText: '', evidenceUrls: [] as string[], videoUrl: null as string | null };
+
+  // Single video URL (if any)
+  const videoMatch = text.match(/\[ATTACHED VIDEO\]\s*(https?:\/\/[^\s]+)/i);
+  const videoUrl = videoMatch ? videoMatch[1] : null;
+
+  // cleanText = everything before the first attachment marker
+  const idxEvid = text.indexOf(EVIDENCE_MARKER);
+  const idxVid = text.indexOf(VIDEO_MARKER);
+  let cut = text.length;
+  if (idxEvid !== -1) cut = Math.min(cut, idxEvid);
+  if (idxVid !== -1) cut = Math.min(cut, idxVid);
+  const cleanText = text.substring(0, cut).trim();
+
+  // Evidence images live only in the evidence section (bounded by the video marker)
+  let evidenceUrls: string[] = [];
+  if (idxEvid !== -1) {
+    let evidSection = text.substring(idxEvid);
+    const vidInEvid = evidSection.indexOf(VIDEO_MARKER);
+    if (vidInEvid !== -1) evidSection = evidSection.substring(0, vidInEvid);
     const urlRegex = /(https?:\/\/[^\s]+|data:image\/[a-zA-Z]*;base64,[^\s]+)/g;
-    const matchedUrls = urlSection.match(urlRegex) || [];
-    return { cleanText, evidenceUrls: matchedUrls.slice(0, 5) };
+    evidenceUrls = (evidSection.match(urlRegex) || []).slice(0, 5);
   }
-  return { cleanText: text, evidenceUrls: [] as string[] };
+
+  return { cleanText, evidenceUrls, videoUrl };
 };
 
 export const FileComponent: React.FC<IFileProps> = ({ onClose, onRefresh, selectedCase }) => {
@@ -52,8 +70,8 @@ export const FileComponent: React.FC<IFileProps> = ({ onClose, onRefresh, select
     return `WK-INC-${year}-${timeStamp}-${uniqueHash}`;
   };
 
-  const { cleanText, evidenceUrls: currentEvidence } = useMemo(() => {
-    return parseEvidence(selectedCase?.narrative || '');
+  const { cleanText, evidenceUrls: currentEvidence, videoUrl: currentVideo } = useMemo(() => {
+    return parseAttachments(selectedCase?.narrative || '');
   }, [selectedCase?.narrative]);
 
   const [residents, setResidents] = useState<IResident[]>([]);
@@ -61,6 +79,10 @@ export const FileComponent: React.FC<IFileProps> = ({ onClose, onRefresh, select
   const [showDropdown, setShowDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState(selectedCase?.complainant_name || '');
   const [evidenceList, setEvidenceList] = useState<string[]>(currentEvidence);
+
+  // 🎥 Resident-submitted video (parsed from the narrative). Preserved on save.
+  const [videoUrl] = useState<string | null>(currentVideo);
+  const [showVideoModal, setShowVideoModal] = useState(false);
 
   const [formData, setFormData] = useState({
     id: selectedCase?.id || null,
@@ -149,7 +171,12 @@ export const FileComponent: React.FC<IFileProps> = ({ onClose, onRefresh, select
       const formattedUrls = evidenceList.map(url => `[ATTACHED EVIDENCE] ${url}`).join(' ');
       finalNarrative += ` ${formattedUrls}`;
     }
-    
+
+    // 🎥 Re-attach the resident's video so editing/saving never drops it.
+    if (videoUrl) {
+      finalNarrative += ` ${VIDEO_MARKER} ${videoUrl}`;
+    }
+
     const submissionData = { 
       ...formData,
       case_number: formData.caseNumber, 
@@ -184,6 +211,7 @@ export const FileComponent: React.FC<IFileProps> = ({ onClose, onRefresh, select
   };
 
   return (
+    <>
     <div className="BLOT_FILE_OVERLAY" onClick={onClose}>
       <div className="BLOT_FILE_BODY" onClick={(e) => e.stopPropagation()}>
         
@@ -269,6 +297,20 @@ export const FileComponent: React.FC<IFileProps> = ({ onClose, onRefresh, select
                 </div>
               )}
             </div>
+
+            {/* 🎥 RESIDENT-SUBMITTED VIDEO — preview + player */}
+            {videoUrl && (
+              <div className="BLOT_INPUT_GROUP" style={{ marginTop: '15px', borderTop: '1px solid #e2e8f0', paddingTop: '15px' }}>
+                <label>Submitted Video Evidence</label>
+                <button
+                  type="button"
+                  onClick={() => setShowVideoModal(true)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '9px 16px', background: '#4f46e5', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
+                >
+                  <i className="fas fa-play-circle"></i> Preview Video
+                </button>
+              </div>
+            )}
           </aside>
 
           <section className="BLOT_PREVIEW_AREA">
@@ -322,5 +364,29 @@ export const FileComponent: React.FC<IFileProps> = ({ onClose, onRefresh, select
         </div>
       </div>
     </div>
+
+    {/* 🎥 VIDEO PLAYER MODAL */}
+    {showVideoModal && videoUrl && (
+      <div
+        onClick={() => setShowVideoModal(false)}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}
+      >
+        <div onClick={(e) => e.stopPropagation()} style={{ background: '#0f172a', borderRadius: '12px', padding: '12px', maxWidth: '900px', width: '100%', boxShadow: '0 24px 60px rgba(0,0,0,0.55)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', color: '#fff' }}>
+            <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>
+              <i className="fas fa-video" style={{ marginRight: 8 }}></i> Incident Video Evidence
+            </span>
+            <button type="button" onClick={() => setShowVideoModal(false)} style={{ background: 'none', border: 'none', color: '#cbd5e1', fontSize: '1.5rem', cursor: 'pointer', lineHeight: 1 }}>×</button>
+          </div>
+          <video src={videoUrl} controls autoPlay style={{ width: '100%', maxHeight: '70vh', borderRadius: '8px', background: '#000' }} />
+          <div style={{ marginTop: '8px', textAlign: 'right' }}>
+            <a href={videoUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#93c5fd', fontSize: '0.8rem', textDecoration: 'none' }}>
+              <i className="fas fa-external-link-alt" style={{ marginRight: 4 }}></i> Open in new tab
+            </a>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };

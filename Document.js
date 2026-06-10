@@ -198,7 +198,7 @@ export const documentRouter = (router, supabase, authenticateToken) => {
                 price_display: formatPriceDisplay(finalDoc.status, finalDoc.price) 
             };
 
-            logActivity(supabase, actor, 'DOCUMENT_REQUEST_CREATED', `Ref: ${prettyId}`);
+            logActivity(supabase, actor, 'DOCUMENT_REQUEST_CREATED', `Ref: ${prettyId}`, req);
             if (userRole === 'resident') {
                 createNotification(supabase, secureResidentId, "Request Received", `Your request for ${r.type} is pending review.`);
             }
@@ -230,7 +230,7 @@ export const documentRouter = (router, supabase, authenticateToken) => {
             const { data, error } = await supabase.from('document_requests').update(r).eq('id', id).select().single();
             if (error) throw error;
 
-            logActivity(supabase, actor, 'DOCUMENT_UPDATED', `Doc ID ${id} set to ${r.status}.`);
+            logActivity(supabase, actor, 'DOCUMENT_UPDATED', `Doc ID ${id} set to ${r.status}.`, req);
             createNotification(supabase, data.resident_id, "Document Update", `Your ${data.type} is now ${data.status}.`);
 
             // Email automation for finalized documents

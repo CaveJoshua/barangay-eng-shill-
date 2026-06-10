@@ -152,7 +152,7 @@ export const HouseholdRouter = (router, supabase, authenticateToken) => {
                 await Promise.all(serverUpdates);
 
                 // Audit the Creation
-                logActivity(supabase, actor, 'HOUSEHOLD_CREATED', `Mined Block: ${hh_num} established at Zone ${zone}.`)
+                logActivity(supabase, actor, 'HOUSEHOLD_CREATED', `Mined Block: ${hh_num} established at Zone ${zone}.`, req)
                     .catch(e => console.error("Audit Fail:", e.message));
 
                 res.status(201).json(newHH);
@@ -201,7 +201,7 @@ export const HouseholdRouter = (router, supabase, authenticateToken) => {
 
                 await Promise.all(serverUpdates);
 
-                logActivity(supabase, actor, 'HOUSEHOLD_UPDATED', `Registry Sync: Updated Household ID ${id}.`)
+                logActivity(supabase, actor, 'HOUSEHOLD_UPDATED', `Registry Sync: Updated Household ID ${id}.`, req)
                     .catch(e => console.error("Audit Fail:", e.message));
 
                 res.status(200).json({ message: "Household Sync Successful" });
@@ -236,7 +236,7 @@ export const HouseholdRouter = (router, supabase, authenticateToken) => {
 
                 if (error) throw error;
 
-                logActivity(supabase, actor, 'HOUSEHOLD_ARCHIVED', `Vault Sync: Household ID ${id} moved to the Archive.`)
+                logActivity(supabase, actor, 'HOUSEHOLD_ARCHIVED', `Vault Sync: Household ID ${id} moved to the Archive.`, req)
                     .catch(e => console.error("Audit Fail:", e.message));
 
                 res.status(200).json({ message: "Household successfully archived." });
@@ -262,7 +262,7 @@ export const HouseholdRouter = (router, supabase, authenticateToken) => {
                 const { error } = await supabase.from('households').delete().eq('id', id);
                 if (error) throw error;
 
-                logActivity(supabase, actor, 'HOUSEHOLD_DELETED', `Registry Purge: Permanently removed Household ID ${id}.`)
+                logActivity(supabase, actor, 'HOUSEHOLD_DELETED', `Registry Purge: Permanently removed Household ID ${id}.`, req)
                     .catch(e => console.error("Audit Fail:", e.message));
 
                 res.status(200).json({ message: "Household removed safely." });

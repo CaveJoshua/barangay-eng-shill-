@@ -30,8 +30,20 @@ export interface DocumentPayload {
   kagawadName?: string;
   officials?: any[];
   witnesses?: WitnessRecord[];
-  [key: string]: any; 
+  [key: string]: any;
 }
+
+// Formats a YYYY-MM-DD payment date as "Month/DD/YYYY" (e.g. "June/09/2026")
+// for the Documentary Stamp Tax box. Parses the parts manually to avoid the
+// timezone shift you get from `new Date('2026-06-09')`.
+export const formatPaymentDate = (iso?: string): string | null => {
+  if (!iso) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return null;
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const monthName = months[parseInt(m[2], 10) - 1];
+  return monthName ? `${monthName}/${m[3]}/${m[1]}` : null;
+};
 
 export interface RenderInstruction {
   type:

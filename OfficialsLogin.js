@@ -175,7 +175,7 @@ export const OfficialsLoginRouter = (router, supabase) => {
                 sub: accountData.account_id, username: accountData.username, user_role: userRole
             }, JWT_SECRET, { expiresIn: '1h' });
 
-            logActivity(supabase, accountData.username, 'LOGIN', `${accountData.officials?.full_name} logged in.`).catch(() => {});
+            logActivity(supabase, accountData.username, 'LOGIN', `${accountData.officials?.full_name} logged in.`, req).catch(() => {});
 
             // 🔒 PRODUCTION GRADE COOKIE
             res.cookie('auth_token', token, { 

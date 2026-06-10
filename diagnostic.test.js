@@ -444,6 +444,83 @@ await test('randomInt(1000, 9999) stays in bounds across 200 samples', () => {
     }
 });
 
+// ── 12. LINKED HASH-CHAIN (J-CVE-101203) ──
+section('Ledger: Linked Hash-Chain');
+
+// Logic mirrored from ResidentsRecord.js buildResidentChain().
+const CHAIN_GENESIS_PREV = '0'.repeat(64);
+const genHash = (f, m, l, dob) =>
+    crypto.createHash('sha256')
+        .update(`${f?.trim().toLowerCase()}|${m?.trim().toLowerCase()}|${l?.trim().toLowerCase()}|${dob}`.replace(/\s+/g, ''))
+        .digest('hex');
+const blockHashOf = (prev, data, id) =>
+    crypto.createHash('sha256').update(`${prev}|${data}|${id}`).digest('hex');
+
+const buildChain = (records) => {
+    const ordered = [...records].sort((a, b) => String(a.record_id).localeCompare(String(b.record_id)));
+    let prev = CHAIN_GENESIS_PREV;
+    const blocks = [];
+    for (const r of ordered) {
+        const expected = genHash(r.first_name, r.middle_name, r.last_name, r.dob);
+        const stored = r.genesis_hash || null;
+        const data_status = !stored ? 'unverified' : (stored === expected ? 'valid' : 'compromised');
+        const data = stored || expected;
+        const block_hash = blockHashOf(prev, data, r.record_id);
+        blocks.push({ record_id: r.record_id, prev_hash: prev, block_hash, data_status });
+        prev = block_hash;
+    }
+    return { blocks, head: prev };
+};
+
+const signed = (r) => ({ ...r, genesis_hash: genHash(r.first_name, r.middle_name, r.last_name, r.dob) });
+const SAMPLE = [
+    signed({ record_id: 'R-001', first_name: 'Juan',  middle_name: 'M', last_name: 'Cruz',   dob: '1990-01-01' }),
+    signed({ record_id: 'R-002', first_name: 'Maria', middle_name: 'S', last_name: 'Santos', dob: '1992-02-02' }),
+    signed({ record_id: 'R-003', first_name: 'Jose',  middle_name: 'P', last_name: 'Reyes',  dob: '1994-03-03' }),
+];
+
+await test('genesis block links to 64 zeros', () => {
+    const { blocks } = buildChain(SAMPLE);
+    assert.strictEqual(blocks[0].prev_hash, CHAIN_GENESIS_PREV);
+});
+
+await test('every block links to the previous block hash', () => {
+    const { blocks } = buildChain(SAMPLE);
+    for (let i = 1; i < blocks.length; i++) {
+        assert.strictEqual(blocks[i].prev_hash, blocks[i - 1].block_hash, `Block ${i} link broken`);
+    }
+});
+
+await test('head is deterministic for identical input', () => {
+    assert.strictEqual(buildChain(SAMPLE).head, buildChain(SAMPLE).head);
+});
+
+await test('tampering a record surfaces as compromised', () => {
+    const tampered = SAMPLE.map(r => r.record_id === 'R-002' ? { ...r, last_name: 'HACKED' } : r);
+    const { blocks } = buildChain(tampered);
+    const bad = blocks.find(b => b.record_id === 'R-002');
+    assert.strictEqual(bad.data_status, 'compromised');
+});
+
+await test('a tampered block changes every subsequent block hash', () => {
+    const clean = buildChain(SAMPLE).blocks;
+    const tampered = buildChain(SAMPLE.map(r => r.record_id === 'R-001' ? { ...r, genesis_hash: genHash('Evil', '', 'Actor', '2000-01-01') } : r)).blocks;
+    // R-001 is first; R-002 and R-003 hashes must differ from the clean chain.
+    assert.notStrictEqual(clean[1].block_hash, tampered[1].block_hash);
+    assert.notStrictEqual(clean[2].block_hash, tampered[2].block_hash);
+});
+
+await test('deleting a record changes the head (deletion detection)', () => {
+    const full = buildChain(SAMPLE).head;
+    const missingMiddle = buildChain(SAMPLE.filter(r => r.record_id !== 'R-002')).head;
+    assert.notStrictEqual(full, missingMiddle);
+});
+
+await test('input order does not matter (canonical sort by record_id)', () => {
+    const shuffled = [SAMPLE[2], SAMPLE[0], SAMPLE[1]];
+    assert.strictEqual(buildChain(SAMPLE).head, buildChain(shuffled).head);
+});
+
 // ─── FINAL REPORT ─────────────────────────────────────────────────────────
 const total = passed + failed;
 console.log(`\n${'═'.repeat(56)}`);

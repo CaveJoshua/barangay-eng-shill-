@@ -240,7 +240,7 @@ router.post('/announcements',
 
             if (error) throw error;
             
-            await logActivity(supabase, req.user?.username, 'CREATE_ANNOUNCEMENT', `Created: ${title}`);
+            await logActivity(supabase, req.user?.username, 'CREATE_ANNOUNCEMENT', `Created: ${title}`, req);
             res.status(201).json(data);
         } catch (err) {
             console.error("Post Error:", err.message);
@@ -286,7 +286,7 @@ router.put('/announcements/:id',
             if (error) throw error;
             if (!data) return res.status(404).json({ error: "Post not found." });
 
-            await logActivity(supabase, req.user?.username, 'UPDATE_ANNOUNCEMENT', `Updated: ${updates.title || id}`);
+            await logActivity(supabase, req.user?.username, 'UPDATE_ANNOUNCEMENT', `Updated: ${updates.title || id}`, req);
             res.status(200).json(data);
         } catch (err) {
             res.status(500).json({ error: "Failed to update announcement." });
@@ -306,7 +306,7 @@ router.delete('/announcements/:id',
 
             if (error) throw error;
             
-            await logActivity(supabase, req.user?.username, 'DELETE_ANNOUNCEMENT', `Deleted ID: ${id}`);
+            await logActivity(supabase, req.user?.username, 'DELETE_ANNOUNCEMENT', `Deleted ID: ${id}`, req);
             res.status(200).json({ message: "Announcement removed." });
         } catch (err) {
             res.status(500).json({ error: "Failed to delete announcement." });

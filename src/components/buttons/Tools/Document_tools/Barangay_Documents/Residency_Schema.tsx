@@ -1,4 +1,5 @@
 import type { DocumentSchema, DocumentPayload, RenderInstruction } from '../PDF_Algorithm';
+import { formatPaymentDate } from '../PDF_Algorithm';
 
 import baguioLogo from '../icons/Baguio_city.png';
 import brgyLogo from '../icons/Barangay_eng-hill.png';
@@ -117,7 +118,7 @@ export const ResidencySchema: DocumentSchema = {
         type: 'stamp_box',
         content: '"DOCUMENTARY STAMP TAX PAID"',
         orNo: payload.orNo || 'OR123',
-        date: `${day}${suffix} of ${month}, ${year}`,
+        date: formatPaymentDate(payload.paymentDate) || `${day}${suffix} of ${month}, ${year}`,
         heightInMm: 25,
       },
       { type: 'spacer', heightInMm: 10 },

@@ -204,6 +204,9 @@ const profileResolvers = {
 
     // 4. CHANGE PASSWORD
     changePassword: async ({ currentPassword, newPassword }, { req, supabase }) => {
+        // 🛡️ Server-side strength floor (J-CVE-101203) — don't trust the client alone.
+        if (!newPassword || newPassword.length < 8) throw new Error("New password must be at least 8 characters.");
+
         const targetId = req.user?.account_id || req.user?.official_id || req.user?.resident_id || req.user?.id || req.user?.sub;
         let { data: acc } = await supabase.from('officials_accounts').select('*').eq('account_id', targetId).maybeSingle();
         if (!acc) acc = (await supabase.from('residents_account').select('*').eq('account_id', targetId).maybeSingle()).data;

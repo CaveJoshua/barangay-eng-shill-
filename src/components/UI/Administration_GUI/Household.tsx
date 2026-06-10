@@ -172,11 +172,43 @@ const Household: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {/* 1. ACTUAL SECURED RECORDS */}
+                {/* 1. LOADING — SHIMMER SKELETONS (replaces the old spinner) */}
+                {loading && Array.from({ length: ITEMS_PER_PAGE }).map((_, idx) => (
+                  <tr key={`sk-${idx}`} className="HH_SKELETON_ROW" aria-hidden="true">
+                    <td>
+                      <div className="HH_IDENTITY_CLUSTER">
+                        <div className="HH_SKEL HH_SKEL_AVATAR" />
+                        <div className="HH_ID_INFO_STACK">
+                          <div className="HH_SKEL HH_SKEL_LINE" style={{ width: '150px' }} />
+                          <div className="HH_SKEL HH_SKEL_LINE sm" style={{ width: '90px' }} />
+                        </div>
+                      </div>
+                    </td>
+                    <td><div className="HH_SKEL HH_SKEL_LINE" style={{ width: '32px', margin: '0 auto' }} /></td>
+                    <td><div className="HH_SKEL HH_SKEL_LINE" style={{ width: '80px' }} /></td>
+                    <td><div className="HH_SKEL HH_SKEL_PILL" style={{ margin: '0 auto' }} /></td>
+                    <td><div className="HH_SKEL HH_SKEL_BTN" style={{ marginLeft: 'auto' }} /></td>
+                  </tr>
+                ))}
+
+                {/* 2. EMPTY STATE (post-load, nothing to show) */}
+                {!loading && filteredData.length === 0 && (
+                  <tr className="HH_EMPTY_ROW">
+                    <td colSpan={5}>
+                      <div className="HH_EMPTY_STATE">
+                        <i className="fas fa-folder-open"></i>
+                        <h3>No households found</h3>
+                        <p>{searchTerm ? 'Try a different search term.' : 'Create your first household block to get started.'}</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+
+                {/* 3. ACTUAL SECURED RECORDS */}
                 {!loading && paginatedData.map((hh) => (
-                  <tr 
-                    key={hh.id} 
-                    className="HH_GRID_ROW" 
+                  <tr
+                    key={hh.id}
+                    className="HH_GRID_ROW"
                     onClick={() => setViewId(hh.id)}
                     style={{ cursor: 'pointer' }}
                   >
@@ -196,13 +228,13 @@ const Household: React.FC = () => {
                     </td>
                     <td className="HH_ACTIONS_CONTAINER">
                       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                        <button 
+                        <button
                           className="HH_MANAGE_TRIGGER"
                           onClick={(e) => handleToggleMenu(e, hh.id)}
                         >
                           Manage
                         </button>
-                        
+
                         {activeMenuId === hh.id && (
                           <div className="HH_DROPDOWN_MENU" onClick={(e) => e.stopPropagation()}>
                             <button className="HH_MENU_ITEM" onClick={() => setViewId(hh.id)}>
@@ -222,21 +254,12 @@ const Household: React.FC = () => {
                   </tr>
                 ))}
 
-                {/* 2. GHOST ROWS (Maintains Fixed Height) */}
-                {!loading && ghostRows.map((_, idx) => (
+                {/* 4. GHOST ROWS (Maintains Fixed Height) */}
+                {!loading && filteredData.length > 0 && ghostRows.map((_, idx) => (
                   <tr key={`ghost-${idx}`} className="HH_SKELETON_ROW">
                     <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
                   </tr>
                 ))}
-
-                {/* 3. LOADING STATE */}
-                {loading && (
-                  <tr>
-                    <td colSpan={5} className="u-text-center u-mt-20">
-                      <i className="fas fa-sync fa-spin"></i> Synchronizing Encrypted Ledger...
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           </div>

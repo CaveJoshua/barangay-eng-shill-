@@ -1,4 +1,5 @@
 import type { DocumentSchema, DocumentPayload, RenderInstruction } from '../PDF_Algorithm';
+import { formatPaymentDate } from '../PDF_Algorithm';
 
 import brgyLogo from '../icons/Barangay_eng-hill.png';
 
@@ -148,7 +149,7 @@ export const JobseekerSchema: DocumentSchema = {
         type: 'stamp_box',
         content: '"DOCUMENTARY STAMP TAX PAID"',
         orNo: payload.orNo || 'OR123',
-        date: `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}/${year}`,
+        date: formatPaymentDate(payload.paymentDate) || `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}/${year}`,
         heightInMm: 25,
       },
       { type: 'spacer', heightInMm: 12 },

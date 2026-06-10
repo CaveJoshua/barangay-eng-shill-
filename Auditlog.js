@@ -1,32 +1,78 @@
 // Auditlog.js
 
+// =========================================================
+// 🖥️ DEVICE / CLIENT FINGERPRINT (J-CVE-101203)
+// Derives a human-readable device label from the User-Agent so the
+// audit trail can show "what device was used" — no DB column needed.
+// =========================================================
+const parseDevice = (ua = '') => {
+  const s = String(ua).toLowerCase();
+  if (!s || s === 'unknown') return null;
+
+  let os = 'Unknown OS';
+  if (s.includes('windows')) os = 'Windows';
+  else if (s.includes('android')) os = 'Android';
+  else if (s.includes('iphone') || s.includes('ipad') || s.includes('ios ')) os = 'iOS';
+  else if (s.includes('mac os') || s.includes('macintosh')) os = 'macOS';
+  else if (s.includes('linux')) os = 'Linux';
+
+  let browser = 'Unknown Browser';
+  if (s.includes('edg/') || s.includes('edge')) browser = 'Edge';
+  else if (s.includes('opr/') || s.includes('opera')) browser = 'Opera';
+  else if (s.includes('chrome')) browser = 'Chrome';
+  else if (s.includes('firefox')) browser = 'Firefox';
+  else if (s.includes('safari')) browser = 'Safari';
+
+  const type = /mobile|android|iphone|ipad/.test(s) ? 'Mobile' : 'Desktop';
+  return `${browser} · ${os} · ${type}`;
+};
+
+// Pulls IP + device from an Express request (when one is supplied).
+const extractClientMeta = (req) => {
+  if (!req) return { ip: null, device: null, user_agent: null };
+  const fwd = req.headers?.['x-forwarded-for'];
+  const ip = (typeof fwd === 'string' ? fwd.split(',')[0].trim() : null)
+    || req.socket?.remoteAddress || req.ip || 'unknown';
+  const ua = req.headers?.['user-agent'] || 'unknown';
+  return { ip, device: parseDevice(ua), user_agent: ua };
+};
+
 /**
  * 🛡️ Enterprise Audit Logger
- * Designed to be imported and used anywhere in the backend to record system events.
+ * @param req  Optional Express request — pass it to capture device/IP.
+ *
+ * The `details` column now stores a structured JSON envelope:
+ *   { message, ip, device, user_agent }
+ * Older plain-string rows remain readable; the UI handles both.
  */
-export const logActivity = async (supabase, actor, action, details) => {
+export const logActivity = async (supabase, actor, action, details, req = null) => {
   try {
-    // Safely format details: If it's a JSON object (like our login metadata), stringify it.
-    let formattedDetails = details;
+    // Original human-readable detail (objects get stringified, like login metadata).
+    let message = details;
     if (typeof details === 'object' && details !== null) {
-      formattedDetails = JSON.stringify(details);
+      message = JSON.stringify(details);
     } else if (!details) {
-      formattedDetails = 'No additional details provided.';
+      message = 'No additional details provided.';
     }
+
+    const { ip, device, user_agent } = extractClientMeta(req);
+
+    // Structured envelope stored in the existing text column — zero schema change.
+    const envelope = JSON.stringify({ message, ip, device, user_agent });
 
     const { error: insertError } = await supabase
       .from('audit_logs')
       .insert([{
         actor: actor || 'SYSTEM',
         action: action,
-        details: formattedDetails
-        // Note: Removed manual timestamp. Let PostgreSQL's 'default now()' handle it for absolute accuracy.
+        details: envelope
+        // Timestamp left to PostgreSQL's default now() for absolute accuracy.
       }]);
 
     if (insertError) {
       console.error("❌ [AUDIT FAILED]:", insertError.message);
     } else {
-      console.log(`✅ [AUDIT LOGGED]: ${action} by ${actor || 'SYSTEM'}`);
+      console.log(`✅ [AUDIT LOGGED]: ${action} by ${actor || 'SYSTEM'} [${device || 'no-device'}]`);
     }
 
   } catch (err) {

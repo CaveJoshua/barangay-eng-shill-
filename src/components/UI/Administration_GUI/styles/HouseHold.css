@@ -54,7 +54,11 @@
     --HH-radius-sm: 4px;
     --HH-radius-md: 8px;
     --HH-radius-lg: 12px;
-    
+    --HH-radius-full: 9999px; /* was referenced (TAB_COUNT) but never defined */
+
+    --HH-skeleton-base: #e7edf3;
+    --HH-skeleton-shine: #f4f8fb;
+
     --HH-z-dropdown: 100;
 }
 
@@ -67,6 +71,8 @@
     --HH-text-secondary: #e2e8f0;
     --HH-text-tertiary: #94a3b8;
     --HH-border-base: #334155;
+    --HH-skeleton-base: #1e293b;
+    --HH-skeleton-shine: #334155;
 }
 
 /* ── GLOBAL RESETS ── */
@@ -658,13 +664,112 @@ body {
     font-size: 0.8rem;
 }
 
-/* ── SKELETON ── */
+/* ── SKELETON / SHIMMER LOADING (replaces the old spinner) ── */
 .HH_SKELETON_ROW td {
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    border-bottom: 1px solid var(--HH-border-base);
 }
 
 .HH_SKELETON_ROW:last-child td {
     border-bottom: none;
+}
+
+.HH_SKEL {
+    display: block;
+    border-radius: var(--HH-radius-sm);
+    background: linear-gradient(
+        90deg,
+        var(--HH-skeleton-base) 0%,
+        var(--HH-skeleton-shine) 50%,
+        var(--HH-skeleton-base) 100%
+    );
+    background-size: 200% 100%;
+    animation: HH_shimmer 1.4s ease-in-out infinite;
+}
+
+.HH_SKEL_AVATAR {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--HH-radius-full);
+    flex-shrink: 0;
+}
+
+.HH_SKEL_LINE {
+    height: 13px;
+}
+
+.HH_SKEL_LINE.sm {
+    height: 9px;
+    opacity: 0.7;
+}
+
+.HH_SKEL_PILL {
+    width: 84px;
+    height: 24px;
+    border-radius: var(--HH-radius-full);
+}
+
+.HH_SKEL_BTN {
+    width: 92px;
+    height: 38px;
+    border-radius: var(--HH-radius-sm);
+}
+
+@keyframes HH_shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .HH_SKEL { animation: none; }
+}
+
+/* ── EMPTY STATE ── */
+.HH_EMPTY_ROW td { height: auto; }
+
+.HH_EMPTY_STATE {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 6px;
+    padding: 3.5rem 1rem;
+    min-height: 360px;
+}
+
+.HH_EMPTY_STATE i {
+    font-size: 2.5rem;
+    color: var(--HH-text-quaternary);
+    margin-bottom: 0.5rem;
+}
+
+.HH_EMPTY_STATE h3 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--HH-text-primary);
+}
+
+.HH_EMPTY_STATE p {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--HH-text-tertiary);
+    font-weight: 500;
+}
+
+/* ── VISUAL POLISH ── */
+/* Brand-gradient avatar + premium left accent on row hover */
+.HH_AVATAR_CIRCLE {
+    background: linear-gradient(135deg, var(--HH-brand-soft), var(--HH-bg-canvas));
+    color: var(--HH-brand-primary);
+}
+
+.HH_GRID_ROW {
+    box-shadow: inset 3px 0 0 transparent;
+}
+
+.HH_GRID_ROW:hover {
+    box-shadow: inset 3px 0 0 var(--HH-brand-primary);
 }
 
 /* ── UTILITIES ── */

@@ -39,6 +39,9 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
 
   // 🛡️ NEW: Media Files State
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
+  // 🎥 NEW: Single optional video (video-only, ≤10MB)
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const MAX_VIDEO_BYTES = 10 * 1024 * 1024;
 
   // ─── FILE HANDLING LOGIC ────────────────────────────────────────────────
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -57,6 +60,25 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
   const removeFile = (indexToRemove: number) => {
     setMediaFiles(prev => prev.filter((_, index) => index !== indexToRemove));
   };
+
+  // 🎥 VIDEO HANDLER (rails: video-only + ≤10MB)
+  const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('video/')) {
+      alert('Only video files are allowed (mp4, webm, mov).');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > MAX_VIDEO_BYTES) {
+      alert('Video must be 10MB or smaller.');
+      e.target.value = '';
+      return;
+    }
+    setVideoFile(file);
+  };
+
+  const removeVideo = () => setVideoFile(null);
 
   // ─── NAME FORMATTER ─────────────────────────────────────────────────────
   const formatToProperName = useCallback((first: string = '', middle: string = '', last: string = '') => {
@@ -86,8 +108,9 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
 
         setCurrentUser({ ...profile, formattedName: formatted });
       }
-      setStep(1); 
+      setStep(1);
       setMediaFiles([]); // Reset files on open
+      setVideoFile(null);
     }
   }, [isOpen, formatToProperName]);
 
@@ -121,6 +144,9 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
       mediaFiles.forEach((file) => {
         payload.append('evidence', file);
       });
+
+      // Append the single optional video
+      if (videoFile) payload.append('video', videoFile);
 
       const result = await ApiService.saveBlotter(null, payload);
 
@@ -255,17 +281,17 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
                   {mediaFiles.length > 0 && (
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                       {mediaFiles.map((file, idx) => (
-                        <div key={idx} style={{ 
-                          display: 'flex', alignItems: 'center', gap: '6px', 
-                          padding: '4px 10px', backgroundColor: '#f1f5f9', 
-                          border: '1px solid #e2e8f0', borderRadius: '16px', fontSize: '0.85rem' 
+                        <div key={idx} style={{
+                          display: 'flex', alignItems: 'center', gap: '6px',
+                          padding: '4px 10px', backgroundColor: '#f1f5f9',
+                          border: '1px solid #e2e8f0', borderRadius: '16px', fontSize: '0.85rem'
                         }}>
                           <i className="fas fa-image" style={{ color: '#64748b' }}></i>
                           <span style={{ maxWidth: '120px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {file.name}
                           </span>
-                          <button 
-                            type="button" 
+                          <button
+                            type="button"
                             onClick={() => removeFile(idx)}
                             style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontWeight: 'bold' }}
                           >
@@ -273,6 +299,39 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
                           </button>
                         </div>
                       ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 🎥 NEW: Optional Video Evidence — 1 video, max 10MB */}
+                <div className="CIR_FORM_GROUP">
+                  <label>Attach Video (Optional — 1 video, max 10MB)</label>
+                  <input
+                    type="file"
+                    accept="video/*"
+                    onChange={handleVideoChange}
+                    disabled={!!videoFile}
+                    className="CIR_FILE_INPUT"
+                    style={{ display: 'block', marginBottom: '8px', padding: '8px', border: '1px dashed #ccc', borderRadius: '6px', width: '100%' }}
+                  />
+                  {videoFile && (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: '6px', width: 'fit-content',
+                      padding: '4px 10px', backgroundColor: '#eef2ff',
+                      border: '1px solid #c7d2fe', borderRadius: '16px', fontSize: '0.85rem'
+                    }}>
+                      <i className="fas fa-video" style={{ color: '#4f46e5' }}></i>
+                      <span style={{ maxWidth: '160px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {videoFile.name}
+                      </span>
+                      <span style={{ color: '#64748b' }}>({(videoFile.size / (1024 * 1024)).toFixed(1)}MB)</span>
+                      <button
+                        type="button"
+                        onClick={removeVideo}
+                        style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontWeight: 'bold' }}
+                      >
+                        ×
+                      </button>
                     </div>
                   )}
                 </div>
@@ -299,8 +358,12 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
                         <span className="CIR_TAG">{formData.type}</span>
                       </div>
                       <div className="CIR_REVIEW_ITEM">
-                        <span>Evidence:</span> 
+                        <span>Evidence:</span>
                         <strong>{mediaFiles.length} image(s) attached</strong>
+                      </div>
+                      <div className="CIR_REVIEW_ITEM">
+                        <span>Video:</span>
+                        <strong>{videoFile ? '1 video attached' : 'None'}</strong>
                       </div>
                       <div className="CIR_REVIEW_DIVIDER"></div>
                       <div className="CIR_REVIEW_ITEM VERTICAL">

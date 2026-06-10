@@ -107,6 +107,7 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
     dateIssued: new Date().toISOString().split('T')[0],
     ctcNo: '',
     orNo: '',
+    paymentDate: new Date().toISOString().split('T')[0], // Documentary stamp: Date of Payment
     feesPaid:
       initialData?.feesPaid ||
       TYPE_FEE_MAP[normalizedInitialType] ||
@@ -275,9 +276,9 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
     }
   }, [autoFilledAddress]);
 
-  const isJobseeker = docConfig.type === 'Barangay Certification';
-  const isAffidavit = docConfig.type === 'Affidavit of Barangay Official';
-  const showWitnesses = isAffidavit;
+  // 🔓 ALL OPTIONS EDITABLE: every section (guardian, payment, witnesses) is now
+  // available for every document type — each schema uses only the fields it needs.
+  const showWitnesses = true;
 
   return (
     <div className="doc-app-shell">
@@ -416,8 +417,8 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
               />
             </div>
 
-            {isJobseeker ? (
-              <div className="dynamic-fade-in">
+            {/* 🔓 Guardian / Minor-Consent — now shown for EVERY document type */}
+            <div className="dynamic-fade-in">
                 <div className="section-label text-purple">📝 MINOR CONSENT (PAGE 2)</div>
                 <div className="doc-hint-text" style={{ fontSize: '11px', color: '#666', marginBottom: '10px' }}>
                   Only required if the applicant is under 18 years old.
@@ -469,8 +470,8 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
                   />
                 </div>
               </div>
-            ) : (
-              <div className="dynamic-fade-in">
+            {/* 🔓 Payment & Purpose — now shown for EVERY document type */}
+            <div className="dynamic-fade-in">
                 <div className="section-label text-orange">💰 PAYMENT & PURPOSE</div>
                 <div className="field-group">
                   <label>PURPOSE</label>
@@ -505,18 +506,29 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
                     />
                   </div>
                 </div>
-                <div className="field-group">
-                  <label>O.R. NO.</label>
-                  <input
-                    type="text"
-                    name="orNo"
-                    className="strict-input"
-                    value={docConfig.orNo}
-                    onChange={handleInputChange}
-                  />
+                <div className="field-group-row">
+                  <div className="field-group">
+                    <label>GOR SERIAL NO.</label>
+                    <input
+                      type="text"
+                      name="orNo"
+                      className="strict-input"
+                      value={docConfig.orNo}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+                  <div className="field-group">
+                    <label>DATE OF PAYMENT</label>
+                    <input
+                      type="date"
+                      name="paymentDate"
+                      className="strict-input"
+                      value={docConfig.paymentDate}
+                      onChange={handleInputChange}
+                    />
+                  </div>
                 </div>
               </div>
-            )}
 
             {showWitnesses && (
               <div className="dynamic-fade-in" style={{ marginTop: '20px' }}>

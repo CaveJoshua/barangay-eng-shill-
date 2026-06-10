@@ -5,6 +5,7 @@ import { ApiService, OFFICIALS_API, getAuthHeaders } from '../UI/api';
 interface IOfficial {
   id?: string;
   full_name: string;
+  email?: string;
   position: 'Barangay Hall' | 'Punong Barangay' | 'Barangay Secretary' | 'Barangay Treasurer' | 'Barangay Kagawad' | 'SK Chairperson' | 'Barangay Health Worker' | 'Barangay Nutrition Scholar';
   term_start: string;
   term_end: string;
@@ -56,6 +57,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
 
   const [formData, setFormData] = useState<Partial<IOfficial>>({
     full_name: '',
+    email: '',
     position: 'Barangay Kagawad',
     term_start: new Date().toISOString().split('T')[0],
     term_end: '',
@@ -95,6 +97,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
       } else {
         setFormData({
           full_name: '',
+          email: '',
           position: 'Barangay Kagawad',
           term_start: new Date().toISOString().split('T')[0],
           term_end: '',
@@ -390,6 +393,17 @@ ROLE: SUPERADMIN
                     onChange={e => setFormData({ ...formData, term_end: e.target.value })}
                   />
                 </div>
+              </div>
+
+              <div className="OM_FORM_GROUP">
+                <label>Email Address</label>
+                <input
+                  type="email"
+                  className="OM_INPUT"
+                  placeholder="official@gmail.com"
+                  value={formData.email || ''}
+                  onChange={e => setFormData({ ...formData, email: e.target.value.toLowerCase() })}
+                />
               </div>
 
               <div className="OM_FORM_GROUP">

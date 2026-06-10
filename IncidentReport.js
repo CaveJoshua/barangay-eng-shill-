@@ -17,9 +17,23 @@ cloudinary.config({
 // =========================================================
 // ⚡ SURGICAL MULTER CONFIG: Disk Storage
 // =========================================================
-const upload = multer({ 
-    dest: os.tmpdir(), 
-    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+const upload = multer({
+    dest: os.tmpdir(),
+    limits: { fileSize: 10 * 1024 * 1024 }, // 🚧 RAIL: 10MB hard cap per file (images + video)
+    // 🚧 RAIL: enforce file types server-side — video field = video only, evidence = images only.
+    fileFilter: (req, file, cb) => {
+        if (file.fieldname === 'video') {
+            return file.mimetype.startsWith('video/')
+                ? cb(null, true)
+                : cb(new Error('Only video files are allowed (mp4, webm, mov).'));
+        }
+        if (file.fieldname === 'evidence') {
+            return file.mimetype.startsWith('image/')
+                ? cb(null, true)
+                : cb(new Error('Only image files are allowed as evidence.'));
+        }
+        cb(null, true);
+    }
 });
 
 // =========================================================
@@ -131,8 +145,11 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
     router.post(['/blotter', '/blotters'], 
         [authenticateToken, authorizeRoles(['admin', 'superadmin', 'staff', 'resident', 'barangayhall'])], 
         async (req, res) => {
-            // 🛡️ MANUAL MULTER HANDLER
-            const multiUpload = upload.array('evidence', 5);
+            // 🛡️ MANUAL MULTER HANDLER — up to 5 evidence images + 1 video
+            const multiUpload = upload.fields([
+                { name: 'evidence', maxCount: 5 },
+                { name: 'video', maxCount: 1 },
+            ]);
 
             multiUpload(req, res, async (err) => {
                 if (err) {
@@ -159,15 +176,17 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
 
                     let finalNarrative = await processNarrativeImages(r.narrative);
 
+                    // 🖼️ EVIDENCE IMAGES (up to 5)
+                    const evidenceFiles = req.files?.evidence || [];
                     let uploadedImageLinks = [];
-                    if (req.files && req.files.length > 0) {
-                        const formUploadPromises = req.files.map(async (file) => {
+                    if (evidenceFiles.length > 0) {
+                        const formUploadPromises = evidenceFiles.map(async (file) => {
                             try {
                                 const result = await cloudinary.uploader.upload(file.path, { folder: 'blotter_evidence' });
                                 fs.unlink(file.path).catch(e => console.warn("[CLEANUP WARNING]", e.message));
                                 return result.secure_url;
                             } catch (uploadErr) {
-                                return null; 
+                                return null;
                             }
                         });
 
@@ -175,6 +194,23 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
                         uploadedImageLinks = formResults.filter(url => url !== null);
                         if (uploadedImageLinks.length > 0) {
                             finalNarrative += ` ${uploadedImageLinks.map(url => `[ATTACHED EVIDENCE] ${url}`).join(' ')}`;
+                        }
+                    }
+
+                    // 🎥 SINGLE VIDEO (≤10MB, video-only — enforced by multer). URL is
+                    // appended to the narrative as [ATTACHED VIDEO] so no DB column is needed.
+                    const videoFile = req.files?.video?.[0];
+                    if (videoFile) {
+                        try {
+                            const vid = await cloudinary.uploader.upload(videoFile.path, {
+                                folder: 'blotter_videos',
+                                resource_type: 'video'
+                            });
+                            fs.unlink(videoFile.path).catch(() => {});
+                            if (vid?.secure_url) finalNarrative += ` [ATTACHED VIDEO] ${vid.secure_url}`;
+                        } catch (vErr) {
+                            console.error('[VIDEO UPLOAD ERROR]', vErr.message);
+                            fs.unlink(videoFile.path).catch(() => {});
                         }
                     }
 
@@ -195,7 +231,7 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
 
                     res.status(201).json({ success: true, data });
 
-                    logActivity(supabase, req.user.username || 'System', 'INCIDENT_REPORTED', `Case ${dbPayload.case_number} filed.`).catch(() => {});
+                    logActivity(supabase, req.user.username || 'System', 'INCIDENT_REPORTED', `Case ${dbPayload.case_number} filed.`, req).catch(() => {});
                     if (isOnline) createNotification(supabase, secureComplainantId, "Report Received", `Under review.`, 'blotter').catch(() => {});
                     notifyAllAdmins(supabase, "New Incident", `Case ${dbPayload.case_number} filed.`, 'blotter').catch(() => {});
                     
@@ -207,7 +243,7 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
                     console.error("[BLOTTER POST ERROR]:", err);
                     // 🛡️ EMERGENCY CLEANUP: Remove temp files if DB insert fails
                     if (req.files) {
-                        req.files.forEach(file => fs.unlink(file.path).catch(() => {}));
+                        Object.values(req.files).flat().forEach(file => fs.unlink(file.path).catch(() => {}));
                     }
                     res.status(400).json({ error: err.message || "Failed to process request." });
                 }

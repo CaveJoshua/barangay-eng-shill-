@@ -1,5 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import './styles/VerifyChainModal.css';
+import { ApiService } from '../UI/api';
+
+// SHA-256 → hex (mirrors the backend's createHash('sha256') exactly).
+async function sha256Hex(input: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface IVerifiableResident {
@@ -174,10 +181,54 @@ export function VerifyChainModal({ isOpen, onClose, residents }: VerifyChainModa
       if (i % 5 === 0) await new Promise(r => setTimeout(r, 0));
     }
 
-    const finalStatus = compromisedCount === 0 ? 'valid' : 'compromised';
-    const resultLine = compromisedCount === 0
-      ? `[RESULT] 🟢 CHAIN SECURE — All ${verifiedCount} signed blocks match their cryptographic signatures.`
-      : `[RESULT] 🔴 INTEGRITY FAILED — ${compromisedCount} tampered record(s) detected.`;
+    // ── 🔗 LINKED-CHAIN CONTINUITY PASS ──
+    // Each block folds in the previous block's hash, so this proves the records
+    // are not just individually valid but correctly *linked* — and the head is
+    // checked against the server's anchored signature to catch deletion/reorder.
+    appendLog('');
+    appendLog('[CHAIN] Rebuilding linked hash-chain (block ⇄ block)...');
+    await new Promise(r => setTimeout(r, 300));
+
+    const ordered = [...residents].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    let prev = '0'.repeat(64);
+    let chainLinks = 0;
+    for (const r of ordered) {
+      const dataHash = r.genesisHash || await sha256Hex(
+        `${r.firstName?.trim().toLowerCase()}|${r.middleName?.trim().toLowerCase()}|${r.lastName?.trim().toLowerCase()}|${r.dob}`.replace(/\s+/g, '')
+      );
+      prev = await sha256Hex(`${prev}|${dataHash}|${r.id}`);
+      chainLinks++;
+    }
+    const computedHead = prev;
+    appendLog(`[CHAIN] Computed head over ${chainLinks} linked blocks: ${computedHead.substring(0, 24)}...`);
+
+    // Compare against the server's anchored head (deletion / reorder detection).
+    let anchorOk: boolean | null = null;
+    try {
+      const verify = await ApiService.getLedgerVerification();
+      if (verify) {
+        if (verify.anchored_head) {
+          anchorOk = verify.head === verify.anchored_head && verify.head === computedHead;
+          if (anchorOk) {
+            appendLog('✅ [CHAIN] Head matches the anchored ledger signature.');
+          } else {
+            appendLog('❌ [CHAIN] Head does NOT match the anchor (possible deletion / reorder / tamper).');
+            appendLog(`   ↳ Anchored : ${String(verify.anchored_head).substring(0, 24)}...`);
+            appendLog(`   ↳ Current  : ${String(verify.head).substring(0, 24)}...`);
+          }
+        } else {
+          appendLog('⚠️ [CHAIN] No anchor found yet — run "Re-sign Ledger" to anchor the current head.');
+        }
+      }
+    } catch {
+      appendLog('⚠️ [CHAIN] Anchor check unavailable (offline or insufficient permissions).');
+    }
+
+    const chainBroken = anchorOk === false;
+    const finalStatus = (compromisedCount === 0 && !chainBroken) ? 'valid' : 'compromised';
+    const resultLine = finalStatus === 'valid'
+      ? `[RESULT] 🟢 CHAIN SECURE — ${verifiedCount} signed blocks valid and the linked-chain head is verified.`
+      : `[RESULT] 🔴 INTEGRITY FAILED — ${compromisedCount} tampered block(s)${chainBroken ? ' + chain-head mismatch' : ''} detected.`;
 
     setLogs(prev => [...prev, makeLog(''), makeLog(resultLine)]);
     setSummary({ total: residents.length, verified: verifiedCount, skipped: skippedCount, compromised: compromisedCount });

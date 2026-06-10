@@ -485,6 +485,13 @@ export const ApiService = {
   triggerLedgerBackfill: () =>
     triggerAction(`${RESIDENTS_API}/ledger/rebuild`, 'POST'),
 
+  // 🔗 Linked hash-chain (J-CVE-101203): recompute + compare head vs anchor.
+  getLedgerVerification: (signal?: AbortSignal) =>
+    valveFetch(`${RESIDENTS_API}/ledger/verify`, signal),
+
+  rebuildLedger: () =>
+    triggerAction(`${RESIDENTS_API}/ledger/rebuild`, 'POST'),
+
   saveResident: (id: string | undefined, payload: any) =>
     triggerAction(
       id ? `${RESIDENTS_API}/${id}` : RESIDENTS_API,

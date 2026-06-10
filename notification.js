@@ -23,10 +23,13 @@ export const NotificationRouter = (router, supabase, authenticateToken) => {
                 // Residents ONLY see notifications addressed to them or 'system'
                 query = query.or(`user_id.eq.${authId},user_id.eq.system,user_id.is.null`);
             } else {
-                // 📡 THE ONLINE SENSOR: Admins/Staff only see ONLINE requests.
-                // This automatically hides any message tagged with "(Walk-in)" so 
-                // staff aren't notified about documents they just created themselves.
-                query = query.not('message', 'ilike', '%(Walk-in)%');
+                // 🛠️ Admins/Staff see notifications addressed to THEM (notifyAllAdmins writes a
+                // per-admin copy) plus system/broadcast — NOT residents' personal alerts, which
+                // previously surfaced a second, duplicate notification per request.
+                // Walk-in messages stay hidden so staff aren't pinged for their own entries.
+                query = query
+                    .or(`user_id.eq.${authId},user_id.eq.system,user_id.is.null`)
+                    .not('message', 'ilike', '%(Walk-in)%');
             }
 
             const { data, error } = await query
@@ -58,8 +61,10 @@ export const NotificationRouter = (router, supabase, authenticateToken) => {
             if (userRole === 'resident') {
                 query = query.or(`user_id.eq.${authId},user_id.eq.system`);
             } else {
-                // 📡 THE ONLINE SENSOR: Prevent Walk-ins from triggering the Red Badge counter
-                query = query.not('message', 'ilike', '%(Walk-in)%');
+                // Scope to the admin's own + system so the badge doesn't count residents' alerts.
+                query = query
+                    .or(`user_id.eq.${authId},user_id.eq.system,user_id.is.null`)
+                    .not('message', 'ilike', '%(Walk-in)%');
             }
 
             const { count, error } = await query;
@@ -92,7 +97,9 @@ export const NotificationRouter = (router, supabase, authenticateToken) => {
             if (userRole === 'resident') {
                 query = query.or(`user_id.eq.${authId},user_id.eq.system,user_id.is.null`);
             } else {
-                query = query.not('message', 'ilike', '%(Walk-in)%');
+                query = query
+                    .or(`user_id.eq.${authId},user_id.eq.system,user_id.is.null`)
+                    .not('message', 'ilike', '%(Walk-in)%');
             }
 
             const { data, error } = await query.maybeSingle();
@@ -195,7 +202,10 @@ export const NotificationRouter = (router, supabase, authenticateToken) => {
             if (userRole === 'resident') {
                 query = query.eq('user_id', String(authId)); // Residents only mark their own
             } else {
-                query = query.not('message', 'ilike', '%(Walk-in)%'); // Admins mark all online as read
+                // Mark only the admin's own + system alerts read — never touch residents' rows.
+                query = query
+                    .or(`user_id.eq.${authId},user_id.eq.system,user_id.is.null`)
+                    .not('message', 'ilike', '%(Walk-in)%');
             }
 
             const { error } = await query;
@@ -257,9 +267,11 @@ export const NotificationRouter = (router, supabase, authenticateToken) => {
             if (userRole === 'resident') {
                 query = query.eq('user_id', String(authId));
             } else {
-                // 🛡️ ARCHITECTURE FIX: Admins only wipe the notifications they actually see (Online requests).
-                // This prevents them from accidentally deleting internal walk-in records they aren't meant to see.
-                query = query.not('message', 'ilike', '%(Walk-in)%'); 
+                // 🛡️ Delete only the admin's own + system alerts. Previously this wiped EVERY
+                // non-walk-in notification — including residents' personal ones (data loss).
+                query = query
+                    .or(`user_id.eq.${authId},user_id.eq.system,user_id.is.null`)
+                    .not('message', 'ilike', '%(Walk-in)%');
             }
 
             const { error } = await query;

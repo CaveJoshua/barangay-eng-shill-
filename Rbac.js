@@ -241,7 +241,8 @@ export const RbacRouter = (router, supabase, authenticateToken) => {
           supabase,
           req.user?.username || 'System',
           'PRIVILEGE_MODIFIED',
-          `Changed role of ${data[0].username} to ${newRole.toUpperCase()}.`
+          `Changed role of ${data[0].username} to ${newRole.toUpperCase()}.`,
+          req
         ).catch((err) =>
           console.error('Audit Failure:', err.message)
         );

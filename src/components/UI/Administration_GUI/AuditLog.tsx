@@ -14,6 +14,19 @@ interface IBlock {
 const ITEMS_PER_PAGE = 10;
 const SYNC_INTERVAL = 10000; // 10 seconds
 
+// Audit `details` is now a JSON envelope { message, ip, device, user_agent }.
+// Legacy rows are plain strings — this normalizes both.
+const parseAuditDetails = (raw: string): { message: string; device: string | null; ip: string | null } => {
+  if (!raw) return { message: '', device: null, ip: null };
+  try {
+    const obj = JSON.parse(raw);
+    if (obj && typeof obj === 'object' && ('message' in obj || 'device' in obj || 'ip' in obj)) {
+      return { message: obj.message ?? '', device: obj.device ?? null, ip: obj.ip ?? null };
+    }
+  } catch { /* legacy plain-string detail */ }
+  return { message: raw, device: null, ip: null };
+};
+
 export default function AuditLogPage() {
   const [chain, setChain] = useState<IBlock[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,17 +136,22 @@ export default function AuditLogPage() {
       { header: 'Time', key: 'time', width: 15 },
       { header: 'Actor', key: 'actor', width: 30 },
       { header: 'Action', key: 'action', width: 20 },
-      { header: 'Details', key: 'details', width: 45 }
+      { header: 'Details', key: 'details', width: 45 },
+      { header: 'Device', key: 'device', width: 28 },
+      { header: 'IP Address', key: 'ip', width: 18 }
     ];
 
     filteredChain.forEach(block => {
+      const meta = parseAuditDetails(block.details);
       worksheet.addRow({
         id: block.id,
         date: new Date(block.timestamp).toLocaleDateString(),
         time: new Date(block.timestamp).toLocaleTimeString(),
         actor: block.actor,
         action: block.action,
-        details: block.details
+        details: meta.message,
+        device: meta.device || '—',
+        ip: meta.ip || '—'
       });
     });
 
@@ -216,16 +234,19 @@ export default function AuditLogPage() {
                   <th>Timestamp</th>
                   <th>Account / Role</th>
                   <th>Action & Summary</th>
+                  <th>Device</th>
                   <th>Integrity</th>
                 </tr>
               </thead>
               <tbody>
                 {loading && chain.length === 0 ? (
-                  <tr><td colSpan={4} className="LEDGER_EMPTY">Syncing with system ledger...</td></tr>
+                  <tr><td colSpan={5} className="LEDGER_EMPTY">Syncing with system ledger...</td></tr>
                 ) : paginatedChain.length === 0 ? (
-                  <tr><td colSpan={4} className="LEDGER_EMPTY">No matching audit records found.</td></tr>
+                  <tr><td colSpan={5} className="LEDGER_EMPTY">No matching audit records found.</td></tr>
                 ) : (
-                  paginatedChain.map((block) => (
+                  paginatedChain.map((block) => {
+                    const meta = parseAuditDetails(block.details);
+                    return (
                     <tr key={block.id}>
                       <td>
                           <div className="TIME_MAIN">{new Date(block.timestamp).toLocaleDateString()}</div>
@@ -239,7 +260,20 @@ export default function AuditLogPage() {
                       </td>
                       <td className="ACTION_CELL">
                         <div className="ACTION_NAME">{block.action}</div>
-                        <div className="ACTION_DETAILS">{block.details}</div>
+                        <div className="ACTION_DETAILS">{meta.message}</div>
+                      </td>
+                      <td className="DEVICE_CELL">
+                        {meta.device ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <i className="fas fa-desktop" style={{ color: '#64748b' }}></i>
+                            <div style={{ lineHeight: 1.3 }}>
+                              <div style={{ fontWeight: 600, fontSize: '0.8rem' }}>{meta.device}</div>
+                              {meta.ip && <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontFamily: 'monospace' }}>{meta.ip}</div>}
+                            </div>
+                          </div>
+                        ) : (
+                          <span style={{ color: '#cbd5e1' }}>—</span>
+                        )}
                       </td>
                       <td>
                         <span className="VERIFIED_BADGE">
@@ -247,7 +281,8 @@ export default function AuditLogPage() {
                         </span>
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>
