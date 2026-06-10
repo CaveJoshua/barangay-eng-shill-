@@ -33,7 +33,12 @@ const PORT = process.env.PORT || 8000;
 // 🛡️ CORS — explicit allowlist, no wildcard
 // ==========================================
 const ALLOWED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173'];
-const isCloudflareOrigin = (origin) => origin && origin.endsWith('.barangay-engineer-s-hill.pages.dev', '.barangay-engineers-hill.pages.dev');
+
+// 🛡️ THE FIX: Evaluates both domain suffixes cleanly via logical grouping
+const isCloudflareOrigin = (origin) => origin && (
+    origin.endsWith('.barangay-engineer-s-hill.pages.dev') ||
+    origin.endsWith('.barangay-engineers-hill.pages.dev')
+);
 
 const corsOptions = {
     origin: (origin, callback) => {
@@ -84,9 +89,6 @@ app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(cors(corsOptions));
 
 // 🛡️ SMART BODY LIMIT (J-CVE-101203 hardening)
-// Announcement uploads carry base64 images (≤50mb); every other route is capped at
-// 10mb to blunt payload-DoS. The previous flat 200mb global parser silently overrode
-// the smart cap inside Data.js, so the intended limit never actually applied.
 const bodyLimitFor = (req) =>
   (['POST', 'PUT'].includes(req.method) && /^\/api\/announcements(\/|$)/.test(req.path)) ? '50mb' : '10mb';
 
@@ -144,7 +146,6 @@ app.get('/api/system/diagnostics', (req, res) => {
     let mailerStatus = "ONLINE";
     let mailerReason = "Resend API key is loaded and appears structurally valid.";
 
-    // Diagnostic logic to expose the exact "reason behind" any mailer failures
     if (!resendKey) {
         mailerStatus = "OFFLINE - CRITICAL";
         mailerReason = "RESEND_API_KEY is missing from your environment variables. You must add it to the Render dashboard.";
