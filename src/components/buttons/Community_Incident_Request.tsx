@@ -37,9 +37,7 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
     narrative: '',
   });
 
-  // 🛡️ NEW: Media Files State
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
-  // 🎥 NEW: Single optional video (video-only, ≤10MB)
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const MAX_VIDEO_BYTES = 10 * 1024 * 1024;
 
@@ -61,7 +59,6 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
     setMediaFiles(prev => prev.filter((_, index) => index !== indexToRemove));
   };
 
-  // 🎥 VIDEO HANDLER (rails: video-only + ≤10MB)
   const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -109,7 +106,7 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
         setCurrentUser({ ...profile, formattedName: formatted });
       }
       setStep(1);
-      setMediaFiles([]); // Reset files on open
+      setMediaFiles([]); 
       setVideoFile(null);
     }
   }, [isOpen, formatToProperName]);
@@ -122,13 +119,11 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
     setIsSubmitting(true);
 
     try {
-      // 🛡️ THE FIX: Generate Unique Case Number with the strictly aligned ON-INC prefix
       const year = new Date().getFullYear();
       const uniqueHash = Math.random().toString(36).substring(2, 6).toUpperCase();
       const timeStamp = Date.now().toString().slice(-4);
       const generatedCaseNum = `ON-INC-${year}-${timeStamp}-${uniqueHash}`;
 
-      // Build FormData payload to support file uploads
       const payload = new FormData();
       payload.append('case_number', generatedCaseNum);
       payload.append('complainant_id', currentUser.record_id);
@@ -140,12 +135,10 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
       payload.append('time_filed', formData.timeFiled);
       payload.append('status', 'Pending');
 
-      // Append all selected image files
       mediaFiles.forEach((file) => {
         payload.append('evidence', file);
       });
 
-      // Append the single optional video
       if (videoFile) payload.append('video', videoFile);
 
       const result = await ApiService.saveBlotter(null, payload);
@@ -155,7 +148,9 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
         onSuccess(); 
         onClose();   
       } else {
-        alert(`Error: ${result.error || 'The system could not save your report.'}`);
+        // 🛡️ Handles rate limiting notifications cleanly
+        const errorMessage = result.message || result.error || 'The system could not save your report.';
+        alert(`Submission Flagged:\n${errorMessage}`);
       }
     } catch (err: any) {
       alert(err.message || "Connection error. Ensure the server is active.");
@@ -168,7 +163,6 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
   const handleNext = () => setStep(prev => (prev + 1) as StepType);
   const handleBack = () => setStep(prev => (prev - 1) as StepType);
 
-  // Form Validation
   const isNextDisabled = !formData.respondent.trim() || (step === 2 && !formData.narrative.trim());
 
   return (
@@ -210,7 +204,10 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
                     type="text" 
                     placeholder="Enter full name" 
                     value={formData.respondent}
-                    onChange={e => setFormData({...formData, respondent: e.target.value})}
+                    onChange={e => {
+                      const sanitized = e.target.value.replace(/[^a-zA-Z\s-ñÑ]/g, '');
+                      setFormData({...formData, respondent: sanitized.toUpperCase()});
+                    }}
                   />
                 </div>
 
@@ -265,7 +262,6 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
                   />
                 </div>
 
-                {/* 🛡️ NEW: Evidence Upload Section - IMAGES ONLY */}
                 <div className="CIR_FORM_GROUP">
                   <label>Attach Evidence (Max 5 files - Images only)</label>
                   <input 
@@ -303,7 +299,6 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
                   )}
                 </div>
 
-                {/* 🎥 NEW: Optional Video Evidence — 1 video, max 10MB */}
                 <div className="CIR_FORM_GROUP">
                   <label>Attach Video (Optional — 1 video, max 10MB)</label>
                   <input
@@ -351,7 +346,7 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
                       </div>
                       <div className="CIR_REVIEW_ITEM">
                         <span>Respondent:</span> 
-                        <strong>{formData.respondent.toUpperCase()}</strong>
+                        <strong>{formData.respondent}</strong>
                       </div>
                       <div className="CIR_REVIEW_ITEM">
                         <span>Type:</span> 
@@ -366,7 +361,11 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
                         <strong>{videoFile ? '1 video attached' : 'None'}</strong>
                       </div>
                       <div className="CIR_REVIEW_DIVIDER"></div>
-                      <div className="CIR_REVIEW_ITEM VERTICAL">
+                      <div className="CIR_REVIEW_ITEM">
+                        <span>Location:</span> 
+                        <strong>{formData.purok}</strong>
+                      </div>
+                      <div className="CIR_REVIEW_ITEM REASON">
                         <span>Statement:</span> 
                         <p>"{formData.narrative}"</p>
                       </div>
