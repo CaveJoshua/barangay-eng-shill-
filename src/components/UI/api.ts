@@ -384,39 +384,35 @@ export const ApiService = {
   rootHandshake: (signal?: AbortSignal) =>
     triggerAction(`${API_BASE_URL}/auth/root-request`, 'POST', { username: 'SYSTEM_ROOT_ADMIN' }, signal),
 
-  // ── OTP / PASSWORD RESET (GraphQL — public /graphql/auth) ────────────────────
-  // `email` is the identifier (username OR email). Error wording from the resolver
-  // is surfaced verbatim so the modals' lockout / anti-bruteforce parsing still works.
+  // ── OTP / PASSWORD RESET (RESTORED TO PURE REST) ────────────────────────────
   requestPasswordResetOTP: async (email: string, useFallback: boolean = false) => {
-    const r = await gqlFetch(
-      AUTH_GRAPHQL_API,
-      `mutation Req($id: String!, $fb: Boolean) { requestOtp(identifier: $id, useFallback: $fb) { success message } }`,
-      { id: email, fb: useFallback },
-    );
+    const r = await triggerAction(`${API_BASE_URL}/accounts/request-otp`, 'POST', {
+      identifier: email,
+      useFallback: useFallback
+    });
     return r.success
-      ? { success: true, message: r.data?.requestOtp?.message }
+      ? { success: true, message: r.data?.message }
       : { success: false, error: r.error };
   },
 
   verifyOTP: async (email: string, otp: string) => {
-    const r = await gqlFetch(
-      AUTH_GRAPHQL_API,
-      `mutation Ver($id: String!, $o: String!) { verifyOtp(identifier: $id, otp: $o) { success message } }`,
-      { id: email, o: otp },
-    );
+    const r = await triggerAction(`${API_BASE_URL}/accounts/verify-otp`, 'POST', {
+      identifier: email,
+      otp: otp
+    });
     return r.success
-      ? { success: true, message: r.data?.verifyOtp?.message }
+      ? { success: true, message: r.data?.message }
       : { success: false, error: r.error };
   },
 
   updatePassword: async (email: string, otp: string, newPassword: string) => {
-    const r = await gqlFetch(
-      AUTH_GRAPHQL_API,
-      `mutation Reset($id: String!, $o: String!, $n: String!) { publicReset(identifier: $id, otp: $o, newPassword: $n) { success message } }`,
-      { id: email, o: otp, n: newPassword },
-    );
+    const r = await triggerAction(`${API_BASE_URL}/accounts/public-reset`, 'POST', {
+      identifier: email,
+      otp: otp,
+      newPassword: newPassword
+    });
     return r.success
-      ? { success: true, message: r.data?.publicReset?.message }
+      ? { success: true, message: r.data?.message }
       : { success: false, error: r.error };
   },
 
