@@ -48,7 +48,6 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
   const [traceId, setTraceId] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   
-  // 🛡️ NEW STATE: Isolate the master email from the actual account name
   const [masterEmail, setMasterEmail] = useState('');
   
   const [residents, setResidents] = useState<IResident[]>([]);
@@ -109,7 +108,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
       setOtpSent(false);
       setVerificationCode('');
       setTraceId('');
-      setMasterEmail(''); // Reset email
+      setMasterEmail('');
     }
   }, [isOpen, officialToEdit]);
 
@@ -155,7 +154,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
         method: 'POST',
         headers: getAuthHeaders(false, 'POST'),
         credentials: 'include',
-        body: JSON.stringify({ email: masterEmail }) // Send the dedicated email state
+        body: JSON.stringify({ email: masterEmail })
       });
       const result = await response.json();
       if (response.ok) {
@@ -179,6 +178,18 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
       return alert("Full name required.");
     }
 
+    if (!isBarangayHallMode && formData.full_name) {
+      const nameExists = residents.some(r => {
+         const middle = r.middle_name ? `${r.middle_name} ` : '';
+         const fullName = `${r.first_name} ${middle}${r.last_name}`.trim().toUpperCase();
+         return fullName === formData.full_name;
+      });
+
+      if (!nameExists) {
+         return alert("Registration Error: Official must be an existing registered resident. Please select a valid name from the search dropdown.");
+      }
+    }
+
     if (!isBarangayHallMode) {
       if (!formData.term_start) return alert("Service start date required.");
       if (!formData.term_end) return alert("Service end date required.");
@@ -195,13 +206,16 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
       return alert(`${formData.position} position is already filled.`);
     }
 
+    if (formData.contact_number && formData.contact_number.length !== 11) {
+       return alert("Contact number must be exactly 11 digits.");
+    }
+
     setIsSubmitting(true);
 
     try {
       const method = officialToEdit ? 'PUT' : 'POST';
       const url = officialToEdit ? `${OFFICIALS_API}/${officialToEdit.id}` : OFFICIALS_API;
 
-      // 🛡️ Send the hardcoded full name and the master email in the payload
       const payload = {
         ...formData,
         role: isBarangayHallMode ? 'superadmin' : formData.role || 'staff',
@@ -267,7 +281,6 @@ ROLE: SUPERADMIN
                 setFormData({
                   ...formData,
                   position: newPos,
-                  // 🛡️ THE FIX: Auto-fill the proper entity name instantly
                   full_name: isHall ? "Barangay Engineer's Hill" : '',
                   term_start: isHall ? '' : new Date().toISOString().split('T')[0],
                   term_end: '',
@@ -286,7 +299,6 @@ ROLE: SUPERADMIN
             </select>
           </div>
 
-          {/* 🛡️ If Barangay Hall, show the fixed Account Name */}
           {isBarangayHallMode && (
             <div className="OM_FORM_GROUP">
               <label>System Account Name</label>
@@ -308,14 +320,15 @@ ROLE: SUPERADMIN
                 required
                 className="OM_INPUT"
                 placeholder={isBarangayHallMode ? "hall@gmail.com" : "Search or enter name..."}
-                // 🛡️ Bind directly to masterEmail if Hall Mode, otherwise bind to full_name
                 value={isBarangayHallMode ? masterEmail : formData.full_name}
                 onChange={e => {
                   const val = e.target.value;
                   if (isBarangayHallMode) {
                     setMasterEmail(val.toLowerCase());
                   } else {
-                    setFormData({ ...formData, full_name: val.toUpperCase() });
+                    // Strips numbers and special characters immediately
+                    const sanitizedName = val.replace(/[^a-zA-Z\s-ñÑ]/g, '');
+                    setFormData({ ...formData, full_name: sanitizedName.toUpperCase() });
                     setShowDropdown(true);
                   }
                 }}
@@ -411,9 +424,22 @@ ROLE: SUPERADMIN
                 <input
                   type="text"
                   className="OM_INPUT"
-                  placeholder="Phone number"
+                  placeholder="09XXXXXXXXX"
                   value={formData.contact_number}
-                  onChange={e => setFormData({ ...formData, contact_number: e.target.value })}
+                  maxLength={11}
+                  onChange={e => {
+                    let val = e.target.value.replace(/\D/g, ''); 
+                    
+                    if (val.length > 0) {
+                      if (val === '0') {
+                        val = '09';
+                      } else if (!val.startsWith('09')) {
+                        val = '09' + val.replace(/^0+/, ''); 
+                      }
+                    }
+                    
+                    setFormData({ ...formData, contact_number: val.substring(0, 11) });
+                  }}
                 />
               </div>
             </>
