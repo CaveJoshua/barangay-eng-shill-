@@ -12,6 +12,18 @@ if (!ROOT_EMAIL) throw new Error('[FATAL] ROOT_EMAIL is not set in environment.'
 
 const isProduction = process.env.NODE_ENV === 'production';
 
+// 🍪 Cross-site cookie SameSite (Cloudflare deploy fix).
+// The Cloudflare Pages frontend and the API backend are on DIFFERENT sites, so the
+// admin auth cookie must be SameSite=None to be sent at all. We detect a real HTTPS
+// request — directly, or via a proxy's x-forwarded-proto header — instead of trusting
+// NODE_ENV, which many hosts don't set (that silently downgraded the cookie to
+// SameSite=Lax and broke admin auth, e.g. Account Management, once deployed).
+const getSameSite = (req) =>
+    (req?.secure === true
+        || String(req?.headers?.['x-forwarded-proto'] || '').split(',')[0].trim() === 'https'
+        || isProduction)
+        ? 'none' : 'lax';
+
 // OTP store: values are { codeHash, expires, cooldown, attempts, trace_id }
 const rootOtpStore = new Map();
 
@@ -134,7 +146,7 @@ export const OfficialsLoginRouter = (router, supabase) => {
                 res.cookie('auth_token', token, { 
                     httpOnly: true, 
                     secure: true, 
-                    sameSite: isProduction ? 'none' : 'lax', 
+                    sameSite: getSameSite(req), 
                     maxAge: 86400000 
                 });
                 
@@ -181,7 +193,7 @@ export const OfficialsLoginRouter = (router, supabase) => {
             res.cookie('auth_token', token, { 
                 httpOnly: true, 
                 secure: true, 
-                sameSite: isProduction ? 'none' : 'lax', 
+                sameSite: getSameSite(req), 
                 maxAge: 86400000 
             });
 
@@ -216,7 +228,7 @@ export const OfficialsLoginRouter = (router, supabase) => {
         res.clearCookie('auth_token', { 
             httpOnly: true, 
             secure: true, 
-            sameSite: isProduction ? 'none' : 'lax' 
+            sameSite: getSameSite(req) 
         });
         res.status(200).json({ message: 'Logged out securely.' });
     });
@@ -239,7 +251,7 @@ export const OfficialsLoginRouter = (router, supabase) => {
                 const expiredAt = decoded.exp * 1000;
                 const GRACE_MS = 5 * 60 * 1000;
                 if (Date.now() > expiredAt + GRACE_MS) {
-                    res.clearCookie('auth_token', { httpOnly: true, secure: true, sameSite: isProduction ? 'none' : 'lax' });
+                    res.clearCookie('auth_token', { httpOnly: true, secure: true, sameSite: getSameSite(req) });
                     return res.status(401).json({ error: 'Session expired. Please log in again.' });
                 }
 
@@ -249,7 +261,7 @@ export const OfficialsLoginRouter = (router, supabase) => {
                 res.cookie('auth_token', newToken, {
                     httpOnly: true,
                     secure: true,
-                    sameSite: isProduction ? 'none' : 'lax',
+                    sameSite: getSameSite(req),
                     maxAge: 86400000
                 });
 

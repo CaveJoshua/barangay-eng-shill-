@@ -239,10 +239,14 @@ router.post('/auth', async (req, res) => {
         const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '12h' });
 
         // 5. Issue HTTP-Only Cookie (Matches your authenticateToken middleware)
+        // Cross-site (Cloudflare) needs SameSite=None + Secure; detect HTTPS per-request.
+        const _crossSite = req.secure === true
+            || String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'https'
+            || process.env.NODE_ENV === 'production';
         res.cookie('auth_token', token, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
+            secure: _crossSite,
+            sameSite: _crossSite ? 'none' : 'lax',
             maxAge: 12 * 60 * 60 * 1000 // 12 hours
         });
 
