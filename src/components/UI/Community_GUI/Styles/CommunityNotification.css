@@ -351,6 +351,40 @@
     letter-spacing: 0.05em;
 }
 
+/* ── FOOTER "VIEW HISTORY" BUTTON ─────────────────────────────────────────── */
+.NOTIF_HISTORY_BTN {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--c--p--brand-blue, #2563eb);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: background 0.18s, transform 0.12s;
+}
+.NOTIF_HISTORY_BTN:hover {
+    background: rgba(37, 99, 235, 0.10);
+}
+.NOTIF_HISTORY_BTN:active {
+    transform: scale(0.98);
+}
+
+[data-theme='dark'] .NOTIF_HISTORY_BTN,
+[data-resident-theme='dark'] .NOTIF_HISTORY_BTN {
+    color: #60a5fa;
+}
+[data-theme='dark'] .NOTIF_HISTORY_BTN:hover,
+[data-resident-theme='dark'] .NOTIF_HISTORY_BTN:hover {
+    background: rgba(96, 165, 250, 0.12);
+}
+
 /* ── 🌙 3. DARK MODE OVERRIDES ── */
 [data-theme='dark'] .CM_NOTIF_BELL_BTN,
 [data-resident-theme='dark'] .CM_NOTIF_BELL_BTN {

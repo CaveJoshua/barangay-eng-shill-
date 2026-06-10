@@ -10,7 +10,7 @@ interface IIncidentCase {
   complainant_id?: string;
   respondent: string;
   incident_type: string;
-  status: 'Pending' | 'Active' | 'Hearing' | 'Settled' | 'Archived' | 'Rejected'; 
+  status: 'Pending' | 'Active' | 'Hearing' | 'Settled' | 'Archived' | 'Rejected' | 'Dismissed'; 
   origin: 'Walk-in' | 'Online';
   date_filed: string;
   time_filed?: string;
@@ -114,7 +114,7 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
         processedHighlightId.current = highlightId; 
 
         // 🛡️ THE FIX: Ignore notifications for cases that have already been vanished
-        if (['Settled', 'Rejected', 'Archived'].includes(targetCase.status)) {
+        if (['Settled', 'Rejected', 'Archived', 'Dismissed'].includes(targetCase.status)) {
             console.warn("Targeted case is already in the Archive Vault.");
             return;
         }
@@ -179,7 +179,7 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
   const filteredCases = useMemo(() => {
     return cases.filter((c) => {
       // 🛡️ THE GHOST PROTOCOL: Instantly drop terminal states to clear the pipeline
-      if (['Settled', 'Rejected', 'Archived'].includes(c.status)) return false;
+      if (['Settled', 'Rejected', 'Archived', 'Dismissed'].includes(c.status)) return false;
 
       const matchSearch = `${c.case_number} ${c.complainant_name} ${c.respondent}`.toLowerCase().includes(searchTerm.toLowerCase());
       return matchSearch && c.status === activeTab;
@@ -371,7 +371,6 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
                                 </button>
                               )}
 
-                              {/* 🛡️ Explicitly marked as Archive actions */}
                               {c.status === 'Hearing' && (
                                 <button className="SUCCESS" onClick={() => { handleStatusUpdate(c.id, { status: 'Settled' }); setOpenDropdownId(null); }}>
                                   <i className="fas fa-handshake"></i> Mark as Settled (Archive)
@@ -383,6 +382,11 @@ export default function IncidentReportPage({ highlightId }: IncidentPageProps) {
                                   <i className="fas fa-trash-alt"></i> Deny Entry (Archive)
                                 </button>
                               )}
+
+                              {/* 🛡️ Dismissed is now explicitly open to ALL statuses for universal UX */}
+                              <button className="WARNING" onClick={() => { handleStatusUpdate(c.id, { status: 'Dismissed' }); setOpenDropdownId(null); }}>
+                                <i className="fas fa-times-circle"></i> Mark as Dismissed (Archive)
+                              </button>
                             </div>
                           )}
                         </td>

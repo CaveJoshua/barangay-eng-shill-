@@ -41,6 +41,8 @@ interface NotificationProps {
    * destination page uses to scroll to & highlight the matching request card.
    */
   onNavigate?: (view: CommunityNotifView, highlightRef: string) => void;
+  /** Opens the full notification history view (the footer "History" button). */
+  onOpenHistory?: () => void;
 }
 
 interface NotifItem {
@@ -63,6 +65,7 @@ const Community_Notification: React.FC<NotificationProps> = ({
   blotters,
   documents,
   onNavigate,
+  onOpenHistory,
 }) => {
   const [isOpen,            setIsOpen]       = useState(false);
   const [liveNotifications, setLiveNotifs]   = useState<any[]>([]);
@@ -306,7 +309,14 @@ const Community_Notification: React.FC<NotificationProps> = ({
         </div>
 
         <footer className="NOTIF_DROPDOWN_FOOTER">
-          <p>Engineer's Hill Digital Portal v2026</p>
+          <button
+            className="NOTIF_HISTORY_BTN"
+            onClick={() => { setIsOpen(false); onOpenHistory?.(); }}
+            title="View full notification history"
+          >
+            <i className="fas fa-history" />
+            <span>View History</span>
+          </button>
         </footer>
       </div>
     </div>

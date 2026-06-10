@@ -10,6 +10,7 @@ import Community_blotter from './CommunityIncident';
 import Community_Document from './CommunityDocument';
 import Community_Profile from './CommunityProfile';
 import Community_Notification, { type CommunityNotifView } from './CommunityNotfication';
+import Community_Notification_History from './CommunityNotificationHistory';
 import CommunityResetPasswordModal from '../../buttons/Community_Resetpassword_modal';
 
 // 🛡️ IMPORT PREVIEW COMPONENTS
@@ -17,11 +18,22 @@ import Community_Preview from '../../forms/Community_preview';
 import type { NewsItem } from '../../forms/Community_preview';
 import { CaptchaModal } from '../../Captcha/CaptchaModal';
 
-type DashboardView = 'Announcements' | 'Blotter' | 'Documents';
+type DashboardView = 'Announcements' | 'Blotter' | 'Documents' | 'Notifications';
 
 interface DashboardProps {
   onLogout: () => void;
 }
+
+// 🔄 Persist the open view across page reloads (session-scoped: survives F5,
+// cleared on logout/tab-close). Keeps a resident on Documents/Incident/etc.
+// exactly where they were after refreshing.
+const VIEW_STORAGE_KEY = 'cm_active_view';
+const VALID_VIEWS: DashboardView[] = ['Announcements', 'Blotter', 'Documents', 'Notifications'];
+
+const loadSavedView = (): DashboardView => {
+  const saved = sessionStorage.getItem(VIEW_STORAGE_KEY) as DashboardView | null;
+  return saved && VALID_VIEWS.includes(saved) ? saved : 'Announcements';
+};
 
 const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   const { 
@@ -36,8 +48,13 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
     setActiveTab 
   } = useDashboardLogic(onLogout);
 
-  const [currentView, setCurrentView] = useState<DashboardView>('Announcements');
+  const [currentView, setCurrentView] = useState<DashboardView>(loadSavedView);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+
+  // Mirror the active view into session storage so a reload restores it.
+  useEffect(() => {
+    sessionStorage.setItem(VIEW_STORAGE_KEY, currentView);
+  }, [currentView]);
   const [mustResetPassword, setMustResetPassword] = useState(false);
   const [bulletinCategory, setBulletinCategory] = useState<string>('All');
 
@@ -69,6 +86,13 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
     setCurrentView(view);
     setIsProfileOpen(false);
     setHighlightTarget(highlightRef);
+  };
+
+  // Bell "History" button → open the full notification history view.
+  const openNotificationHistory = () => {
+    setCurrentView('Notifications');
+    setIsProfileOpen(false);
+    setHighlightTarget(undefined);
   };
 
   const openProfile = () => {
@@ -206,6 +230,14 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
           />
         );
 
+      case 'Notifications':
+        return (
+          <Community_Notification_History
+            onBack={() => navigateTo('Announcements')}
+            onNavigate={handleNotifNavigate}
+          />
+        );
+
       default:
         return null;
     }
@@ -270,6 +302,7 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                 blotters={blotters}
                 documents={documents}
                 onNavigate={handleNotifNavigate}
+                onOpenHistory={openNotificationHistory}
               />
             </>
           )}

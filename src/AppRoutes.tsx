@@ -8,7 +8,7 @@ import {
   useLocation,
 } from 'react-router-dom';
 
-// Import your existing components (Login portal is intentionally removed)
+// Import your existing components
 import Dashboard from './components/UI/Administration_GUI/Dashboard';
 import Community from './components/UI/Community_GUI/Community';
 import Community_Dashboard from './components/UI/Community_GUI/CommunityDashboard';
@@ -40,7 +40,6 @@ const SessionManager: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const location = useLocation();
 
   useEffect(() => {
-    // Ignore timeout logic on public pages
     if (location.pathname === '/' || location.pathname === '/officialslogin') {
       return;
     }
@@ -48,7 +47,7 @@ const SessionManager: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     let lastActivityTime = Date.now();
 
     const getTimeoutMs = () => {
-      if (location.pathname.startsWith('/resident')) return 900000; // 15 mins
+      if (location.pathname.startsWith('/resident')) return 3000000; // 50 mins
       if (location.pathname.startsWith('/admin')) return 14400000; // 4 hours
       return 900000;
     };
@@ -95,8 +94,7 @@ const SessionManager: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   return null;
 };
 
-// 🛡️ THE FIX: State Synchronizer
-// Keeps React state in sync with localStorage on every navigation.
+// 🛡️ State Synchronizer
 const StateSynchronizer: React.FC<{
   user: any;
   setUser: (user: any) => void;
@@ -128,7 +126,7 @@ const StateSynchronizer: React.FC<{
   return null;
 };
 
-// ✅ Routes wrapper (must be inside Router)
+// ✅ Routes wrapper
 const RoutesWithLogout: React.FC<{
   user: any;
   selectedPortal: 'admin' | 'community' | null;
@@ -148,7 +146,6 @@ const RoutesWithLogout: React.FC<{
     navigate('/', { replace: true });
   }, [handleFullLogout, navigate]);
 
-  // ✅ Community login success
   const goToCommunityDashboard = useCallback(
     (userData?: any) => {
       if (userData) {
@@ -162,7 +159,6 @@ const RoutesWithLogout: React.FC<{
     [navigate, setUser, setSelectedPortal]
   );
 
-  // 🛡️ Helper: Get user (from state OR localStorage as fallback)
   const getAdminUser = () => {
     if (user) return user;
     const session = localStorage.getItem('admin_session');
@@ -179,18 +175,16 @@ const RoutesWithLogout: React.FC<{
       />
       <Routes>
         
-        {/* 🎯 MAIN LANDING PAGE: Community Portal */}
         <Route
           path="/"
           element={<Community onLoginSuccess={goToCommunityDashboard} />}
         />
 
-        {/* ✅ Official Admin Login (Public) */}
         <Route path="/officialslogin" element={<OfficialLogin />} />
 
-        {/* ✅ Admin Dashboard */}
+        {/* 🛡️ ADDED /* SO NESTED VIEWS SURVIVE REFRESH */}
         <Route
-          path="/admin/dashboard"
+          path="/admin/dashboard/*"
           element={
             localStorage.getItem('admin_session') ? (
               <Dashboard
@@ -203,9 +197,9 @@ const RoutesWithLogout: React.FC<{
           }
         />
 
-        {/* ✅ Resident Dashboard — requires actual session, not just portal flag */}
+        {/* 🛡️ ADDED /* SO NESTED VIEWS (Documents/Incidents) SURVIVE REFRESH */}
         <Route
-          path="/resident"
+          path="/resident/*"
           element={
             localStorage.getItem('resident_session') ? (
               <Community_Dashboard onLogout={logoutAndRedirect} />
@@ -215,7 +209,6 @@ const RoutesWithLogout: React.FC<{
           }
         />
 
-        {/* ✅ Fallback Catch-All */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
@@ -229,7 +222,6 @@ const AppRoutes = () => {
   const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // ✅ Restore session on app load
   useEffect(() => {
     const adminSession = localStorage.getItem('admin_session');
     const residentSession = localStorage.getItem('resident_session');
@@ -245,7 +237,6 @@ const AppRoutes = () => {
       setSelectedPortal(savedPortal as 'admin' | 'community');
     }
 
-    // Apply the correct theme for whichever session just restored.
     ThemeManager.restoreFromSession();
     setIsLoading(false);
   }, []);
@@ -257,10 +248,8 @@ const AppRoutes = () => {
     localStorage.clear();
     sessionStorage.clear();
 
-    // Reset both theme attributes so the next user starts clean.
     ThemeManager.resetAll();
 
-    // Revoke both admin cookie and resident refresh token server-side
     await Promise.allSettled([
       fetch(`${API_BASE_URL}/admin/logout`, {
         method: 'POST',
