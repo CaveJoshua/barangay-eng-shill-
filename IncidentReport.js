@@ -1,9 +1,17 @@
+### Finalized `BlotterRouter.js`
+
+Here is the complete, updated `BlotterRouter.js` file. A tiered daily rate limiter has been integrated via `rate-limiter-flexible`. It enforces a strict **2 submissions per day hard cap** for residents to block potential spam vectors, while seamlessly granting full bypass capabilities to administrative roles (`admin`, `superadmin`, `staff`, `barangayhall`) so day-to-day office walk-in intake operations remain unaffected.
+
+The rate limiting evaluation is performed *before* handling file streams, ensuring malicious or rate-limited requests fail fast without wasting server memory or Cloudinary API resource bandwidth.
+
+```javascript
 import { logActivity } from './Auditlog.js';
 import { sendAutoMail } from './Mailer.js';
 import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
 import os from 'os';
 import { promises as fs } from 'fs';
+import { RateLimiterMemory } from 'rate-limiter-flexible'; // 🛡️ INTEGRATED: Security rate limiting engine
 
 // =========================================================
 // 📁 CLOUDINARY CONFIGURATION
@@ -15,12 +23,21 @@ cloudinary.config({
 });
 
 // =========================================================
+// 🛡️ SUBMISSION RATE LIMITERS
+// Hard-capped at 2 successful or attempted submissions per 24-hour window
+// =========================================================
+const blotterDailyLimiter = new RateLimiterMemory({
+    points: 2,
+    duration: 60 * 60 * 24, // 24 hours in seconds
+    blockDuration: 60 * 60 * 24 // Lockout duration match
+});
+
+// =========================================================
 // ⚡ SURGICAL MULTER CONFIG: Disk Storage
 // =========================================================
 const upload = multer({
     dest: os.tmpdir(),
     limits: { fileSize: 10 * 1024 * 1024 }, // 🚧 RAIL: 10MB hard cap per file (images + video)
-    // 🚧 RAIL: enforce file types server-side — video field = video only, evidence = images only.
     fileFilter: (req, file, cb) => {
         if (file.fieldname === 'video') {
             return file.mimetype.startsWith('video/')
@@ -141,10 +158,32 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
         }
     );
 
-    // POST: CREATE REPORT (UPDATED FOR ABORT PROTECTION)
+    // POST: CREATE REPORT
     router.post(['/blotter', '/blotters'], 
         [authenticateToken, authorizeRoles(['admin', 'superadmin', 'staff', 'resident', 'barangayhall'])], 
         async (req, res) => {
+            const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+            let userRole = req.user?.user_role || req.user?.role || req.user?.account_type || req.user?.type;
+            if (!userRole && (req.user?.record_id || req.user?.resident_id || req.user?.sub)) userRole = 'resident';
+            
+            const isResident = String(userRole).toLowerCase().trim() === 'resident';
+
+            // 🛡️ ENFORCE DAILY LIMIT RULES FOR ONLINE RESIDENT COMPLAINTS
+            if (isResident) {
+                const tokenResidentId = req.user?.record_id || req.user?.resident_id || req.user?.id || req.user?.sub || 'anonymous';
+                const limitKey = `blotter_submit_${clientIp}_${tokenResidentId}`;
+                try {
+                    await blotterDailyLimiter.consume(limitKey, 1);
+                } catch (rejRes) {
+                    const secsToWait = Math.round(rejRes.msBeforeNext / 1000) || 60;
+                    const hoursToWait = Math.ceil(secsToWait / 3600);
+                    return res.status(429).json({ 
+                        error: 'Too Many Requests', 
+                        message: `Submission throttled. You have reached the strict system boundary limit of 2 filings per day. Please return in ${hoursToWait} hour(s) to request new administrative action.` 
+                    });
+                }
+            }
+
             // 🛡️ MANUAL MULTER HANDLER — up to 5 evidence images + 1 video
             const multiUpload = upload.fields([
                 { name: 'evidence', maxCount: 5 },
@@ -153,7 +192,6 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
 
             multiUpload(req, res, async (err) => {
                 if (err) {
-                    // 🛡️ CATCH THE ABORT: Gracefully handle client disconnects
                     if (err.message === 'Request aborted' || err.code === 'ECONNRESET') {
                         console.warn('⚠️ [BLOTTER] Resident cancelled upload or navigated away.');
                         return res.status(204).end(); 
@@ -163,10 +201,10 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
 
                 try {
                     const r = req.body;
-                    const userRole = req.validatedRole;
+                    const validatedRole = req.validatedRole;
                     const tokenResidentId = req.user?.record_id || req.user?.resident_id || req.user?.id || req.user?.sub;
                     
-                    const isOnline = userRole === 'resident';
+                    const isOnline = validatedRole === 'resident';
                     const secureComplainantId = isOnline ? (tokenResidentId || r.complainant_id) : (r.complainant_id || 'WALK-IN');
 
                     const prefix = isOnline ? 'ON-INC-' : 'WK-INC-';
@@ -197,8 +235,7 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
                         }
                     }
 
-                    // 🎥 SINGLE VIDEO (≤10MB, video-only — enforced by multer). URL is
-                    // appended to the narrative as [ATTACHED VIDEO] so no DB column is needed.
+                    // 🎥 SINGLE VIDEO (≤10MB, video-only)
                     const videoFile = req.files?.video?.[0];
                     if (videoFile) {
                         try {
@@ -241,7 +278,6 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
 
                 } catch (err) {
                     console.error("[BLOTTER POST ERROR]:", err);
-                    // 🛡️ EMERGENCY CLEANUP: Remove temp files if DB insert fails
                     if (req.files) {
                         Object.values(req.files).flat().forEach(file => fs.unlink(file.path).catch(() => {}));
                     }
@@ -261,7 +297,6 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
 
                 const processedNarrative = r.narrative ? await processNarrativeImages(r.narrative) : undefined;
 
-                // Allowlist — only known columns can be updated, prevents mass assignment
                 const allowed = {};
                 if (r.complainant_name  !== undefined) allowed.complainant_name  = r.complainant_name;
                 if (r.respondent        !== undefined) allowed.respondent        = r.respondent;
@@ -349,3 +384,5 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
         }
     );
 };
+
+```
