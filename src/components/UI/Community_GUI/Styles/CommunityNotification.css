@@ -111,11 +111,13 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   ROW HIGHLIGHT PULSE — used by useNotificationHighlight on destination pages
-   
-   This class is applied to  [data-row-id="{id}"]  elements by the hook.
-   Because CommunityNotification.css is always loaded, these rules are globally
-   available. No need to copy them to Documents.css / Blotter.css.
+   ROW HIGHLIGHT PULSE — notification highlighter glow on destination pages
+
+   Applied (state-driven) to the matching request card in CommunityDocument /
+   CommunityIncident when a notification is clicked — mirrors the Administration
+   "Documents ← Notification" highlight effect. Because CommunityNotification.css
+   is always loaded with the dashboard, this rule is globally available; no need
+   to copy it into CommunityDocument.css / CommunityIncident.css.
    ═══════════════════════════════════════════════════════════════════════════ */
 .notif-highlight-row {
   animation: notifRowPulse 2.8s ease-out forwards;

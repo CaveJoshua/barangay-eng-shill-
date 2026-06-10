@@ -143,6 +143,9 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
       payload.append('date_filed', formData.dateFiled);
       payload.append('time_filed', formData.timeFiled);
       payload.append('status', 'Pending');
+      // 🖋️ Capture-time stamp — the backend bakes this into the evidence watermark
+      // and the Cloudinary chain-of-custody metadata for each uploaded asset.
+      payload.append('client_captured_at', new Date().toISOString());
 
       mediaFiles.forEach((file) => {
         payload.append('evidence', file);
@@ -341,6 +344,21 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
                       </button>
                     </div>
                   )}
+                </div>
+
+                {/* 🖋️ EVIDENCE INTEGRITY NOTICE */}
+                <div style={{
+                  display: 'flex', alignItems: 'flex-start', gap: '8px',
+                  padding: '10px 12px', marginTop: '4px',
+                  backgroundColor: '#eff6ff', border: '1px solid #bfdbfe',
+                  borderRadius: '8px', fontSize: '0.72rem', color: '#1e40af', lineHeight: 1.5
+                }}>
+                  <i className="fas fa-stamp" style={{ marginTop: '2px' }} />
+                  <span>
+                    For evidence integrity, every uploaded photo and video is automatically
+                    <strong> date- and case-stamped</strong> and <strong>audit-logged</strong>
+                    {' '}(uploader, time, and device) upon submission.
+                  </span>
                 </div>
 
              </div>

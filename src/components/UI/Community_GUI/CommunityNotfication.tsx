@@ -1,59 +1,32 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { ApiService } from '../api';
 import "./Styles/CommunityNotification.css";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ROUTE MAP — adjust paths to match your actual React Router routes
+// TARGET VIEW MAP — the community dashboard is tab/view-based (not route-based),
+// exactly like the Administration dashboard. A notification click hands the host
+// dashboard the destination view + a target reference; the destination page then
+// scrolls to / glows the matching card (mirrors the Admin "Documents → Notification"
+// highlight effect).
 // ─────────────────────────────────────────────────────────────────────────────
-const NOTIF_ROUTE_MAP: Record<string, string> = {
-  document: '/documents',
-  blotter:  '/blotter',
-  default:  '/dashboard',
+export type CommunityNotifView = 'Documents' | 'Blotter';
+
+const NOTIF_VIEW_MAP: Record<string, CommunityNotifView> = {
+  document: 'Documents',
+  blotter:  'Blotter',
+  incident: 'Blotter',
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HIGHLIGHT HOOK — paste this call into Documents.tsx and Blotter.tsx:
-//
-//   import { useNotificationHighlight } from '../components/Community_Notification';
-//   // inside the component (top level):
-//   useNotificationHighlight();
-//
-// Also add  data-row-id={item.id}  to every table row / card in those pages.
-// The hook reads sessionStorage, waits for the row to render, then scrolls
-// to it and fires the  .notif-highlight-row  CSS animation.
-// ─────────────────────────────────────────────────────────────────────────────
-const _HL_KEY = '__notif_target__';
+// Sentinel handed to the destination page when the notification carries no
+// resolvable reference — the page then glows the resident's most recent request
+// of that kind ("highlight the recent requested").
+const HL_LATEST = '__LATEST__';
 
-export const useNotificationHighlight = (): void => {
-  useEffect(() => {
-    const raw = sessionStorage.getItem(_HL_KEY);
-    if (!raw) return;
-
-    let target: { id: string; ts: number };
-    try { target = JSON.parse(raw); } catch { return; }
-
-    // Ignore if stale (user navigated manually, not via a notification click)
-    if (Date.now() - target.ts > 5_000) {
-      sessionStorage.removeItem(_HL_KEY);
-      return;
-    }
-    sessionStorage.removeItem(_HL_KEY);
-
-    // Retry until the row is in the DOM (async data loads), then scroll + pulse
-    const tryHighlight = (attempt = 0) => {
-      const el = document.querySelector<HTMLElement>(`[data-row-id="${target.id}"]`);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.classList.add('notif-highlight-row');
-        setTimeout(() => el.classList.remove('notif-highlight-row'), 2_800);
-      } else if (attempt < 14) {
-        setTimeout(() => tryHighlight(attempt + 1), 150); // retries up to ~2 s
-      }
-    };
-    tryHighlight();
-  }, []);
-};
+// Reference / case-number extractor (same family of prefixes the Admin feed uses):
+//   Documents  → ON-LN-0042 / WK-IN-0042
+//   Incidents  → ON-INC-… / WK-INC-…
+const REF_REGEX = /(ON-INC|WK-INC|ON-LN|WK-IN|BLTR|INCD|BLT|TMP|REF|BL)-[A-Z0-9-]+/i;
+const extractRef = (text = ''): string => (text.match(REF_REGEX)?.[0] || '').toUpperCase();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -62,11 +35,18 @@ interface NotificationProps {
   notifications?: any[];
   blotters:        any[];
   documents:       any[];
+  /**
+   * Host dashboard callback. Switches the visible view and passes the target
+   * reference (record id, reference number, or the HL_LATEST sentinel) the
+   * destination page uses to scroll to & highlight the matching request card.
+   */
+  onNavigate?: (view: CommunityNotifView, highlightRef: string) => void;
 }
 
 interface NotifItem {
   id:      string; // composed key e.g. "db-42", "doc-7"
-  rawId:   string; // original DB / prop ID used for API calls & row matching
+  rawId:   string; // original DB / prop ID used for API calls & dismissal
+  target:  string; // reference/id the destination page matches the row against
   type:    string;
   title:   string;
   message: string;
@@ -82,9 +62,8 @@ const Community_Notification: React.FC<NotificationProps> = ({
   notifications: dbNotifications = [],
   blotters,
   documents,
+  onNavigate,
 }) => {
-  const navigate = useNavigate();
-
   const [isOpen,            setIsOpen]       = useState(false);
   const [liveNotifications, setLiveNotifs]   = useState<any[]>([]);
   const [dismissedIds,      setDismissedIds] = useState<Set<string>>(new Set());
@@ -136,8 +115,17 @@ const Community_Notification: React.FC<NotificationProps> = ({
       if (n.type === 'document') { icon = 'fas fa-file-alt';   color = '#10b981'; }
       if (n.type === 'blotter')  { icon = 'fas fa-shield-alt'; color = '#f59e0b'; }
 
+      // Resident DB notifications rarely carry a reference in their text. Pull one
+      // out when present (e.g. "Case #ON-INC-… is now Active"); otherwise fall back
+      // to the most-recent matching request via the HL_LATEST sentinel.
+      const ref = extractRef(`${n.title || ''} ${n.message || ''}`);
+
+      // No embedded reference → fall back to "most recent", but keep the sentinel
+      // unique per notification so clicking a different one always re-fires the glow.
+      const target = ref || `${HL_LATEST}:${n.id}`;
+
       list.push({
-        id, rawId: String(n.id), type: n.type,
+        id, rawId: String(n.id), target, type: n.type,
         title:   n.title,
         message: n.message,
         time:    n.created_at ? new Date(n.created_at).toLocaleDateString() : 'New',
@@ -151,7 +139,9 @@ const Community_Notification: React.FC<NotificationProps> = ({
       const id = `doc-${doc.id ?? doc.reference_no ?? i}`;
       if (dismissedIds.has(id)) return;
       list.push({
-        id, rawId: String(doc.id ?? doc.reference_no ?? i), type: 'document',
+        id, rawId: String(doc.id ?? doc.reference_no ?? i),
+        target: String(doc.reference_no ?? doc.control_no ?? doc.id ?? HL_LATEST),
+        type: 'document',
         title:   'Document Ready',
         message: `Your ${doc.type} is ready for pickup at the barangay hall.`,
         time:    'Action Required', icon: 'fas fa-file-export', color: '#10b981',
@@ -164,7 +154,9 @@ const Community_Notification: React.FC<NotificationProps> = ({
       const id = `blot-${c.id ?? c.case_no ?? c.case_number ?? i}`;
       if (dismissedIds.has(id)) return;
       list.push({
-        id, rawId: String(c.id ?? c.case_no ?? c.case_number ?? i), type: 'blotter',
+        id, rawId: String(c.id ?? c.case_no ?? c.case_number ?? i),
+        target: String(c.case_no ?? c.case_number ?? c.id ?? HL_LATEST),
+        type: 'blotter',
         title:   'Hearing Scheduled',
         message: `A hearing is scheduled for Case #${c.case_no ?? c.case_number ?? 'Pending'}.`,
         time:    'Check Schedule', icon: 'fas fa-gavel', color: '#f59e0b',
@@ -182,9 +174,9 @@ const Community_Notification: React.FC<NotificationProps> = ({
    * Clicking a notification card:
    *  1. Optimistically removes it from the list.
    *  2. Calls markNotificationRead (fire-and-forget for DB items).
-   *  3. Writes the target ID to sessionStorage so the destination page
-   *     can scroll to and pulse the matching row.
-   *  4. Navigates to the correct page.
+   *  3. Hands the host dashboard the destination view + target reference so the
+   *     matching request card scrolls into view and pulses (same effect as the
+   *     Administration "Documents ← Notification" highlighter).
    */
   const handleNotificationClick = (notif: NotifItem) => {
     // Optimistic removal
@@ -195,11 +187,9 @@ const Community_Notification: React.FC<NotificationProps> = ({
       setDismissedIds(prev => new Set(prev).add(notif.id));
     }
 
-    // Signal destination page → scroll to & highlight this row
-    sessionStorage.setItem(_HL_KEY, JSON.stringify({ id: notif.rawId, ts: Date.now() }));
-
-    const path = NOTIF_ROUTE_MAP[notif.type] ?? NOTIF_ROUTE_MAP.default;
-    navigate(path, { state: { highlightId: notif.rawId, highlightType: notif.type } });
+    // Hand off to the dashboard → switch view + highlight the target card.
+    const view = NOTIF_VIEW_MAP[notif.type] ?? 'Documents';
+    onNavigate?.(view, notif.target);
 
     setIsOpen(false);
   };

@@ -9,7 +9,7 @@ import { useDashboardLogic } from './useDashboardLogic';
 import Community_blotter from './CommunityIncident';
 import Community_Document from './CommunityDocument';
 import Community_Profile from './CommunityProfile';
-import Community_Notification from './CommunityNotfication'; 
+import Community_Notification, { type CommunityNotifView } from './CommunityNotfication';
 import CommunityResetPasswordModal from '../../buttons/Community_Resetpassword_modal';
 
 // 🛡️ IMPORT PREVIEW COMPONENTS
@@ -40,6 +40,11 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [mustResetPassword, setMustResetPassword] = useState(false);
   const [bulletinCategory, setBulletinCategory] = useState<string>('All');
+
+  // 🎯 Notification highlighter target — the reference / id of the request card
+  // the destination view should scroll to & glow. Set ONLY by a notification
+  // click; cleared on any manual navigation so stale glows never re-fire.
+  const [highlightTarget, setHighlightTarget] = useState<string | undefined>(undefined);
   
   const [selectedArticle, setSelectedArticle] = useState<NewsItem | null>(null);
 
@@ -56,6 +61,14 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   const navigateTo = (view: DashboardView) => {
     setCurrentView(view);
     setIsProfileOpen(false);
+    setHighlightTarget(undefined); // manual nav → drop any pending highlight
+  };
+
+  // Notification → jump to the request's view and glow the matching card.
+  const handleNotifNavigate = (view: CommunityNotifView, highlightRef: string) => {
+    setCurrentView(view);
+    setIsProfileOpen(false);
+    setHighlightTarget(highlightRef);
   };
 
   const openProfile = () => {
@@ -172,29 +185,31 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
 
       case 'Blotter':
         return (
-          <Community_blotter 
-            data={blotters || []} 
-            activeTab={activeTab} 
-            setActiveTab={setActiveTab} 
-            refresh={() => fetchData(resident?.record_id)} 
+          <Community_blotter
+            data={blotters || []}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            refresh={() => fetchData(resident?.record_id)}
+            highlightId={highlightTarget}
           />
         );
 
       case 'Documents':
         return (
-          <Community_Document 
-            data={documents || []} 
-            activeTab={activeTab} 
-            setActiveTab={setActiveTab} 
+          <Community_Document
+            data={documents || []}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
             resident={resident}
-            refresh={() => fetchData(resident?.record_id)} 
+            refresh={() => fetchData(resident?.record_id)}
+            highlightId={highlightTarget}
           />
         );
 
       default:
         return null;
     }
-  }, [currentView, isProfileOpen, loading, resident, blotters, documents, newsList, activeTab, fetchData, setActiveTab, bulletinCategory, mustResetPassword]);
+  }, [currentView, isProfileOpen, loading, resident, blotters, documents, newsList, activeTab, fetchData, setActiveTab, bulletinCategory, mustResetPassword, highlightTarget]);
 
   return (
     <div className="CM_PAGE_WRAPPER">
@@ -250,10 +265,11 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                 {resident?.record_id ? 'CONNECTED' : 'OFFLINE'}
               </div>
 
-              <Community_Notification 
+              <Community_Notification
                 notifications={notifications}
-                blotters={blotters} 
-                documents={documents} 
+                blotters={blotters}
+                documents={documents}
+                onNavigate={handleNotifNavigate}
               />
             </>
           )}

@@ -1,29 +1,40 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import "./Styles/CommunityIncident.css";
-import Community_Blotter_Request from '../../buttons/Community_Incident_Request'; 
+import Community_Blotter_Request from '../../buttons/Community_Incident_Request';
 
 interface BlotterProps {
-  data: any[]; 
+  data: any[];
   activeTab: string;
   setActiveTab: (tab: string) => void;
   refresh: () => void;
+  /** Case number / id (or '__LATEST__') of a case to scroll to & glow, set by a notification click. */
+  highlightId?: string;
 }
 
-// 🛡️ ENHANCED EXTRACTOR: Safely extracts both the clean text AND the actual image URL
-const parseEvidence = (text: string) => {
-  if (!text) return { cleanText: '', evidenceUrl: null };
-  
-  const marker = '[ATTACHED EVIDENCE]';
-  const markerIndex = text.indexOf(marker);
-  
-  if (markerIndex !== -1) {
-    return { 
-      cleanText: text.substring(0, markerIndex).trim(), 
-      evidenceUrl: text.substring(markerIndex + marker.length).trim() 
-    };
+// 🛡️ ENHANCED EXTRACTOR
+// The narrative is a flat string that can carry MULTIPLE attachments, e.g.:
+//   "<text> [ATTACHED EVIDENCE] url1 [ATTACHED EVIDENCE] url2 [ATTACHED VIDEO] vurl"
+// The old parser grabbed everything after the FIRST marker and shoved the whole
+// blob into one <img src> — which broke as soon as a 2nd image (or a video) was
+// attached. This walks every marker, collecting each photo URL and the video URL
+// separately, and returns only the human text that precedes the first marker.
+const parseEvidence = (text: string): { cleanText: string; images: string[]; videoUrl: string | null } => {
+  if (!text) return { cleanText: '', images: [], videoUrl: null };
+
+  const markerRegex = /\[ATTACHED (EVIDENCE|VIDEO)\]\s*(\S+)/g;
+  const images: string[] = [];
+  let videoUrl: string | null = null;
+  let firstMarkerIndex = text.length;
+
+  let match: RegExpExecArray | null;
+  while ((match = markerRegex.exec(text)) !== null) {
+    if (match.index < firstMarkerIndex) firstMarkerIndex = match.index;
+    const url = match[2];
+    if (match[1] === 'VIDEO') videoUrl = url;
+    else images.push(url);
   }
-  
-  return { cleanText: text, evidenceUrl: null };
+
+  return { cleanText: text.substring(0, firstMarkerIndex).trim(), images, videoUrl };
 };
 
 // 🛡️ TABS
@@ -45,15 +56,33 @@ const getIncidentIcon = (type: string = '') => {
   return 'fas fa-gavel'; // Default icon
 };
 
-const Community_blotter: React.FC<BlotterProps> = ({ 
-  data, 
-  activeTab, 
+// ── 🛡️ STATUS → TAB RESOLVER (mirrors the processedData tab-match rules) ──
+const matchesStatusTab = (status: string = '', tabId: string): boolean => {
+  const s = (status || 'pending').toLowerCase();
+  const t = tabId.toLowerCase();
+  return s === t ||
+         (t === 'dismissed' && ['dismissed', 'rejected'].includes(s)) ||
+         (t === 'settled' && ['settled', 'archived', 'closed'].includes(s));
+};
+
+const Community_blotter: React.FC<BlotterProps> = ({
+  data,
+  activeTab,
   setActiveTab,
-  refresh 
+  refresh,
+  highlightId,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCase, setSelectedCase] = useState<any>(null);
+  const [zoomImage, setZoomImage] = useState<string | null>(null); // 🔍 evidence lightbox
+
+  // Close any open lightbox whenever the drawer opens/closes/switches cases.
+  useEffect(() => { setZoomImage(null); }, [selectedCase]);
+
+  // 🎯 NOTIFICATION HIGHLIGHTER — mirrors the Admin IncidentReport targeting engine.
+  const [activeHighlight, setActiveHighlight] = useState<string | null>(null);
+  const processedHighlightId = useRef<string | undefined>(undefined);
 
   // ── 🛡️ TAB NORMALIZATION ──
   useEffect(() => {
@@ -62,6 +91,36 @@ const Community_blotter: React.FC<BlotterProps> = ({
       setActiveTab('Pending');
     }
   }, [activeTab, setActiveTab]);
+
+  // 🎯 TARGETING ENGINE: when a notification hands us a case number/id, switch to
+  // that case's status tab, isolate it via search, and pulse the card for ~3s.
+  // Falls back to the resident's most recent case when nothing specific matches.
+  useEffect(() => {
+    if (!highlightId || processedHighlightId.current === highlightId || !data || data.length === 0) return;
+
+    const wanted = String(highlightId).toUpperCase();
+    const matches = (c: any) =>
+      String(c.id ?? '').toUpperCase() === wanted ||
+      String(c.record_id ?? '').toUpperCase() === wanted ||
+      String(c.case_number ?? '').toUpperCase() === wanted ||
+      String(c.case_no ?? '').toUpperCase() === wanted;
+
+    const target = data.find(matches) || data[0];
+    if (!target) return;
+
+    processedHighlightId.current = highlightId;
+
+    const tab = STATUS_TABS.find(tb => matchesStatusTab(target.status, tb.id));
+    if (tab) setActiveTab(tab.id);
+
+    const ref = target.case_number || target.case_no || '';
+    setSearchQuery(ref ? String(ref) : '');
+
+    setActiveHighlight(String(target.id ?? target.record_id));
+    const timer = setTimeout(() => setActiveHighlight(null), 3000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightId, data]);
 
   // ── 🔄 AUTO-FETCH TRIGGER ──
   useEffect(() => {
@@ -178,9 +237,16 @@ const Community_blotter: React.FC<BlotterProps> = ({
           {processedData.length > 0 ? (
             processedData.map((caseItem) => {
               const safeStatusClass = caseItem.status.replace(/\s+/g, '_');
-              
+              const isHighlighted = activeHighlight != null && String(caseItem.id) === String(activeHighlight);
+
               return (
-                <div key={caseItem.id} className="CM_INC_LONG_PANEL" onClick={() => setSelectedCase(caseItem)}>
+                <div
+                  key={caseItem.id}
+                  data-row-id={caseItem.id}
+                  ref={(el) => { if (el && isHighlighted) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}
+                  className={`CM_INC_LONG_PANEL ${isHighlighted ? 'notif-highlight-row' : ''}`}
+                  onClick={() => setSelectedCase(caseItem)}
+                >
                   
                   {/* TOP: ICON, TITLE, STATUS */}
                   <div className="CM_INC_PANEL_TOP">
@@ -264,19 +330,61 @@ const Community_blotter: React.FC<BlotterProps> = ({
                 <label>Incident Narrative / Summary</label>
                 <div className="CM_INC_SUMMARY_BOX">
                   {(() => {
-                    const { cleanText, evidenceUrl } = parseEvidence(selectedCase.narrative);
+                    const { cleanText, images, videoUrl } = parseEvidence(selectedCase.narrative);
                     return (
                       <>
                         <p dangerouslySetInnerHTML={{ __html: cleanText }}></p>
-                        {evidenceUrl && (
+
+                        {/* 🖼️ PHOTO EVIDENCE — gallery; click any photo to zoom */}
+                        {images.length > 0 && (
                           <div style={{ marginTop: '20px', borderTop: '1px solid var(--c--p--border-subtle)', paddingTop: '15px' }}>
                             <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--c--p--brand-blue)', marginBottom: '10px' }}>
-                              <i className="fas fa-paperclip"></i> ATTACHED EVIDENCE
+                              <i className="fas fa-paperclip"></i> ATTACHED PHOTO EVIDENCE ({images.length})
                             </span>
-                            <img 
-                              src={evidenceUrl} 
-                              alt="Attached Evidence" 
-                              style={{ width: '100%', borderRadius: '8px', border: '1px solid var(--c--p--border-subtle)' }}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '10px' }}>
+                              {images.map((url, i) => (
+                                <button
+                                  key={i}
+                                  type="button"
+                                  title="Click to enlarge"
+                                  onClick={(e) => { e.stopPropagation(); setZoomImage(url); }}
+                                  style={{
+                                    padding: 0, border: '1px solid var(--c--p--border-subtle)', borderRadius: '8px',
+                                    overflow: 'hidden', cursor: 'zoom-in', background: 'none',
+                                    position: 'relative', aspectRatio: '1 / 1',
+                                  }}
+                                >
+                                  <img
+                                    src={url}
+                                    alt={`Attached Evidence ${i + 1}`}
+                                    loading="lazy"
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                  />
+                                  <span style={{
+                                    position: 'absolute', right: '6px', bottom: '6px',
+                                    width: '24px', height: '24px', borderRadius: '50%',
+                                    background: 'rgba(0,0,0,0.6)', color: '#fff',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem',
+                                  }}>
+                                    <i className="fas fa-search-plus"></i>
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 🎥 VIDEO EVIDENCE — inline player */}
+                        {videoUrl && (
+                          <div style={{ marginTop: '20px', borderTop: '1px solid var(--c--p--border-subtle)', paddingTop: '15px' }}>
+                            <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--c--p--brand-blue)', marginBottom: '10px' }}>
+                              <i className="fas fa-video"></i> ATTACHED VIDEO EVIDENCE
+                            </span>
+                            <video
+                              src={videoUrl}
+                              controls
+                              preload="metadata"
+                              style={{ width: '100%', borderRadius: '8px', border: '1px solid var(--c--p--border-subtle)', background: '#000', display: 'block' }}
                             />
                           </div>
                         )}
@@ -288,8 +396,8 @@ const Community_blotter: React.FC<BlotterProps> = ({
             </div>
 
             <footer className="CM_INC_DRAWER_FOOTER">
-               <button 
-                 className="CM_INC_FOOTER_BTN" 
+               <button
+                 className="CM_INC_FOOTER_BTN"
                  onClick={() => setSelectedCase(null)}
                >
                  <i className="fas fa-times-circle"></i> Close View
@@ -298,6 +406,43 @@ const Community_blotter: React.FC<BlotterProps> = ({
           </div>
         )}
       </aside>
+
+      {/* 🔍 EVIDENCE LIGHTBOX — full-screen zoom for a tapped photo */}
+      {zoomImage && (
+        <div
+          onClick={() => setZoomImage(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 100000,
+            background: 'rgba(0, 0, 0, 0.88)', backdropFilter: 'blur(2px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '24px', cursor: 'zoom-out',
+          }}
+        >
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={(e) => { e.stopPropagation(); setZoomImage(null); }}
+            style={{
+              position: 'absolute', top: '18px', right: '22px',
+              width: '44px', height: '44px', borderRadius: '50%', border: 'none',
+              background: 'rgba(255, 255, 255, 0.15)', color: '#fff',
+              fontSize: '1.3rem', cursor: 'pointer', display: 'flex',
+              alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <i className="fas fa-times"></i>
+          </button>
+          <img
+            src={zoomImage}
+            alt="Evidence (enlarged)"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '95vw', maxHeight: '90vh', objectFit: 'contain',
+              borderRadius: '8px', boxShadow: '0 10px 40px rgba(0, 0, 0, 0.5)', cursor: 'default',
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 };

@@ -75,6 +75,59 @@ const processNarrativeImages = async (narrative) => {
 };
 
 // =========================================================
+// 🖋️ EVIDENCE STAMP + CHAIN-OF-CUSTODY HELPERS
+// Every uploaded photo/video is tagged with an immutable Cloudinary "context"
+// stamp (who / when / where / which-case) so each asset is independently
+// auditable from the media store itself. Photos ALSO receive a visible
+// date + case-number watermark via a lazy delivery transform — the transform
+// is only resolved on fetch, so a malformed overlay can never block the upload
+// or destroy the underlying evidence.
+// =========================================================
+
+// Cloudinary context values may not contain '=' or '|' (the pair delimiters).
+const cleanCtx = (v) => String(v ?? '').replace(/[=|]/g, '-').replace(/\s+/g, ' ').trim().slice(0, 240);
+
+const buildEvidenceContext = (meta) => ({
+    case_number:      cleanCtx(meta.caseNumber),
+    complainant_id:   cleanCtx(meta.complainantId),
+    complainant_name: cleanCtx(meta.complainantName),
+    uploaded_by:      cleanCtx(meta.actor),
+    captured_at:      cleanCtx(meta.capturedAt),
+    uploaded_at:      cleanCtx(new Date().toISOString()),
+    source_ip:        cleanCtx(meta.ip),
+    user_agent:       cleanCtx(meta.userAgent),
+});
+
+// Builds a visible, baked-in evidence watermark URL. Returns the pristine
+// secure_url as a fallback if the transform URL cannot be constructed.
+const buildStampedImageUrl = (publicId, format, stampText, fallbackUrl) => {
+    try {
+        return cloudinary.url(publicId, {
+            secure: true,
+            format: format || undefined,
+            transformation: [
+                { width: 1600, crop: 'limit', quality: 'auto' },
+                {
+                    overlay: { font_family: 'Arial', font_size: 32, font_weight: 'bold', text: stampText },
+                    color: 'white', background: 'rgb:000000B3',
+                    gravity: 'south_east', x: 20, y: 20,
+                },
+            ],
+        }) || fallbackUrl;
+    } catch (e) {
+        console.warn('[EVIDENCE STAMP] URL build failed, using pristine asset:', e.message);
+        return fallbackUrl;
+    }
+};
+
+// Renders a short, ASCII-safe stamp caption: "<case>  -  YYYY-MM-DD HH:MM UTC".
+const buildStampCaption = (caseNumber, capturedAt) => {
+    const d = capturedAt && !isNaN(Date.parse(capturedAt)) ? new Date(capturedAt) : new Date();
+    const ts = d.toISOString().replace('T', ' ').slice(0, 16); // YYYY-MM-DD HH:MM
+    return `${caseNumber}  -  ${ts} UTC`;
+};
+
+// =========================================================
 // INTERNAL HELPERS
 // =========================================================
 const createNotification = async (supabase, userId, title, message, type = 'blotter') => {
@@ -157,6 +210,7 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
         [authenticateToken, authorizeRoles(['admin', 'superadmin', 'staff', 'resident', 'barangayhall'])], 
         async (req, res) => {
             const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+            const clientUserAgent = req.headers['user-agent'] || 'unknown';
             let userRole = req.user?.user_role || req.user?.role || req.user?.account_type || req.user?.type;
             if (!userRole && (req.user?.record_id || req.user?.resident_id || req.user?.sub)) userRole = 'resident';
             
@@ -208,37 +262,65 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
 
                     let finalNarrative = await processNarrativeImages(r.narrative);
 
-                    // 🖼️ EVIDENCE IMAGES (up to 5)
+                    // 🖋️ Chain-of-custody stamp shared by every asset on this report.
+                    const actor = req.user?.username || r.complainant_name || 'Resident';
+                    const evidenceContext = buildEvidenceContext({
+                        caseNumber:       generatedCaseNumber,
+                        complainantId:    secureComplainantId,
+                        complainantName:  r.complainant_name,
+                        actor,
+                        capturedAt:       r.client_captured_at,
+                        ip:               clientIp,
+                        userAgent:        clientUserAgent,
+                    });
+                    const evidenceTags = ['blotter_evidence', String(generatedCaseNumber), String(secureComplainantId)];
+                    const stampCaption = buildStampCaption(generatedCaseNumber, r.client_captured_at);
+
+                    // 🖼️ EVIDENCE IMAGES (up to 5) — stamped + audited
                     const evidenceFiles = req.files?.evidence || [];
                     let uploadedImageLinks = [];
+                    let uploadedImageMeta = [];
                     if (evidenceFiles.length > 0) {
                         const formUploadPromises = evidenceFiles.map(async (file) => {
                             try {
-                                const result = await cloudinary.uploader.upload(file.path, { folder: 'blotter_evidence' });
+                                const result = await cloudinary.uploader.upload(file.path, {
+                                    folder: 'blotter_evidence',
+                                    context: evidenceContext,   // 🖋️ immutable per-asset stamp
+                                    tags: evidenceTags,
+                                });
                                 fs.unlink(file.path).catch(e => console.warn("[CLEANUP WARNING]", e.message));
-                                return result.secure_url;
+                                // Visible date + case-number watermark (lazy, never breaks the upload).
+                                const displayUrl = buildStampedImageUrl(result.public_id, result.format, stampCaption, result.secure_url);
+                                return { display_url: displayUrl, public_id: result.public_id, bytes: result.bytes || 0 };
                             } catch (uploadErr) {
+                                console.error('[EVIDENCE IMAGE UPLOAD ERROR]', uploadErr.message);
                                 return null;
                             }
                         });
 
-                        const formResults = await Promise.all(formUploadPromises);
-                        uploadedImageLinks = formResults.filter(url => url !== null);
+                        uploadedImageMeta = (await Promise.all(formUploadPromises)).filter(Boolean);
+                        uploadedImageLinks = uploadedImageMeta.map(m => m.display_url);
                         if (uploadedImageLinks.length > 0) {
                             finalNarrative += ` ${uploadedImageLinks.map(url => `[ATTACHED EVIDENCE] ${url}`).join(' ')}`;
                         }
                     }
 
-                    // 🎥 SINGLE VIDEO (≤10MB, video-only)
+                    // 🎥 SINGLE VIDEO (≤10MB, video-only) — stamped + audited
                     const videoFile = req.files?.video?.[0];
+                    let uploadedVideoMeta = null;
                     if (videoFile) {
                         try {
                             const vid = await cloudinary.uploader.upload(videoFile.path, {
                                 folder: 'blotter_videos',
-                                resource_type: 'video'
+                                resource_type: 'video',
+                                context: evidenceContext,       // 🖋️ immutable per-asset stamp
+                                tags: ['blotter_video', String(generatedCaseNumber), String(secureComplainantId)],
                             });
                             fs.unlink(videoFile.path).catch(() => {});
-                            if (vid?.secure_url) finalNarrative += ` [ATTACHED VIDEO] ${vid.secure_url}`;
+                            if (vid?.secure_url) {
+                                finalNarrative += ` [ATTACHED VIDEO] ${vid.secure_url}`;
+                                uploadedVideoMeta = { public_id: vid.public_id, bytes: vid.bytes || 0 };
+                            }
                         } catch (vErr) {
                             console.error('[VIDEO UPLOAD ERROR]', vErr.message);
                             fs.unlink(videoFile.path).catch(() => {});
@@ -262,7 +344,28 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
 
                     res.status(201).json({ success: true, data });
 
-                    logActivity(supabase, req.user.username || 'System', 'INCIDENT_REPORTED', `Case ${dbPayload.case_number} filed.`, req).catch(() => {});
+                    logActivity(supabase, actor, 'INCIDENT_REPORTED', `Case ${dbPayload.case_number} filed.`, req).catch(() => {});
+
+                    // 🖋️ Dedicated evidence audit trail — captures actor + IP + device (via req),
+                    // counts, total bytes, and the Cloudinary public_ids so each uploaded asset
+                    // is independently traceable back to this filing.
+                    if (uploadedImageMeta.length > 0) {
+                        const totalBytes = uploadedImageMeta.reduce((sum, m) => sum + (m.bytes || 0), 0);
+                        const ids = uploadedImageMeta.map(m => m.public_id).join(', ');
+                        logActivity(
+                            supabase, actor, 'EVIDENCE_IMAGE_UPLOADED',
+                            `${uploadedImageMeta.length} photo(s) stamped & stored for Case ${dbPayload.case_number} (${totalBytes} bytes) [${ids}]`,
+                            req,
+                        ).catch(() => {});
+                    }
+                    if (uploadedVideoMeta) {
+                        logActivity(
+                            supabase, actor, 'EVIDENCE_VIDEO_UPLOADED',
+                            `Video stamped & stored for Case ${dbPayload.case_number} (${uploadedVideoMeta.bytes} bytes) [${uploadedVideoMeta.public_id}]`,
+                            req,
+                        ).catch(() => {});
+                    }
+
                     if (isOnline) createNotification(supabase, secureComplainantId, "Report Received", `Under review.`, 'blotter').catch(() => {});
                     notifyAllAdmins(supabase, "New Incident", `Case ${dbPayload.case_number} filed.`, 'blotter').catch(() => {});
                     

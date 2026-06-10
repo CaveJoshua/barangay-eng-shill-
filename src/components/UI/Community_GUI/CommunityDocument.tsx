@@ -1,15 +1,17 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import Document_view from '../../forms/Community_Document_view'; 
-import Community_Document_Request from '../../buttons/Community_Document_Request'; 
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import Document_view from '../../forms/Community_Document_view';
+import Community_Document_Request from '../../buttons/Community_Document_Request';
 import "./Styles/CommunityDocument.css";
 import "./Styles/CommunityDocumentmobile.css";
 
 interface DocumentProps {
-  data: any[]; 
+  data: any[];
   activeTab: string;
   setActiveTab: (tab: string) => void;
   resident: any;
   refresh: () => void;
+  /** Reference / id (or '__LATEST__') of a request to scroll to & glow, set by a notification click. */
+  highlightId?: string;
 }
 
 const statusTabs = [
@@ -49,16 +51,21 @@ const statusMatchesTab = (effectiveStatus: string, tabId: string): boolean => {
   return s === t;
 };
 
-const Community_Document: React.FC<DocumentProps> = ({ 
-  data, 
-  activeTab, 
+const Community_Document: React.FC<DocumentProps> = ({
+  data,
+  activeTab,
   setActiveTab,
   resident,
-  refresh 
+  refresh,
+  highlightId,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<any>(null);
+
+  // 🎯 NOTIFICATION HIGHLIGHTER — mirrors the Admin Document targeting engine.
+  const [activeHighlight, setActiveHighlight] = useState<string | null>(null);
+  const processedHighlightId = useRef<string | undefined>(undefined);
 
   // 🛡️ SELF-HEALING TAB STATE
   useEffect(() => {
@@ -67,6 +74,39 @@ const Community_Document: React.FC<DocumentProps> = ({
       setActiveTab('Pending');
     }
   }, [activeTab, setActiveTab]);
+
+  // 🎯 TARGETING ENGINE: when a notification hands us a reference/id, switch to
+  // that request's status tab, isolate it via search, and pulse the card for ~3s.
+  // Falls back to the most-recent request when no specific match is resolvable
+  // (the '__LATEST__' sentinel, or a notification with no embedded reference).
+  useEffect(() => {
+    if (!highlightId || processedHighlightId.current === highlightId || !data || data.length === 0) return;
+
+    const wanted = String(highlightId).toUpperCase();
+    const matches = (doc: any) =>
+      String(doc.id ?? '').toUpperCase() === wanted ||
+      String(doc.record_id ?? '').toUpperCase() === wanted ||
+      String(doc.reference_no ?? '').toUpperCase() === wanted ||
+      String(doc.referenceNo ?? '').toUpperCase() === wanted ||
+      String(doc.control_no ?? '').toUpperCase() === wanted;
+
+    // Specific record first; otherwise the resident's most recent request (data is date-desc).
+    const target = data.find(matches) || data[0];
+    if (!target) return;
+
+    processedHighlightId.current = highlightId;
+
+    const tab = statusTabs.find(t => statusMatchesTab(getEffectiveStatus(target), t.id));
+    if (tab) setActiveTab(tab.id);
+
+    const ref = target.reference_no || target.referenceNo || target.control_no || '';
+    setSearchQuery(ref ? String(ref) : '');
+
+    setActiveHighlight(String(target.id ?? target.record_id));
+    const timer = setTimeout(() => setActiveHighlight(null), 3000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightId, data]);
 
   // ───────────────────────────────────────────────────────────────────────────
   // PROCESSED DATA
@@ -192,9 +232,10 @@ const Community_Document: React.FC<DocumentProps> = ({
 
       <div className="CM_DOC_MAIN_LAYOUT">
         {processedData.length > 0 ? (
-          <Document_view 
-              data={processedData} 
-              onSelect={(item) => setSelectedDoc(item)} 
+          <Document_view
+              data={processedData}
+              onSelect={(item) => setSelectedDoc(item)}
+              highlightId={activeHighlight}
           />
         ) : (
           <div className="CM_DOC_EMPTY_STATE">

@@ -15,9 +15,11 @@ interface DocItem {
 interface Props {
   data: DocItem[];
   onSelect: (item: DocItem) => void;
+  /** Id of the row to glow (set by the notification highlighter). */
+  highlightId?: string | null;
 }
 
-const Community_Document_view: React.FC<Props> = ({ data, onSelect }) => {
+const Community_Document_view: React.FC<Props> = ({ data, onSelect, highlightId }) => {
   if (!data || !Array.isArray(data) || data.length === 0) return null;
 
   return (
@@ -30,9 +32,16 @@ const Community_Document_view: React.FC<Props> = ({ data, onSelect }) => {
         // Status Flags
         const isRejected = statusUpper === 'REJECTED';
         const isReady = statusUpper === 'READY' || statusUpper === 'READY_FOR_PICKUP';
+        const isHighlighted = highlightId != null && String(req.id) === String(highlightId);
 
         return (
-          <div key={req.id || Math.random().toString()} className="CM_DOC_LONG_PANEL" onClick={() => onSelect(req)}>
+          <div
+            key={req.id || Math.random().toString()}
+            data-row-id={req.id}
+            ref={(el) => { if (el && isHighlighted) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}
+            className={`CM_DOC_LONG_PANEL ${isHighlighted ? 'notif-highlight-row' : ''}`}
+            onClick={() => onSelect(req)}
+          >
             
             {/* ── TOP SECTION: Icon, Title, Status ── */}
             <div className="CM_DOC_PANEL_TOP">
