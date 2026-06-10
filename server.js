@@ -33,7 +33,7 @@ const PORT = process.env.PORT || 8000;
 // 🛡️ CORS — explicit allowlist, no wildcard
 // ==========================================
 const ALLOWED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173'];
-const isCloudflareOrigin = (origin) => origin && origin.endsWith('.barangay-engineer-s-hill.pages.dev');
+const isCloudflareOrigin = (origin) => origin && origin.endsWith('.barangay-engineer-s-hill.pages.dev','.barangay-engineers-hill.pages.dev');
 
 const corsOptions = {
     origin: (origin, callback) => {
