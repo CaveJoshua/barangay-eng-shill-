@@ -3,6 +3,138 @@
    Theme: Engineer's Hill Premium (v1.1)
    Features: Floating Dropdown, Glassmorphism & Mobile Fixed View
    ========================================================= */
+/* ═══════════════════════════════════════════════════════════════════════════
+   ADDITIONS — append these to the bottom of CommunityNotification.css
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── HEADER LAYOUT ─────────────────────────────────────────────────────────── */
+.NOTIF_DROPDOWN_HEADER {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.NOTIF_HEADER_RIGHT {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── CLEAR ALL BUTTON ──────────────────────────────────────────────────────── */
+.NOTIF_CLEAR_ALL_BTN {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(239, 68, 68, 0.10);
+  color: #ef4444;
+  font-size: 0.70rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s;
+  white-space: nowrap;
+}
+.NOTIF_CLEAR_ALL_BTN:hover {
+  background: rgba(239, 68, 68, 0.22);
+}
+
+/* ── CLICKABLE NOTIFICATION ITEM ───────────────────────────────────────────── */
+.NOTIF_ITEM {
+  position: relative;       /* anchors the absolute × and chevron */
+  cursor: pointer;
+  padding-right: 52px;      /* room for chevron (16px) + × button (22px) + gap */
+  transition: background 0.15s, transform 0.12s;
+  outline: none;
+}
+.NOTIF_ITEM:hover,
+.NOTIF_ITEM:focus-visible {
+  background: rgba(255, 255, 255, 0.04);
+  transform: translateX(2px);
+}
+.NOTIF_ITEM:active {
+  transform: translateX(4px) scale(0.985);
+}
+
+/* ── CHEVRON (navigable indicator, slides in on hover) ─────────────────────── */
+.NOTIF_GOTO_ARROW {
+  position: absolute;
+  right: 32px;
+  top: 50%;
+  transform: translateY(-50%) translateX(5px);
+  font-size: 0.65rem;
+  color: var(--text-muted, #6b7280);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s, transform 0.18s;
+}
+.NOTIF_ITEM:hover .NOTIF_GOTO_ARROW,
+.NOTIF_ITEM:focus-visible .NOTIF_GOTO_ARROW {
+  opacity: 0.7;
+  transform: translateY(-50%) translateX(0);
+}
+
+/* ── DISMISS (×) BUTTON ────────────────────────────────────────────────────── */
+.NOTIF_DISMISS_BTN {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted, #9ca3af);
+  font-size: 0.68rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+.NOTIF_ITEM:hover .NOTIF_DISMISS_BTN,
+.NOTIF_ITEM:focus-visible .NOTIF_DISMISS_BTN {
+  opacity: 1;
+}
+.NOTIF_DISMISS_BTN:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+/* Always show on touch devices (no hover state) */
+@media (hover: none) {
+  .NOTIF_DISMISS_BTN  { opacity: 0.55; }
+  .NOTIF_GOTO_ARROW   { opacity: 0.45; transform: translateY(-50%) translateX(0); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ROW HIGHLIGHT PULSE — used by useNotificationHighlight on destination pages
+   
+   This class is applied to  [data-row-id="{id}"]  elements by the hook.
+   Because CommunityNotification.css is always loaded, these rules are globally
+   available. No need to copy them to Documents.css / Blotter.css.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.notif-highlight-row {
+  animation: notifRowPulse 2.8s ease-out forwards;
+}
+
+@keyframes notifRowPulse {
+  0%   {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.70);
+    background: rgba(59, 130, 246, 0.10);
+  }
+  55%  {
+    box-shadow: 0 0 0 7px rgba(59, 130, 246, 0.12);
+  }
+  100% {
+    box-shadow: none;
+    background: transparent;
+  }
+}
+
 
 .CM_NOTIF_CONTAINER {
     position: relative;
