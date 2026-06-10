@@ -6,6 +6,7 @@ import { ApiService } from '../api';
 interface IAccount {
   id:          string;
   username:    string;
+  email?:      string; // 🛡️ ADDED: Allows fallback to email
   role:        string;
   status?:     string;
   created_at?: string;
@@ -192,8 +193,17 @@ export default function AccountManagement() {
     setModalLoading(true);
     setModalError('');
 
+    // 🛡️ THE FIX: Smart Identifier Fallback
+    const targetIdentifier = selectedAccount.username || selectedAccount.email || selectedAccount.id;
+
+    if (!targetIdentifier || targetIdentifier.trim() === '') {
+      setModalError('This account is missing a username or email. Cannot process reset.');
+      setModalLoading(false);
+      return;
+    }
+
     try {
-      const response = await ApiService.requestPasswordResetOTP(selectedAccount.username, useFallback);
+      const response = await ApiService.requestPasswordResetOTP(targetIdentifier, useFallback);
       if (response.success) {
         setResetStep('OTP');
       } else {
@@ -212,8 +222,11 @@ export default function AccountManagement() {
     setModalLoading(true);
     setModalError('');
 
+    // 🛡️ THE FIX: Smart Identifier Fallback matches request step
+    const targetIdentifier = selectedAccount.username || selectedAccount.email || selectedAccount.id;
+
     try {
-      const response = await ApiService.verifyOTP(selectedAccount.username, resetOtp);
+      const response = await ApiService.verifyOTP(targetIdentifier, resetOtp);
       if (response.success) {
         setResetStep('PASSWORD');
       } else {
@@ -260,7 +273,7 @@ export default function AccountManagement() {
   const canChangePassword = useCallback((targetAcc: IAccount) => {
     const targetRole = (targetAcc.role || '').toLowerCase().replace(/\s+/g, '');
     
-    // 🛡️ THE FIX: Allow superadmin OR barangayhall itself to change the barangayhall password
+    // 🛡️ Allow superadmin OR barangayhall itself to change the barangayhall password
     if (targetRole === 'barangayhall' && currentUserRole !== 'superadmin' && currentUserRole !== 'barangayhall') {
       return false;
     }
@@ -465,7 +478,7 @@ export default function AccountManagement() {
                         </div>
                       </td>
                       <td>
-                        <span className="ACC_TEXT_MUTED">{acc.username}</span>
+                        <span className="ACC_TEXT_MUTED">{acc.username || acc.email}</span>
                       </td>
                       <td>
                         <span className={`ACC_BADGE ${isAdmin ? 'ACC_BADGE_ADMIN' : 'ACC_BADGE_RESIDENT'}`}>
