@@ -1,161 +1,288 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { ApiService } from '../api'; // 🎯 THE FIX: Import ApiService for direct fetching
+import { useNavigate } from 'react-router-dom';
+import { ApiService } from '../api';
 import "./Styles/CommunityNotification.css";
 
-interface NotificationProps {
-  notifications?: any[]; 
-  blotters: any[];
-  documents: any[];
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// ROUTE MAP — adjust paths to match your actual React Router routes
+// ─────────────────────────────────────────────────────────────────────────────
+const NOTIF_ROUTE_MAP: Record<string, string> = {
+  document: '/documents',
+  blotter:  '/blotter',
+  default:  '/dashboard',
+};
 
-const Community_Notification: React.FC<NotificationProps> = ({ notifications: dbNotifications = [], blotters, documents }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  
-  // 🎯 THE FIX: Add local state to hold the instantly fetched notifications
-  const [liveNotifications, setLiveNotifications] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+// ─────────────────────────────────────────────────────────────────────────────
+// HIGHLIGHT HOOK — paste this call into Documents.tsx and Blotter.tsx:
+//
+//   import { useNotificationHighlight } from '../components/Community_Notification';
+//   // inside the component (top level):
+//   useNotificationHighlight();
+//
+// Also add  data-row-id={item.id}  to every table row / card in those pages.
+// The hook reads sessionStorage, waits for the row to render, then scrolls
+// to it and fires the  .notif-highlight-row  CSS animation.
+// ─────────────────────────────────────────────────────────────────────────────
+const _HL_KEY = '__notif_target__';
 
-  // ── 🛡️ CLOSE ON CLICK OUTSIDE ──
+export const useNotificationHighlight = (): void => {
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
+    const raw = sessionStorage.getItem(_HL_KEY);
+    if (!raw) return;
+
+    let target: { id: string; ts: number };
+    try { target = JSON.parse(raw); } catch { return; }
+
+    // Ignore if stale (user navigated manually, not via a notification click)
+    if (Date.now() - target.ts > 5_000) {
+      sessionStorage.removeItem(_HL_KEY);
+      return;
+    }
+    sessionStorage.removeItem(_HL_KEY);
+
+    // Retry until the row is in the DOM (async data loads), then scroll + pulse
+    const tryHighlight = (attempt = 0) => {
+      const el = document.querySelector<HTMLElement>(`[data-row-id="${target.id}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('notif-highlight-row');
+        setTimeout(() => el.classList.remove('notif-highlight-row'), 2_800);
+      } else if (attempt < 14) {
+        setTimeout(() => tryHighlight(attempt + 1), 150); // retries up to ~2 s
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    tryHighlight();
+  }, []);
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TYPES
+// ─────────────────────────────────────────────────────────────────────────────
+interface NotificationProps {
+  notifications?: any[];
+  blotters:        any[];
+  documents:       any[];
+}
+
+interface NotifItem {
+  id:      string; // composed key e.g. "db-42", "doc-7"
+  rawId:   string; // original DB / prop ID used for API calls & row matching
+  type:    string;
+  title:   string;
+  message: string;
+  time:    string;
+  icon:    string;
+  color:   string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPONENT
+// ─────────────────────────────────────────────────────────────────────────────
+const Community_Notification: React.FC<NotificationProps> = ({
+  notifications: dbNotifications = [],
+  blotters,
+  documents,
+}) => {
+  const navigate = useNavigate();
+
+  const [isOpen,            setIsOpen]       = useState(false);
+  const [liveNotifications, setLiveNotifs]   = useState<any[]>([]);
+  const [dismissedIds,      setDismissedIds] = useState<Set<string>>(new Set());
+  const [isLoading,         setIsLoading]    = useState(true);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // ── CLOSE ON CLICK OUTSIDE ──────────────────────────────────────────────────
+  useEffect(() => {
+    const onOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node))
+        setIsOpen(false);
+    };
+    document.addEventListener('mousedown', onOutside);
+    return () => document.removeEventListener('mousedown', onOutside);
   }, []);
 
-  // ── 🛡️ PRIORITIZED FIRST FETCH ──
-  // This bypasses the parent dashboard and grabs notifications immediately on mount
+  // ── FAST FIRST FETCH ────────────────────────────────────────────────────────
   useEffect(() => {
-    const fetchLatestNotifications = async () => {
+    (async () => {
       try {
         setIsLoading(true);
         const data = await ApiService.getNotifications();
-        if (data) {
-          setLiveNotifications(data);
-        }
+        if (data) setLiveNotifs(data);
       } catch (err) {
-        console.error("Fast Notification Fetch Error:", err);
+        console.error('[Notification] Fetch error:', err);
       } finally {
         setIsLoading(false);
       }
-    };
-
-    fetchLatestNotifications();
+    })();
   }, []);
 
-  // 🛡️ SYNC WITH PARENT: If the parent dashboard eventually loads and sends new notifications, update the local state
+  // ── SYNC WITH PARENT ────────────────────────────────────────────────────────
   useEffect(() => {
-    if (dbNotifications && dbNotifications.length > 0) {
-      setLiveNotifications(dbNotifications);
-    }
+    if (dbNotifications?.length > 0) setLiveNotifs(dbNotifications);
   }, [dbNotifications]);
 
-  // ── 🔍 GENERATE NOTIFICATIONS FROM DATA ──
-  const notificationsList = useMemo(() => {
-    const list: any[] = [];
-    const now = new Date(); // Current time to check against expirations
+  // ── BUILD NOTIFICATION LIST ─────────────────────────────────────────────────
+  const notificationsList = useMemo<NotifItem[]>(() => {
+    const list: NotifItem[] = [];
+    const now = new Date();
 
-    // 1. 🛡️ REAL DATABASE NOTIFICATIONS (Using the instantly fetched state)
-    liveNotifications?.forEach((notif) => {
-      
-      // EXPIRATION CHECK: If an expiration date exists and has passed, hide it immediately
-      const isExpired = notif.expires_at ? new Date(notif.expires_at) < now : false;
+    // 1. Real DB notifications
+    liveNotifications?.forEach((n) => {
+      if (n.is_read || (n.expires_at && new Date(n.expires_at) < now)) return;
+      const id = `db-${n.id}`;
+      if (dismissedIds.has(id)) return;
 
-      // Only show unread, non-expired notifications
-      if (!notif.is_read && !isExpired) {
-        let icon = 'fas fa-bell';
-        let color = '#3b82f6'; // Default blue
+      let icon = 'fas fa-bell', color = '#3b82f6';
+      if (n.type === 'document') { icon = 'fas fa-file-alt';   color = '#10b981'; }
+      if (n.type === 'blotter')  { icon = 'fas fa-shield-alt'; color = '#f59e0b'; }
 
-        // Match the icon/color to the type
-        if (notif.type === 'document') {
-          icon = 'fas fa-file-alt';
-          color = '#10b981'; // Green
-        } else if (notif.type === 'blotter') {
-          icon = 'fas fa-shield-alt';
-          color = '#f59e0b'; // Orange
-        }
-
-        list.push({
-          id: `db-${notif.id}`,
-          type: notif.type,
-          title: notif.title,
-          message: notif.message,
-          time: notif.created_at ? new Date(notif.created_at).toLocaleDateString() : 'New',
-          icon: icon,
-          color: color
-        });
-      }
+      list.push({
+        id, rawId: String(n.id), type: n.type,
+        title:   n.title,
+        message: n.message,
+        time:    n.created_at ? new Date(n.created_at).toLocaleDateString() : 'New',
+        icon, color,
+      });
     });
 
-    // 2. CHECK DOCUMENTS (Fallback for Ready Pickup)
-    documents?.forEach((doc, index) => {
-      if (doc.status?.toLowerCase() === 'ready') {
-        list.push({
-          id: `doc-${doc.id || doc.reference_no || index}`, 
-          type: 'document',
-          title: 'Document Ready',
-          message: `Your ${doc.type} is ready for pickup at the barangay hall.`,
-          time: 'Action Required',
-          icon: 'fas fa-file-export',
-          color: '#10b981'
-        });
-      }
+    // 2. Document fallbacks (ready for pickup)
+    documents?.forEach((doc, i) => {
+      if (doc.status?.toLowerCase() !== 'ready') return;
+      const id = `doc-${doc.id ?? doc.reference_no ?? i}`;
+      if (dismissedIds.has(id)) return;
+      list.push({
+        id, rawId: String(doc.id ?? doc.reference_no ?? i), type: 'document',
+        title:   'Document Ready',
+        message: `Your ${doc.type} is ready for pickup at the barangay hall.`,
+        time:    'Action Required', icon: 'fas fa-file-export', color: '#10b981',
+      });
     });
 
-    // 3. CHECK BLOTTERS (Fallback for Hearings)
-    blotters?.forEach((caseItem, index) => {
-      if (caseItem.status?.toLowerCase() === 'hearing') {
-        list.push({
-          id: `blot-${caseItem.id || caseItem.case_no || caseItem.case_number || index}`, 
-          type: 'blotter',
-          title: 'Hearing Scheduled',
-          message: `A hearing is scheduled for Case #${caseItem.case_no || caseItem.case_number || 'Pending'}.`,
-          time: 'Check Schedule',
-          icon: 'fas fa-gavel',
-          color: '#f59e0b'
-        });
-      }
+    // 3. Blotter fallbacks (hearing scheduled)
+    blotters?.forEach((c, i) => {
+      if (c.status?.toLowerCase() !== 'hearing') return;
+      const id = `blot-${c.id ?? c.case_no ?? c.case_number ?? i}`;
+      if (dismissedIds.has(id)) return;
+      list.push({
+        id, rawId: String(c.id ?? c.case_no ?? c.case_number ?? i), type: 'blotter',
+        title:   'Hearing Scheduled',
+        message: `A hearing is scheduled for Case #${c.case_no ?? c.case_number ?? 'Pending'}.`,
+        time:    'Check Schedule', icon: 'fas fa-gavel', color: '#f59e0b',
+      });
     });
 
     return list;
-  }, [liveNotifications, blotters, documents]);
+  }, [liveNotifications, blotters, documents, dismissedIds]);
 
   const unreadCount = notificationsList.length;
 
+  // ── HANDLERS ────────────────────────────────────────────────────────────────
+
+  /**
+   * Clicking a notification card:
+   *  1. Optimistically removes it from the list.
+   *  2. Calls markNotificationRead (fire-and-forget for DB items).
+   *  3. Writes the target ID to sessionStorage so the destination page
+   *     can scroll to and pulse the matching row.
+   *  4. Navigates to the correct page.
+   */
+  const handleNotificationClick = (notif: NotifItem) => {
+    // Optimistic removal
+    if (notif.id.startsWith('db-')) {
+      setLiveNotifs(prev => prev.filter(n => String(n.id) !== notif.rawId));
+      ApiService.markNotificationRead(notif.rawId).catch(() => {});
+    } else {
+      setDismissedIds(prev => new Set(prev).add(notif.id));
+    }
+
+    // Signal destination page → scroll to & highlight this row
+    sessionStorage.setItem(_HL_KEY, JSON.stringify({ id: notif.rawId, ts: Date.now() }));
+
+    const path = NOTIF_ROUTE_MAP[notif.type] ?? NOTIF_ROUTE_MAP.default;
+    navigate(path, { state: { highlightId: notif.rawId, highlightType: notif.type } });
+
+    setIsOpen(false);
+  };
+
+  /**
+   * × button: dismiss the notification in-place without navigating anywhere.
+   * stopPropagation prevents the card's click handler from also firing.
+   */
+  const handleDismissOne = (e: React.MouseEvent, notif: NotifItem) => {
+    e.stopPropagation();
+    if (notif.id.startsWith('db-')) {
+      setLiveNotifs(prev => prev.filter(n => String(n.id) !== notif.rawId));
+      ApiService.markNotificationRead(notif.rawId).catch(() => {});
+    } else {
+      setDismissedIds(prev => new Set(prev).add(notif.id));
+    }
+  };
+
+  /** "Clear All" button: wipe every visible notification at once. */
+  const handleClearAll = () => {
+    ApiService.clearAllNotifications().catch(() => {});
+    setLiveNotifs([]);
+    setDismissedIds(new Set(notificationsList.map(n => n.id)));
+  };
+
+  // ── RENDER ──────────────────────────────────────────────────────────────────
   return (
     <div className="CM_NOTIF_CONTAINER" ref={dropdownRef}>
-      {/* ── BELL TRIGGER ── */}
-      <button 
-        className={`CM_NOTIF_BELL_BTN ${isOpen ? 'ACTIVE' : ''}`} 
-        onClick={() => setIsOpen(!isOpen)}
+
+      {/* BELL TRIGGER */}
+      <button
+        className={`CM_NOTIF_BELL_BTN ${isOpen ? 'ACTIVE' : ''}`}
+        onClick={() => setIsOpen(p => !p)}
       >
         <i className="fas fa-bell" />
         {unreadCount > 0 && <span className="CM_NOTIF_BADGE">{unreadCount}</span>}
       </button>
 
-      {/* ── DROPDOWN MENU ── */}
+      {/* DROPDOWN */}
       <div className={`CM_NOTIF_DROPDOWN ${isOpen ? 'OPEN' : ''}`}>
+
         <header className="NOTIF_DROPDOWN_HEADER">
           <h3>Notifications</h3>
-          {unreadCount > 0 && <span className="UNREAD_LBL">{unreadCount} New</span>}
+          <div className="NOTIF_HEADER_RIGHT">
+            {unreadCount > 0 && <span className="UNREAD_LBL">{unreadCount} New</span>}
+            {unreadCount > 0 && (
+              <button
+                className="NOTIF_CLEAR_ALL_BTN"
+                onClick={handleClearAll}
+                title="Clear all notifications"
+              >
+                <i className="fas fa-trash-alt" />
+                <span>Clear All</span>
+              </button>
+            )}
+          </div>
         </header>
 
         <div className="NOTIF_LIST_AREA">
           {isLoading ? (
             <div className="NOTIF_EMPTY_STATE" style={{ opacity: 0.7 }}>
-               <i className="fas fa-circle-notch fa-spin" />
-               <p>Syncing updates...</p>
+              <i className="fas fa-circle-notch fa-spin" />
+              <p>Syncing updates...</p>
             </div>
+
           ) : notificationsList.length > 0 ? (
             notificationsList.map((notif) => (
-              <div key={notif.id} className="NOTIF_ITEM">
-                <div className="NOTIF_ICON_BOX" style={{ backgroundColor: `${notif.color}15`, color: notif.color }}>
+              <div
+                key={notif.id}
+                className="NOTIF_ITEM"
+                onClick={() => handleNotificationClick(notif)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => e.key === 'Enter' && handleNotificationClick(notif)}
+                title={`Go to ${notif.type}`}
+              >
+                <div
+                  className="NOTIF_ICON_BOX"
+                  style={{ backgroundColor: `${notif.color}15`, color: notif.color }}
+                >
                   <i className={notif.icon} />
                 </div>
+
                 <div className="NOTIF_BODY">
                   <div className="NOTIF_TOP">
                     <strong>{notif.title}</strong>
@@ -163,8 +290,22 @@ const Community_Notification: React.FC<NotificationProps> = ({ notifications: db
                   </div>
                   <p>{notif.message}</p>
                 </div>
+
+                {/* Chevron: slides in on hover to indicate the item is navigable */}
+                <i className="fas fa-chevron-right NOTIF_GOTO_ARROW" aria-hidden="true" />
+
+                {/* × dismiss in-place without navigating */}
+                <button
+                  className="NOTIF_DISMISS_BTN"
+                  onClick={(e) => handleDismissOne(e, notif)}
+                  title="Dismiss"
+                  aria-label="Dismiss notification"
+                >
+                  <i className="fas fa-times" />
+                </button>
               </div>
             ))
+
           ) : (
             <div className="NOTIF_EMPTY_STATE">
               <i className="fas fa-bell-slash" />
