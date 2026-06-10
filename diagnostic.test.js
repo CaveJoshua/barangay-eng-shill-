@@ -393,7 +393,7 @@ await test('POST /api/residents → 10mb', () => {
 });
 
 await test('no route exceeds 50mb (200mb DoS hole closed)', () => {
-    const paths = ['/api/announcements', '/api/residents', '/api/documents', '/api/graphql/auth'];
+    const paths = ['/api/announcements', '/api/residents', '/api/documents', '/api/auth'];
     for (const p of paths) {
         for (const m of ['POST', 'PUT', 'GET']) {
             assert.notStrictEqual(getGlobalBodyLimit(m, p), '200mb');
