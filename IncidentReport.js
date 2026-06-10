@@ -1,10 +1,4 @@
-### Finalized `BlotterRouter.js`
 
-Here is the complete, updated `BlotterRouter.js` file. A tiered daily rate limiter has been integrated via `rate-limiter-flexible`. It enforces a strict **2 submissions per day hard cap** for residents to block potential spam vectors, while seamlessly granting full bypass capabilities to administrative roles (`admin`, `superadmin`, `staff`, `barangayhall`) so day-to-day office walk-in intake operations remain unaffected.
-
-The rate limiting evaluation is performed *before* handling file streams, ensuring malicious or rate-limited requests fail fast without wasting server memory or Cloudinary API resource bandwidth.
-
-```javascript
 import { logActivity } from './Auditlog.js';
 import { sendAutoMail } from './Mailer.js';
 import multer from 'multer';
@@ -385,4 +379,4 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
     );
 };
 
-```
+
