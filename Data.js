@@ -111,11 +111,15 @@ export const authorizeRoles = (allowedRoles) => {
 // 2. GLOBAL MIDDLEWARE & SECURITY HEADERS
 // ==========================================
 
-// 🛡️ DYNAMIC CORS REPLACEMENT 🛡️
 const corsOptions = {
   origin: (origin, callback) => {
     const allowedLocal = ['http://localhost:5173', 'http://127.0.0.1:5173'];
-    const isCloudflare = origin && origin.endsWith('.barangay-engineer-s-hill.pages.dev','.barangay-engineers-hill.pages.dev');
+    
+    // 🛡️ THE FIX: Check both suffixes explicitly using separate endsWith statements
+    const isCloudflare = origin && (
+      origin.endsWith('.barangay-engineer-s-hill.pages.dev') || 
+      origin.endsWith('.barangay-engineers-hill.pages.dev')
+    );
 
     if (!origin || allowedLocal.includes(origin) || isCloudflare) {
       callback(null, true);
@@ -125,7 +129,7 @@ const corsOptions = {
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-role','x-resident-id','X-XSRF-TOKEN'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-role', 'x-resident-id', 'X-XSRF-TOKEN'],
   credentials: true,
   optionsSuccessStatus: 200
 };
