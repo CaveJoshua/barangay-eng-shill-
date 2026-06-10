@@ -52,7 +52,7 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
   }, [importProgress]);
 
   // ==========================================================
-  // 🛡️ DYNAMIC PERMISSION CHECK (RBAC) - UPDATED
+  // 🛡️ DYNAMIC PERMISSION CHECK (RBAC)
   // ==========================================================
   useEffect(() => {
     try {
@@ -68,7 +68,6 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
         role = (localStorage.getItem('user_role') || '').toLowerCase().replace(/\s+/g, '');
       }
 
-      // Strict Whitelist for Data Handlers
       const allowedRoles = [
         'superadmin', 
         'barangaysecretary', 
@@ -76,10 +75,9 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
         'barangayhall', 
         'bhw', 
         'barangayhealthworker',
-        'punongbarangay' // Added to cover specific positions
+        'punongbarangay'
       ];
 
-      // Check both role and position to ensure one doesn't accidentally lock out the other
       const hasAllowedRole = allowedRoles.includes(role);
       const hasAllowedPosition = allowedRoles.includes(pos);
 
@@ -156,9 +154,6 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
     fetchResidents(false, valve.signal);
 
     const autoLoader = setInterval(() => {
-      // 🔒 FIX: Do NOT fire auto-refresh while a CSV import is in progress.
-      // Doing so risks sending a competing request that could confuse
-      // the backend or trigger abort signals mid-upload.
       if (document.visibilityState === 'visible' && importProgressRef.current === null) {
         fetchResidents(true, valve.signal);
       }
@@ -199,44 +194,79 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
   };
 
   // ==========================================================
-  // FILTER & SEARCH ENGINE
+  // 🛡️ REFACTORED HARDENED FILTER & SEARCH ENGINE
   // ==========================================================
   const filteredResidents = useMemo(() => {
+    const searchStr = searchTerm.toLowerCase().trim();
+
     return residents.filter((res) => {
       const currentStatus = (res.activityStatus || 'Active').toUpperCase();
       
-      if (['ARCHIVED', 'DECEASED', 'RELOCATED', 'INACTIVE'].includes(currentStatus)) return false;
+      // 1. Permanently isolate terminal/archived accounts out of active lists
+      if (['ARCHIVED', 'DECEASED', 'RELOCATED', 'INACTIVE'].includes(currentStatus)) {
+        return false;
+      }
 
-      const fullName = `${res.lastName || ''}, ${res.firstName || ''}`.toLowerCase();
-      const searchStr = searchTerm.toLowerCase();
-      
-      const matchesSearch = !searchTerm || 
-                            fullName.includes(searchStr) || 
-                            String(res.id) === searchTerm;
+      // 2. Perform clean, structured search mapping (handles both "Last, First" and "First Last")
+      const lastName = (res.lastName || '').toLowerCase();
+      const firstName = (res.firstName || '').toLowerCase();
+      const fullNameFormat = `${lastName}, ${firstName}`;
+      const cleanFullName = `${firstName} ${lastName}`;
+      const stringId = String(res.id || '').toLowerCase();
+
+      const matchesSearch = !searchStr || 
+                            fullNameFormat.includes(searchStr) || 
+                            cleanFullName.includes(searchStr) || 
+                            stringId === searchStr;
 
       if (!matchesSearch) return false;
 
-      if (filter === 'All Residents') return true;
-      if (filter === 'Active Residents') return currentStatus === 'ACTIVE';
+      // Safe evaluation utility to process messy boolean/string flags incoming from backend
+      const parseSecureFlag = (flag: any): boolean => {
+        if (typeof flag === 'boolean') return flag;
+        const normalized = String(flag || '').toLowerCase().trim();
+        return normalized === 'true' || normalized === 'yes' || normalized === '1' || flag === 1;
+      };
 
-      let age = 0;
-      if (res.dob) {
-        const birth = new Date(res.dob);
-        if (!isNaN(birth.getTime())) {
+      // 3. Process categorical selection matrices cleanly via dynamic switch mapping
+      switch (filter) {
+        case 'Active Residents':
+          return currentStatus === 'ACTIVE';
+
+        case 'Voters':
+          return parseSecureFlag(res.isVoter);
+
+        case '4Ps Beneficiaries':
+          return parseSecureFlag(res.is4Ps);
+
+        case 'PWD':
+          return parseSecureFlag(res.isPWD);
+
+        case 'Minors (0-17)':
+        case 'Adults (18-59)':
+        case 'Seniors (60+)': {
+          if (!res.dob) return false;
+          const birth = new Date(res.dob);
+          if (isNaN(birth.getTime())) return false;
+
           const today = new Date();
-          age = today.getFullYear() - birth.getFullYear();
-          const m = today.getMonth() - birth.getMonth();
-          if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-        }
-      }
+          let calculatedAge = today.getFullYear() - birth.getFullYear();
+          const monthDifference = today.getMonth() - birth.getMonth();
+          
+          if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birth.getDate())) {
+            calculatedAge--;
+          }
 
-      if (filter === 'Minors (0-17)') return age < 18;
-      if (filter === 'Seniors (60+)') return age >= 60;
-      if (filter === 'Adults (18-59)') return age >= 18 && age < 60;
-      if (filter === 'Voters') return res.isVoter;
-      if (filter === '4Ps Beneficiaries') return res.is4Ps;
-      if (filter === 'PWD') return res.isPWD;
-      return true;
+          if (filter === 'Minors (0-17)') return calculatedAge >= 0 && calculatedAge < 18;
+          if (filter === 'Adults (18-59)') return calculatedAge >= 18 && calculatedAge < 60;
+          if (filter === 'Seniors (60+)') return calculatedAge >= 60;
+          return true;
+        }
+
+        case 'All Residents':
+        default:
+          return true;
+      }
     });
   }, [residents, filter, searchTerm]);
 
@@ -387,17 +417,17 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
           <div style={{ backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', marginBottom: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                 <h3 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <i className="fas fa-clipboard-check" style={{ color: '#3b82f6' }}></i> Import Summary
+                  <i className="fas fa-clipboard-check" style={{ color: '#3b82f6' }}></i> Import Summary
                 </h3>
                 <button onClick={() => setImportSummary(null)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#64748b' }}>&times;</button>
             </div>
             
             <div style={{ display: 'flex', gap: '20px', marginBottom: '16px' }}>
                 <div style={{ backgroundColor: '#ecfdf5', color: '#065f46', padding: '10px 16px', borderRadius: '6px', fontWeight: 'bold' }}>
-                    Successfully Imported: {importSummary.importedCount}
+                  Successfully Imported: {importSummary.importedCount}
                 </div>
                 <div style={{ backgroundColor: '#fff1f2', color: '#991b1b', padding: '10px 16px', borderRadius: '6px', fontWeight: 'bold' }}>
-                    Duplicates Skipped: {importSummary.duplicateCount}
+                  Duplicates Skipped: {importSummary.duplicateCount}
                 </div>
             </div>
 
@@ -439,13 +469,10 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
             </div>
 
             <div className="RES_ACTION_GROUP">
-              {/* 🛡️ LOCKED DOWN: Only Data Handlers can Backup/Restore */}
               {canManageData && (
                 <>
                   <button
                     className="RES_BTN_ALT BTN_IMPORT"
-                    // 🔒 FIX: Also disabled while isSyncing to prevent a double-trigger
-                    // race where importProgress is still null but a sync is already running.
                     disabled={importProgress !== null || isSyncing}
                     onClick={() => fileInputRef.current?.click()}
                   >
@@ -469,7 +496,6 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
                 </>
               )}
 
-              {/* 👁️ VERIFY CHAIN IS GLOBALLY AVAILABLE */}
               <button
                 className="RES_BTN_ALT RES_BTN_VERIFY"
                 onClick={() => setIsVerifyModalOpen(true)}
@@ -477,7 +503,6 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
                 <i className="fas fa-link"></i> Verify Chain
               </button>
 
-              {/* 🛡️ LOCKED DOWN: Only Data Handlers can Add Identities */}
               {canManageData && (
                 <button
                   className="RES_ADD_BTN"
@@ -557,7 +582,6 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
                           </span>
                         </td>
                         <td className="RES_TABLE_ACTION_CELL" style={{ textAlign: 'right' }}>
-                          {/* 🛡️ LOCKED DOWN: Only Data Handlers can modify or deactivate records */}
                           {canManageData ? (
                             <select
                               className="RES_ACTION_SELECT"
@@ -580,7 +604,6 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
                                 <option value="status_Relocated">Set as Relocated (Move to Archive)</option>
                                 <option value="status_Deceased">Set as Deceased (Move to Archive)</option>
                               </optgroup>
-                              {/* Force Archive Removed Successfully */}
                             </select>
                           ) : (
                             <span style={{ fontSize: '0.8rem', fontStyle: 'italic', color: '#94a3b8', paddingRight: '12px' }}>
