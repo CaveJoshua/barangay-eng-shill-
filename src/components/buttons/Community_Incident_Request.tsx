@@ -28,15 +28,16 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   // ─── FORM & MEDIA STATE ─────────────────────────────────────────────────
-  const [formData, setFormData] = useState({
+  const formDataState = {
     respondent: '',
     purok: 'Purok 1',
     type: 'Noise Complaint',
     dateFiled: new Date().toISOString().split('T')[0],
     timeFiled: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
     narrative: '',
-  });
+  };
 
+  const [formData, setFormData] = useState(formDataState);
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const MAX_VIDEO_BYTES = 10 * 1024 * 1024;
@@ -108,6 +109,14 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
       setStep(1);
       setMediaFiles([]); 
       setVideoFile(null);
+      setFormData({
+        respondent: '',
+        purok: 'Purok 1',
+        type: 'Noise Complaint',
+        dateFiled: new Date().toISOString().split('T')[0],
+        timeFiled: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+        narrative: '',
+      });
     }
   }, [isOpen, formatToProperName]);
 
@@ -148,7 +157,6 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
         onSuccess(); 
         onClose();   
       } else {
-        // 🛡️ Handles rate limiting notifications cleanly
         const errorMessage = result.message || result.error || 'The system could not save your report.';
         alert(`Submission Flagged:\n${errorMessage}`);
       }
@@ -174,6 +182,10 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
           <div className="CIR_HEADER_TEXT">
               <h3>File Incident Report</h3>
               <p>Step {step} of 3: {step === 1 ? 'Parties Involved' : step === 2 ? 'Incident Details' : 'Review & Submit'}</p>
+              {/* 🛡️ REFLECTED: Proactive Header Warning label */}
+              <span style={{ display: 'block', color: '#dc2626', fontSize: '0.75rem', fontWeight: 700, marginTop: '4px' }}>
+                ⚠️ SYSTEM PROTECTION RULE: Strict limit of 2 report submissions per 24 hours.
+              </span>
           </div>
           <button className="CIR_CLOSE_BTN" onClick={onClose}><i className="fas fa-times"></i></button>
         </div>
@@ -371,9 +383,15 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
                       </div>
                    </div>
                 </div>
-                <div className="CIR_DISCLAIMER">
-                   <input type="checkbox" id="certify" checked readOnly />
-                   <label htmlFor="certify">I certify that the information provided is true and correct.</label>
+                {/* 🛡️ REFLECTED: Proactive Step 3 Disclaimer & Checkbox layout grouping */}
+                <div className="CIR_DISCLAIMER" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
+                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                     <input type="checkbox" id="certify" checked readOnly />
+                     <label htmlFor="certify">I certify that the information provided is true and correct.</label>
+                   </div>
+                   <small style={{ color: '#64748b', fontSize: '0.72rem', fontStyle: 'italic', fontWeight: 500 }}>
+                     * Notice: Submitting this form consumes 1 of your 2 available daily incident report filing slots.
+                   </small>
                 </div>
              </div>
            )}
