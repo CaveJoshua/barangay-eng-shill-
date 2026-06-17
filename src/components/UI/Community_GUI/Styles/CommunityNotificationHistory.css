@@ -300,11 +300,86 @@
   background: #374151;
 }
 
-/* ── 📱 MOBILE ── */
+/* ── 📱 MOBILE (≤768px) ─────────────────────────────────────────────────────
+   Bottom-nav clearance is already handled by .CM_PAGE_STAGE; here we just
+   reflow the header, filters and list to a single comfortable column. ── */
 @media (max-width: 768px) {
-  .CM_NH_HEADER_CARD { padding: 1.1rem 1.1rem; }
-  .CM_NH_HEADER_TEXT h1 { font-size: 1.15rem; }
-  .CM_NH_TOOLBAR { gap: 8px; }
-  .CM_NH_MARKALL_BTN { margin-left: 0; width: 100%; justify-content: center; }
+  .CM_NH_CONTAINER { gap: 1rem; }
+
+  /* HEADER — keep back + title inline, shrink the clear action to an icon */
+  .CM_NH_HEADER_CARD {
+    padding: 1rem 1.1rem;
+    gap: 12px;
+    border-radius: 16px;
+  }
+  .CM_NH_BACK_BTN { width: 40px; height: 40px; border-radius: 11px; }
+  .CM_NH_HEADER_TEXT h1 { font-size: 1.2rem; }
+  .CM_NH_HEADER_TEXT p { font-size: 0.78rem; }
+  .CM_NH_CLEAR_BTN {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 11px;
+  }
+  .CM_NH_CLEAR_BTN span { display: none; } /* icon-only on phones */
+
+  /* TOOLBAR — stack the filter rows */
+  .CM_NH_TOOLBAR {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 0.75rem;
+    border-radius: 16px;
+  }
   .CM_NH_DIVIDER { display: none; }
+
+  /* Status filters split the width evenly */
+  .CM_NH_STATUS_GROUP { width: 100%; }
+  .CM_NH_STATUS_GROUP .CM_NH_FILTER_BTN {
+    flex: 1;
+    justify-content: center;
+  }
+
+  /* Type filters become a swipeable row (matches the Bulletin filter pattern) */
+  .CM_NH_TYPE_GROUP {
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    /* bleed to the card edge so the last pill isn't clipped */
+    margin: 0 -0.75rem;
+    padding: 2px 0.75rem;
+  }
+  .CM_NH_TYPE_GROUP::-webkit-scrollbar { display: none; }
+  .CM_NH_TYPE_GROUP .CM_NH_TYPE_BTN { flex-shrink: 0; }
+
+  /* Mark-all spans the full width below the filters */
+  .CM_NH_MARKALL_BTN {
+    margin-left: 0;
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* LIST — tighter cards, let the title/date wrap instead of crowding */
+  .CM_NH_ITEM {
+    padding: 14px 42px 14px 14px;
+    border-radius: 13px;
+    gap: 12px;
+  }
+  .CM_NH_ICON { width: 38px; height: 38px; font-size: 0.95rem; }
+  .CM_NH_TOP { flex-wrap: wrap; row-gap: 2px; }
+  .CM_NH_TOP strong { font-size: 0.86rem; }
+  .CM_NH_DATE { font-size: 0.65rem; }
+  .CM_NH_BODY p { font-size: 0.8rem; }
+  .CM_NH_UNREAD_DOT { top: 16px; right: 38px; }
+}
+
+/* ── 📱 SMALL PHONES (≤420px) — final squeeze ── */
+@media (max-width: 420px) {
+  .CM_NH_HEADER_TEXT p { display: none; } /* drop the subtitle to save height */
+  .CM_NH_STATUS_GROUP .CM_NH_FILTER_BTN,
+  .CM_NH_TYPE_GROUP .CM_NH_TYPE_BTN { padding: 7px 11px; font-size: 0.76rem; }
 }

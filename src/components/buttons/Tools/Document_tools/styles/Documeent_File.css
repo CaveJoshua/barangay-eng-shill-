@@ -94,6 +94,61 @@
   color: #ffffff;
 }
 
+/* Active toggle (e.g. Move mode) */
+.tool-btn.active {
+  background-color: rgba(59, 130, 246, 0.28);
+  color: #ffffff;
+  box-shadow: inset 0 0 0 1px var(--doc-accent-blue);
+}
+
+.layout-tools { margin-left: 8px; }
+
+/* ==========================================================================
+   🧲 DRAGGABLE BLOCKS (free move inside the A4)
+   ========================================================================== */
+.drag-block {
+  /* In normal mode the wrapper is invisible and inert. */
+}
+.drag-block.movable {
+  outline: 1px dashed transparent;
+}
+.drag-block.movable:hover {
+  outline-color: #93c5fd;
+  background-color: rgba(59, 130, 246, 0.04);
+}
+.drag-block.dragging {
+  outline: 1.5px solid var(--doc-accent-blue) !important;
+  background-color: rgba(59, 130, 246, 0.06);
+  box-shadow: 0 6px 18px -4px rgba(0, 0, 0, 0.35);
+}
+
+/* Word-style move grip at the block's top-left corner */
+.drag-grip {
+  position: absolute;
+  top: -11px;
+  left: -11px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+  color: #1d4ed8;
+  background: #ffffff;
+  border: 1px solid #1d4ed8;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  cursor: grab;
+  user-select: none;
+  z-index: 20;
+  opacity: 0.55;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.drag-block.movable:hover .drag-grip { opacity: 1; }
+.drag-grip:hover { transform: scale(1.12); }
+.drag-grip:active { cursor: grabbing; }
+
 .tool-divider {
   width: 1px;
   height: 20px;
@@ -172,6 +227,205 @@
   font-size: 1.5rem;
   cursor: pointer;
   padding: 4px;
+}
+
+/* ==========================================================================
+   🎀 FORMATTING RIBBON (MS365-style)
+   ========================================================================== */
+.doc-ribbon {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;          /* wrap on narrow screens instead of clipping menus */
+  gap: 2px;
+  row-gap: 4px;
+  min-height: 44px;
+  flex-shrink: 0;
+  padding: 6px 12px;
+  background-color: #1f2937;
+  border-bottom: 1px solid var(--doc-border-dark);
+  overflow: visible;        /* must stay visible so dropdowns/popovers escape */
+  position: relative;       /* + z-index → stacking context above the canvas */
+  z-index: 90;
+}
+
+.ribbon-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.ribbon-divider {
+  width: 1px;
+  height: 22px;
+  background-color: #4b5563;
+  margin: 0 6px;
+  flex-shrink: 0;
+}
+
+.ribbon-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 6px;
+  border-radius: 4px;
+  color: #e5e7eb;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+.ribbon-btn:hover { background-color: #374151; color: #ffffff; }
+.ribbon-btn.active {
+  background-color: rgba(59, 130, 246, 0.25);
+  border-color: var(--doc-accent-blue);
+  color: #ffffff;
+}
+
+/* Font family / size triggers */
+.ribbon-select {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  height: 30px;
+  min-width: 52px;
+  padding: 0 8px;
+  background: #111827;
+  border: 1px solid #374151;
+  border-radius: 4px;
+  color: #e5e7eb;
+  font-size: 0.82rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.ribbon-select.wide { min-width: 132px; }
+.ribbon-select:hover { border-color: #6b7280; }
+.ribbon-select-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ribbon-caret { font-size: 0.6rem; opacity: 0.7; }
+
+.ribbon-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 160px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-shadow: 0 12px 24px -6px rgba(0, 0, 0, 0.45);
+  z-index: 200;
+  padding: 4px;
+}
+.ribbon-dropdown.narrow { min-width: 64px; }
+
+.ribbon-dropdown-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--doc-text-main);
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.ribbon-dropdown-item.center { text-align: center; }
+.ribbon-dropdown-item:hover { background-color: #eff6ff; }
+
+/* Color + highlight buttons */
+.color-btn {
+  flex-direction: column;
+  gap: 1px;
+  min-width: 32px;
+  padding: 2px 6px;
+}
+.color-glyph { font-size: 0.85rem; font-weight: 700; line-height: 1; }
+.color-glyph.hilite { color: #fbbf24; }
+.color-bar { display: block; width: 18px; height: 4px; border-radius: 1px; }
+
+.ribbon-color-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-shadow: 0 12px 24px -6px rgba(0, 0, 0, 0.45);
+  z-index: 200;
+  padding: 8px;
+}
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 5px;
+}
+.color-grid.hilite-grid { grid-template-columns: repeat(7, 1fr); }
+.color-swatch {
+  width: 20px;
+  height: 20px;
+  border: 1px solid #d1d5db;
+  border-radius: 3px;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.1s;
+  background-size: 8px 8px;
+}
+.color-swatch:hover { transform: scale(1.15); border-color: #111827; }
+
+/* ==========================================================================
+   📏 A4 RULER
+   ========================================================================== */
+.doc-ruler-track {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 0;
+  margin-top: 32px;
+}
+.doc-ruler {
+  position: relative;
+  height: 22px;
+  background: #e5e7eb;
+  border: 1px solid #cbd5e1;
+  border-radius: 2px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.ruler-margin {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: #9ca3af;
+  opacity: 0.55;
+}
+.ruler-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.ruler-tick-line {
+  width: 1px;
+  height: 6px;
+  background: #4b5563;
+}
+.ruler-tick-num {
+  font-size: 9px;
+  line-height: 1;
+  color: #374151;
+  margin-top: 1px;
+  transform: translateX(0);
+  font-family: 'Inter', sans-serif;
 }
 
 /* --- WORKSPACE --- */
@@ -346,6 +600,7 @@
   background: white;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); /* Strong shadow for dark desk */
   box-sizing: border-box;
+  overflow: hidden; /* 📌 keep everything clipped to the A4 sheet — nothing spills out */
 }
 
 .empty-state {
@@ -448,7 +703,7 @@
 @media print {
   body * { visibility: hidden; }
   .doc-app-shell { position: absolute; left: 0; top: 0; background: white; }
-  .doc-topbar, .doc-sidebar, .desk-status-bar { display: none !important; }
+  .doc-topbar, .doc-ribbon, .doc-ruler-track, .doc-sidebar, .desk-status-bar { display: none !important; }
   .doc-workspace, .doc-desk, .desk-scroll-area, .doc-canvas-wrapper, .a4-sheet {
     visibility: visible;
     box-shadow: none !important;
@@ -458,4 +713,6 @@
   }
   .a4-sheet * { visibility: visible; }
   .a4-sheet { page-break-after: always; }
+  .drag-grip { display: none !important; }
+  .drag-block { outline: none !important; background: transparent !important; }
 }

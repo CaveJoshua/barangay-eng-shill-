@@ -8,7 +8,21 @@ export interface IResident {
   middle_name?: string;
   current_address?: string;
   purok?: string;
+  dob?: string; // date of birth — same field the admin Resident view uses for age
 }
+
+// 🎂 Compute a whole-number age from a date of birth. Mirrors the exact logic the
+// admin Resident table uses (Resident.tsx) so ages are consistent app-wide.
+export const calculateAge = (dob?: string): string => {
+  if (!dob) return '';
+  const birth = new Date(dob);
+  if (isNaN(birth.getTime())) return '';
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age >= 0 ? String(age) : '';
+};
 
 export interface IOfficial {
   id: string;
@@ -22,6 +36,7 @@ export const useDocumentDataAPI = (initialResidentName: string, initialResidentI
   const [captainName, setCaptainName] = useState('');
   const [kagawadName, setKagawadName] = useState('');
   const [autoFilledAddress, setAutoFilledAddress] = useState('');
+  const [autoFilledAge, setAutoFilledAge] = useState('');
 
   useEffect(() => {
     const valve = new AbortController();
@@ -56,6 +71,8 @@ export const useDocumentDataAPI = (initialResidentName: string, initialResidentI
               }
               if (matched.purok) addrParts.push(matched.purok);
               setAutoFilledAddress(addrParts.join(', '));
+              // 🎂 Same concept as the address: derive age from the matched record.
+              setAutoFilledAge(calculateAge(matched.dob));
             }
           }
         }
@@ -89,7 +106,7 @@ export const useDocumentDataAPI = (initialResidentName: string, initialResidentI
     return () => valve.abort();
   }, [initialResidentName, initialResidentId]);
 
-  return { residents, captainName, kagawadName, autoFilledAddress };
+  return { residents, captainName, kagawadName, autoFilledAddress, autoFilledAge };
 };
 
 export const saveDocumentRecord = async (payload: any): Promise<any> => {

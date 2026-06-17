@@ -147,7 +147,7 @@ const Community_Notification_History: React.FC<HistoryProps> = ({ onBack, onNavi
 
       {/* ── TOOLBAR: STATUS + TYPE FILTERS ── */}
       <div className="CM_NH_TOOLBAR">
-        <div className="CM_NH_FILTER_GROUP">
+        <div className="CM_NH_FILTER_GROUP CM_NH_STATUS_GROUP">
           <button
             className={`CM_NH_FILTER_BTN ${statusFilter === 'ALL' ? 'ACTIVE' : ''}`}
             onClick={() => setStatusFilter('ALL')}
@@ -164,7 +164,7 @@ const Community_Notification_History: React.FC<HistoryProps> = ({ onBack, onNavi
 
         <div className="CM_NH_DIVIDER" />
 
-        <div className="CM_NH_FILTER_GROUP">
+        <div className="CM_NH_FILTER_GROUP CM_NH_TYPE_GROUP">
           <button
             className={`CM_NH_TYPE_BTN ${typeFilter === 'ALL' ? 'ACTIVE' : ''}`}
             onClick={() => setTypeFilter('ALL')}

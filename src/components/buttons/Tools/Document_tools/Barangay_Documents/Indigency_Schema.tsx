@@ -4,6 +4,13 @@ import baguioLogo from '../icons/Baguio_city.png';
 import brgyLogo from '../icons/Barangay_eng-hill.png';
 
 export const IndigencySchema: DocumentSchema = {
+  meta: {
+    id: 'Certificate of Indigency',
+    label: 'Certificate of Indigency',
+    fee: '0.00',
+    fields: ['certificate', 'payment'],
+    surfaceEdit: true,
+  },
   compile: (payload: DocumentPayload): RenderInstruction[] => {
 
     const dateObj = new Date(payload.dateIssued);
@@ -65,7 +72,7 @@ export const IndigencySchema: DocumentSchema = {
 
       {
         type: 'text',
-        content: `This is to further certify that the above-named person belongs to an <b><u>&nbsp;indigent family&nbsp;</u></b> in this barangay.`,
+        content: `This is to further certify that the above-named person belongs to an <b><u>indigent family</u></b> in this barangay.`,
         fontSize: 12,
         align: 'justify',
       },
@@ -73,7 +80,7 @@ export const IndigencySchema: DocumentSchema = {
 
       {
         type: 'text',
-        content: `This certification is issued upon the request of the above-named person for <b><u>&nbsp;${payload.purpose || 'financial/medical assistance'}&nbsp;</u></b> purposes.`,
+        content: `This certification is issued upon the request of the above-named person for <b><u>${payload.purpose || 'financial/medical assistance'}</u></b> purposes.`,
         fontSize: 12,
         align: 'justify',
       },
@@ -81,7 +88,7 @@ export const IndigencySchema: DocumentSchema = {
 
       {
         type: 'text',
-        content: `Issued this <b><u>&nbsp;${day}${suffix}&nbsp;</u></b> of <b><u>&nbsp;${month}&nbsp;</u></b> <b><u>&nbsp;${year}&nbsp;</u></b> at Engineer's Hill Barangay, Baguio City.`,
+        content: `Issued this <b><u>${day}${suffix}</u></b> of <b><u>${month}</u></b> <b><u>${year}</u></b> at Engineer's Hill Barangay, Baguio City.`,
         fontSize: 12,
         align: 'justify',
       },

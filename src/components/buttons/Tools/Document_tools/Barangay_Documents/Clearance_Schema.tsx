@@ -4,6 +4,13 @@ import baguioLogo from '../icons/Baguio_city.png';
 import brgyLogo from '../icons/Barangay_eng-hill.png';
 
 export const ClearanceSchema: DocumentSchema = {
+  meta: {
+    id: 'Barangay Clearance',
+    label: 'Barangay Clearance',
+    fee: '200.00',
+    fields: ['certificate', 'payment'],
+    surfaceEdit: true,
+  },
   compile: (payload: DocumentPayload): RenderInstruction[] => {
 
     // Date formatting
@@ -58,7 +65,7 @@ export const ClearanceSchema: DocumentSchema = {
       // 5. Body paragraphs
       {
         type: 'text',
-        content: `This is to CERTIFY that <b><u>${payload.residentName.toUpperCase()}</u></b>, Filipino Citizen, Male, is a bonafide resident at <b><u>&nbsp;${payload.address}&nbsp;</u></b>, Engineer's Hill, Baguio City.`,
+        content: `This is to CERTIFY that <b><u>${payload.residentName.toUpperCase()}</u></b>, Filipino Citizen, Male, is a bonafide resident at <b><u>${payload.address}</u></b>, Engineer's Hill, Baguio City.`,
         fontSize: 12,
         align: 'justify',
       },
@@ -74,7 +81,7 @@ export const ClearanceSchema: DocumentSchema = {
 
       {
         type: 'text',
-        content: `This clearance is being issued upon the request of the above-named person for <b><u>&nbsp;${payload.purpose || 'general'}&nbsp;</u></b> purposes.`,
+        content: `This clearance is being issued upon the request of the above-named person for <b><u>${payload.purpose || 'general'}</u></b> purposes.`,
         fontSize: 12,
         align: 'justify',
       },
@@ -82,7 +89,7 @@ export const ClearanceSchema: DocumentSchema = {
 
       {
         type: 'text',
-        content: `Issued this <b><u>&nbsp;${day}${suffix}&nbsp;</u></b> of <b><u>&nbsp;${month}&nbsp;</u></b> <b><u>&nbsp;${year}&nbsp;</u></b> at Engineer's Hill Barangay, Baguio City.`,
+        content: `Issued this <b><u>${day}${suffix}</u></b> of <b><u>${month}</u></b> <b><u>${year}</u></b> at Engineer's Hill Barangay, Baguio City.`,
         fontSize: 12,
         align: 'justify',
       },

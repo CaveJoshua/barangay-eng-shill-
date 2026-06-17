@@ -4,6 +4,13 @@ import { formatPaymentDate } from '../PDF_Algorithm';
 import brgyLogo from '../icons/Barangay_eng-hill.png';
 
 export const JobseekerSchema: DocumentSchema = {
+  meta: {
+    id: 'Barangay Certification',
+    label: 'Barangay Certification (Jobseeker)',
+    fee: '500.00',
+    fields: ['certificate', 'payment'],
+    surfaceEdit: true,
+  },
 
   // 🎯 CHEAP TRICK — extend the page by ~1.18 inch (30mm) so the Oath of
   // Undertaking on page 2 can never spill onto a third sheet, regardless of
@@ -82,7 +89,7 @@ export const JobseekerSchema: DocumentSchema = {
       // 5. Body paragraphs
       {
         type: 'text',
-        content: `This is to certify that <b>${payload.residentName}</b>, a resident of <b>${payload.address}</b>, Engineer's Hill, Baguio City for <b><u>&nbsp;One Year&nbsp;</u></b>, is a qualified availee of RA 11261 or the <b>First time Jobseekers Act of 2019</b>.`,
+        content: `This is to certify that <b>${payload.residentName}</b>, a resident of <b>${payload.address}</b>, Engineer's Hill, Baguio City for <b><u>One Year</u></b>, is a qualified availee of RA 11261 or the <b>First time Jobseekers Act of 2019</b>.`,
         fontSize: 11,
         align: 'justify',
       },
@@ -189,21 +196,21 @@ export const JobseekerSchema: DocumentSchema = {
 
       {
         type: 'text',
-        content: `I, <b>${payload.residentName}</b>, ____ years of age, resident of <b>${payload.address}</b>, Engineer's Hill, Baguio City for ____ Years, availing the benefits of <b>Republic Act 11261</b>, otherwise known as the <b>First Time Jobseekers Act of 2019</b>, do hereby declare, agree and undertake to abide and be bound by the following:`,
+        content: `I, <b>${payload.residentName}</b>, ${payload.age ? `<b>${payload.age}</b>` : '____'} years of age, resident of <b>${payload.address}</b>, Engineer's Hill, Baguio City for ____ Years, availing the benefits of <b>Republic Act 11261</b>, otherwise known as the <b>First Time Jobseekers Act of 2019</b>, do hereby declare, agree and undertake to abide and be bound by the following:`,
         fontSize: 10,
         align: 'justify',
       },
       { type: 'spacer', heightInMm: 5 },
 
-      { type: 'text', content: `&nbsp;&nbsp;1.&nbsp; That this is the first time that I will actively look for a job, and therefore requesting that a Barangay Certification be issued in my favor to avail the benefits of the law;`, fontSize: 10, align: 'justify' },
-      { type: 'text', content: `&nbsp;&nbsp;2.&nbsp; That I am aware that the benefit and privilege/s under the said law shall be valid only for one (1) year from the date that the Barangay Certification is issued;`, fontSize: 10, align: 'justify' },
-      { type: 'text', content: `&nbsp;&nbsp;3.&nbsp; That I can avail the benefits of the law only once;`, fontSize: 10, align: 'justify' },
-      { type: 'text', content: `&nbsp;&nbsp;4.&nbsp; That I understand that my personal information shall be included in the Roster /List of First Time Jobseekers and will not be used for any unlawful purpose;`, fontSize: 10, align: 'justify' },
-      { type: 'text', content: `&nbsp;&nbsp;5.&nbsp; That I will inform and/or report to the Barangay personally, through text or other means, or through my family/relatives once I get employed;`, fontSize: 10, align: 'justify' },
-      { type: 'text', content: `&nbsp;&nbsp;6.&nbsp; That I am not a beneficiary of the Job start Program under R.A. No. 10869 and other laws that give similar exemptions for the documents or transactions exempted under R.A No. 11261;`, fontSize: 10, align: 'justify' },
-      { type: 'text', content: `&nbsp;&nbsp;7.&nbsp; That if issued the requested Certification, I will not use the same in any fraud, neither falsify nor help and/or assist in the fabrication of the said certification;`, fontSize: 10, align: 'justify' },
-      { type: 'text', content: `&nbsp;&nbsp;8.&nbsp; That this undertaking is made solely for the purpose of obtaining a Barangay Certification consistent with the objective of R.A No. 11261 and not for any other purpose; and`, fontSize: 10, align: 'justify' },
-      { type: 'text', content: `&nbsp;&nbsp;9.&nbsp; That I consent to the use of my personal information pursuant to the Data Privacy Act and other applicable laws, rules and regulations.`, fontSize: 10, align: 'justify' },
+      { type: 'text', content: `&nbsp;&nbsp;1.&nbsp; That this is the first time that I will actively look for a job, and therefore requesting that a Barangay Certification be issued in my favor to avail the benefits of the law;`, fontSize: 10, align: 'left' },
+      { type: 'text', content: `&nbsp;&nbsp;2.&nbsp; That I am aware that the benefit and privilege/s under the said law shall be valid only for one (1) year from the date that the Barangay Certification is issued;`, fontSize: 10, align: 'left' },
+      { type: 'text', content: `&nbsp;&nbsp;3.&nbsp; That I can avail the benefits of the law only once;`, fontSize: 10, align: 'left' },
+      { type: 'text', content: `&nbsp;&nbsp;4.&nbsp; That I understand that my personal information shall be included in the Roster /List of First Time Jobseekers and will not be used for any unlawful purpose;`, fontSize: 10, align: 'left' },
+      { type: 'text', content: `&nbsp;&nbsp;5.&nbsp; That I will inform and/or report to the Barangay personally, through text or other means, or through my family/relatives once I get employed;`, fontSize: 10, align: 'left' },
+      { type: 'text', content: `&nbsp;&nbsp;6.&nbsp; That I am not a beneficiary of the Job start Program under R.A. No. 10869 and other laws that give similar exemptions for the documents or transactions exempted under R.A No. 11261;`, fontSize: 10, align: 'left' },
+      { type: 'text', content: `&nbsp;&nbsp;7.&nbsp; That if issued the requested Certification, I will not use the same in any fraud, neither falsify nor help and/or assist in the fabrication of the said certification;`, fontSize: 10, align: 'left' },
+      { type: 'text', content: `&nbsp;&nbsp;8.&nbsp; That this undertaking is made solely for the purpose of obtaining a Barangay Certification consistent with the objective of R.A No. 11261 and not for any other purpose; and`, fontSize: 10, align: 'left' },
+      { type: 'text', content: `&nbsp;&nbsp;9.&nbsp; That I consent to the use of my personal information pursuant to the Data Privacy Act and other applicable laws, rules and regulations.`, fontSize: 10, align: 'left' },
       { type: 'spacer', heightInMm: 6 },
 
       {
@@ -250,6 +257,8 @@ export const JobseekerSchema: DocumentSchema = {
       { type: 'spacer', heightInMm: 4 },
       {
         type: 'text',
+        // Kept JUSTIFIED on purpose — the spread-out blanks are part of the
+        // official 11261 Form 2 guardian-consent layout.
         content: `I, ___________________________________, _____ years of age, parent/guardian of ___________________________________, and a resident of __________________________________________________ (complete address), for _______ (years/months), do hereby give my consent for my child/dependent to avail the benefits of <b>Republic Act 11261</b> and be bound by the abovementioned conditions.`,
         fontSize: 10,
         align: 'justify',

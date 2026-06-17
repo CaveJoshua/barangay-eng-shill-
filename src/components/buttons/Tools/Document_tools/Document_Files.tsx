@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './styles/Documeent_File.css';
-import { useDocumentDataAPI } from './Types/Doc_data_api';
+import { useDocumentDataAPI, calculateAge } from './Types/Doc_data_api';
 import { useDocumentEngine } from './Document_Engine';
+import { DOCUMENT_OPTIONS, FEE_BY_TYPE, getSchemaById } from './Barangay_Documents/schemaRegistry';
+import type { SidebarSection } from './PDF_Algorithm';
 
 interface DocumentFileProps {
   onClose: () => void;
@@ -10,24 +12,11 @@ interface DocumentFileProps {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SINGLE SOURCE OF TRUTH — type → default fee (mirrors /documents/types config)
+// Fees + dropdown options are now derived from each schema's self-describing
+// `meta` (via the registry) — there is no parallel list to keep in sync here.
 // ═══════════════════════════════════════════════════════════════════════════
-const TYPE_FEE_MAP: Record<string, string> = {
-  'Barangay Clearance': '200.00',
-  'Certificate of Residency': '75.00',
-  'Certificate of Indigency': '0.00',
-  'Barangay Certification': '500.00',
-  'Affidavit of Barangay Official': '50.00',
-};
-
-// The five canonical values used by the <select> in the sidebar.
-const DROPDOWN_OPTIONS = [
-  'Barangay Clearance',
-  'Certificate of Indigency',
-  'Certificate of Residency',
-  'Barangay Certification',
-  'Affidavit of Barangay Official',
-];
+const TYPE_FEE_MAP = FEE_BY_TYPE;
+const DROPDOWN_OPTIONS = DOCUMENT_OPTIONS.map(o => o.id);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 🎯 THE DROPDOWN FIX — TYPE NORMALIZER
@@ -80,8 +69,12 @@ const extractRawType = (data: any): string | undefined => {
       || data.request_type;
 };
 
+import { A4Ruler } from './A4Ruler';
+import { DocumentToolbar } from './DocumentToolbar';
+
 export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, initialData }) => {
   const [zoom, setZoom] = useState<number>(100);
+  const [moveMode, setMoveMode] = useState<boolean>(false); // 🧲 free-drag layout mode
   const [showDropdown, setShowDropdown] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -99,6 +92,9 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
   const [docConfig, setDocConfig] = useState({
     id: initialData?.id || null,
 
+    // 🧲 Per-block drag displacements (mm), keyed by render key. Empty = pristine flow.
+    layout: (initialData?.layout || {}) as Record<string, { dx: number; dy: number }>,
+
     residentId: initialData?.residentId || '',
     residentName: initialData?.residentName || '',
     address: '',
@@ -113,6 +109,7 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
       TYPE_FEE_MAP[normalizedInitialType] ||
       '200.00',
     certificateNo: `2026-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`,
+    age: initialData?.age || '', // 🎂 requestor age — auto-filled from the resident's dob
     guardianName: '',
     guardianAge: '',
     guardianAddress: '',
@@ -131,7 +128,7 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
     initialData?.referenceNo || `WALK-IN-${Date.now().toString().slice(-6)}`
   ).current;
 
-  const { residents, captainName, kagawadName, autoFilledAddress } = useDocumentDataAPI(
+  const { residents, captainName, kagawadName, autoFilledAddress, autoFilledAge } = useDocumentDataAPI(
     docConfig.residentName,
     docConfig.residentId
   );
@@ -148,17 +145,25 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
     if (incomingId !== lastInitialIdRef.current) {
       lastInitialIdRef.current = incomingId;
       const t = normalizeDocumentType(extractRawType(initialData));
-      setDocConfig(prev => ({
-        ...prev,
-        id: incomingId,
-        type: t,
-        residentId: initialData?.residentId || prev.residentId,
-        residentName: initialData?.residentName || prev.residentName,
-        purpose: initialData?.purpose || prev.purpose,
-        feesPaid: initialData?.feesPaid || TYPE_FEE_MAP[t] || prev.feesPaid,
-        status: (!initialData?.status || initialData?.status === 'Pending') ? 'Processing' : initialData.status,
-        requestMethod: initialData?.requestMethod || prev.requestMethod,
-      }));
+      setDocConfig(prev => {
+        // 🖊️ Drop the previous record's surface edits + drag offsets so they don't
+        // bleed onto a different document opened in the same mounted editor.
+        const base = Object.fromEntries(
+          Object.entries(prev).filter(([k]) => !k.startsWith('surface::'))
+        ) as typeof prev;
+        return {
+          ...base,
+          layout: {},
+          id: incomingId,
+          type: t,
+          residentId: initialData?.residentId || prev.residentId,
+          residentName: initialData?.residentName || prev.residentName,
+          purpose: initialData?.purpose || prev.purpose,
+          feesPaid: initialData?.feesPaid || TYPE_FEE_MAP[t] || prev.feesPaid,
+          status: (!initialData?.status || initialData?.status === 'Pending') ? 'Processing' : initialData.status,
+          requestMethod: initialData?.requestMethod || prev.requestMethod,
+        };
+      });
       // The auto-sync effect below would otherwise overwrite the freshly set
       // feesPaid; treat this as another "initial" run to keep them aligned.
       isInitialTypeMount.current = true;
@@ -168,27 +173,51 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
   // ═══════════════════════════════════════════════════════════════════════════
   // Type → Fees cascade: when the admin manually changes the dropdown, sync
   // feesPaid to match. Skips the initial mount + any re-init from initialData.
+  // 🧹 Picking a new type loads a fresh "ready layout": because drag offsets and
+  // surface edits are keyed by block position, they'd misapply to a different
+  // schema — so we reset them here. Switching type = a clean template, like
+  // clicking a layout in Word's gallery.
   // ═══════════════════════════════════════════════════════════════════════════
   useEffect(() => {
     if (isInitialTypeMount.current) {
       isInitialTypeMount.current = false;
       return;
     }
-    const mapped = TYPE_FEE_MAP[docConfig.type];
-    if (mapped !== undefined) {
-      setDocConfig(prev => ({ ...prev, feesPaid: mapped }));
-    }
+    setDocConfig(prev => {
+      const base = Object.fromEntries(
+        Object.entries(prev).filter(([k]) => !k.startsWith('surface::'))
+      ) as typeof prev;
+      const mapped = TYPE_FEE_MAP[prev.type];
+      return {
+        ...base,
+        layout: {},
+        feesPaid: mapped !== undefined ? mapped : prev.feesPaid,
+      };
+    });
   }, [docConfig.type]);
 
   const handleSurfaceEdit = (key: string, value: string) => {
     setDocConfig(prev => {
+      if (key.startsWith('table_action-')) {
+        const parts = key.split('-');
+        const action = parts[1];
+        const rIdx = parseInt(parts[2], 10);
+        const newTableRows = [...(prev.tableRows || [])];
+        if (action === 'add') {
+          const colCount = newTableRows[rIdx] ? newTableRows[rIdx].length : 3;
+          newTableRows.splice(rIdx + 1, 0, new Array(colCount).fill(''));
+        } else if (action === 'remove') {
+          newTableRows.splice(rIdx, 1);
+        }
+        return { ...prev, tableRows: newTableRows };
+      }
       if (key.startsWith('table-')) {
         const parts = key.split('-');
-        const rIdx = parseInt(parts[2]);
-        const cIdx = parseInt(parts[3]);
+        const rIdx = parseInt(parts[2], 10);
+        const cIdx = parseInt(parts[3], 10);
         const newTableRows = [...(prev.tableRows || [])];
         if (!newTableRows[rIdx]) newTableRows[rIdx] = [];
-        newTableRows[rIdx][cIdx] = value;
+        newTableRows[rIdx][cIdx] = value.replace(/<[^>]*>/g, '').trim();
         return { ...prev, tableRows: newTableRows };
       }
       if (key.startsWith('witness-')) {
@@ -224,11 +253,31 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
     });
   };
 
+  // 🧲 Commit a block's dragged position (mm offset) into the layout map.
+  const handleMove = (key: string, dx: number, dy: number) => {
+    setDocConfig(prev => ({
+      ...prev,
+      layout: { ...(prev.layout || {}), [key]: { dx, dy } },
+    }));
+  };
+
+  // Snap every block back to its natural flow position AND discard surface text
+  // edits, restoring the schema's generated wording.
+  const handleResetLayout = () => {
+    setDocConfig(prev => {
+      const base = Object.fromEntries(
+        Object.entries(prev).filter(([k]) => !k.startsWith('surface::'))
+      ) as typeof prev;
+      return { ...base, layout: {} };
+    });
+  };
+
   const { pages, wordCount, isProcessing, handleSaveAndDownload } = useDocumentEngine(
     docConfig,
     captainName,
     kagawadName,
-    handleSurfaceEdit
+    handleSurfaceEdit,
+    { moveMode, zoom, layout: docConfig.layout, onMove: handleMove }
   );
 
   const handleInputChange = (
@@ -241,12 +290,14 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
   const handleResidentSelect = (resident: any) => {
     const fullName = `${resident.first_name} ${resident.last_name}`.trim();
     const fullAddress = [resident.current_address, resident.purok].filter(Boolean).join(', ');
+    const derivedAge = calculateAge(resident.dob); // 🎂 from the selected resident's dob
 
     setDocConfig(prev => ({
       ...prev,
       residentId: resident.record_id,
       residentName: fullName,
-      address: fullAddress && fullAddress.toLowerCase() !== 'n/a' ? fullAddress : prev.address
+      address: fullAddress && fullAddress.toLowerCase() !== 'n/a' ? fullAddress : prev.address,
+      age: derivedAge || prev.age,
     }));
     setShowDropdown(false);
     setIsSidebarOpen(false);
@@ -276,9 +327,18 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
     }
   }, [autoFilledAddress]);
 
-  // 🔓 ALL OPTIONS EDITABLE: every section (guardian, payment, witnesses) is now
-  // available for every document type — each schema uses only the fields it needs.
-  const showWitnesses = true;
+  // 🎂 Same concept as the address autofill: drop in the resident's age once resolved.
+  useEffect(() => {
+    if (autoFilledAge && !docConfig.age) {
+      setDocConfig(prev => ({ ...prev, age: autoFilledAge }));
+    }
+  }, [autoFilledAge]);
+
+  // 🧩 INPUT ISOLATION: the active document declares which sidebar sections it
+  // needs (via its self-describing meta). We render only those — so a field that
+  // belongs to one document type never appears (or misleads) on another.
+  const activeFields: SidebarSection[] = getSchemaById(docConfig.type).meta?.fields ?? [];
+  const hasField = (section: SidebarSection) => activeFields.includes(section);
 
   return (
     <div className="doc-app-shell">
@@ -290,23 +350,24 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
             <span className="brand-icon">🖨️</span>
             <span className="brand-text">Brgy Doc</span>
           </div>
-          <div className="format-tools">
-            <button className="tool-btn"><b>B</b></button>
-            <button className="tool-btn"><i>I</i></button>
-            <button className="tool-btn"><u>U</u></button>
-            <div className="tool-divider"></div>
-            <button className="tool-btn">≡</button>
-            <button className="tool-btn">→</button>
-          </div>
         </div>
 
         <div className="topbar-center">
           <div className="zoom-tools hidden-mobile">
-            <select className="strict-select-dark" disabled><option>12pt</option></select>
-            <div className="tool-divider"></div>
             <button className="tool-btn" onClick={() => setZoom(z => Math.max(50, z - 10))}>-</button>
             <span className="zoom-label">{zoom}%</span>
             <button className="tool-btn" onClick={() => setZoom(z => Math.min(200, z + 10))}>+</button>
+          </div>
+          {/* 🧲 Layout drag controls */}
+          <div className="zoom-tools layout-tools hidden-mobile">
+            <button
+              className={`tool-btn ${moveMode ? 'active' : ''}`}
+              title={moveMode ? 'Move mode ON — drag any block. Click to exit.' : 'Move mode — drag blocks anywhere'}
+              onClick={() => setMoveMode(m => !m)}
+            >
+              ✥
+            </button>
+            <button className="tool-btn" title="Reset positions & surface edits to default" onClick={handleResetLayout}>⟲</button>
           </div>
           <div className="doc-title-display hidden-mobile">{docConfig.type}</div>
         </div>
@@ -318,6 +379,9 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
           </button>
         </div>
       </header>
+
+      {/* 🎀 MS365-style formatting ribbon — explicit, hardcoded tools */}
+      <DocumentToolbar />
 
       <div className="doc-workspace">
         {isSidebarOpen && (
@@ -334,36 +398,36 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
             <div className="field-group">
               <label>DOCUMENT TYPE <span className="req">*</span></label>
               <select name="type" className="strict-input" value={docConfig.type} onChange={handleInputChange}>
-                <option value="Barangay Clearance">Barangay Clearance</option>
-                <option value="Certificate of Indigency">Certificate of Indigency</option>
-                <option value="Certificate of Residency">Certificate of Residency</option>
-                <option value="Barangay Certification">Barangay Certification (Jobseeker)</option>
-                <option value="Affidavit of Barangay Official">Affidavit of Barangay Official</option>
+                {DOCUMENT_OPTIONS.map(o => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
+                ))}
               </select>
             </div>
 
-            <div className="field-group-row">
-              <div className="field-group">
-                <label>CERTIFICATE NO.</label>
-                <input
-                  type="text"
-                  name="certificateNo"
-                  className="strict-input"
-                  value={docConfig.certificateNo}
-                  onChange={handleInputChange}
-                />
+            {hasField('certificate') && (
+              <div className="field-group-row">
+                <div className="field-group">
+                  <label>CERTIFICATE NO.</label>
+                  <input
+                    type="text"
+                    name="certificateNo"
+                    className="strict-input"
+                    value={docConfig.certificateNo}
+                    onChange={handleInputChange}
+                  />
+                </div>
+                <div className="field-group">
+                  <label>DATE ISSUED</label>
+                  <input
+                    type="date"
+                    name="dateIssued"
+                    className="strict-input"
+                    value={docConfig.dateIssued}
+                    onChange={handleInputChange}
+                  />
+                </div>
               </div>
-              <div className="field-group">
-                <label>DATE ISSUED</label>
-                <input
-                  type="date"
-                  name="dateIssued"
-                  className="strict-input"
-                  value={docConfig.dateIssued}
-                  onChange={handleInputChange}
-                />
-              </div>
-            </div>
+            )}
 
             <div className="section-label text-blue">👤 RESIDENT</div>
             <div className="field-group relative" ref={dropdownRef}>
@@ -417,7 +481,8 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
               />
             </div>
 
-            {/* 🔓 Guardian / Minor-Consent — now shown for EVERY document type */}
+            {/* 🧩 Minor-Consent — shown only for documents that declare the 'guardian' field */}
+            {hasField('guardian') && (
             <div className="dynamic-fade-in">
                 <div className="section-label text-purple">📝 MINOR CONSENT (PAGE 2)</div>
                 <div className="doc-hint-text" style={{ fontSize: '11px', color: '#666', marginBottom: '10px' }}>
@@ -470,7 +535,9 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
                   />
                 </div>
               </div>
-            {/* 🔓 Payment & Purpose — now shown for EVERY document type */}
+            )}
+            {/* 🧩 Payment & Purpose — shown only for documents that declare the 'payment' field */}
+            {hasField('payment') && (
             <div className="dynamic-fade-in">
                 <div className="section-label text-orange">💰 PAYMENT & PURPOSE</div>
                 <div className="field-group">
@@ -529,8 +596,9 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
                   </div>
                 </div>
               </div>
+            )}
 
-            {showWitnesses && (
+            {hasField('witnesses') && (
               <div className="dynamic-fade-in" style={{ marginTop: '20px' }}>
                 <div className="section-label text-purple">👥 WITNESSES</div>
                 <div className="doc-hint-text" style={{ fontSize: '11px', color: '#666', marginBottom: '10px' }}>
@@ -614,22 +682,24 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
               </div>
             )}
 
-            <div className="dynamic-fade-in" style={{ marginTop: '20px' }}>
-              <div className="section-label text-blue">📊 TABLE CONTROLS</div>
-              <button
-                type="button"
-                className="btn-print"
-                style={{ width: '100%', background: '#f0f0f0', color: '#333', border: '1px dashed #999' }}
-                onClick={() =>
-                  setDocConfig(prev => ({
-                    ...prev,
-                    tableRows: [...(prev.tableRows || []), ['', '', '']]
-                  }))
-                }
-              >
-                + Add Blank Table Row
-              </button>
-            </div>
+            {hasField('table') && (
+              <div className="dynamic-fade-in" style={{ marginTop: '20px' }}>
+                <div className="section-label text-blue">📊 TABLE CONTROLS</div>
+                <button
+                  type="button"
+                  className="btn-print"
+                  style={{ width: '100%', background: '#f0f0f0', color: '#333', border: '1px dashed #999' }}
+                  onClick={() =>
+                    setDocConfig(prev => ({
+                      ...prev,
+                      tableRows: [...(prev.tableRows || []), ['', '', '']]
+                    }))
+                  }
+                >
+                  + Add Blank Table Row
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="sidebar-mini-footer">
@@ -644,6 +714,7 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
 
         <main className="doc-desk">
           <div className="desk-scroll-area">
+            <A4Ruler zoom={zoom} />
             <div
               className="doc-canvas-wrapper"
               style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}

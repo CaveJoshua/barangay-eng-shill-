@@ -112,6 +112,75 @@
   transform: translateY(-2px);
 }
 
+/* ── 4b. ACTIVE / ARCHIVED TABS ──────────────────── */
+.ANN_TABS {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--ANN-border);
+}
+
+.ANN_TAB {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.75rem 1.25rem;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  color: var(--ANN-text-sub);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.ANN_TAB:hover { color: var(--ANN-text-main); }
+
+.ANN_TAB.ACTIVE {
+  color: var(--ANN-brand);
+  border-bottom-color: var(--ANN-brand);
+}
+
+.ANN_TAB_COUNT {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--ANN-border);
+  color: var(--ANN-text-sub);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.ANN_TAB.ACTIVE .ANN_TAB_COUNT {
+  background: var(--ANN-brand);
+  color: #fff;
+}
+
+/* Archived status pill on a row */
+.ANN_STATUS_TAG {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background-color: #f1f5f9;
+  color: #64748b;
+  border: 1px solid var(--ANN-border);
+}
+
+[data-theme="dark"] .ANN_STATUS_TAG {
+  background-color: #0f172a;
+  color: #94a3b8;
+}
+
 /* Filter Toolbar */
 .ANN_FILTER_BAR {
   display: flex;
@@ -362,6 +431,16 @@
 .ANN_ICON_BTN.DEL:hover {
   background-color: #ef4444;
   border-color: #ef4444;
+}
+
+.ANN_ICON_BTN.ARC:hover {
+  background-color: #f59e0b;
+  border-color: #f59e0b;
+}
+
+.ANN_ICON_BTN.RES:hover {
+  background-color: #10b981;
+  border-color: #10b981;
 }
 
 /* ── 8. UTILITIES & SCROLLBAR ───────────────────── */

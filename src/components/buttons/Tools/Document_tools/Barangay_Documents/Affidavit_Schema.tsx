@@ -4,6 +4,13 @@ import type { DocumentSchema, DocumentPayload, RenderInstruction } from '../PDF_
 import brgyLogo from '../icons/Barangay_eng-hill.png';
 
 export const AffidavitSchema: DocumentSchema = {
+  meta: {
+    id: 'Affidavit of Barangay Official',
+    label: 'Affidavit of Barangay Official',
+    fee: '50.00',
+    fields: ['certificate', 'witnesses', 'table'],
+    surfaceEdit: true,
+  },
   compile: (payload: DocumentPayload): RenderInstruction[] => {
 
     const dateObj = new Date(payload.dateIssued);
@@ -22,10 +29,10 @@ export const AffidavitSchema: DocumentSchema = {
         : 'th';
 
     return [
-      // 1. Faded background watermark
-      { type: 'watermark', imageSrc: brgyLogo },
+      // 🚫 No background watermark on the Affidavit (per request) — this document
+      // intentionally omits it; the other document types keep theirs.
 
-      // 2. Logo + stacked text header (matches photo exactly — no green banner)
+      // Logo + stacked text header (matches photo exactly — no green banner)
       {
         type: 'logo_text_header',
         alignOffset: -13,
@@ -62,7 +69,7 @@ export const AffidavitSchema: DocumentSchema = {
       // 4. First body paragraph
       {
         type: 'text',
-        content: `That <b>${payload.residentName.toUpperCase()}</b>, ____ years old, bonafide resident at <b>${payload.address}</b>, Engineers Hill, Baguio City is a Single Parent defined under Section 3a of The Solo Parent Welfare Act of RA 8972 as Expanded by RA 11861 (SOLOPARENT-DEATH OF SPOUSE)`,
+        content: `That <b>${payload.residentName.toUpperCase()}</b>, ${payload.age ? `<b>${payload.age}</b>` : '____'} years old, bonafide resident at <b>${payload.address}</b>, Engineers Hill, Baguio City is a Single Parent defined under Section 3a of The Solo Parent Welfare Act of RA 8972 as Expanded by RA 11861 (SOLOPARENT-DEATH OF SPOUSE)`,
         fontSize: 11,
         align: 'justify',
       },

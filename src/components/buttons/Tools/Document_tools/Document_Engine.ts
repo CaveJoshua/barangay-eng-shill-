@@ -20,12 +20,9 @@ export type { DocumentSchema };
 // 2. THE DATA API
 import { saveDocumentRecord, updateDocumentStatus } from './Types/Doc_data_api';
 
-// 3. THE BLUEPRINTS (Schemas)
-import { ClearanceSchema } from './Barangay_Documents/Clearance_Schema';
-import { IndigencySchema } from './Barangay_Documents/Indigency_Schema';
-import { ResidencySchema } from './Barangay_Documents/Residency_Schema';
-import { JobseekerSchema } from './Barangay_Documents/Jobseeker_Schema';
-import { AffidavitSchema } from './Barangay_Documents/Affidavit_Schema';
+// 3. THE BLUEPRINTS — resolved through the self-describing registry, so routing
+//    is driven by each schema's own `meta.id` (no hardcoded switch per type).
+import { getSchemaById } from './Barangay_Documents/schemaRegistry';
 
 // --- TYPES ---
 interface EngineConfig {
@@ -55,11 +52,20 @@ const PROTECTED_EDITABLE_KEYS = [
   'brgyCaptainName',
 ];
 
+// 🧲 Free-drag layout options threaded down into the preview renderer.
+interface LayoutControls {
+  moveMode?: boolean;
+  zoom?: number;
+  layout?: Record<string, { dx: number; dy: number }>;
+  onMove?: (key: string, dx: number, dy: number) => void;
+}
+
 export const useDocumentEngine = (
   docConfig: EngineConfig,
   captainName: string,
   kagawadName: string,
-  onEdit?: (key: string, value: string) => void
+  onEdit?: (key: string, value: string) => void,
+  layoutControls?: LayoutControls
 ) => {
   // --- ENGINE STATE ---
   const [pages, setPages] = useState<React.ReactNode[]>([]);
@@ -73,23 +79,22 @@ export const useDocumentEngine = (
     onEditRef.current = onEdit;
   }, [onEdit]);
 
-  // --- SCHEMA ROUTER ---
-  const activeSchema = useMemo((): DocumentSchema => {
-    switch (docConfig.type) {
-      case 'Barangay Clearance':
-        return ClearanceSchema as DocumentSchema;
-      case 'Certificate of Indigency':
-        return IndigencySchema as DocumentSchema;
-      case 'Certificate of Residency':
-        return ResidencySchema as DocumentSchema;
-      case 'Barangay Certification':
-        return JobseekerSchema as DocumentSchema;
-      case 'Affidavit of Barangay Official':
-        return AffidavitSchema as DocumentSchema;
-      default:
-        return ClearanceSchema as DocumentSchema;
-    }
-  }, [docConfig.type]);
+  // 🧲 Stabilize the drag-commit callback the same way, so live dragging never
+  // re-subscribes the renderer mid-gesture.
+  const onMoveRef = useRef(layoutControls?.onMove);
+  useEffect(() => {
+    onMoveRef.current = layoutControls?.onMove;
+  }, [layoutControls?.onMove]);
+
+  const moveMode = !!layoutControls?.moveMode;
+  const zoom = layoutControls?.zoom ?? 100;
+  const layout = layoutControls?.layout;
+
+  // --- SCHEMA ROUTER (registry-driven; each schema owns its own id) ---
+  const activeSchema = useMemo(
+    (): DocumentSchema => getSchemaById(docConfig.type),
+    [docConfig.type]
+  );
 
   // --- THE VIRTUAL RENDERER (Screen Preview) ---
   useEffect(() => {
@@ -113,12 +118,20 @@ export const useDocumentEngine = (
           onEditRef.current(key, value);
         }
       },
-      { protectedEditableKeys: PROTECTED_EDITABLE_KEYS }
+      {
+        protectedEditableKeys: PROTECTED_EDITABLE_KEYS,
+        moveMode,
+        zoom,
+        layout,
+        onMove: (key, dx, dy) => onMoveRef.current?.(key, dx, dy),
+        // 🖊️ Surface editing is a per-document choice declared in the schema's meta.
+        surfaceEdit: activeSchema.meta?.surfaceEdit ?? false,
+      }
     );
 
     setPages(virtualDocumentMap.pages);
     setWordCount(virtualDocumentMap.totalWords);
-  }, [docConfig, captainName, kagawadName, activeSchema]);
+  }, [docConfig, captainName, kagawadName, activeSchema, moveMode, zoom, layout]);
 
   // --- THE COMPILER (Final Vector PDF & Auto-Complete for ALL Admin-Processed Docs) ---
   const handleSaveAndDownload = useCallback(async () => {

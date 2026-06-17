@@ -5,6 +5,13 @@ import baguioLogo from '../icons/Baguio_city.png';
 import brgyLogo from '../icons/Barangay_eng-hill.png';
 
 export const ResidencySchema: DocumentSchema = {
+  meta: {
+    id: 'Certificate of Residency',
+    label: 'Certificate of Residency',
+    fee: '75.00',
+    fields: ['certificate', 'payment'],
+    surfaceEdit: true,
+  },
   compile: (payload: DocumentPayload): RenderInstruction[] => {
 
     const dateObj = new Date(payload.dateIssued);
@@ -66,7 +73,7 @@ export const ResidencySchema: DocumentSchema = {
       // 5. Body paragraphs
       {
         type: 'text',
-        content: `This is to certify that <b><u>&nbsp;${payload.residentName}&nbsp;</u></b>, Filipino Citizen, of legal age, male, is a bonafide resident of <b><u>&nbsp;${payload.address}&nbsp;</u></b>, Engineers Hill, Baguio City.`,
+        content: `This is to certify that <b><u>${payload.residentName}</u></b>, Filipino Citizen, of legal age, male, is a bonafide resident of <b><u>${payload.address}</u></b>, Engineers Hill, Baguio City.`,
         fontSize: 12,
         align: 'justify',
       },
@@ -82,7 +89,7 @@ export const ResidencySchema: DocumentSchema = {
 
       {
         type: 'text',
-        content: `This certification is issued upon the request of the above-named person for <b><u>&nbsp;${payload.purpose || 'medical'}&nbsp;</u></b> purposes.`,
+        content: `This certification is issued upon the request of the above-named person for <b><u>${payload.purpose || 'medical'}</u></b> purposes.`,
         fontSize: 12,
         align: 'justify',
       },
@@ -90,7 +97,7 @@ export const ResidencySchema: DocumentSchema = {
 
       {
         type: 'text',
-        content: `Issued this <b><u>&nbsp;${day}${suffix}&nbsp;</u></b> of <b><u>&nbsp;${month}&nbsp;</u></b> ${year} at Engineers Hill, Baguio City, Philippines.`,
+        content: `Issued this <b><u>${day}${suffix}</u></b> of <b><u>${month}</u></b> ${year} at Engineers Hill, Baguio City, Philippines.`,
         fontSize: 12,
         align: 'justify',
       },
