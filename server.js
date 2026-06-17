@@ -34,11 +34,26 @@ const PORT = process.env.PORT || 8000;
 // ==========================================
 const ALLOWED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173'];
 
-// 🛡️ THE FIX: Evaluates both domain suffixes cleanly via logical grouping
-const isCloudflareOrigin = (origin) => origin && (
-    origin.endsWith('.barangay-engineer-s-hill.pages.dev') ||
-    origin.endsWith('.barangay-engineers-hill.pages.dev')
-);
+// 🛡️ Allow the Cloudflare Pages site on BOTH the apex domain (production) and any
+// subdomain (preview deploys). Matching by parsed hostname avoids the previous bug
+// where a leading-dot endsWith() rejected the apex origin
+// `https://barangay-engineers-hill.pages.dev` (only subdomains matched).
+const CLOUDFLARE_DOMAINS = [
+    'barangay-engineer-s-hill.pages.dev',
+    'barangay-engineers-hill.pages.dev',
+];
+const isCloudflareOrigin = (origin) => {
+    if (!origin) return false;
+    let host;
+    try {
+        host = new URL(origin).hostname;
+    } catch {
+        return false;
+    }
+    return CLOUDFLARE_DOMAINS.some(
+        (domain) => host === domain || host.endsWith(`.${domain}`)
+    );
+};
 
 const corsOptions = {
     origin: (origin, callback) => {
