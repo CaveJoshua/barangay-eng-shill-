@@ -30,6 +30,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const data = await res.json();
           // Map backend session data down to active components
           setUserRole(data.role || 'staff');
+
+          // 🔒 Keep the persisted admin session role in sync with the server's
+          // re-evaluated term. If a term lapsed mid-session, the backend now
+          // reports role 'restricted'; reflect it so the lock screen appears.
+          try {
+            const raw = localStorage.getItem('admin_session');
+            if (raw && data.role) {
+              const session = JSON.parse(raw);
+              if (session.role !== data.role) {
+                session.role = data.role;
+                if (session.profile) session.profile.term_status = data.term_status || session.profile.term_status;
+                localStorage.setItem('admin_session', JSON.stringify(session));
+              }
+            }
+          } catch {
+            // best-effort sync; ignore parse failures
+          }
         } else {
           clearAuth();
         }

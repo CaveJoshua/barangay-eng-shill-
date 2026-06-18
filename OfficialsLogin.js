@@ -53,8 +53,22 @@ const deriveRoleFromPosition = (position, fallbackRole, username = '') => {
     if (pos.includes('super admin') || pos.includes('punong')) return 'superadmin';
     if (pos.includes('secretary') || pos.includes('treasurer') || pos.includes('kagawad') || pos.includes('sk')) return 'admin';
     if (pos.includes('barangay hall')) return 'barangayhall';
-    
+
     return fallbackRole ? fallbackRole.toLowerCase().trim() : 'staff';
+};
+
+// ── 🗓️ TERM ENFORCEMENT ──
+// An official's term has lapsed when a term_end exists AND it is before today.
+// A null/empty term_end (Barangay Hall / Super Admin master) is NEVER lapsed,
+// so those accounts are exempt automatically.
+const isTermLapsed = (official) => {
+    const termEnd = official?.term_end;
+    if (!termEnd) return false;
+    const end = new Date(termEnd);
+    if (isNaN(end.getTime())) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return end < today;
 };
 
 export const OfficialsLoginRouter = (router, supabase) => {
@@ -219,8 +233,15 @@ export const OfficialsLoginRouter = (router, supabase) => {
             if (!(await verifyPassword(password, accountData.password))) return res.status(401).json({ error: 'Invalid password.' });
 
             const position = accountData.officials?.position || 'Official';
-            const userRole = deriveRoleFromPosition(position, accountData.role, accountData.username);
+            const derivedRole = deriveRoleFromPosition(position, accountData.role, accountData.username);
             const isMasterAccount = position === 'Super Admin';
+
+            // 🗓️ TERM GATE: a lapsed-term official can still authenticate, but their
+            // role is downgraded to 'restricted' — which is in no authorizeRoles()
+            // allowlist, so every protected admin route returns 403. The frontend
+            // shows a "term ended" lock screen. Master accounts have no term_end.
+            const lapsed = isTermLapsed(accountData.officials);
+            const userRole = lapsed ? 'restricted' : derivedRole;
 
             const token = jwt.sign({
                 aud: 'authenticated', role: 'authenticated',
@@ -241,12 +262,14 @@ export const OfficialsLoginRouter = (router, supabase) => {
                 account_id: accountData.account_id,
                 username: accountData.username,
                 role: userRole,
+                term_status: lapsed ? 'lapsed' : 'active',
                 theme_preference: accountData.theme_preference || 'light',
                 profile: {
                     record_id: accountData.official_id,
                     profileName: accountData.officials?.full_name,
                     position: position,
                     role: userRole,
+                    term_status: lapsed ? 'lapsed' : 'active',
                     ...(isMasterAccount ? {} : {
                         term_start: accountData.officials?.term_start,
                         term_end: accountData.officials?.term_end
@@ -279,7 +302,7 @@ export const OfficialsLoginRouter = (router, supabase) => {
             const token = req.cookies?.auth_token;
             if (!token) return res.status(401).json({ error: 'No admin session found.' });
 
-            jwt.verify(token, JWT_SECRET, { ignoreExpiration: true }, (err, decoded) => {
+            jwt.verify(token, JWT_SECRET, { ignoreExpiration: true }, async (err, decoded) => {
                 if (err || !decoded) return res.status(403).json({ error: 'Invalid or tampered token.' });
 
                 const expiredAt = decoded.exp * 1000;
@@ -290,6 +313,31 @@ export const OfficialsLoginRouter = (router, supabase) => {
                 }
 
                 const { iat, exp, ...newPayload } = decoded;
+                let termStatus = 'active';
+
+                // 🗓️ Re-evaluate term against current DB state on every refresh so a
+                // mid-session lapse downgrades to 'restricted' (and a re-extended term
+                // restores the proper role). Skip the system root, which has no record.
+                if (decoded.sub && decoded.sub !== 'SYSTEM-ROOT-0000') {
+                    try {
+                        const { data: acct } = await supabase
+                            .from('officials_accounts')
+                            .select('role, username, officials ( position, term_end )')
+                            .eq('account_id', decoded.sub)
+                            .single();
+
+                        if (acct) {
+                            const position = acct.officials?.position || 'Official';
+                            const derivedRole = deriveRoleFromPosition(position, acct.role, acct.username);
+                            const lapsed = isTermLapsed(acct.officials);
+                            newPayload.user_role = lapsed ? 'restricted' : derivedRole;
+                            termStatus = lapsed ? 'lapsed' : 'active';
+                        }
+                    } catch {
+                        // On lookup failure, keep the existing token role unchanged.
+                    }
+                }
+
                 const newToken = jwt.sign(newPayload, JWT_SECRET, { expiresIn: '1h' });
 
                 res.cookie('auth_token', newToken, {
@@ -299,7 +347,7 @@ export const OfficialsLoginRouter = (router, supabase) => {
                     maxAge: 86400000
                 });
 
-                res.status(200).json({ message: 'Session refreshed.' });
+                res.status(200).json({ message: 'Session refreshed.', role: newPayload.user_role, term_status: termStatus });
             });
         } catch (err) {
             res.status(500).json({ error: 'Refresh failed.' });

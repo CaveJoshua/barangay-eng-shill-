@@ -29,7 +29,20 @@ export interface IOfficial {
   full_name: string;
   position: string;
   status: string;
+  term_end?: string; // ISO date — when this official's term lapses
 }
+
+// 🗓️ An official is "in term" when they're Active AND their term hasn't lapsed.
+// A missing term_end (e.g. the Barangay Hall master) counts as always-active.
+export const isTermActive = (o: { status?: string; term_end?: string }): boolean => {
+  if ((o.status || '').toLowerCase() !== 'active') return false;
+  if (!o.term_end) return true;
+  const end = new Date(o.term_end);
+  if (isNaN(end.getTime())) return true;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return end >= today;
+};
 
 export const useDocumentDataAPI = (initialResidentName: string, initialResidentId?: string) => {
   const [residents, setResidents] = useState<IResident[]>([]);
@@ -82,18 +95,33 @@ export const useDocumentDataAPI = (initialResidentName: string, initialResidentI
             ? officialsData
             : (officialsData.officials || []);
 
-          const activeCaptain = safeOfficialsList.find((o: IOfficial) =>
-            (o.position.toLowerCase().includes('captain') ||
-              o.position.toLowerCase().includes('punong')) &&
-            o.status === 'Active'
-          );
-          if (activeCaptain) setCaptainName(activeCaptain.full_name.toUpperCase());
+          // 🗓️ TERM-SMART, WITH CONTINUITY: prefer an in-term official for the
+          // position; if none is currently in term, fall back to the most recent
+          // (outgoing) one so the document keeps a name until a replacement is
+          // registered for the new term — at which point step 1 picks them.
+          const pickOfficial = (matches: IOfficial[]): IOfficial | null => {
+            if (matches.length === 0) return null;
+            const inTerm = matches.find(isTermActive);
+            if (inTerm) return inTerm;
+            return matches
+              .slice()
+              .sort((a, b) => new Date(b.term_end || 0).getTime() - new Date(a.term_end || 0).getTime())[0];
+          };
 
-          const activeKagawad = safeOfficialsList.find((o: IOfficial) =>
-            o.position.toLowerCase().includes('kagawad') &&
-            o.status === 'Active'
+          const captain = pickOfficial(
+            safeOfficialsList.filter((o: IOfficial) =>
+              o.position.toLowerCase().includes('captain') ||
+              o.position.toLowerCase().includes('punong')
+            )
           );
-          if (activeKagawad) setKagawadName(activeKagawad.full_name.toUpperCase());
+          if (captain) setCaptainName(captain.full_name.toUpperCase());
+
+          const kagawad = pickOfficial(
+            safeOfficialsList.filter((o: IOfficial) =>
+              o.position.toLowerCase().includes('kagawad')
+            )
+          );
+          if (kagawad) setKagawadName(kagawad.full_name.toUpperCase());
         }
       } catch (err: any) {
         if (err.name !== 'AbortError') {

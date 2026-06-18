@@ -10,6 +10,7 @@ import {
 
 // Import your existing components
 import Dashboard from './components/UI/Administration_GUI/Dashboard';
+import TermEndedLock from './components/UI/Administration_GUI/TermEndedLock';
 import Community from './components/UI/Community_GUI/Community';
 import Community_Dashboard from './components/UI/Community_GUI/CommunityDashboard';
 import OfficialLogin from './components/buttons/Official_Login_modal';
@@ -187,10 +188,16 @@ const RoutesWithLogout: React.FC<{
           path="/admin/dashboard/*"
           element={
             localStorage.getItem('admin_session') ? (
-              <Dashboard
-                onLogout={logoutAndRedirect}
-                user={getAdminUser()}
-              />
+              // 🔒 Term lapsed → role downgraded to 'restricted' → show the locked
+              // notice instead of the dashboard (backend also 403s every admin call).
+              getAdminUser()?.role === 'restricted' ? (
+                <TermEndedLock onLogout={logoutAndRedirect} user={getAdminUser()} />
+              ) : (
+                <Dashboard
+                  onLogout={logoutAndRedirect}
+                  user={getAdminUser()}
+                />
+              )
             ) : (
               <Navigate to="/officialslogin" replace />
             )

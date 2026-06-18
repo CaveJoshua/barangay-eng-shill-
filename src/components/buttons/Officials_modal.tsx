@@ -132,12 +132,25 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
     setShowDropdown(false);
   };
 
+  // 🗓️ An official only blocks the seat while their term is still running. Once
+  // term_end has lapsed, a replacement for the same single-seat position can be
+  // registered for the new term (mirrors the backend term rule).
+  const stillHoldsSeat = (o: IOfficial) => {
+    if (o.status !== 'Active') return false;
+    if (!o.term_end) return true; // no term = permanent seat (e.g. Barangay Hall)
+    const end = new Date(o.term_end);
+    if (isNaN(end.getTime())) return true;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return end >= today;
+  };
+
   const canAddPosition = (pos: string) => {
     if (officialToEdit && officialToEdit.position === pos) return true;
     const singleRoles = ['Barangay Hall', 'Punong Barangay', 'Barangay Secretary', 'Barangay Treasurer', 'SK Chairperson'];
     if (singleRoles.includes(pos)) {
       if (Array.isArray(existingOfficials)) {
-        const exists = existingOfficials.find(o => o.position === pos && o.status === 'Active');
+        const exists = existingOfficials.find(o => o.position === pos && stillHoldsSeat(o));
         if (exists) return false;
       }
     }
