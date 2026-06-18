@@ -105,7 +105,7 @@ const Announcement_modal: React.FC<{
 
             <div className="AM_GROUP">
               <label>Content</label>
-              <textarea className="AM_TEXTAREA" placeholder="Provide complete details here..." required value={formData.content} onChange={(e) => setFormData({...formData, content: e.target.value})} />
+              <textarea className="AM_TEXTAREA" placeholder="*Required" required value={formData.content} onChange={(e) => setFormData({...formData, content: e.target.value})} />
             </div>
 
             <div className="AM_ROW">
@@ -117,6 +117,7 @@ const Announcement_modal: React.FC<{
                   <option value="Health & Safety">Health & Safety</option>
                   <option value="Youth & Sports">Youth & Sports</option>
                   <option value="Community Project">Community Project</option>
+                  <option value="Others">Others</option>
                 </select>
               </div>
               <div className="AM_GROUP">
@@ -140,11 +141,7 @@ const Announcement_modal: React.FC<{
                 </div>
               )}
               
-              <div className="AM_GROUP">
-                <label>Lapse / Expiration Date</label>
-                <input type="date" className="AM_INPUT" required value={formData.expires_at} onChange={(e) => setFormData({...formData, expires_at: e.target.value})} />
-                <small style={{color: '#64748b', fontSize: '11px', marginTop: '4px'}}>When should this be due it's date</small>
-              </div>
+              
             </div>
 
             <div className="AM_GROUP">
