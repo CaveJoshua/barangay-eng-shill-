@@ -78,7 +78,9 @@ export const authenticateToken = (req, res, next) => {
 
   if (!token) return res.status(401).json({ error: 'Unauthenticated' });
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  // 🔒 Pin the algorithm to HS256 (the only one we sign with) so a forged token
+  // can never trick verify into accepting a different/"none" algorithm.
+  jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }, (err, user) => {
     if (err) {
       const isExpired = err.name === 'TokenExpiredError';
       return res.status(isExpired ? 401 : 403).json({ error: isExpired ? 'Token expired.' : 'Invalid token.' });
@@ -181,8 +183,9 @@ app.get('/api/system/diagnostics', (req, res) => {
         },
         mailer_integration: {
             status: mailerStatus,
-            reason: mailerReason,
-            key_length: resendKey ? resendKey.length : 0
+            reason: mailerReason
+            // 🔒 key_length intentionally omitted — never expose secret metadata
+            // (length/prefix) on a public, unauthenticated endpoint.
         }
     });
 });
