@@ -5,7 +5,6 @@ import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
 import os from 'os';
 import { promises as fs } from 'fs';
-import { RateLimiterMemory } from 'rate-limiter-flexible'; // 🛡️ INTEGRATED: Security rate limiting engine
 
 // =========================================================
 // 📁 CLOUDINARY CONFIGURATION
@@ -16,15 +15,9 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// =========================================================
-// 🛡️ SUBMISSION RATE LIMITERS
-// Hard-capped at 2 successful or attempted submissions per 24-hour window
-// =========================================================
-const blotterDailyLimiter = new RateLimiterMemory({
-    points: 2,
-    duration: 60 * 60 * 24, // 24 hours in seconds
-    blockDuration: 60 * 60 * 24 // Lockout duration match
-});
+// 🛡️ SUBMISSION RATE LIMIT — enforced per resident at filing time via a DB count
+// of today's blotter_cases (see the POST handler). This replaces the previous
+// in-memory limiter so the cap survives restarts and only counts real filings.
 
 // =========================================================
 // ⚡ SURGICAL MULTER CONFIG: Disk Storage
@@ -216,19 +209,33 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
             
             const isResident = String(userRole).toLowerCase().trim() === 'resident';
 
-            // 🛡️ ENFORCE DAILY LIMIT RULES FOR ONLINE RESIDENT COMPLAINTS
+            // 🛡️ DAILY LIMIT — at most 2 online filings per resident per day.
+            // DB-backed (counts rows in blotter_cases) so it: (a) survives server
+            // restarts / runs correctly across multiple instances, and (b) counts only
+            // SUCCESSFUL filings — a failed/aborted attempt no longer burns the quota
+            // the way the old in-memory consume() did. We count by the server-set
+            // `created_at` (NOT the client-supplied `date_filed`, which is spoofable).
             if (isResident) {
-                const tokenResidentId = req.user?.record_id || req.user?.resident_id || req.user?.id || req.user?.sub || 'anonymous';
-                const limitKey = `blotter_submit_${clientIp}_${tokenResidentId}`;
+                const tokenResidentId = req.user?.record_id || req.user?.resident_id || req.user?.id || req.user?.sub;
+                const startOfToday = new Date();
+                startOfToday.setHours(0, 0, 0, 0);
                 try {
-                    await blotterDailyLimiter.consume(limitKey, 1);
-                } catch (rejRes) {
-                    const secsToWait = Math.round(rejRes.msBeforeNext / 1000) || 60;
-                    const hoursToWait = Math.ceil(secsToWait / 3600);
-                    return res.status(429).json({ 
-                        error: 'Too Many Requests', 
-                        message: `Submission throttled. You have reached the strict system boundary limit of 2 filings per day. Please return in ${hoursToWait} hour(s) to request new administrative action.` 
-                    });
+                    const { count, error: limitErr } = await supabase
+                        .from('blotter_cases')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('complainant_id', tokenResidentId)
+                        .gte('created_at', startOfToday.toISOString());
+                    if (limitErr) throw limitErr;
+                    if ((count || 0) >= 2) {
+                        return res.status(429).json({
+                            error: 'Too Many Requests',
+                            message: 'Submission throttled. You have reached the limit of 2 filings per day. Please try again tomorrow.'
+                        });
+                    }
+                } catch (limitCheckErr) {
+                    // Fail-open on a transient DB error so a legitimate report is never
+                    // wrongly blocked; the insert below is still authenticated + audited.
+                    console.error('[BLOTTER LIMIT] daily-count check failed:', limitCheckErr.message);
                 }
             }
 
