@@ -32,7 +32,11 @@ const PORT = process.env.PORT || 8000;
 // ==========================================
 // 🛡️ CORS — explicit allowlist, no wildcard
 // ==========================================
-const ALLOWED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173'];
+const ALLOWED_ORIGINS = [
+    'http://localhost:5173', 'http://127.0.0.1:5173',
+    // Vite falls back to 5174 when 5173 is busy — allow it so local dev isn't CORS-blocked.
+    'http://localhost:5174', 'http://127.0.0.1:5174',
+];
 
 // 🛡️ Allow the Cloudflare Pages site on BOTH the apex domain (production) and any
 // subdomain (preview deploys). Matching by parsed hostname avoids the previous bug
