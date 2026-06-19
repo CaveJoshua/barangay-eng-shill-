@@ -508,7 +508,7 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
                   className="RES_ADD_BTN"
                   onClick={() => { setSelectedResident(null); setIsModalOpen(true); }}
                 >
-                  <i className="fas fa-plus"></i> Add Identity
+                  <i className="fas fa-plus"></i> Add Residents
                 </button>
               )}
             </div>

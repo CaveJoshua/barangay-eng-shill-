@@ -45,6 +45,7 @@ export default function Archive() {
   const [previewItem, setPreviewItem] = useState<any | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [genDoc, setGenDoc] = useState(false);
+  const [docPreviewUrl, setDocPreviewUrl] = useState<string | null>(null);
   
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
@@ -312,40 +313,43 @@ export default function Archive() {
   };
 
   // 📄 Rebuild the archived document in its REAL barangay format (the same engine
-  // that issues it), with the current active officials' signatures. View/download
-  // only — archived documents are never restored from here.
+  // that issues it), with the current active officials' signatures. Shared by the
+  // inline mini-preview and the download. View-only — never restored from here.
+  const buildDocumentPdf = async (item: any) => {
+    let captainName = '';
+    let kagawadName = '';
+    try {
+      const offs = await ApiService.getOfficials();
+      if (Array.isArray(offs)) {
+        const active = (re: RegExp) =>
+          offs.find((o: any) => re.test(String(o.position || '')) && String(o.status || '').toLowerCase() === 'active');
+        captainName = String(active(/punong|captain/i)?.full_name || '').toUpperCase();
+        kagawadName = String(active(/kagawad/i)?.full_name || '').toUpperCase();
+      }
+    } catch { /* signatures are best-effort */ }
+
+    const schema = getSchemaById(item.type);
+    const payload: DocumentPayload = {
+      residentName: item.resident_name || 'N/A',
+      address: item.address || '',
+      type: item.type || '',
+      purpose: item.purpose || item.other_purpose || '',
+      dateIssued: item.date_released || item.created_at || new Date().toISOString(),
+      ctcNo: item.ctc_no || '',
+      orNo: item.or_no || '',
+      feesPaid: String(item.price ?? '0'),
+      certificateNo: item.reference_no || '',
+      captainName,
+      kagawadName,
+      paymentDate: '',
+    };
+    return generateVectorPDF(schema, payload);
+  };
+
   const handleDownloadDocumentFormat = async (item: any) => {
     setGenDoc(true);
     try {
-      let captainName = '';
-      let kagawadName = '';
-      try {
-        const offs = await ApiService.getOfficials();
-        if (Array.isArray(offs)) {
-          const active = (re: RegExp) =>
-            offs.find((o: any) => re.test(String(o.position || '')) && String(o.status || '').toLowerCase() === 'active');
-          captainName = String(active(/punong|captain/i)?.full_name || '').toUpperCase();
-          kagawadName = String(active(/kagawad/i)?.full_name || '').toUpperCase();
-        }
-      } catch { /* signatures are best-effort */ }
-
-      const schema = getSchemaById(item.type);
-      const payload: DocumentPayload = {
-        residentName: item.resident_name || 'N/A',
-        address: item.address || '',
-        type: item.type || '',
-        purpose: item.purpose || item.other_purpose || '',
-        dateIssued: item.date_released || item.created_at || new Date().toISOString(),
-        ctcNo: item.ctc_no || '',
-        orNo: item.or_no || '',
-        feesPaid: String(item.price ?? '0'),
-        certificateNo: item.reference_no || '',
-        captainName,
-        kagawadName,
-        paymentDate: '',
-      };
-
-      const pdf = await generateVectorPDF(schema, payload);
+      const pdf = await buildDocumentPdf(item);
       pdf.save(`document_${item.reference_no || item.id || 'archive'}`.replace(/\s+/g, '_') + '.pdf');
     } catch (e: any) {
       alert('Could not render the document format: ' + (e?.message || 'unknown error'));
@@ -353,6 +357,26 @@ export default function Archive() {
       setGenDoc(false);
     }
   };
+
+  // 🔍 Auto-render a compact inline preview when an archived DOCUMENT is opened,
+  // so it's viewable in a small form factor without downloading. The blob URL is
+  // revoked on close/change to avoid leaks.
+  useEffect(() => {
+    if (!previewItem || activeTab !== 'Documents') { setDocPreviewUrl(null); return; }
+    let cancelled = false;
+    let createdUrl: string | null = null;
+    setDocPreviewUrl(null);
+    (async () => {
+      try {
+        const pdf = await buildDocumentPdf(previewItem);
+        if (cancelled) return;
+        createdUrl = URL.createObjectURL(pdf.output('blob') as Blob);
+        setDocPreviewUrl(createdUrl);
+      } catch { /* preview is best-effort */ }
+    })();
+    return () => { cancelled = true; if (createdUrl) URL.revokeObjectURL(createdUrl); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewItem, activeTab]);
 
   const handleDownloadPDF = (tab: ArchiveTab, item: any) => {
     const fields = getRecordFields(tab, item);
@@ -569,6 +593,26 @@ export default function Archive() {
                   <div style={{ flex: 1, fontSize: '0.88rem', color: '#0f172a', fontWeight: 500, wordBreak: 'break-word' }}>{value}</div>
                 </div>
               ))}
+
+              {/* 🔍 DOCUMENT MINI-PREVIEW — the real format, viewable inline (read-only). */}
+              {activeTab === 'Documents' && (
+                <div style={{ paddingTop: '14px' }}>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '8px' }}>
+                    <i className="fas fa-file-pdf" style={{ marginRight: 6 }} />Document Preview
+                  </div>
+                  {docPreviewUrl ? (
+                    <iframe
+                      title="Archived document preview"
+                      src={docPreviewUrl}
+                      style={{ width: '100%', height: 320, border: '1px solid #e2e8f0', borderRadius: 8, background: '#f8fafc' }}
+                    />
+                  ) : (
+                    <div style={{ height: 110, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#64748b', border: '1px dashed #e2e8f0', borderRadius: 8, fontSize: '0.85rem' }}>
+                      <i className="fas fa-spinner fa-spin" /> Rendering document…
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* 📎 INCIDENT EVIDENCE — still viewable + downloadable in the vault (read-only). */}
               {activeTab === 'Incidents' && (() => {
