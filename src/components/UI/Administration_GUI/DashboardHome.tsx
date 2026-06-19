@@ -113,9 +113,12 @@ interface DashboardHomeProps {
   data: DashboardData;
   loading: boolean;
   onNavigate: (tabName: string, id?: string) => void;
+  // Pending-request counts (same source as the sidebar badges) so the stat cards
+  // can show the matching little red count.
+  pendingCounts?: { Document: number; 'Incident Reports': number };
 }
 
-const DashboardHome: React.FC<DashboardHomeProps> = ({ data, loading, onNavigate }) => {
+const DashboardHome: React.FC<DashboardHomeProps> = ({ data, loading, onNavigate, pendingCounts }) => {
 
   const { name: sessionName, position: sessionPosition, role: sessionRole } = parseAdminSession();
 
@@ -207,11 +210,11 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ data, loading, onNavigate
     };
   }, [fetchData]);
 
-  const stats = [
-    { label: 'Total Population',  val: data.stats.totalPopulation,  icon: 'fas fa-users',        variant: 'DS_VAR_BLUE',   targetTab: 'Residents' },
-    { label: 'Documents Issued',  val: data.stats.documentsIssued,  icon: 'fas fa-file-invoice', variant: 'DS_VAR_PINK',   targetTab: 'Document' },
-    { label: 'Blotter Cases',     val: data.stats.blotterCases,     icon: 'fas fa-gavel',        variant: 'DS_VAR_YELLOW', targetTab: 'Incident Reports' },
-    { label: 'System Activities', val: data.stats.systemActivities, icon: 'fas fa-history',      variant: 'DS_VAR_RED',    targetTab: 'Audit Log' },
+  const stats: Array<{ label: string; val: number; icon: string; variant: string; targetTab: string; pendingKey: 'Document' | 'Incident Reports' | null }> = [
+    { label: 'Total Population',  val: data.stats.totalPopulation,  icon: 'fas fa-users',        variant: 'DS_VAR_BLUE',   targetTab: 'Residents',        pendingKey: null },
+    { label: 'Documents Issued',  val: data.stats.documentsIssued,  icon: 'fas fa-file-invoice', variant: 'DS_VAR_PINK',   targetTab: 'Document',         pendingKey: 'Document' },
+    { label: 'Blotter Cases',     val: data.stats.blotterCases,     icon: 'fas fa-gavel',        variant: 'DS_VAR_YELLOW', targetTab: 'Incident Reports', pendingKey: 'Incident Reports' },
+    { label: 'System Activities', val: data.stats.systemActivities, icon: 'fas fa-history',      variant: 'DS_VAR_RED',    targetTab: 'Audit Log',        pendingKey: null },
   ];
 
   return (
@@ -230,18 +233,38 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ data, loading, onNavigate
       </header>
 
       <section className="DS_STATS_GRID">
-        {stats.map((stat, i) => (
-          <div key={i} className="DS_CARD" onClick={() => onNavigate(stat.targetTab)}>
-            <div className="DS_CARD_HEADER">
-              <div className="DS_CARD_INFO">
-                <span className="DS_CARD_LABEL">{stat.label}</span>
-                <h2 className="DS_CARD_VALUE">{loading ? '...' : stat.val.toLocaleString()}</h2>
+        {stats.map((stat, i) => {
+          const badge = stat.pendingKey && pendingCounts ? (pendingCounts[stat.pendingKey] || 0) : 0;
+          return (
+            <div key={i} className="DS_CARD" onClick={() => onNavigate(stat.targetTab)}>
+              <div className="DS_CARD_HEADER">
+                <div className="DS_CARD_INFO">
+                  <span className="DS_CARD_LABEL">{stat.label}</span>
+                  <h2 className="DS_CARD_VALUE">{loading ? '...' : stat.val.toLocaleString()}</h2>
+                </div>
+                <div className={`DS_ICON_BOX ${stat.variant}`} style={{ position: 'relative' }}>
+                  <i className={stat.icon} />
+                  {/* 🔴 Small pending-request count — matches the sidebar badge. */}
+                  {badge > 0 && (
+                    <span
+                      title={`${badge} pending request${badge === 1 ? '' : 's'}`}
+                      style={{
+                        position: 'absolute', top: '-8px', right: '-8px',
+                        background: '#ef4444', color: '#fff', fontSize: '0.7rem', fontWeight: 800,
+                        minWidth: '20px', height: '20px', borderRadius: '999px',
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        padding: '0 6px', lineHeight: 1, boxShadow: '0 0 0 2px #fff',
+                      }}
+                    >
+                      {badge > 99 ? '99+' : badge}
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className={`DS_ICON_BOX ${stat.variant}`}><i className={stat.icon} /></div>
+              <button className="DS_CARD_LINK">View Details <i className="fas fa-arrow-right" /></button>
             </div>
-            <button className="DS_CARD_LINK">View Details <i className="fas fa-arrow-right" /></button>
-          </div>
-        ))}
+          );
+        })}
       </section>
 
       <div className="DS_BOTTOM_GRID">

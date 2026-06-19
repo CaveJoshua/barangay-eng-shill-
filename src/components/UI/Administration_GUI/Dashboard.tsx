@@ -263,7 +263,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'Dashboard':           return <DashboardHome data={{ ...data, adminName: userInfo.name }} loading={loading} onNavigate={handleNavigation} />;
+      case 'Dashboard':           return <DashboardHome data={{ ...data, adminName: userInfo.name }} loading={loading} onNavigate={handleNavigation} pendingCounts={pendingCounts} />;
       case 'Notification Center': return <NotificationSystem onNavigate={handleNavigation} />;
       case 'Incident Reports':    return <BlotterPage highlightId={highlightId} />;
       case 'Document':            return <DocumentsPage highlightId={highlightId} />;
