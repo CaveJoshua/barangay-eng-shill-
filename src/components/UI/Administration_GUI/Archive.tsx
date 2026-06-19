@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { jsPDF } from 'jspdf';
 import styles from './styles/Archive.module.css';
 import { ApiService } from '../api';
+import { generateVectorPDF, type DocumentPayload } from '../../buttons/Tools/Document_tools/PDF_Algorithm';
+import { getSchemaById } from '../../buttons/Tools/Document_tools/Barangay_Documents/schemaRegistry';
 
 type ArchiveTab = 'Documents' | 'Incidents' | 'Residents' | 'Officials' | 'Households' | 'Announcements';
 
@@ -42,6 +44,7 @@ export default function Archive() {
   // Preview modal (viewable + downloadable archived record)
   const [previewItem, setPreviewItem] = useState<any | null>(null);
   const [restoring, setRestoring] = useState(false);
+  const [genDoc, setGenDoc] = useState(false);
   
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
@@ -306,6 +309,49 @@ export default function Archive() {
       trail.push({ label: `Closed — ${fmt(item.status) || 'Archived'}`, date: '' });
     }
     return trail;
+  };
+
+  // 📄 Rebuild the archived document in its REAL barangay format (the same engine
+  // that issues it), with the current active officials' signatures. View/download
+  // only — archived documents are never restored from here.
+  const handleDownloadDocumentFormat = async (item: any) => {
+    setGenDoc(true);
+    try {
+      let captainName = '';
+      let kagawadName = '';
+      try {
+        const offs = await ApiService.getOfficials();
+        if (Array.isArray(offs)) {
+          const active = (re: RegExp) =>
+            offs.find((o: any) => re.test(String(o.position || '')) && String(o.status || '').toLowerCase() === 'active');
+          captainName = String(active(/punong|captain/i)?.full_name || '').toUpperCase();
+          kagawadName = String(active(/kagawad/i)?.full_name || '').toUpperCase();
+        }
+      } catch { /* signatures are best-effort */ }
+
+      const schema = getSchemaById(item.type);
+      const payload: DocumentPayload = {
+        residentName: item.resident_name || 'N/A',
+        address: item.address || '',
+        type: item.type || '',
+        purpose: item.purpose || item.other_purpose || '',
+        dateIssued: item.date_released || item.created_at || new Date().toISOString(),
+        ctcNo: item.ctc_no || '',
+        orNo: item.or_no || '',
+        feesPaid: String(item.price ?? '0'),
+        certificateNo: item.reference_no || '',
+        captainName,
+        kagawadName,
+        paymentDate: '',
+      };
+
+      const pdf = await generateVectorPDF(schema, payload);
+      pdf.save(`document_${item.reference_no || item.id || 'archive'}`.replace(/\s+/g, '_') + '.pdf');
+    } catch (e: any) {
+      alert('Could not render the document format: ' + (e?.message || 'unknown error'));
+    } finally {
+      setGenDoc(false);
+    }
   };
 
   const handleDownloadPDF = (tab: ArchiveTab, item: any) => {
@@ -585,9 +631,15 @@ export default function Archive() {
               <button onClick={() => setPreviewItem(null)} style={{ padding: '9px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', fontWeight: 700, cursor: 'pointer', color: '#334155' }}>
                 Close
               </button>
-              <button onClick={() => handleDownloadPDF(activeTab, previewItem)} style={{ padding: '9px 16px', borderRadius: '8px', border: 'none', background: '#2563eb', color: '#fff', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                <i className="fas fa-download" /> Download PDF
+              <button onClick={() => handleDownloadPDF(activeTab, previewItem)} style={{ padding: '9px 16px', borderRadius: '8px', border: '1px solid #2563eb', background: '#fff', fontWeight: 700, cursor: 'pointer', color: '#2563eb', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <i className="fas fa-list" /> Summary PDF
               </button>
+              {/* 📄 Real document format (Documents tab only) — the issued layout, view + download. */}
+              {activeTab === 'Documents' && (
+                <button onClick={() => handleDownloadDocumentFormat(previewItem)} disabled={genDoc} style={{ padding: '9px 16px', borderRadius: '8px', border: 'none', background: genDoc ? '#93c5fd' : '#2563eb', color: '#fff', fontWeight: 700, cursor: genDoc ? 'default' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                  <i className={`fas ${genDoc ? 'fa-spinner fa-spin' : 'fa-file-pdf'}`} /> {genDoc ? 'Rendering…' : 'Download Document'}
+                </button>
+              )}
             </div>
           </div>
         </div>
