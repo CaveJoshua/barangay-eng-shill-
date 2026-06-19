@@ -162,13 +162,24 @@ export const documentRouter = (router, supabase, authenticateToken) => {
 
             if (!secureResidentId) return res.status(403).json({ success: false, error: "Identity verification failed." });
 
-            // 🛡️ RATE LIMITER: 2 requests per day
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const { count, error: countError } = await supabase.from('document_requests').select('*', { count: 'exact', head: true }).eq('resident_id', secureResidentId).gte('date_requested', today.toISOString());
+            // 🛡️ RATE LIMITER: a resident may submit at most 2 ONLINE document
+            // requests per day (DB-backed, so it survives server restarts). Admin/
+            // staff walk-ins processed at the counter are NOT limited, and the count
+            // only considers the resident's own online requests — admin walk-ins
+            // created for them never consume their self-service quota.
+            if (userRole === 'resident') {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const { count, error: countError } = await supabase
+                    .from('document_requests')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('resident_id', secureResidentId)
+                    .eq('request_method', 'Online')
+                    .gte('date_requested', today.toISOString());
 
-            if (countError) throw countError;
-            if (count >= 2) return res.status(429).json({ success: false, error: "Daily limit reached. (Max 2 requests/day)" });
+                if (countError) throw countError;
+                if (count >= 2) return res.status(429).json({ success: false, error: "Daily limit reached. (Max 2 online requests/day)" });
+            }
 
             // ID FACTORY: Step 1 (Temp ID)
             const tempRef = `TEMP-${Date.now()}`;

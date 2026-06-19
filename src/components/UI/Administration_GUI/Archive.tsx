@@ -26,6 +26,7 @@ export default function Archive() {
 
   // Preview modal (viewable + downloadable archived record)
   const [previewItem, setPreviewItem] = useState<any | null>(null);
+  const [restoring, setRestoring] = useState(false);
   
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
@@ -306,6 +307,37 @@ export default function Archive() {
     doc.save(`archive_${tab}_${idPart}`.replace(/\s+/g, '_') + '.pdf');
   };
 
+  // --- RESTORE (Announcements only) -------------------------------------------
+  // Brings an archived announcement back to Active. If its expiry already lapsed,
+  // push it 30 days out so it doesn't immediately re-archive.
+  const handleRestoreAnnouncement = async (item: any) => {
+    if (!window.confirm('Restore this announcement to Active? It will be visible to residents again.')) return;
+    setRestoring(true);
+    try {
+      const now = new Date();
+      const isExpired = item.expires_at && new Date(item.expires_at) < now;
+      const expires_at = isExpired
+        ? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        : item.expires_at;
+
+      const payload = { ...item, status: 'Active', expires_at };
+      const result = await ApiService.saveAnnouncement(item.id, payload);
+
+      if (result.success) {
+        // Drop it from the local archived list and force a fresh fetch next visit.
+        setAnnouncements(prev => prev.filter(a => a.id !== item.id));
+        loadedTabs.current.delete('Announcements');
+        setPreviewItem(null);
+      } else {
+        alert(`Restore failed: ${result.error}`);
+      }
+    } catch {
+      alert('System error during restore.');
+    } finally {
+      setRestoring(false);
+    }
+  };
+
   return (
     <div className={styles.ARC_PAGE_WRAP}>
       <div className={styles.ARC_MAIN_CONTAINER}>
@@ -464,6 +496,16 @@ export default function Archive() {
             </div>
 
             <div style={{ padding: '14px 22px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              {/* ♻️ Restore is offered for archived ANNOUNCEMENTS only — other vaults stay read-only. */}
+              {activeTab === 'Announcements' && (
+                <button
+                  onClick={() => handleRestoreAnnouncement(previewItem)}
+                  disabled={restoring}
+                  style={{ padding: '9px 16px', borderRadius: '8px', border: 'none', background: restoring ? '#86efac' : '#16a34a', color: '#fff', fontWeight: 700, cursor: restoring ? 'default' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px', marginRight: 'auto' }}
+                >
+                  <i className={`fas ${restoring ? 'fa-spinner fa-spin' : 'fa-trash-restore'}`} /> {restoring ? 'Restoring…' : 'Restore'}
+                </button>
+              )}
               <button onClick={() => setPreviewItem(null)} style={{ padding: '9px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', fontWeight: 700, cursor: 'pointer', color: '#334155' }}>
                 Close
               </button>
