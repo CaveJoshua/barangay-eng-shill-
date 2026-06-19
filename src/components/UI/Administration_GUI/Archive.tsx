@@ -5,6 +5,21 @@ import { ApiService } from '../api';
 
 type ArchiveTab = 'Documents' | 'Incidents' | 'Residents' | 'Officials' | 'Households' | 'Announcements';
 
+// Pull evidence (photos + a video) out of an archived incident narrative so the
+// vault can still SHOW + let you download it, even though incidents aren't restorable.
+const parseEvidence = (text: string): { images: string[]; videoUrl: string | null } => {
+  if (!text) return { images: [], videoUrl: null };
+  const re = /\[ATTACHED (EVIDENCE|VIDEO)\]\s*(\S+)/g;
+  const images: string[] = [];
+  let videoUrl: string | null = null;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (m[1] === 'VIDEO') videoUrl = m[2];
+    else images.push(m[2]);
+  }
+  return { images, videoUrl };
+};
+
 export default function Archive() {
   const [activeTab, setActiveTab] = useState<ArchiveTab>('Documents');
   
@@ -278,6 +293,21 @@ export default function Archive() {
     }
   };
 
+  // Lightweight lifecycle "action trail" built from the record's own timestamps.
+  const getTrail = (tab: ArchiveTab, item: any): { label: string; date: string }[] => {
+    const trail: { label: string; date: string }[] = [];
+    if (tab === 'Documents') {
+      if (item.date_requested || item.created_at) trail.push({ label: 'Requested', date: formatDate(item.date_requested || item.created_at) });
+      if (item.date_released) trail.push({ label: 'Released', date: formatDate(item.date_released) });
+      trail.push({ label: `Finalized — ${fmt(item.status) || 'Archived'}`, date: '' });
+    } else if (tab === 'Incidents') {
+      if (item.date_filed || item.created_at) trail.push({ label: 'Filed', date: formatDate(item.date_filed || item.created_at) });
+      if (item.hearing_date) trail.push({ label: 'Hearing scheduled', date: formatDate(item.hearing_date) });
+      trail.push({ label: `Closed — ${fmt(item.status) || 'Archived'}`, date: '' });
+    }
+    return trail;
+  };
+
   const handleDownloadPDF = (tab: ArchiveTab, item: any) => {
     const fields = getRecordFields(tab, item);
     const doc = new jsPDF();
@@ -493,6 +523,52 @@ export default function Archive() {
                   <div style={{ flex: 1, fontSize: '0.88rem', color: '#0f172a', fontWeight: 500, wordBreak: 'break-word' }}>{value}</div>
                 </div>
               ))}
+
+              {/* 📎 INCIDENT EVIDENCE — still viewable + downloadable in the vault (read-only). */}
+              {activeTab === 'Incidents' && (() => {
+                const { images, videoUrl } = parseEvidence(previewItem.narrative || '');
+                if (images.length === 0 && !videoUrl) return null;
+                return (
+                  <div style={{ paddingTop: '14px' }}>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '8px' }}>
+                      <i className="fas fa-paperclip" style={{ marginRight: 6 }} />Evidence ({images.length} photo{images.length === 1 ? '' : 's'}{videoUrl ? ' + 1 video' : ''})
+                    </div>
+                    {images.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {images.map((url, i) => (
+                          <a key={i} href={url} target="_blank" rel="noreferrer" title="Open full size / download" style={{ display: 'block', lineHeight: 0 }}>
+                            <img src={url} alt={`evidence ${i + 1}`} style={{ width: 84, height: 84, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                    {videoUrl && (
+                      <div style={{ marginTop: 10 }}>
+                        <video src={videoUrl} controls style={{ width: '100%', maxHeight: 240, borderRadius: 8, background: '#000' }} />
+                        <a href={videoUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', color: '#2563eb', fontWeight: 700, marginTop: 4 }}>
+                          <i className="fas fa-download" /> Download video
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* 🧭 ACTION TRAIL — record lifecycle from its own timestamps. */}
+              {getTrail(activeTab, previewItem).length > 0 && (
+                <div style={{ paddingTop: '14px', marginTop: '6px', borderTop: '1px solid #eef2f7' }}>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '8px' }}>
+                    <i className="fas fa-route" style={{ marginRight: 6 }} />Action Trail
+                  </div>
+                  {getTrail(activeTab, previewItem).map((s, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '4px 0' }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#2563eb', flexShrink: 0 }} />
+                      <span style={{ fontSize: '0.82rem', color: '#0f172a', fontWeight: 600 }}>{s.label}</span>
+                      {s.date && <span style={{ fontSize: '0.78rem', color: '#64748b', marginLeft: 'auto' }}>{s.date}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div style={{ padding: '14px 22px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
