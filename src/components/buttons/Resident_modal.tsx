@@ -515,6 +515,11 @@ export const ResidentModal: React.FC<{
                       <option value="ELEMENTARY GRADUATE">Elementary Graduate</option>
                       <option value="HIGH SCHOOL GRADUATE">High School Graduate</option>
                       <option value="COLLEGE GRADUATE">College Graduate</option>
+                      {/* 🎓 Smart constraint: Post Graduate is only offered when the resident
+                          isn't currently a Student (kept visible if already recorded). */}
+                      {(formData.employmentStatus !== 'STUDENT' || formData.education === 'POST GRADUATE') && (
+                        <option value="POST GRADUATE">Post Graduate</option>
+                      )}
                       <option value="MASTER'S DEGREE">Master's Degree</option>
                       <option value="DOCTORATE">Doctorate</option>
                     </select>

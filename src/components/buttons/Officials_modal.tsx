@@ -287,7 +287,22 @@ ROLE: SUPERADMIN
         </div>
 
         <form onSubmit={handleSubmit} className="OM_FORM">
-          
+
+          {/* 🛡️ CONSTRAINT NOTICE — shown when adding/editing a barangay official. */}
+          {!isBarangayHallMode && (
+            <div
+              className="OM_NOTICE"
+              style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: '0.8rem', color: '#1e3a8a', lineHeight: 1.5 }}
+            >
+              <i className="fas fa-circle-info" style={{ marginTop: 2, color: '#3b82f6', flexShrink: 0 }} />
+              <div>
+                <strong>{officialToEdit ? 'Editing constraints:' : 'Adding constraints:'}</strong> single-seat roles
+                (Punong Barangay, Secretary, Treasurer, SK Chairperson) allow only <strong>one active official per term</strong>.
+                When a term lapses, that official's access is <strong>automatically restricted</strong> — assign a current term to keep them active.
+              </div>
+            </div>
+          )}
+
           <div className="OM_FORM_GROUP">
             <label>Position / Role</label>
             <select
