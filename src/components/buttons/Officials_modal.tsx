@@ -2,6 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import './styles/Officials_modal.css';
 import { ApiService, OFFICIALS_API, getAuthHeaders } from '../UI/api';
 
+// 🗳️ Preset 3-year barangay terms. Picking one fills both the start and end date,
+// so admins choose a term from a dropdown instead of hand-entering two dates.
+const TERM_OPTIONS = Array.from({ length: 6 }, (_, i) => {
+  const y = 2019 + i * 3;
+  return { start: `${y}-01-01`, end: `${y + 3}-01-01`, label: `${y} – ${y + 3}` };
+});
+
 interface IOfficial {
   id?: string;
   full_name: string;
@@ -204,10 +211,9 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
     }
 
     if (!isBarangayHallMode) {
-      if (!formData.term_start) return alert("Service start date required.");
-      if (!formData.term_end) return alert("Service end date required.");
+      if (!formData.term_start || !formData.term_end) return alert("Please select a term.");
       if (new Date(formData.term_end) <= new Date(formData.term_start)) {
-        return alert("End date must be after start date.");
+        return alert("Invalid term: end date must be after start date.");
       }
     }
 
@@ -396,29 +402,29 @@ ROLE: SUPERADMIN
 
           {!isBarangayHallMode && (
             <>
-              <div className="OM_ROW">
-                <div className="OM_FORM_GROUP">
-                  <label>Start Date</label>
-                  <input
-                    type="date"
-                    required
-                    className="OM_INPUT"
-                    value={formData.term_start}
-                    disabled={!!officialToEdit}
-                    onChange={e => setFormData({ ...formData, term_start: e.target.value })}
-                  />
-                </div>
-                <div className="OM_FORM_GROUP">
-                  <label>End Date</label>
-                  <input
-                    type="date"
-                    required
-                    className="OM_INPUT"
-                    value={formData.term_end}
-                    disabled={!!officialToEdit}
-                    onChange={e => setFormData({ ...formData, term_end: e.target.value })}
-                  />
-                </div>
+              <div className="OM_FORM_GROUP">
+                <label>Term</label>
+                <select
+                  className="OM_INPUT"
+                  required
+                  value={formData.term_start && formData.term_end ? `${formData.term_start}|${formData.term_end}` : ''}
+                  onChange={e => {
+                    const [s, en] = e.target.value.split('|');
+                    setFormData({ ...formData, term_start: s || '', term_end: en || '' });
+                  }}
+                >
+                  <option value="">Select term…</option>
+                  {/* Keep an existing non-preset term selectable/viewable when editing. */}
+                  {formData.term_start && formData.term_end &&
+                    !TERM_OPTIONS.some(o => o.start === formData.term_start && o.end === formData.term_end) && (
+                    <option value={`${formData.term_start}|${formData.term_end}`}>
+                      {formData.term_start} → {formData.term_end} (current)
+                    </option>
+                  )}
+                  {TERM_OPTIONS.map(o => (
+                    <option key={o.label} value={`${o.start}|${o.end}`}>{o.label}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="OM_FORM_GROUP">
