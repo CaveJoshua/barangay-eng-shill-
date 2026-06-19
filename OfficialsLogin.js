@@ -305,8 +305,13 @@ export const OfficialsLoginRouter = (router, supabase) => {
             jwt.verify(token, JWT_SECRET, { ignoreExpiration: true }, async (err, decoded) => {
                 if (err || !decoded) return res.status(403).json({ error: 'Invalid or tampered token.' });
 
+                // The access token lives 1h, but the auth_token cookie lives 24h
+                // (maxAge below). A silent refresh should succeed for as long as the
+                // cookie is valid — otherwise a short idle past the 1h mark logs the
+                // user out. Align the grace window with the cookie's 24h lifetime so
+                // active sessions slide forward instead of being kicked out.
                 const expiredAt = decoded.exp * 1000;
-                const GRACE_MS = 5 * 60 * 1000;
+                const GRACE_MS = 24 * 60 * 60 * 1000; // 24h — matches the cookie maxAge
                 if (Date.now() > expiredAt + GRACE_MS) {
                     res.clearCookie('auth_token', { httpOnly: true, secure: true, sameSite: getSameSite(req) });
                     return res.status(401).json({ error: 'Session expired. Please log in again.' });

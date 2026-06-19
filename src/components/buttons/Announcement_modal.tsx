@@ -12,6 +12,10 @@ const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
+// Built-in categories. Anything not in this list is treated as a free-text
+// "Others" entry (the dropdown shows "Others" and a custom input holds the text).
+const PRESET_CATEGORIES = ['Public Advisory', 'Senior Citizen', 'Health & Safety', 'Youth & Sports', 'Community Project'];
+
 const Announcement_modal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
@@ -21,6 +25,7 @@ const Announcement_modal: React.FC<{
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
+  const [customCategory, setCustomCategory] = useState('');
 
   // 🛡️ THE FIX: Use a dedicated ref instead of document.getElementById
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -39,18 +44,22 @@ const Announcement_modal: React.FC<{
     if (isOpen) {
       setImageFile(null); 
       if (editingItem) {
+        const savedCategory = editingItem.category || 'Public Advisory';
+        const isPreset = PRESET_CATEGORIES.includes(savedCategory);
         setFormData({
           title: editingItem.title || '',
           content: editingItem.content || '',
-          category: editingItem.category || 'Public Advisory',
+          category: isPreset ? savedCategory : 'Others',
           priority: editingItem.priority || 'Low',
           status: editingItem.status || 'Active',
           expires_at: editingItem.expires_at ? new Date(editingItem.expires_at).toISOString().split('T')[0] : '',
           image_url: editingItem.image_url || ''
         });
+        setCustomCategory(isPreset ? '' : savedCategory);
         setImagePreview(editingItem.image_url || '');
       } else {
         setFormData({ title: '', content: '', category: 'Public Advisory', priority: 'Low', status: 'Active', expires_at: '', image_url: '' });
+        setCustomCategory('');
         setImagePreview('');
       }
     }
@@ -68,7 +77,12 @@ const Announcement_modal: React.FC<{
         finalImagePayload = await fileToBase64(imageFile);
       }
 
-      const payload = { ...formData, image_url: finalImagePayload };
+      // When "Others" is chosen, persist the typed custom category (fall back to
+      // the literal "Others" only if somehow left blank).
+      const finalCategory =
+        formData.category === 'Others' ? (customCategory.trim() || 'Others') : formData.category;
+
+      const payload = { ...formData, category: finalCategory, image_url: finalImagePayload };
       const result = await ApiService.saveAnnouncement(editingItem?.id || null, payload);
 
       if (result.success) {
@@ -98,13 +112,14 @@ const Announcement_modal: React.FC<{
         <form onSubmit={handleSubmit} className="AM_SCROLL_WRAPPER">
           <div className="AM_FORM_BODY">
             <div className="AM_GROUP">
+              
               <label>Title</label>
-              <input type="text" className="AM_INPUT" placeholder="Headline of the advisory..." required value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} />
+              <input type="text" className="AM_INPUT" placeholder="*Required" required value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} />
             </div>
 
             <div className="AM_GROUP">
               <label>Content</label>
-              <textarea className="AM_TEXTAREA" placeholder="Provide complete details here..." required value={formData.content} onChange={(e) => setFormData({...formData, content: e.target.value})} />
+              <textarea className="AM_TEXTAREA" placeholder="*Required" required value={formData.content} onChange={(e) => setFormData({...formData, content: e.target.value})} />
             </div>
 
             <div className="AM_ROW">
@@ -116,7 +131,20 @@ const Announcement_modal: React.FC<{
                   <option value="Health & Safety">Health & Safety</option>
                   <option value="Youth & Sports">Youth & Sports</option>
                   <option value="Community Project">Community Project</option>
+                  <option value="Others">Others</option>
                 </select>
+                {formData.category === 'Others' && (
+                  <input
+                    type="text"
+                    className="AM_INPUT"
+                    style={{ marginTop: '8px' }}
+                    placeholder="Specify category *"
+                    required
+                    maxLength={50}
+                    value={customCategory}
+                    onChange={(e) => setCustomCategory(e.target.value)}
+                  />
+                )}
               </div>
               <div className="AM_GROUP">
                 <label>Priority Level</label>
@@ -139,11 +167,7 @@ const Announcement_modal: React.FC<{
                 </div>
               )}
               
-              <div className="AM_GROUP">
-                <label>Lapse / Expiration Date</label>
-                <input type="date" className="AM_INPUT" required value={formData.expires_at} onChange={(e) => setFormData({...formData, expires_at: e.target.value})} />
-                <small style={{color: '#64748b', fontSize: '11px', marginTop: '4px'}}>When should this be due it's date</small>
-              </div>
+              
             </div>
 
             <div className="AM_GROUP">

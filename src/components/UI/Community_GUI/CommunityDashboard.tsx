@@ -129,12 +129,22 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
         const now = new Date().getTime();
 
         const filteredNews = rawNews.filter((news: any) => {
-          // 🛡️ THE FIX: Check if the event or announcement has lapsed.
-          // If it has an expires_at date and that date is in the past, hide it.
+          // 🗄️ ARCHIVE FIX: hide anything the admin archived. The shared
+          // /announcements endpoint returns every status (the admin Archive page
+          // needs them), so residents must filter archived items out here.
+          if (String(news.status || '').toLowerCase() === 'archived') {
+            return false;
+          }
+
+          // ⏰ DATE FIX: hide lapsed items, but keep an announcement visible through
+          // the ENTIRE day it expires. Comparing against the raw timestamp made a
+          // "valid until June 18" notice disappear at midnight; compare against the
+          // end of the expiry day so the date reflects correctly.
           if (news.expires_at) {
-            const expirationTime = new Date(news.expires_at).getTime();
-            if (!isNaN(expirationTime) && expirationTime < now) {
-              return false; // Skip lapsed items completely
+            const exp = new Date(news.expires_at);
+            if (!isNaN(exp.getTime())) {
+              exp.setHours(23, 59, 59, 999);
+              if (exp.getTime() < now) return false; // truly lapsed
             }
           }
 

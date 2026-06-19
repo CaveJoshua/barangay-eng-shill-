@@ -32,6 +32,7 @@ const initialDashboardData: DashboardData = {
 };
 
 const STATS_POLL_INTERVAL = 120000;
+const PENDING_POLL_INTERVAL = 45000; // refresh the Document/Incident request badges every 45s
 
 // ─── 🛡️ BULLETPROOF SESSION PARSER ───────────────────────────────────────────
 const parseAdminSession = () => {
@@ -87,6 +88,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
     () => localStorage.getItem('admin_active_tab') || 'Dashboard'
   );
   const [highlightId, setHighlightId] = useState<string | undefined>(undefined);
+
+  // 🔔 Count of pending (new) requests per module, shown as a red badge on the nav.
+  const [pendingCounts, setPendingCounts] = useState<{ Document: number; 'Incident Reports': number }>({
+    Document: 0,
+    'Incident Reports': 0,
+  });
 
   const [userInfo, setUserInfo] = useState(parseAdminSession);
 
@@ -151,6 +158,62 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [fetchStats]);
+
+  // ─── 🔔 PENDING REQUEST BADGES (Document + Incident Reports) ──────────────────
+  // Counts records whose status is "Pending" — i.e. new incoming requests that
+  // still need admin action, matching the "Pending" tab in each module.
+  const pendingControllerRef = useRef<AbortController | null>(null);
+  const pendingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const fetchPendingCounts = useCallback(async () => {
+    if (pendingControllerRef.current) pendingControllerRef.current.abort();
+    pendingControllerRef.current = new AbortController();
+    const signal = pendingControllerRef.current.signal;
+
+    // Returns null on a failed/aborted fetch so we keep the previous count (no flicker to 0).
+    const countPending = (list: any): number | null =>
+      Array.isArray(list)
+        ? list.filter((x: any) => String(x?.status || 'Pending').toLowerCase() === 'pending').length
+        : null;
+
+    try {
+      const [docs, blotters] = await Promise.all([
+        ApiService.getDocuments(signal).catch(() => null),
+        ApiService.getBlotters(signal).catch(() => null),
+      ]);
+      const docCount = countPending(docs);
+      const incCount = countPending(blotters);
+      setPendingCounts(prev => {
+        const next = {
+          Document: docCount === null ? prev.Document : docCount,
+          'Incident Reports': incCount === null ? prev['Incident Reports'] : incCount,
+        };
+        return prev.Document === next.Document && prev['Incident Reports'] === next['Incident Reports']
+          ? prev
+          : next;
+      });
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') console.error('[DASHBOARD] Pending badge sync error:', err);
+    } finally {
+      if (document.visibilityState === 'visible') {
+        pendingTimer.current = setTimeout(fetchPendingCounts, PENDING_POLL_INTERVAL);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPendingCounts();
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') fetchPendingCounts();
+      else if (pendingTimer.current) clearTimeout(pendingTimer.current);
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      if (pendingTimer.current) clearTimeout(pendingTimer.current);
+      if (pendingControllerRef.current) pendingControllerRef.current.abort();
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [fetchPendingCounts]);
 
   // ─── 🛡️ DYNAMIC MENU FILTERING (FIXED FOR PUNONG BARANGAY & BARANGAY HALL) ───
   const getVisibleMenuItems = () => {
@@ -225,16 +288,43 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
         
         {/* ── Dynamic Nav Rendering ── */}
         <nav className="FRAME_NAV_AREA">
-          {visibleMenuItems.map((item, index) => (
-            <div
-              key={index}
-              className={`FRAME_MENU_ITEM ${activeTab === item.name ? 'FRAME_MENU_ACTIVE' : ''}`}
-              onClick={() => handleNavigation(item.name)}
-            >
-              <i className={item.icon} />
-              <span>{item.name}</span>
-            </div>
-          ))}
+          {visibleMenuItems.map((item, index) => {
+            const badgeCount = pendingCounts[item.name as keyof typeof pendingCounts] || 0;
+            return (
+              <div
+                key={index}
+                className={`FRAME_MENU_ITEM ${activeTab === item.name ? 'FRAME_MENU_ACTIVE' : ''}`}
+                onClick={() => handleNavigation(item.name)}
+              >
+                <i className={item.icon} />
+                <span>{item.name}</span>
+                {badgeCount > 0 && (
+                  <span
+                    className="FRAME_MENU_BADGE"
+                    title={`${badgeCount} pending request${badgeCount === 1 ? '' : 's'}`}
+                    style={{
+                      marginLeft: 'auto',
+                      background: '#ef4444',
+                      color: '#fff',
+                      fontSize: '0.7rem',
+                      fontWeight: 800,
+                      minWidth: '20px',
+                      height: '20px',
+                      borderRadius: '999px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '0 6px',
+                      lineHeight: 1,
+                      boxShadow: '0 0 0 2px rgba(239,68,68,0.25)',
+                    }}
+                  >
+                    {badgeCount > 99 ? '99+' : badgeCount}
+                  </span>
+                )}
+              </div>
+            );
+          })}
         </nav>
         
         <div className="FRAME_FOOTER">
