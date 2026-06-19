@@ -126,8 +126,8 @@ export const ResidentModal: React.FC<{
 
         const standardReligion = ["ROMAN CATHOLIC", "IGLESIA NI CRISTO", "JEHOVAH'S WITNESSES"];
         const standardCivil = ["SINGLE", "MARRIED", "WIDOWED", "SEPARATED"];
-        const standardEdu = ["ELEMENTARY GRADUATE", "HIGH SCHOOL GRADUATE", "COLLEGE GRADUATE", "MASTER'S DEGREE", "DOCTORATE"];
-        const standardEmp = ["UNEMPLOYED", "FULL-TIME", "PART-TIME", "SELF-EMPLOYED", "STUDENT"];
+        const standardEdu = ["ELEMENTARY GRADUATE", "HIGH SCHOOL GRADUATE", "COLLEGE GRADUATE", "POST GRADUATE", "MASTER'S DEGREE", "DOCTORATE"];
+        const standardEmp = ["UNEMPLOYED", "FULL-TIME", "PART-TIME", "SELF-EMPLOYED"];
 
         const customObj: Record<string, boolean> = {};
         if (residentData.religion && !standardReligion.includes(residentData.religion.toUpperCase())) customObj.religion = true;
@@ -515,11 +515,7 @@ export const ResidentModal: React.FC<{
                       <option value="ELEMENTARY GRADUATE">Elementary Graduate</option>
                       <option value="HIGH SCHOOL GRADUATE">High School Graduate</option>
                       <option value="COLLEGE GRADUATE">College Graduate</option>
-                      {/* 🎓 Smart constraint: Post Graduate is only offered when the resident
-                          isn't currently a Student (kept visible if already recorded). */}
-                      {(formData.employmentStatus !== 'STUDENT' || formData.education === 'POST GRADUATE') && (
-                        <option value="POST GRADUATE">Post Graduate</option>
-                      )}
+                      <option value="POST GRADUATE">Post Graduate</option>
                       <option value="MASTER'S DEGREE">Master's Degree</option>
                       <option value="DOCTORATE">Doctorate</option>
                     </select>
@@ -536,7 +532,6 @@ export const ResidentModal: React.FC<{
                       <option value="FULL-TIME">Full-time</option>
                       <option value="PART-TIME">Part-time</option>
                       <option value="SELF-EMPLOYED">Self-Employed</option>
-                      <option value="STUDENT">Student</option>
                       <option value="OTHERS">OTHERS (SPECIFY)</option>
                     </select>
                   )}
