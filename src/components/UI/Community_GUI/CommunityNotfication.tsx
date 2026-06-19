@@ -28,6 +28,25 @@ const HL_LATEST = '__LATEST__';
 const REF_REGEX = /(ON-INC|WK-INC|ON-LN|WK-IN|BLTR|INCD|BLT|TMP|REF|BL)-[A-Z0-9-]+/i;
 const extractRef = (text = ''): string => (text.match(REF_REGEX)?.[0] || '').toUpperCase();
 
+// 🎨 Picks the icon + color + action label for a notification. Documents and
+// incidents get distinct icons, and a RELEASE event (document ready/released)
+// gets its own dedicated "release" icon — like the announcement card's tag.
+const pickVisual = (type: string, title = '', message = ''): { icon: string; color: string; action: string } => {
+  const t = `${title} ${message}`.toLowerCase();
+  if (type === 'document') {
+    const released = /ready|releas|claim|pick ?up|complete|approved/.test(t);
+    return released
+      ? { icon: 'fas fa-box-open',  color: '#10b981', action: 'RELEASE' }
+      : { icon: 'fas fa-file-alt',  color: '#10b981', action: 'UPDATE'  };
+  }
+  if (type === 'blotter' || type === 'incident') {
+    if (/hearing/.test(t))                          return { icon: 'fas fa-gavel',        color: '#f59e0b', action: 'HEARING' };
+    if (/settled|resolved|dismissed|closed/.test(t)) return { icon: 'fas fa-check-circle', color: '#f59e0b', action: 'CLOSED'  };
+    return { icon: 'fas fa-shield-alt', color: '#f59e0b', action: 'UPDATE' };
+  }
+  return { icon: 'fas fa-bell', color: '#3b82f6', action: 'VIEW' };
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
 // ─────────────────────────────────────────────────────────────────────────────
@@ -55,6 +74,7 @@ interface NotifItem {
   time:    string;
   icon:    string;
   color:   string;
+  action:  string; // short tag shown on the card (e.g. RELEASE / HEARING / UPDATE)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -114,9 +134,7 @@ const Community_Notification: React.FC<NotificationProps> = ({
       const id = `db-${n.id}`;
       if (dismissedIds.has(id)) return;
 
-      let icon = 'fas fa-bell', color = '#3b82f6';
-      if (n.type === 'document') { icon = 'fas fa-file-alt';   color = '#10b981'; }
-      if (n.type === 'blotter')  { icon = 'fas fa-shield-alt'; color = '#f59e0b'; }
+      const { icon, color, action } = pickVisual(n.type, n.title, n.message);
 
       // Resident DB notifications rarely carry a reference in their text. Pull one
       // out when present (e.g. "Case #ON-INC-… is now Active"); otherwise fall back
@@ -132,7 +150,7 @@ const Community_Notification: React.FC<NotificationProps> = ({
         title:   n.title,
         message: n.message,
         time:    n.created_at ? new Date(n.created_at).toLocaleDateString() : 'New',
-        icon, color,
+        icon, color, action,
       });
     });
 
@@ -147,7 +165,7 @@ const Community_Notification: React.FC<NotificationProps> = ({
         type: 'document',
         title:   'Document Ready',
         message: `Your ${doc.type} is ready for pickup at the barangay hall.`,
-        time:    'Action Required', icon: 'fas fa-file-export', color: '#10b981',
+        time:    'Action Required', icon: 'fas fa-box-open', color: '#10b981', action: 'RELEASE',
       });
     });
 
@@ -162,7 +180,7 @@ const Community_Notification: React.FC<NotificationProps> = ({
         type: 'blotter',
         title:   'Hearing Scheduled',
         message: `A hearing is scheduled for Case #${c.case_no ?? c.case_number ?? 'Pending'}.`,
-        time:    'Check Schedule', icon: 'fas fa-gavel', color: '#f59e0b',
+        time:    'Check Schedule', icon: 'fas fa-gavel', color: '#f59e0b', action: 'HEARING',
       });
     });
 
@@ -282,6 +300,13 @@ const Community_Notification: React.FC<NotificationProps> = ({
                     <span className="NOTIF_TIME">{notif.time}</span>
                   </div>
                   <p>{notif.message}</p>
+                  {/* 🏷️ Action tag (like the announcement card's "POST"). */}
+                  <span
+                    className="NOTIF_ACTION_TAG"
+                    style={{ display: 'inline-block', marginTop: 4, fontSize: '0.64rem', fontWeight: 800, letterSpacing: '0.07em', color: notif.color }}
+                  >
+                    {notif.action}
+                  </span>
                 </div>
 
                 {/* Chevron: slides in on hover to indicate the item is navigable */}
