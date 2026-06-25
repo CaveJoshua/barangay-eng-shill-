@@ -9,7 +9,7 @@ export interface IAnnouncement {
   content: string;
   category: string;
   priority: 'Low' | 'Medium' | 'High';
-  status: 'Active' | 'Archived';
+  status: 'Active' | 'Archived' | 'Draft';
   created_at: string;
   expires_at: string;
   views: number;
@@ -33,12 +33,13 @@ export default function AnnouncementPage() {
 
       const now = new Date();
 
-      // Process data: mark as Archived if the expiration date has passed
+      // Process data: mark as Archived if the expiration date has passed.
+      // Drafts are exempt — an unpublished draft never auto-archives on expiry.
       const processedData = data.map((item: IAnnouncement) => {
         const isExpired = new Date(item.expires_at) < now;
         return {
           ...item,
-          status: isExpired ? 'Archived' : item.status
+          status: (isExpired && item.status !== 'Draft') ? 'Archived' : item.status
         };
       });
 
@@ -158,8 +159,16 @@ export default function AnnouncementPage() {
 
                   <div className="ANN_INFO_BOX">
                     <div className="ANN_TOP_LINE">
-                      <h4>{item.title}</h4>
+                      <h4>
+                        {item.status === 'Draft' && <span style={{ color: '#b45309' }} title="Unpublished draft">∗ </span>}
+                        {item.title}
+                      </h4>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        {item.status === 'Draft' && (
+                          <span style={{ fontSize: '0.66rem', fontWeight: 800, letterSpacing: '0.05em', color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '3px 8px' }}>
+                            DRAFT
+                          </span>
+                        )}
                         <span className={`PRIO_BADGE ${item.priority?.toLowerCase() || 'low'}`}>
                           {item.priority}
                         </span>

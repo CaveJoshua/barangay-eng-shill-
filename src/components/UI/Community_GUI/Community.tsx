@@ -58,9 +58,11 @@ const Community: React.FC<CommunityProps> = ({ onLoginSuccess }) => {
 
     return newsList.filter((n: any) => {
       const isArchived = n.status === 'Archived';
+      // 📝 Drafts are admin-only work-in-progress — never show them to residents.
+      const isDraft = String(n.status || '').toLowerCase() === 'draft';
       const isExpired = n.expires_at ? new Date(n.expires_at) < now : false;
 
-      if (isArchived || isExpired) return false;
+      if (isArchived || isDraft || isExpired) return false;
       return activeFilter === 'All' || n.category === activeFilter;
     });
   }, [newsList, activeFilter]);

@@ -82,26 +82,74 @@ const Announcement_modal: React.FC<{
       const finalCategory =
         formData.category === 'Others' ? (customCategory.trim() || 'Others') : formData.category;
 
-      const payload = { ...formData, category: finalCategory, image_url: finalImagePayload };
+      // 📝 Pressing "Post" PUBLISHES: a brand-new post or a draft becomes Active.
+      // For an existing published/archived post, respect the Status dropdown.
+      const publishStatus =
+        (!editingItem || editingItem.status === 'Draft') ? 'Active' : (formData.status || 'Active');
+
+      const payload = { ...formData, category: finalCategory, image_url: finalImagePayload, status: publishStatus };
       const result = await ApiService.saveAnnouncement(editingItem?.id || null, payload);
 
       if (result.success) {
-        onSuccess(); 
-        onClose(); 
+        onSuccess();
+        onClose();
       } else {
         alert(`Broadcast Error: ${result.error}`);
       }
 
-    } catch (error: any) { 
+    } catch (error: any) {
         console.error("[MODAL ERROR]", error.message);
-        alert('Handshake failed. Check if Backend is active.'); 
-    } finally { 
-        setIsSubmitting(false); 
+        alert('Handshake failed. Check if Backend is active.');
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+
+  // 📝 DRAFT-ON-EXIT: clicking outside the modal with unsaved content auto-saves it
+  // as a Draft (status='Draft') to the database so nothing is lost. Editing an
+  // already-published post just closes (no draft copy); the "Discard" button always
+  // throws the work away.
+  const handleAccidentalExit = async () => {
+    const hasContent = formData.title.trim() || formData.content.trim();
+    const isExistingPublished = !!editingItem && editingItem.status !== 'Draft';
+
+    if (isSubmitting || !hasContent || isExistingPublished) {
+      onClose();
+      return;
+    }
+
+    try {
+      let finalImagePayload = formData.image_url;
+      if (imageFile) finalImagePayload = await fileToBase64(imageFile);
+
+      const finalCategory =
+        formData.category === 'Others' ? (customCategory.trim() || 'Others') : formData.category;
+
+      // Backend POST requires title/content/expires_at — fill safe placeholders for a
+      // partial draft so it always saves; the admin completes it later.
+      const defaultExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+      const draftPayload = {
+        title:      formData.title.trim()   || '(Untitled draft)',
+        content:    formData.content.trim() || '(draft in progress)',
+        category:   finalCategory,
+        priority:   formData.priority,
+        expires_at: formData.expires_at || defaultExpiry,
+        image_url:  finalImagePayload,
+        status:     'Draft',
+      };
+
+      await ApiService.saveAnnouncement(editingItem?.id || null, draftPayload);
+      onSuccess();
+    } catch (err) {
+      console.error('[DRAFT] auto-save failed:', err);
+    } finally {
+      onClose();
     }
   };
 
   return (
-    <div className="AM_OVERLAY" onClick={onClose}>
+    <div className="AM_OVERLAY" onClick={handleAccidentalExit}>
       <div className="AM_CONTENT" onClick={(e) => e.stopPropagation()}>
         
         <div className="AM_HEADER">
@@ -157,7 +205,9 @@ const Announcement_modal: React.FC<{
             </div>
 
             <div className="AM_ROW">
-              {editingItem && (
+              {/* Status dropdown only for an already-published post. A draft has no
+                  status picker — pressing "Post" publishes it. */}
+              {editingItem && editingItem.status !== 'Draft' && (
                 <div className="AM_GROUP">
                   <label>Status</label>
                   <select className="AM_SELECT" value={formData.status} onChange={(e) => setFormData({...formData, status: e.target.value})}>
@@ -166,8 +216,13 @@ const Announcement_modal: React.FC<{
                   </select>
                 </div>
               )}
-              
-              
+              {editingItem?.status === 'Draft' && (
+                <div className="AM_GROUP" style={{ alignSelf: 'center' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', fontWeight: 700, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '6px 10px' }}>
+                    <i className="fas fa-pen-nib" /> Draft — press Post to publish
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="AM_GROUP">

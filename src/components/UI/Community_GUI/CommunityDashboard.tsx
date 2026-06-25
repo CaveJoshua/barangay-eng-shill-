@@ -136,6 +136,11 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
             return false;
           }
 
+          // 📝 Drafts are admin-only — never surface unpublished work to residents.
+          if (String(news.status || '').toLowerCase() === 'draft') {
+            return false;
+          }
+
           // ⏰ DATE FIX: hide lapsed items, but keep an announcement visible through
           // the ENTIRE day it expires. Comparing against the raw timestamp made a
           // "valid until June 18" notice disappear at midnight; compare against the
