@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import './styles/Community_Blotter_Request.css'; 
-import { ApiService } from '../UI/api'; 
+import './styles/Community_Blotter_Request.css';
+import { ApiService } from '../UI/api';
+import PrivacyConsent from '../PrivacyConsent';
 
 // ─── INTERFACES ─────────────────────────────────────────────────────────
 interface ModalProps {
@@ -26,6 +27,7 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
   const [step, setStep] = useState<StepType>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [consent, setConsent] = useState(false); // RA 10173 / GDPR data-privacy consent
 
   // ─── FORM & MEDIA STATE ─────────────────────────────────────────────────
   const formDataState = {
@@ -107,7 +109,8 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
         setCurrentUser({ ...profile, formattedName: formatted });
       }
       setStep(1);
-      setMediaFiles([]); 
+      setConsent(false);
+      setMediaFiles([]);
       setVideoFile(null);
       setFormData({
         respondent: '',
@@ -125,6 +128,7 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
   // ─── SUBMISSION LOGIC ───────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!currentUser?.record_id) return alert("System Error: Resident profile ID is missing.");
+    if (!consent) return alert("Please read and agree to the Data Privacy Notice before submitting.");
     setIsSubmitting(true);
 
     try {
@@ -402,11 +406,13 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
                    </div>
                 </div>
                 {/* 🛡️ REFLECTED: Proactive Step 3 Disclaimer & Checkbox layout grouping */}
-                <div className="CIR_DISCLAIMER" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
+                <div className="CIR_DISCLAIMER" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '10px' }}>
                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                      <input type="checkbox" id="certify" checked readOnly />
                      <label htmlFor="certify">I certify that the information provided is true and correct.</label>
                    </div>
+                   {/* 🔐 RA 10173 / GDPR data-privacy consent (required to submit) */}
+                   <PrivacyConsent checked={consent} onChange={setConsent} purpose="this incident report" />
                    <small style={{ color: '#64748b', fontSize: '0.72rem', fontStyle: 'italic', fontWeight: 500 }}>
                      * Notice: Submitting this form consumes 1 of your 2 available daily incident report filing slots.
                    </small>
@@ -428,7 +434,7 @@ export default function Community_Incident_Report({ isOpen, onClose, onSuccess }
                Next Step <i className="fas fa-arrow-right"></i>
              </button>
            ) : (
-             <button className="CIR_BTN_PRIMARY SUBMIT" onClick={handleSubmit} disabled={isSubmitting}>
+             <button className="CIR_BTN_PRIMARY SUBMIT" onClick={handleSubmit} disabled={isSubmitting || !consent} title={!consent ? 'Please agree to the Data Privacy Notice to submit' : undefined}>
                {isSubmitting ? 'Sending...' : 'Submit Report'}
              </button>
            )}

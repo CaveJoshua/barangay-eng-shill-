@@ -45,6 +45,33 @@ stricter processing conditions (§13) apply.
 
 ---
 
+## 2b. International data-protection law (GDPR & global)
+
+RA 10173 was modeled on EU data-protection principles, so the controls above map
+closely to the **EU GDPR**. Aligning to GDPR (the global benchmark) also covers
+analogous regimes (UK GDPR, Singapore PDPA, California CCPA/CPRA). GDPR applies
+extraterritorially (Art 3) if the system ever processes EU data subjects' data.
+
+| GDPR article | Requirement | Status / gap |
+|---|---|---|
+| **Art 6** | Lawful basis (public task / consent) | 🟡 public-task basis exists; **explicit consent UI** needed |
+| **Art 9** | Special-category data (e.g. **religion**) → explicit consent / specific condition | 🔴 currently collected without explicit consent → add |
+| **Art 12–14** | Transparent information / privacy notice | 🔴 add Privacy Notice |
+| **Art 15–22** | Data-subject rights: access, rectification, **erasure ("right to be forgotten")**, restriction, **portability**, objection, no solely-automated decisions | 🟡 access/rectify partial; **add erasure + export**; no automated decisioning (✓) |
+| **Art 25** | Privacy by design & by default | 🟢 least-privilege RBAC, data minimization, secure defaults |
+| **Art 30** | Records of Processing Activities (ROPA) | 🟡 partial via this inventory → formalize a ROPA |
+| **Art 32** | Security of processing | 🟢 see §3 (encryption, access control, resilience, audit) |
+| **Art 33–34** | Breach notification (72h to authority + data subjects) | 🔴 add written plan |
+| **Art 35** | DPIA for high-risk (sensitive data) processing | 🔴 conduct a DPIA |
+| **Art 37–39** | Data Protection Officer | 🔴 designate DPO |
+| **Art 44–49** | International transfers (SCCs/adequacy for Supabase/Cloudinary/Resend/Render) | 🟡 execute SCCs/DPAs |
+
+**Net:** technical security (Art 25/32) is strong; the gaps are the same
+**privacy-program** items as RA 10173 (notice, consent, DSAR, breach plan, DPO,
+transfers) — satisfying RA 10173 + GDPR together closes both.
+
+---
+
 ## 3. Cybersecurity — OWASP Top 10 (2021) mapping
 
 | OWASP | Control in this system |
