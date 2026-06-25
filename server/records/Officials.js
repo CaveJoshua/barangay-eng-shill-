@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { logActivity } from './Auditlog.js'; 
-import { sendAutoMail } from './Mailer.js'; 
+import { logActivity } from '../lib/Auditlog.js'; 
+import { sendAutoMail } from '../lib/Mailer.js'; 
 
 // ==========================================
 // 🛡️ 1. SECURITY: ZERO TRUST RBAC

@@ -2,8 +2,8 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { buildSchema, NoSchemaIntrospectionCustomRule } from 'graphql';
 import { createHandler } from 'graphql-http/lib/use/express';
-import { logActivity } from './Auditlog.js';
-import { sendAutoMail } from './Mailer.js';
+import { logActivity } from '../lib/Auditlog.js';
+import { sendAutoMail } from '../lib/Mailer.js';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 
 const ALL_SYSTEM_ROLES = [

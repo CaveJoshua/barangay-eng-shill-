@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { z } from 'zod';
-import { logActivity } from './Auditlog.js';
+import { logActivity } from '../lib/Auditlog.js';
 
 // Generates a cryptographically random temporary password
 const generateTempPassword = () => crypto.randomBytes(12).toString('base64url');

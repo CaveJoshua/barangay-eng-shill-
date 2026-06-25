@@ -9,24 +9,24 @@ import https from 'https';
 import helmet from 'helmet';
 import jwt from 'jsonwebtoken'; 
 
-import { uploadImage } from './cloud.js';
+import { uploadImage } from './lib/cloud.js';
 
 // Modular Imports
-import { documentRouter } from './Document.js';
-import { AuditlogRouter, logActivity } from './Auditlog.js'; 
-import { RbacRouter } from './Rbac.js'; 
-import { AccountManagementRouter } from './Account_Management.js';
-import { ResidentsRecordRouter } from './ResidentsRecord.js'; 
-import { OfficialsRouter } from './Officials.js'; 
-import { HouseholdRouter } from './Household.js';
-import { OfficialsLoginRouter } from './OfficialsLogin.js';
-import { BlotterRouter } from './IncidentReport.js'; 
-import { ProfileRouter } from './Profile.js';
-import { ResidentsLoginRouter } from './ResidentLogin.js';
-import { NotificationRouter } from './Notification.js'; 
-import { CaptchaRouter } from './src/components/Captcha/captcha.js';
+import { documentRouter } from './services/Document.js';
+import { AuditlogRouter, logActivity } from './lib/Auditlog.js'; 
+import { RbacRouter } from './auth/Rbac.js'; 
+import { AccountManagementRouter } from './auth/Account_Management.js';
+import { ResidentsRecordRouter } from './records/ResidentsRecord.js'; 
+import { OfficialsRouter } from './records/Officials.js'; 
+import { HouseholdRouter } from './records/Household.js';
+import { OfficialsLoginRouter } from './auth/OfficialsLogin.js';
+import { BlotterRouter } from './services/IncidentReport.js'; 
+import { ProfileRouter } from './auth/Profile.js';
+import { ResidentsLoginRouter } from './auth/ResidentLogin.js';
+import { NotificationRouter } from './services/Notification.js'; 
+import { CaptchaRouter } from '../src/components/Captcha/captcha.js';
 // 🛡️ SECURITY REGULATOR IMPORT
-import { createSecurityRegulator } from './src/components/Captcha/Regulator.js';
+import { createSecurityRegulator } from '../src/components/Captcha/Regulator.js';
 
 dotenv.config();
 

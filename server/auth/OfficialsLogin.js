@@ -2,8 +2,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer'; // 🛡️ INTEGRATED: Nodemailer fallback for emergency paths
-import { logActivity } from './Auditlog.js';
-import { sendAutoMail } from './Mailer.js';
+import { logActivity } from '../lib/Auditlog.js';
+import { sendAutoMail } from '../lib/Mailer.js';
 
 const JWT_SECRET = process.env.SUPABASE_JWT_SECRET;
 if (!JWT_SECRET) throw new Error('[FATAL] SUPABASE_JWT_SECRET is not set.');

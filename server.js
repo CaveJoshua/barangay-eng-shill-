@@ -12,7 +12,7 @@ import { buildSchema, NoSchemaIntrospectionCustomRule } from 'graphql';
 import { createHandler } from 'graphql-http/lib/use/express';
 
 // Modular Imports
-import dataRoutes from './Data.js';
+import dataRoutes from './server/app.js';
 import { startPulse, handleShutdown } from './src/components/Captcha/Regulator.js';
 
 dotenv.config();

@@ -1,5 +1,5 @@
-import { logActivity } from './Auditlog.js';
-import { sendAutoMail } from './Mailer.js';
+import { logActivity } from '../lib/Auditlog.js';
+import { sendAutoMail } from '../lib/Mailer.js';
 
 // =========================================================
 // 🛡️ INTERNAL HELPERS & PRICE ENGINE

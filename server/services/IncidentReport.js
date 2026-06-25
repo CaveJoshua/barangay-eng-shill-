@@ -1,6 +1,6 @@
 
-import { logActivity } from './Auditlog.js';
-import { sendAutoMail } from './Mailer.js';
+import { logActivity } from '../lib/Auditlog.js';
+import { sendAutoMail } from '../lib/Mailer.js';
 import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
 import os from 'os';

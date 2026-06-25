@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer'; // 🛡️ ADDED: Nodemailer Import
-import { sendAutoMail } from './Mailer.js';
+import { sendAutoMail } from '../lib/Mailer.js';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 
 // =========================================================

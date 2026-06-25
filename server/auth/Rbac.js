@@ -1,4 +1,4 @@
-import { logActivity } from './Auditlog.js';
+import { logActivity } from '../lib/Auditlog.js';
 
 /**
  * RBAC MIDDLEWARE (GOD-MODE READY)

@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { logActivity } from './Auditlog.js';
+import { logActivity } from '../lib/Auditlog.js';
 
 /**
  * HOUSEHOLD ROUTER - ZERO TRUST ARCHITECTURE
