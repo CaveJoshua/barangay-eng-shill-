@@ -1,0 +1,75 @@
+name: Security
+
+# Automated DevSecOps gate — covers the 2025–2026 threat classes that `npm audit`
+# alone misses: committed secrets, malicious/known-vuln packages, and code flaws.
+# Layers: gitleaks (secrets) · npm audit + Trivy (SCA) · Semgrep (SAST).
+#
+# NOTE: GitHub Actions workflows can't be validated locally (no runner). The YAML
+# here is well-formed; pinned action versions may need a bump on first run.
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write # allow SARIF upload to the Security tab
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so already-committed secrets are caught
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_ENABLE_SUMMARY: "true"
+
+  dependencies:
+    name: Dependency audit (npm audit + Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # --ignore-scripts blocks malicious postinstall payloads (axios/Shai-Hulud class)
+      # from executing on the CI runner while still installing the locked tree.
+      - name: Install (lockfile-exact, no install scripts)
+        run: npm ci --ignore-scripts
+      - name: npm audit (fail on CRITICAL)
+        run: npm audit --audit-level=critical
+      - name: Trivy filesystem scan (fail on HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+  sast:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+      # Reports to the Security tab; non-blocking initially (SAST needs triage).
+      - name: Semgrep scan
+        run: semgrep scan --config=auto --sarif --output=semgrep.sarif
+        continue-on-error: true
+      - name: Upload Semgrep SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif

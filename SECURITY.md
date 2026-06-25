@@ -97,10 +97,11 @@ Full detail + remediation options in [SECURITY-AUDIT.md](SECURITY-AUDIT.md).
 
 ## 5. Hardening roadmap ("update security again" checklist)
 
-- [ ] **Rotate all `.env` secrets** and `git rm --cached .env` (+ history purge if pushed). _Critical._
-- [ ] Add **`.env.example`** (keys only).
-- [ ] CI: run `npm ci` (not `npm install`); add **OSV-Scanner** + **gitleaks** + **Semgrep** steps; fail on high/critical.
-- [ ] Mitigate install-time RATs: prefer `npm ci --ignore-scripts` where feasible, or vet postinstall scripts; consider `--foreground-scripts` review.
+- [ ] **Rotate all `.env` secrets** (+ history purge if the repo was pushed). _Critical — manual._
+- [x] `git rm --cached .env` — untracked (done).
+- [x] Add **`.env.example`** (keys only) — done.
+- [x] CI security gate added — [`.github/workflows/security.yml`](.github/workflows/security.yml): gitleaks (secrets) · `npm ci --ignore-scripts` + `npm audit` + Trivy (SCA) · Semgrep (SAST/SARIF).
+- [x] Mitigate install-time RATs: CI installs with `npm ci --ignore-scripts` (blocks malicious postinstall payloads).
 - [ ] Enable **2FA + provenance** on any npm publishing accounts (maintainer-compromise defense).
 - [ ] Pin/replace abandoned deps (already removed `mailer`/`crypto`/`node`/`xss-clean`; keep watching `inquirer`/`shelljs`/`chalk` if unused at runtime).
 - [ ] Patch the 2 triaged moderates when convenient (`exceljs@^4`).
