@@ -78,7 +78,9 @@ export const authenticateToken = (req, res, next) => {
     return res.status(401).json({ error: 'Session invalid or secure cookie missing.' });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  // 🔒 Pin the algorithm to HS256 (the only one we sign with) so a forged token
+  // can never trick verify into accepting a different/"none" algorithm.
+  jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }, (err, user) => {
     if (err) {
       console.error("[AUTH BOUNCER] Token Verification Failed:", err.message);
       const isExpired = err.name === 'TokenExpiredError';
@@ -271,16 +273,37 @@ router.post('/auth', async (req, res) => {
 // 6. ANNOUNCEMENTS (FULL CRUD CAPABILITIES ADDED)
 // ==========================================
 
-// GET ALL (Remains Public/Unrestricted so residents and visitors can see them)
+// GET ALL — public so residents/visitors see announcements, BUT drafts are
+// official-only: a draft is unpublished work and must never be sent to residents
+// (not even in the network response). We optionally decode the token; only an
+// authenticated official/admin receives drafts, everyone else gets them filtered
+// out server-side.
+const ANNOUNCEMENT_MANAGER_ROLES = ['admin', 'superadmin', 'staff', 'barangayhall'];
 router.get('/announcements', async (req, res) => {
     try {
+        let isOfficial = false;
+        const token = req.cookies?.auth_token || req.headers['authorization']?.split(' ')[1];
+        if (token && token !== 'null' && token !== 'undefined') {
+            try {
+                const u = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
+                const role = String(u?.user_role || u?.role || u?.account_type || u?.type || '').toLowerCase().trim();
+                isOfficial = ANNOUNCEMENT_MANAGER_ROLES.includes(role);
+            } catch { /* invalid/expired token → treat as public, no drafts */ }
+        }
+
         const { data, error } = await supabase
             .from('announcements')
             .select('*')
             .order('created_at', { ascending: false });
 
         if (error) throw error;
-        res.status(200).json(data);
+
+        // Strip drafts for anyone who isn't an announcement-managing official.
+        const result = isOfficial
+            ? data
+            : (data || []).filter(a => String(a?.status || '').toLowerCase() !== 'draft');
+
+        res.status(200).json(result);
     } catch (err) {
         res.status(500).json({ error: "Failed to fetch announcements." });
     }
