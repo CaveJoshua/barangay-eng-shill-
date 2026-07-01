@@ -71,6 +71,14 @@ const isTermLapsed = (official) => {
     return end < today;
 };
 
+// ── 🔒 STATUS GATE ──
+// Any status other than "Active" (Suspended / Resigned / End of Term …) revokes
+// admin access immediately — independent of the term window. This is what lets the
+// Punong Barangay flip an official's Status and have the system enforce it on the
+// very next session refresh. A missing status is treated as Active.
+const isAccessRevoked = (official) =>
+    String(official?.status || 'Active').trim().toLowerCase() !== 'active';
+
 export const OfficialsLoginRouter = (router, supabase) => {
 
     // ==========================================
@@ -224,7 +232,7 @@ export const OfficialsLoginRouter = (router, supabase) => {
                 .from('officials_accounts')
                 .select(`
                     account_id, username, password, role, official_id, theme_preference,
-                    officials ( full_name, position, term_start, term_end )
+                    officials ( full_name, position, term_start, term_end, status )
                 `)
                 .eq('username', cleanUsername)
                 .single();
@@ -236,12 +244,14 @@ export const OfficialsLoginRouter = (router, supabase) => {
             const derivedRole = deriveRoleFromPosition(position, accountData.role, accountData.username);
             const isMasterAccount = position === 'Super Admin';
 
-            // 🗓️ TERM GATE: a lapsed-term official can still authenticate, but their
-            // role is downgraded to 'restricted' — which is in no authorizeRoles()
-            // allowlist, so every protected admin route returns 403. The frontend
-            // shows a "term ended" lock screen. Master accounts have no term_end.
+            // 🗓️ TERM / STATUS GATE: a lapsed-term OR non-Active official can still
+            // authenticate, but their role is downgraded to 'restricted' — which is in
+            // no authorizeRoles() allowlist, so every protected admin route returns 403.
+            // The frontend shows a lock screen. Master accounts have no term_end.
             const lapsed = isTermLapsed(accountData.officials);
-            const userRole = lapsed ? 'restricted' : derivedRole;
+            const revoked = isAccessRevoked(accountData.officials);
+            const restricted = lapsed || revoked;
+            const userRole = restricted ? 'restricted' : derivedRole;
 
             const token = jwt.sign({
                 aud: 'authenticated', role: 'authenticated',
@@ -262,14 +272,14 @@ export const OfficialsLoginRouter = (router, supabase) => {
                 account_id: accountData.account_id,
                 username: accountData.username,
                 role: userRole,
-                term_status: lapsed ? 'lapsed' : 'active',
+                term_status: restricted ? 'lapsed' : 'active',
                 theme_preference: accountData.theme_preference || 'light',
                 profile: {
                     record_id: accountData.official_id,
                     profileName: accountData.officials?.full_name,
                     position: position,
                     role: userRole,
-                    term_status: lapsed ? 'lapsed' : 'active',
+                    term_status: restricted ? 'lapsed' : 'active',
                     ...(isMasterAccount ? {} : {
                         term_start: accountData.officials?.term_start,
                         term_end: accountData.officials?.term_end
@@ -327,16 +337,16 @@ export const OfficialsLoginRouter = (router, supabase) => {
                     try {
                         const { data: acct } = await supabase
                             .from('officials_accounts')
-                            .select('role, username, officials ( position, term_end )')
+                            .select('role, username, officials ( position, term_end, status )')
                             .eq('account_id', decoded.sub)
                             .single();
 
                         if (acct) {
                             const position = acct.officials?.position || 'Official';
                             const derivedRole = deriveRoleFromPosition(position, acct.role, acct.username);
-                            const lapsed = isTermLapsed(acct.officials);
-                            newPayload.user_role = lapsed ? 'restricted' : derivedRole;
-                            termStatus = lapsed ? 'lapsed' : 'active';
+                            const restricted = isTermLapsed(acct.officials) || isAccessRevoked(acct.officials);
+                            newPayload.user_role = restricted ? 'restricted' : derivedRole;
+                            termStatus = restricted ? 'lapsed' : 'active';
                         }
                     } catch {
                         // On lookup failure, keep the existing token role unchanged.

@@ -103,7 +103,7 @@ export default function Archive() {
             setOfficials(data.filter((o: any) => {
               const stat = String(o.status || '').trim().toLowerCase();
               const isExpired = o.term_end && !isNaN(new Date(o.term_end).getTime()) && new Date(o.term_end) < now;
-              const isInactiveStatus = ['archived', 'inactive', 'former', 'end of term', 'resigned'].includes(stat);
+              const isInactiveStatus = ['archived', 'inactive', 'former', 'end of term', 'resigned', 'suspended'].includes(stat);
               return isExpired || isInactiveStatus;
             }));
           }
@@ -228,7 +228,7 @@ export default function Archive() {
       case 'Documents': return ['All', 'Completed', 'Rejected', 'Archived'];
       case 'Incidents': return ['All', 'Settled', 'Dismissed', 'Archived', 'Rejected'];
       case 'Residents': return ['All', 'Archived', 'Deceased', 'Relocated', 'Inactive'];
-      case 'Officials': return ['All', 'Archived', 'Inactive', 'Resigned'];
+      case 'Officials': return ['All', 'Archived', 'Inactive', 'Resigned', 'Suspended', 'End of Term'];
       case 'Households': return ['All', 'Archived', 'Inactive', 'Relocated'];
       case 'Announcements': return ['All', 'Archived'];
       default: return ['All'];

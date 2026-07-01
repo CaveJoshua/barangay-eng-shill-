@@ -57,6 +57,11 @@ const hashOtp = (code) => crypto.createHash('sha256').update(code).digest('hex')
 
 const masterOtpStore = new Map();
 
+// Only "Active" keeps an official's login alive. Everything else revokes access.
+const ACTIVE_STATUSES = ['active'];
+// Statuses a manager may assign from the directory Status dropdown.
+const ASSIGNABLE_STATUSES = ['Active', 'Suspended', 'Resigned', 'End of Term'];
+
 // ==========================================
 // 🚀 3. MAIN ROUTER EXPORT
 // ==========================================
@@ -219,6 +224,51 @@ export const OfficialsRouter = (router, supabase, authenticateToken) => {
             res.json(data[0]); 
         } catch (err) { 
             res.status(400).json({ error: err.message }); 
+        }
+    });
+
+    // --- 🔁 UPDATE STATUS (Punong Barangay / Superadmin / Barangay Hall) ---
+    // The Punong Barangay can reassign an official's status here. Changing it ALSO
+    // syncs the linked login account, so a Suspended/Resigned/End-of-Term official
+    // loses admin access on their next session refresh — the system "immediately
+    // knows" without waiting for a term to lapse. Setting it back to Active restores
+    // access. Punong Barangay carries the 'superadmin' role (see getRolePrefix/login).
+    router.patch('/officials/:id/status', authenticateToken, checkSessionRole(['barangayhall', 'superadmin']), async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { status } = req.body;
+
+            if (!status || !ASSIGNABLE_STATUSES.map(s => s.toLowerCase()).includes(String(status).toLowerCase())) {
+                return res.status(400).json({ error: `Invalid status. Allowed: ${ASSIGNABLE_STATUSES.join(', ')}.` });
+            }
+
+            const { data: official, error: lookupErr } = await supabase
+                .from('officials').select('position, full_name').eq('id', id).single();
+            if (lookupErr || !official) return res.status(404).json({ error: 'Official not found.' });
+
+            // The Barangay Hall master account is the system anchor — never lock it out.
+            if (official.position === 'Barangay Hall') {
+                return res.status(403).json({ error: 'System Lock: Master account status cannot be changed.' });
+            }
+
+            const isActive = ACTIVE_STATUSES.includes(String(status).toLowerCase());
+
+            // 1. Update the official profile.
+            const { data: updated, error: updErr } = await supabase
+                .from('officials').update({ status }).eq('id', id).select().single();
+            if (updErr) throw updErr;
+
+            // 2. Sync the linked login account so access reflects the new status.
+            const { error: acctErr } = await supabase
+                .from('officials_accounts')
+                .update({ status: isActive ? 'Active' : 'Inactive' })
+                .eq('official_id', id);
+            if (acctErr) console.warn('[STATUS SYNC] Account access sync failed:', acctErr.message);
+
+            await logActivity(supabase, req.user?.username || 'System', 'UPDATE_OFFICIAL_STATUS', `Set ${official.full_name} → ${status}`, req);
+            res.json(updated);
+        } catch (err) {
+            res.status(400).json({ error: err.message });
         }
     });
 

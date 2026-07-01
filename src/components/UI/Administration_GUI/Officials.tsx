@@ -9,7 +9,7 @@ interface IOfficial {
   position: string;
   term_start: string;
   term_end: string;
-  status: 'Active' | 'End of Term' | 'Resigned' | 'Archived' | 'Inactive' | 'Former';
+  status: 'Active' | 'End of Term' | 'Resigned' | 'Archived' | 'Inactive' | 'Former' | 'Suspended';
   contact_number?: string;
 }
 
@@ -19,9 +19,14 @@ export default function OfficialsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState('');
   
-  const [hasAccess, setHasAccess] = useState<boolean | null>(null); 
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [canAddOfficial, setCanAddOfficial] = useState(false); // 🛡️ NEW: Track Write Access
+  const [canManageOfficial, setCanManageOfficial] = useState(false); // 🔒 Status / archive control
+  const [savingId, setSavingId] = useState<string | null>(null); // Row currently being updated
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Statuses the Punong Barangay may assign from the directory dropdown.
+  const STATUS_OPTIONS = ['Active', 'Suspended', 'Resigned', 'End of Term'];
 
   const isMounted = useRef(true);
 
@@ -32,7 +37,7 @@ export default function OfficialsPage() {
   const checkPermissions = useCallback(() => {
     try {
       const sessionStr = localStorage.getItem('admin_session');
-      if (!sessionStr) return { canView: false, canAdd: false };
+      if (!sessionStr) return { canView: false, canAdd: false, canManage: false };
 
       const session = JSON.parse(sessionStr);
       
@@ -53,19 +58,24 @@ export default function OfficialsPage() {
 
       // Admins CANNOT add officials
       const addWhitelist = [
-        'superadmin',  
-        'punongbarangay', 
-        'barangaysecretary', 
+        'superadmin',
+        'punongbarangay',
+        'barangaysecretary',
         'barangayhall'
       ];
 
+      // 🔒 Only the Punong Barangay (superadmin) and Barangay Hall may reassign an
+      // official's Status or archive them — this controls other people's access.
+      const manageWhitelist = ['superadmin', 'punongbarangay', 'barangayhall'];
+
       return {
         canView: viewWhitelist.includes(role) || viewWhitelist.includes(pos),
-        canAdd: addWhitelist.includes(role) || addWhitelist.includes(pos)
+        canAdd: addWhitelist.includes(role) || addWhitelist.includes(pos),
+        canManage: manageWhitelist.includes(role) || manageWhitelist.includes(pos)
       };
     } catch (e) {
       console.error("Permission check failed", e);
-      return { canView: false, canAdd: false };
+      return { canView: false, canAdd: false, canManage: false };
     }
   }, []);
 
@@ -85,6 +95,7 @@ export default function OfficialsPage() {
     // 2. Access Granted -> Fetch Data & Set Add Permission
     setHasAccess(true);
     setCanAddOfficial(perms.canAdd);
+    setCanManageOfficial(perms.canManage);
     setLoading(true);
     
     try {
@@ -144,6 +155,47 @@ export default function OfficialsPage() {
     });
   }, [officials, searchTerm]);
 
+  // 🔁 Reassign an official's status. A non-Active status revokes their admin
+  // access on their next session refresh (enforced server-side).
+  const handleStatusChange = async (off: IOfficial, newStatus: string) => {
+    if (newStatus === off.status) return;
+
+    const revoking = newStatus.toLowerCase() !== 'active';
+    const warn = revoking
+      ? `Set ${off.full_name} to "${newStatus}"?\n\nThis immediately revokes their admin access and moves them to the Archive.`
+      : `Restore ${off.full_name} to Active? Their admin access will be re-enabled.`;
+    if (!window.confirm(warn)) return;
+
+    setSavingId(off.id);
+    try {
+      const result = await ApiService.updateOfficialStatus(off.id, newStatus);
+      if (result?.error) {
+        alert(result.error);
+        return;
+      }
+      await fetchOfficials();
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  // 🗄️ Archive: soft-removes the official (backend sets End of Term + revokes access).
+  const handleArchive = async (off: IOfficial) => {
+    if (!window.confirm(`Archive ${off.full_name}?\n\nThey are removed from the active directory and lose admin access. You can review them in the Archive.`)) return;
+
+    setSavingId(off.id);
+    try {
+      const result = await ApiService.deleteOfficial(off.id);
+      if (result?.error) {
+        alert(result.error);
+        return;
+      }
+      await fetchOfficials();
+    } finally {
+      setSavingId(null);
+    }
+  };
+
   // --- 🔒 RENDER: ACCESS DENIED ---
   if (hasAccess === false) {
     return (
@@ -201,16 +253,21 @@ export default function OfficialsPage() {
                   <th>NAME</th>
                   <th>POSITION</th>
                   <th>TERM START</th>
-                  <th className="OFFIC_ALIGN_RIGHT">STATUS</th>
+                  <th className={canManageOfficial ? '' : 'OFFIC_ALIGN_RIGHT'}>STATUS</th>
+                  {canManageOfficial && <th className="OFFIC_ALIGN_RIGHT">ACTIONS</th>}
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                   <tr><td colSpan={4} className="OFFIC_TABLE_LOAD"><div className="OFFIC_SYNC_SPINNER"></div>Syncing...</td></tr>
+                   <tr><td colSpan={canManageOfficial ? 5 : 4} className="OFFIC_TABLE_LOAD"><div className="OFFIC_SYNC_SPINNER"></div>Syncing...</td></tr>
                 ) : filteredOfficials.length === 0 ? (
-                   <tr><td colSpan={4} className="OFFIC_TABLE_EMPTY">No active officials found matching your search.</td></tr>
+                   <tr><td colSpan={canManageOfficial ? 5 : 4} className="OFFIC_TABLE_EMPTY">No active officials found matching your search.</td></tr>
                 ) : (
-                  filteredOfficials.map((off) => (
+                  filteredOfficials.map((off) => {
+                    // Master account is the system anchor — its status can't be changed/archived.
+                    const isMaster = off.position === 'Barangay Hall';
+                    const busy = savingId === off.id;
+                    return (
                     <tr key={off.id}>
                       <td className="OFFIC_NAME_CELL">
                         <div className="OFFIC_AVATAR_FLEX">
@@ -222,11 +279,47 @@ export default function OfficialsPage() {
                       </td>
                       <td>{off.position}</td>
                       <td>{off.term_start}</td>
-                      <td className="OFFIC_ALIGN_RIGHT">
-                        <span className="OFFIC_STATUS_BADGE ACTIVE">Active</span>
+                      <td className={canManageOfficial ? '' : 'OFFIC_ALIGN_RIGHT'}>
+                        {canManageOfficial && !isMaster ? (
+                          <select
+                            className="OFFIC_STATUS_SELECT"
+                            value={off.status}
+                            disabled={busy}
+                            onChange={(e) => handleStatusChange(off, e.target.value)}
+                          >
+                            {/* Keep the current status selectable even if it isn't a preset */}
+                            {!STATUS_OPTIONS.includes(off.status) && (
+                              <option value={off.status}>{off.status}</option>
+                            )}
+                            {STATUS_OPTIONS.map((s) => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="OFFIC_STATUS_BADGE ACTIVE">{off.status || 'Active'}</span>
+                        )}
                       </td>
+                      {canManageOfficial && (
+                        <td className="OFFIC_ALIGN_RIGHT">
+                          {isMaster ? (
+                            <span className="OFFIC_LOCK_HINT" title="Master account is system-locked">
+                              <i className="fas fa-lock"></i>
+                            </span>
+                          ) : (
+                            <button
+                              className="OFFIC_ARCHIVE_BTN"
+                              onClick={() => handleArchive(off)}
+                              disabled={busy}
+                              title="Archive official"
+                            >
+                              <i className={`fas ${busy ? 'fa-spinner fa-spin' : 'fa-box-archive'}`}></i> Archive
+                            </button>
+                          )}
+                        </td>
+                      )}
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>

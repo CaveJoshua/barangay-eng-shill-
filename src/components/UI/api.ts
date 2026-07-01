@@ -526,6 +526,11 @@ export const ApiService = {
   deleteOfficial: (id: string) =>
     triggerAction(`${OFFICIALS_API}/${id}`, 'DELETE'),
 
+  // Punong Barangay / superadmin reassigns an official's status; the backend
+  // syncs their login account so access is revoked/restored on next refresh.
+  updateOfficialStatus: (id: string, status: string) =>
+    triggerAction(`${OFFICIALS_API}/${id}/status`, 'PATCH', { status }),
+
   // ── ANNOUNCEMENTS ───────────────────────────────────────────────────────────
   getAnnouncements: (signal?: AbortSignal) =>
     valveFetch(ANNOUNCEMENT_API, signal),

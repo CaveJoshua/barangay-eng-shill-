@@ -209,6 +209,67 @@
   color: #cbd5e1;
 }
 
+/* --- STATUS DROPDOWN (Punong Barangay control) --- */
+.OFFIC_STATUS_SELECT {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--offic-border);
+  background: var(--offic-input-bg);
+  color: var(--offic-text);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.OFFIC_STATUS_SELECT:hover {
+  border-color: #3b82f6;
+}
+
+.OFFIC_STATUS_SELECT:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.OFFIC_STATUS_SELECT:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* --- ARCHIVE ROW BUTTON --- */
+.OFFIC_ARCHIVE_BTN {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #fecaca;
+  background-color: #fef2f2;
+  color: #dc2626;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.OFFIC_ARCHIVE_BTN:hover:not(:disabled) {
+  background-color: #dc2626;
+  color: #fff;
+  border-color: #dc2626;
+  transform: translateY(-1px);
+}
+
+.OFFIC_ARCHIVE_BTN:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.OFFIC_LOCK_HINT {
+  color: var(--offic-text-sub);
+  opacity: 0.7;
+}
+
 /* --- ACTION BUTTONS --- */
 .OFFIC_ACTIONS_CELL {
   text-align: right;
