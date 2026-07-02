@@ -362,8 +362,9 @@
   color: var(--ANN-brand);
 }
 
-.ANN_EXPIRY {
-  color: #ef4444;
+.ANN_VALIDITY_TAG {
+  color: var(--ANN-text-muted);
+  font-weight: 600;
 }
 
 .PRIO_BADGE {

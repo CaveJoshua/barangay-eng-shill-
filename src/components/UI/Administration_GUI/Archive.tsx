@@ -326,7 +326,7 @@ export default function Archive() {
         { label: 'Category', value: fmt(item.category) },
         { label: 'Priority', value: fmt(item.priority) },
         { label: 'Content', value: fmt(item.content) },
-        { label: 'Expired On', value: formatDate(item.expires_at) },
+        { label: 'Valid Until', value: formatDate(item.expires_at) },
       ];
       default: return [];
     }
@@ -635,7 +635,7 @@ export default function Archive() {
                        {activeTab === 'Residents' && (<><th>ID</th><th>FULL NAME</th><th>SEX</th><th>DOB</th></>)}
                        {activeTab === 'Officials' && (<><th>NAME</th><th>POSITION</th><th>TERM START</th><th>TERM END</th></>)}
                        {activeTab === 'Households' && (<><th>HH NO.</th><th>HEAD</th><th>ZONE</th><th>STATUS</th></>)}
-                       {activeTab === 'Announcements' && (<><th>TITLE</th><th>CATEGORY</th><th>PRIORITY</th><th>EXPIRED ON</th></>)}
+                       {activeTab === 'Announcements' && (<><th>TITLE</th><th>CATEGORY</th><th>PRIORITY</th><th>VALID UNTIL</th></>)}
                        <th className={styles.ARC_ALIGN_RIGHT}>FINAL STATUS</th>
                      </tr>
                    </thead>

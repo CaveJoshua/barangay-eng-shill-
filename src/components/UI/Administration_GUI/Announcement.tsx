@@ -206,8 +206,8 @@ export default function AnnouncementPage() {
 
                       <div className="ANN_FOOT_LINE">
                         <span><i className="fas fa-calendar-alt"></i> {new Date(item.created_at).toLocaleDateString()}</span>
-                        <span className="ANN_EXPIRY">
-                          <i className="fas fa-clock"></i> Expires: {new Date(item.expires_at).toLocaleDateString()}
+                        <span className="ANN_VALIDITY_TAG">
+                          <i className="fas fa-calendar-check"></i> Valid Until: {new Date(item.expires_at).toLocaleDateString()}
                         </span>
                       </div>
                     </div>
