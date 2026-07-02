@@ -2,9 +2,24 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { z } from 'zod';
 import { logActivity } from '../lib/Auditlog.js';
+import { sendAutoMail } from '../lib/Mailer.js';
+import { sendSms, normalizePhNumber } from '../lib/Sms.js';
 
 // Generates a cryptographically random temporary password
 const generateTempPassword = () => crypto.randomBytes(12).toString('base64url');
+
+// =========================================================
+// 🔐 ACCOUNT-VERIFICATION OTP STORE (in-memory, same pattern as
+// Profile.js/Officials.js OTP flows). Keyed by the resident's record_id.
+// =========================================================
+const verifyOtpStore = new Map();
+
+const generateVerifyCode = (length = 6) => {
+    const chars = '0123456789'; // numeric-only: typing it back from a phone must be easy
+    return Array.from({ length }, () => chars[crypto.randomInt(0, chars.length)]).join('');
+};
+
+const hashOtp = (code) => crypto.createHash('sha256').update(code).digest('hex');
 
 // =========================================================
 // 🛡️ 1. UNIVERSAL PAYLOAD NORMALIZER
@@ -335,6 +350,140 @@ const DATA_HANDLERS = ['superadmin', 'admin', 'barangaysecretary', 'secretary', 
 
 export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
 
+    // =========================================================
+    // ✅ ACCOUNT VERIFICATION — the resident proves they own the
+    // email OR phone number on their record. Public endpoints (the
+    // resident isn't logged in yet during credential distribution).
+    // Channel is THEIR choice: 'email' (nodemailer/Resend) or 'sms'.
+    // =========================================================
+
+    // Resolve a resident from a username / email / contact number, without
+    // ever revealing to the caller which of those exist in the registry.
+    const findResidentForVerification = async (identifier) => {
+        const needle = String(identifier || '').trim();
+        if (!needle) return null;
+
+        if (needle.includes('@') && needle.includes('.brg.ph')) {
+            const { data: acct } = await supabase.from('residents_account')
+                .select('resident_id').ilike('username', needle).maybeSingle();
+            if (acct) {
+                const { data: rec } = await supabase.from('residents_records')
+                    .select('record_id, first_name, last_name, email, contact_number')
+                    .eq('record_id', acct.resident_id).maybeSingle();
+                return rec;
+            }
+            return null;
+        }
+
+        if (needle.includes('@')) {
+            const { data: rec } = await supabase.from('residents_records')
+                .select('record_id, first_name, last_name, email, contact_number')
+                .ilike('email', needle).neq('activity_status', 'Archived').maybeSingle();
+            return rec;
+        }
+
+        const phone = String(needle).replace(/\D/g, '');
+        if (phone.length >= 10) {
+            const { data: rec } = await supabase.from('residents_records')
+                .select('record_id, first_name, last_name, email, contact_number')
+                .eq('contact_number', phone.startsWith('63') ? `0${phone.slice(2)}` : phone)
+                .neq('activity_status', 'Archived').maybeSingle();
+            return rec;
+        }
+        return null;
+    };
+
+    // STEP 1 — request a code on the channel of the resident's choice.
+    router.post('/residents/verify/request', async (req, res) => {
+        try {
+            const { identifier, channel } = req.body;
+            if (!identifier || !['email', 'sms'].includes(channel)) {
+                return res.status(400).json({ error: "identifier and channel ('email' | 'sms') are required." });
+            }
+
+            // Anti-enumeration: same response whether or not the account exists.
+            const genericOk = { success: true, message: 'If the account exists, a verification code has been sent.' };
+
+            const resident = await findResidentForVerification(identifier);
+            if (!resident) return res.status(200).json(genericOk);
+
+            // 60s cooldown per resident so the endpoint can't be used to spam texts.
+            const existing = verifyOtpStore.get(resident.record_id);
+            if (existing && Date.now() < existing.cooldown) {
+                return res.status(429).json({ error: 'Please wait before requesting another code.' });
+            }
+
+            const code = generateVerifyCode(6);
+            verifyOtpStore.set(resident.record_id, {
+                codeHash: hashOtp(code),
+                expires: Date.now() + 5 * 60 * 1000,
+                cooldown: Date.now() + 60 * 1000,
+                attempts: 0,
+            });
+
+            let delivered = false;
+            if (channel === 'email' && resident.email) {
+                delivered = await sendAutoMail(
+                    resident.email,
+                    'Resident Account Verification Code',
+                    'Account Verification',
+                    `Hello <b>${resident.first_name}</b>,<br><br>
+                     Your Smart Barangay verification code is:<br><br>
+                     <h1 style="background:#f8fafc;padding:15px;text-align:center;letter-spacing:6px;color:#d97706;">${code}</h1>
+                     This code expires in 5 minutes. If you did not request it, ignore this email.`
+                );
+            } else if (channel === 'sms' && resident.contact_number) {
+                delivered = await sendSms(
+                    resident.contact_number,
+                    `Smart Barangay verification code: ${code}. Valid for 5 minutes. - Brgy Engineer's Hill`
+                );
+            }
+
+            if (!delivered) verifyOtpStore.delete(resident.record_id);
+            // Same generic body either way — a failed provider shouldn't leak
+            // which channel/contact details a record has.
+            return res.status(200).json(genericOk);
+        } catch (err) {
+            console.error('[VERIFY REQUEST ERROR]', err.message);
+            res.status(500).json({ error: 'Verification request failed.' });
+        }
+    });
+
+    // STEP 2 — confirm the code; marks the login account verified.
+    router.post('/residents/verify/confirm', async (req, res) => {
+        try {
+            const { identifier, otp } = req.body;
+            if (!identifier || !otp) return res.status(400).json({ error: 'identifier and otp are required.' });
+
+            const resident = await findResidentForVerification(identifier);
+            const record = resident && verifyOtpStore.get(resident.record_id);
+            if (!record) return res.status(400).json({ error: 'Invalid or expired verification session.' });
+
+            if (Date.now() > record.expires) {
+                verifyOtpStore.delete(resident.record_id);
+                return res.status(400).json({ error: 'Code expired. Request a new one.' });
+            }
+            if (hashOtp(String(otp).trim()) !== record.codeHash) {
+                record.attempts += 1;
+                if (record.attempts >= 3) verifyOtpStore.delete(resident.record_id);
+                return res.status(401).json({ error: 'Invalid verification code.' });
+            }
+
+            verifyOtpStore.delete(resident.record_id);
+
+            // Persist the confirmation (needs `is_verified` boolean on residents_account).
+            const { error: updErr } = await supabase.from('residents_account')
+                .update({ is_verified: true }).eq('resident_id', resident.record_id);
+            if (updErr) console.warn('[VERIFY] Could not persist is_verified:', updErr.message);
+
+            logActivity(supabase, 'PUBLIC_VERIFY', 'RESIDENT_VERIFIED', resident.record_id, req).catch(() => {});
+            res.json({ success: true, message: 'Account ownership confirmed.' });
+        } catch (err) {
+            console.error('[VERIFY CONFIRM ERROR]', err.message);
+            res.status(500).json({ error: 'Verification failed.' });
+        }
+    });
+
     // REBUILD LEDGER — re-sign every block's data hash, then rebuild the linked
     // chain and ANCHOR the new head into the audit log (so deletion is detectable).
     router.post('/residents/ledger/rebuild',
@@ -501,6 +650,25 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                     }]);
 
                     logActivity(supabase, req.user.username, 'RESIDENT_CREATED', profile.record_id, req).catch(() => {});
+
+                    // 📧 ACCOUNT-CONFIRMATION EMAIL (fire-and-forget) — during credential
+                    // distribution the resident gets their login details at the address
+                    // THEY registered, which itself confirms the account reaches the right
+                    // person. A dead mailer never blocks registration.
+                    if (profile.email) {
+                        sendAutoMail(
+                            profile.email,
+                            'Your Smart Barangay Resident Account',
+                            'Welcome to Barangay Engineer\'s Hill',
+                            `Hello <b>${profile.first_name} ${profile.last_name}</b>,<br><br>
+                             A resident account has been created for you in the Smart Barangay system.<br><br>
+                             <b>Username:</b> ${username}<br>
+                             <b>Temporary Password:</b> ${tempPass}<br><br>
+                             You will be asked to set your own password on first login.
+                             If you did not expect this account, please contact the Barangay Hall.`
+                        ).catch(() => {});
+                    }
+
                     // Non-blocking heads-up (e.g. a same-named but distinct resident
                     // already on file) rides along on the success response.
                     res.status(201).json(advisories.length ? { ...profile, advisories } : profile);
