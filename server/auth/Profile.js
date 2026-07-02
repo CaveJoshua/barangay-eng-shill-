@@ -136,6 +136,7 @@ const profileResolvers = {
 
     // 2. UPDATE PROFILE (Zero-Lag Fix + Image Saving)
     updateProfile: async (args, context) => {
+      try {
         const { req, supabase } = context;
         const { full_name, first_name, last_name, email, contact_number, phone, avatar_url, signature_url } = args;
         const targetId = req.user?.account_id || req.user?.official_id || req.user?.resident_id || req.user?.id || req.user?.sub;
@@ -203,6 +204,14 @@ const profileResolvers = {
             };
         }
         throw new Error("Update target not found.");
+      } catch (err) {
+        // 🪵 graphql-http swallows resolver throws into the response's `errors`
+        // array WITHOUT logging them server-side — so without this, a failure
+        // here is invisible in Render's logs. Log the full stack, then rethrow
+        // the same message so the client behavior is unchanged.
+        console.error('[UPDATE_PROFILE ERROR]', err);
+        throw err;
+      }
     },
 
     // 3. UPDATE THEME
