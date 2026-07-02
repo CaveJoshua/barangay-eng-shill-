@@ -9,7 +9,6 @@ import DocumentsPage from './Document';
 import OfficialsPage from './Officials';
 import AuditlogPage from './AuditLog';
 import AnnouncementPage from './Announcement';
-import AnnouncementDraftsPage from './AnnouncementDrafts';
 import AccountManagementPage from './AccountManagement';
 import ArchivePage from './Archive';
 
@@ -91,10 +90,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
   const [highlightId, setHighlightId] = useState<string | undefined>(undefined);
 
   // 🔔 Count of pending (new) requests per module, shown as a red badge on the nav.
-  const [pendingCounts, setPendingCounts] = useState<{ Document: number; 'Incident Reports': number; 'Draft Announcements': number }>({
+  const [pendingCounts, setPendingCounts] = useState<{ Document: number; 'Incident Reports': number }>({
     Document: 0,
     'Incident Reports': 0,
-    'Draft Announcements': 0,
   });
 
   const [userInfo, setUserInfo] = useState(parseAdminSession);
@@ -178,30 +176,19 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
         ? list.filter((x: any) => String(x?.status || 'Pending').toLowerCase() === 'pending').length
         : null;
 
-    // Same "keep previous on failure" rule, but counts the Draft queue instead.
-    const countDrafts = (list: any): number | null =>
-      Array.isArray(list)
-        ? list.filter((x: any) => String(x?.status || '').toLowerCase() === 'draft').length
-        : null;
-
     try {
-      const [docs, blotters, announcements] = await Promise.all([
+      const [docs, blotters] = await Promise.all([
         ApiService.getDocuments(signal).catch(() => null),
         ApiService.getBlotters(signal).catch(() => null),
-        ApiService.getAnnouncements(signal).catch(() => null),
       ]);
       const docCount = countPending(docs);
       const incCount = countPending(blotters);
-      const draftCount = countDrafts(announcements);
       setPendingCounts(prev => {
         const next = {
           Document: docCount === null ? prev.Document : docCount,
           'Incident Reports': incCount === null ? prev['Incident Reports'] : incCount,
-          'Draft Announcements': draftCount === null ? prev['Draft Announcements'] : draftCount,
         };
-        return prev.Document === next.Document
-          && prev['Incident Reports'] === next['Incident Reports']
-          && prev['Draft Announcements'] === next['Draft Announcements']
+        return prev.Document === next.Document && prev['Incident Reports'] === next['Incident Reports']
           ? prev
           : next;
       });
@@ -244,7 +231,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
     const allItems = [
       { name: 'Dashboard',          icon: 'fas fa-th-large' },
       { name: 'Announcements',      icon: 'fas fa-bullhorn' },
-      { name: 'Draft Announcements', icon: 'fas fa-file-pen' },
       { name: 'Officials',          icon: 'fas fa-user-shield' },
       { name: 'Residents',          icon: 'fas fa-users' },
       { name: 'Household',          icon: 'fas fa-home' },
@@ -287,7 +273,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
       case 'Officials':           return <OfficialsPage />;
       case 'Audit Log':           return <AuditlogPage />;
       case 'Announcements':       return <AnnouncementPage />;
-      case 'Draft Announcements': return <AnnouncementDraftsPage />;
       case 'Archive':             return <ArchivePage />;
       case 'Account Management':  return <AccountManagementPage />;
       default: return <div className="DS_CONTAINER"><h2>{activeTab}</h2><p>Module initializing...</p></div>;
@@ -316,9 +301,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
                 {badgeCount > 0 && (
                   <span
                     className="FRAME_MENU_BADGE"
-                    title={item.name === 'Draft Announcements'
-                      ? `${badgeCount} draft${badgeCount === 1 ? '' : 's'} queued`
-                      : `${badgeCount} pending request${badgeCount === 1 ? '' : 's'}`}
+                    title={`${badgeCount} pending request${badgeCount === 1 ? '' : 's'}`}
                     style={{
                       marginLeft: 'auto',
                       background: '#ef4444',
