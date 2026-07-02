@@ -127,7 +127,7 @@ export const AffidavitSchema: DocumentSchema = {
       //    can never be accidentally renamed via inline editing in the preview.
       {
         type: 'columns',
-        heightInMm: 14,
+        heightInMm: 25,
         columns: [
           {
             // LEFT SIDE — colon indicator
@@ -138,6 +138,10 @@ export const AffidavitSchema: DocumentSchema = {
             // RIGHT SIDE — captain name (locked)
             align: 'center',
             lines: [
+              // ✍️ e-signature placeholder — empty for now, reserved just above the
+              // printed name. Will hold the official's signature image once profile
+              // signatures are added.
+              { content: '', fontSize: 18 },
               {
                 content: payload.captainName.toUpperCase(),
                 isBold: true,

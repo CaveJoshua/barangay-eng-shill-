@@ -18,9 +18,11 @@
 .OM_CONTENT {
   background: #ffffff;
   width: 100%;
-  max-width: 500px;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
   border-radius: 12px;
-  padding: 2rem;
+  padding: 1.75rem 2rem;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   animation: modalFadeIn 0.2s ease-out;
 }
@@ -52,7 +54,35 @@
 .OM_FORM {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1.15rem;
+}
+
+/* Secondary hint — a quiet note, not an alert. A left accent bar carries the
+   "this matters" signal instead of a saturated fill, so it doesn't compete
+   with the primary fields for attention. */
+.OM_NOTICE {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid #93c5fd;
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: #64748b;
+}
+
+.OM_NOTICE i {
+  margin-top: 2px;
+  color: #93c5fd;
+  flex-shrink: 0;
+}
+
+.OM_NOTICE strong {
+  color: #334155;
+  font-weight: 600;
 }
 
 .OM_FORM_GROUP label {

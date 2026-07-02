@@ -122,12 +122,16 @@ export const JobseekerSchema: DocumentSchema = {
       // 6. Signature block — empty left column, all signatures centred in right column
       {
         type: 'columns',
-        heightInMm: 48,
+        heightInMm: 68,
         columns: [
           { align: 'left', lines: [] },
           {
             align: 'center',
             lines: [
+              // ✍️ e-signature placeholder — empty for now, reserved just above the
+              // printed name. Will hold the official's signature image once profile
+              // signatures are added.
+              { content: '', isBold: false, fontSize: 18 },
               { content: payload.captainName.toUpperCase(), isBold: true,  fontSize: 11 },
               { content: 'PUNONG BARANGAY',                 isBold: false, fontSize: 10 },
               {
@@ -137,7 +141,8 @@ export const JobseekerSchema: DocumentSchema = {
               },
               { content: '&nbsp;',          isBold: false, fontSize: 6  },
               { content: 'Witnessed by:',   isBold: false, fontSize: 10 },
-              { content: '&nbsp;',          isBold: false, fontSize: 6  },
+              // ✍️ Kagawad's e-signature placeholder — same idea, empty for now.
+              { content: '',                isBold: false, fontSize: 18 },
               { content: resolvedKagawad,   isBold: true,  fontSize: 11 },
               { content: 'BARANGAY KAGAWAD', isBold: false, fontSize: 10 },
               {
@@ -223,7 +228,7 @@ export const JobseekerSchema: DocumentSchema = {
 
       {
         type: 'columns',
-        heightInMm: 20,
+        heightInMm: 28,
         columns: [
           {
             align: 'left',
@@ -238,7 +243,10 @@ export const JobseekerSchema: DocumentSchema = {
             align: 'right',
             lines: [
               { content: 'Witnessed by:',                    isBold: false, fontSize: 10 },
-              { content: '&nbsp;',                           isBold: false, fontSize: 10 },
+              // ✍️ e-signature placeholder — empty for now, reserved just above the
+              // printed name. Will hold the official's signature image once profile
+              // signatures are added.
+              { content: '',                                 isBold: false, fontSize: 18 },
               { content: payload.captainName.toUpperCase(),  isBold: true,  fontSize: 10 },
               { content: 'Punong Barangay',                  isBold: false, fontSize: 10 },
             ],

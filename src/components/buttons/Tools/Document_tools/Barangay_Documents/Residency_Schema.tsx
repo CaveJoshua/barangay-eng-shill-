@@ -106,12 +106,16 @@ export const ResidencySchema: DocumentSchema = {
       // 6. Signature block — captain centred in the right half
       {
         type: 'columns',
-        heightInMm: 14,
+        heightInMm: 25,
         columns: [
           { align: 'left', lines: [] },
           {
             align: 'center',
             lines: [
+              // ✍️ e-signature placeholder — empty for now, reserved just above the
+              // printed name. Will hold the official's signature image once profile
+              // signatures are added.
+              { content: '', fontSize: 18 },
               { content: payload.captainName.toUpperCase(), isBold: true, fontSize: 12 },
               { content: 'Punong Barangay', isBold: false, fontSize: 11 },
             ],

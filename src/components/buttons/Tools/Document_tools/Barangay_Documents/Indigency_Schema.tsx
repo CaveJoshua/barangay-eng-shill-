@@ -114,17 +114,24 @@ export const IndigencySchema: DocumentSchema = {
         }
       ] 
         },
-             { 
+             {
       // 2. KAPITAN SIDE (The "Nudge" Fix)
-      align: 'center', 
+      align: 'center',
       lines: [
-        { 
-          content: payload.captainName.toUpperCase(), 
-          isBold: true, 
+        {
+          // ✍️ e-signature placeholder — empty for now, reserved just above the
+          // printed name. Will hold the official's signature image once profile
+          // signatures are added.
+          content: '',
+          fontSize: 18,
+        },
+        {
+          content: payload.captainName.toUpperCase(),
+          isBold: true,
           fontSize: 12,
           // 👈 We "push" the name 40mm to the right
           alignOffset: 18
-        }, 
+        },
         { 
           content: 'Punong Barangay', 
           isBold: false, 
