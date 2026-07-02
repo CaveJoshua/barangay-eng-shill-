@@ -353,13 +353,19 @@ export default function Archive() {
   const buildDocumentPdf = async (item: any) => {
     let captainName = '';
     let kagawadName = '';
+    let captainSignatureUrl = '';
+    let kagawadSignatureUrl = '';
     try {
       const offs = await ApiService.getOfficials();
       if (Array.isArray(offs)) {
         const active = (re: RegExp) =>
           offs.find((o: any) => re.test(String(o.position || '')) && String(o.status || '').toLowerCase() === 'active');
-        captainName = String(active(/punong|captain/i)?.full_name || '').toUpperCase();
-        kagawadName = String(active(/kagawad/i)?.full_name || '').toUpperCase();
+        const captain = active(/punong|captain/i);
+        const kagawad = active(/kagawad/i);
+        captainName = String(captain?.full_name || '').toUpperCase();
+        kagawadName = String(kagawad?.full_name || '').toUpperCase();
+        captainSignatureUrl = captain?.signature_url || '';
+        kagawadSignatureUrl = kagawad?.signature_url || '';
       }
     } catch { /* signatures are best-effort */ }
 
@@ -376,6 +382,8 @@ export default function Archive() {
       certificateNo: item.reference_no || '',
       captainName,
       kagawadName,
+      captainSignatureUrl,
+      kagawadSignatureUrl,
       paymentDate: '',
     };
     return generateVectorPDF(schema, payload);

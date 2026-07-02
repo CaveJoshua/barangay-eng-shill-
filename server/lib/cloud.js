@@ -11,6 +11,11 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
+// 🛡️ Hard cap on a base64 data URL's raw byte size (decoded), independent of the
+// body-size limit upstream — this guards the Cloudinary upload call specifically,
+// so a malformed/oversized payload can't tie up an outbound request or memory.
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB
+
 /**
  * UPLOAD FUNCTION: Handles Base64 strings from frontend
  */
@@ -32,6 +37,14 @@ export const uploadImage = async (fileString, folderName = 'barangay_announcemen
         // 3. ZERO TRUST VALIDATION: Siguraduhin na Base64 image talaga ito
         if (!fileString.startsWith('data:image')) {
             console.warn("[CLOUDINARY] Invalid image format detected. Rejecting upload.");
+            return null;
+        }
+
+        // 3b. 🛡️ Size guard — base64 is ~4/3 the decoded size, so this is a safe
+        // upper-bound check without actually decoding the payload.
+        const approxBytes = fileString.length * 0.75;
+        if (approxBytes > MAX_IMAGE_BYTES) {
+            console.warn(`[CLOUDINARY] Image payload too large (${Math.round(approxBytes / 1024 / 1024)}MB). Rejecting upload.`);
             return null;
         }
 

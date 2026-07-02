@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './styles/Officials_modal.css';
 import { ApiService, OFFICIALS_API, getAuthHeaders } from '../UI/api';
+import { cleanSignatureBackground } from '../UI/utils/signatureImage';
 
 // 🗳️ Preset 3-year barangay terms. Picking one fills both the start and end date,
 // so admins choose a term from a dropdown instead of hand-entering two dates.
@@ -19,6 +20,7 @@ interface IOfficial {
   status: 'Active' | 'End of Term' | 'Resigned';
   contact_number?: string;
   role?: string;
+  signature_url?: string;
 }
 
 interface IResident {
@@ -61,6 +63,12 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
   const [showDropdown, setShowDropdown] = useState(false);
   const searchWrapperRef = useRef<HTMLDivElement>(null);
 
+  // ✍️ Signature upload — processed client-side (background removed) before
+  // ever leaving the browser, so what's uploaded is always a clean transparent PNG.
+  const signatureInputRef = useRef<HTMLInputElement>(null);
+  const [isProcessingSignature, setIsProcessingSignature] = useState(false);
+  const [signatureError, setSignatureError] = useState('');
+
   const [formData, setFormData] = useState<Partial<IOfficial>>({
     full_name: '',
     email: '',
@@ -69,7 +77,8 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
     term_end: '',
     status: 'Active',
     contact_number: '',
-    role: 'staff'
+    role: 'staff',
+    signature_url: ''
   });
 
   const isBarangayHallMode = formData.position === 'Barangay Hall';
@@ -109,15 +118,43 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
           term_end: '',
           status: 'Active',
           contact_number: '',
-          role: 'staff'
+          role: 'staff',
+          signature_url: ''
         });
       }
       setOtpSent(false);
       setVerificationCode('');
       setTraceId('');
       setMasterEmail('');
+      setSignatureError('');
+      setIsProcessingSignature(false);
     }
   }, [isOpen, officialToEdit]);
+
+  // ✍️ Cleans the background client-side, then stashes the resulting transparent
+  // PNG (as a base64 data URL) on formData — the backend swaps it for a real
+  // Cloudinary URL on submit, exactly like the announcement image flow.
+  const handleSignatureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file later
+    if (!file) return;
+
+    setSignatureError('');
+    setIsProcessingSignature(true);
+    try {
+      const cleaned = await cleanSignatureBackground(file);
+      setFormData(prev => ({ ...prev, signature_url: cleaned }));
+    } catch (err: any) {
+      setSignatureError(err.message || 'Could not process the signature image.');
+    } finally {
+      setIsProcessingSignature(false);
+    }
+  };
+
+  const handleRemoveSignature = () => {
+    setFormData(prev => ({ ...prev, signature_url: '' }));
+    setSignatureError('');
+  };
 
   const filteredResidents = residents.filter(r => {
     const safeFirst = r.first_name || '';
@@ -472,6 +509,47 @@ ROLE: SUPERADMIN
                     setFormData({ ...formData, contact_number: val.substring(0, 11) });
                   }}
                 />
+              </div>
+
+              <div className="OM_FORM_GROUP">
+                <label>E-Signature</label>
+                <div className="OM_SIG_ROW">
+                  <div className="OM_SIG_PREVIEW">
+                    {isProcessingSignature ? (
+                      <i className="fas fa-spinner fa-spin" />
+                    ) : formData.signature_url ? (
+                      <img src={formData.signature_url} alt="Signature preview" />
+                    ) : (
+                      <span className="OM_SIG_EMPTY">No signature</span>
+                    )}
+                  </div>
+                  <div className="OM_SIG_ACTIONS">
+                    <button
+                      type="button"
+                      className="OM_BTN_SECONDARY"
+                      onClick={() => signatureInputRef.current?.click()}
+                      disabled={isProcessingSignature}
+                    >
+                      {formData.signature_url ? 'Replace' : 'Upload'}
+                    </button>
+                    {formData.signature_url && (
+                      <button type="button" className="OM_BTN_SECONDARY" onClick={handleRemoveSignature}>
+                        Remove
+                      </button>
+                    )}
+                    <input
+                      ref={signatureInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      hidden
+                      onChange={handleSignatureUpload}
+                    />
+                  </div>
+                </div>
+                <p className="OM_SIG_HINT">
+                  Upload a photo/scan of the signature — the background is cleaned automatically.
+                </p>
+                {signatureError && <p className="OM_SIG_ERROR">{signatureError}</p>}
               </div>
             </>
           )}

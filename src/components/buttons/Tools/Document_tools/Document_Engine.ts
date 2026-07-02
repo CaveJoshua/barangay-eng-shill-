@@ -65,7 +65,9 @@ export const useDocumentEngine = (
   captainName: string,
   kagawadName: string,
   onEdit?: (key: string, value: string) => void,
-  layoutControls?: LayoutControls
+  layoutControls?: LayoutControls,
+  captainSignatureUrl?: string,
+  kagawadSignatureUrl?: string
 ) => {
   // --- ENGINE STATE ---
   const [pages, setPages] = useState<React.ReactNode[]>([]);
@@ -101,7 +103,9 @@ export const useDocumentEngine = (
     const payload: DocumentPayload = {
       ...docConfig,
       captainName,
-      kagawadName
+      kagawadName,
+      captainSignatureUrl,
+      kagawadSignatureUrl
     };
 
     // Pass a stable wrapper function so the Engine doesn't rapidly re-render
@@ -131,7 +135,7 @@ export const useDocumentEngine = (
 
     setPages(virtualDocumentMap.pages);
     setWordCount(virtualDocumentMap.totalWords);
-  }, [docConfig, captainName, kagawadName, activeSchema, moveMode, zoom, layout]);
+  }, [docConfig, captainName, kagawadName, captainSignatureUrl, kagawadSignatureUrl, activeSchema, moveMode, zoom, layout]);
 
   // --- THE COMPILER (Final Vector PDF & Auto-Complete for ALL Admin-Processed Docs) ---
   const handleSaveAndDownload = useCallback(async () => {
@@ -203,7 +207,7 @@ export const useDocumentEngine = (
     } finally {
       setIsProcessing(false);
     }
-  }, [docConfig, activeSchema, captainName, kagawadName]);
+  }, [docConfig, activeSchema, captainName, kagawadName, captainSignatureUrl, kagawadSignatureUrl]);
 
   return {
     pages,

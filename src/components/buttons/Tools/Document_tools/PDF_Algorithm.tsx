@@ -36,6 +36,11 @@ export interface DocumentPayload {
   certificateNo: string;
   captainName: string;
   kagawadName?: string;
+  // ✍️ e-signature on file for each signer, if any — Cloudinary URL. Left
+  // undefined when the official hasn't uploaded one, which schemas treat as
+  // "leave the reserved space blank" (no visual regression either way).
+  captainSignatureUrl?: string;
+  kagawadSignatureUrl?: string;
   officials?: any[];
   witnesses?: WitnessRecord[];
   [key: string]: any;
@@ -76,8 +81,14 @@ export interface RenderInstruction {
       isBold?: boolean;
       fontSize?: number;
       alignOffset?: number;
-      align?: 'left' | 'center' | 'right'; 
-      editableKey?: string; 
+      align?: 'left' | 'center' | 'right';
+      editableKey?: string;
+      // ✍️ When set, this line renders as a signature image instead of text —
+      // `content` is ignored. Lets multiple signers stack in one column (e.g. a
+      // Punong Barangay signature above a Kagawad signature). Falls back to
+      // ordinary blank/text lines wherever no signature is on file.
+      image?: string;
+      imageHeightMm?: number;
     }>;
   }>;
 
@@ -492,13 +503,24 @@ export const calculatePagination = (
             {inst.columns?.map((col, cIdx) => (
               <div key={cIdx} style={{ flex: 1, textAlign: col.align as any, minWidth: 0 }}>
                 {col.lines.map((l, lIdx) => {
+                  // ✍️ A signature line renders as an image, not editable text.
+                  if (l.image) {
+                    return (
+                      <img
+                        key={lIdx}
+                        src={l.image}
+                        alt="signature"
+                        style={{ height: `${l.imageHeightMm || 10}mm`, width: 'auto', display: 'inline-block' }}
+                      />
+                    );
+                  }
                   // 🎯 same denylist filter for column-level editable lines
                   const lineEditable = isEditable(l.editableKey);
                   return (
                   <div key={lIdx}
                     data-editable={lineEditable ? 'true' : undefined}
-                    style={{ 
-                    color: l.color || inst.color || '#000000', fontWeight: l.isBold ? 'bold' : 'normal', 
+                    style={{
+                    color: l.color || inst.color || '#000000', fontWeight: l.isBold ? 'bold' : 'normal',
                     fontSize: `${l.fontSize || 10}pt`, textAlign: (l.align as any) || 'inherit',
                     fontFamily: '"Times New Roman", Times, serif', position: 'relative', left: `${l.alignOffset || 0}mm`,
                     whiteSpace: 'nowrap', lineHeight: 1.5, display: 'block', outline: 'none',
@@ -506,8 +528,8 @@ export const calculatePagination = (
                     padding: lineEditable ? '0 4px' : '0',
                     borderRadius: '2px',
                     backgroundColor: lineEditable ? 'rgba(0, 120, 255, 0.05)' : 'transparent'
-                  }} 
-                  dangerouslySetInnerHTML={{ __html: l.content || '&nbsp;' }} 
+                  }}
+                  dangerouslySetInnerHTML={{ __html: l.content || '&nbsp;' }}
                   contentEditable={lineEditable}
                   suppressContentEditableWarning={true}
                   onBlur={lineEditable ? (e) => {
@@ -672,6 +694,25 @@ export const generateVectorPDF = async (
 
   // 🧲 Same drag displacements used by the preview, keyed by block index.
   const layout: LayoutOverrides = (payload.layout as LayoutOverrides) || {};
+
+  // ✍️ Preload every signature image referenced by any 'columns' instruction —
+  // jsPDF's addImage needs an already-loaded element (not a bare URL), and doing
+  // this once upfront keeps the main render loop below fully synchronous. A
+  // failed/unreachable image is simply skipped (falls back to blank space),
+  // never blocks the rest of the document from generating.
+  const signatureImages: Record<string, HTMLImageElement> = {};
+  const referencedImageUrls = Array.from(new Set(
+    instructions
+      .flatMap(inst => inst.columns?.flatMap(col => col.lines.map(l => l.image)) || [])
+      .filter((url): url is string => !!url)
+  ));
+  await Promise.all(referencedImageUrls.map(url => new Promise<void>((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => { signatureImages[url] = img; resolve(); };
+    img.onerror = () => resolve();
+    img.src = url;
+  })));
 
   const applyWatermark = () => {
     if (activeWatermark) {
@@ -901,11 +942,30 @@ export const generateVectorPDF = async (
 
           col.lines.forEach(line => {
             const lineAlign = line.align || col.align || 'left';
+
+            // ✍️ A signature line draws an image (if it loaded) instead of text,
+            // top-left-anchored, aligned the same way the column's text is.
+            if (line.image) {
+              const sigImg = signatureImages[line.image];
+              const imgH = line.imageHeightMm || 10;
+              if (sigImg) {
+                const imgW = imgH * (sigImg.naturalWidth / sigImg.naturalHeight);
+                let imgX = startX;
+                if (lineAlign === 'center') imgX = startX + (colWidth - imgW) / 2;
+                if (lineAlign === 'right') imgX = startX + colWidth - imgW;
+                try {
+                  pdf.addImage(sigImg, 'PNG', imgX, colY, imgW, imgH);
+                } catch { /* best-effort — a failed embed just leaves the space blank */ }
+              }
+              colY += imgH + 1;
+              return;
+            }
+
             let alignX = startX;
             if (lineAlign === 'center') alignX = startX + colWidth / 2;
             if (lineAlign === 'right') alignX = startX + colWidth;
-            alignX += (line.alignOffset || 0); 
-            
+            alignX += (line.alignOffset || 0);
+
             pdf.setFontSize(line.fontSize || 10);
             pdf.setFont('times', line.isBold ? 'bold' : 'normal');
 

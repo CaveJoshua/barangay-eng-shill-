@@ -30,6 +30,7 @@ export interface IOfficial {
   position: string;
   status: string;
   term_end?: string; // ISO date — when this official's term lapses
+  signature_url?: string; // e-signature on file, if any (Cloudinary URL)
 }
 
 // 🗓️ An official is "in term" when they're Active AND their term hasn't lapsed.
@@ -48,6 +49,8 @@ export const useDocumentDataAPI = (initialResidentName: string, initialResidentI
   const [residents, setResidents] = useState<IResident[]>([]);
   const [captainName, setCaptainName] = useState('');
   const [kagawadName, setKagawadName] = useState('');
+  const [captainSignatureUrl, setCaptainSignatureUrl] = useState('');
+  const [kagawadSignatureUrl, setKagawadSignatureUrl] = useState('');
   const [autoFilledAddress, setAutoFilledAddress] = useState('');
   const [autoFilledAge, setAutoFilledAge] = useState('');
 
@@ -114,14 +117,20 @@ export const useDocumentDataAPI = (initialResidentName: string, initialResidentI
               o.position.toLowerCase().includes('punong')
             )
           );
-          if (captain) setCaptainName(captain.full_name.toUpperCase());
+          if (captain) {
+            setCaptainName(captain.full_name.toUpperCase());
+            setCaptainSignatureUrl(captain.signature_url || '');
+          }
 
           const kagawad = pickOfficial(
             safeOfficialsList.filter((o: IOfficial) =>
               o.position.toLowerCase().includes('kagawad')
             )
           );
-          if (kagawad) setKagawadName(kagawad.full_name.toUpperCase());
+          if (kagawad) {
+            setKagawadName(kagawad.full_name.toUpperCase());
+            setKagawadSignatureUrl(kagawad.signature_url || '');
+          }
         }
       } catch (err: any) {
         if (err.name !== 'AbortError') {
@@ -134,7 +143,7 @@ export const useDocumentDataAPI = (initialResidentName: string, initialResidentI
     return () => valve.abort();
   }, [initialResidentName, initialResidentId]);
 
-  return { residents, captainName, kagawadName, autoFilledAddress, autoFilledAge };
+  return { residents, captainName, kagawadName, captainSignatureUrl, kagawadSignatureUrl, autoFilledAddress, autoFilledAge };
 };
 
 export const saveDocumentRecord = async (payload: any): Promise<any> => {

@@ -4,6 +4,7 @@ import { buildSchema, NoSchemaIntrospectionCustomRule } from 'graphql';
 import { createHandler } from 'graphql-http/lib/use/express';
 import { logActivity } from '../lib/Auditlog.js';
 import { sendAutoMail } from '../lib/Mailer.js';
+import { uploadImage } from '../lib/cloud.js';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 
 const ALL_SYSTEM_ROLES = [
@@ -62,6 +63,7 @@ const profileSchema = buildSchema(`
     role: String
     theme_preference: String
     avatar_url: String
+    signature_url: String
   }
 
   type StandardResponse {
@@ -69,13 +71,13 @@ const profileSchema = buildSchema(`
     message: String
   }
 
-  type Query { 
-    getProfile: Profile 
+  type Query {
+    getProfile: Profile
   }
 
   type Mutation {
     # 🛡️ THE FIX: Returns the Profile object instantly so the frontend doesn't lag
-    updateProfile(full_name: String, first_name: String, last_name: String, email: String, contact_number: String, phone: String, avatar_url: String): Profile!
+    updateProfile(full_name: String, first_name: String, last_name: String, email: String, contact_number: String, phone: String, avatar_url: String, signature_url: String): Profile!
     updateTheme(theme: String!): StandardResponse!
     changePassword(currentPassword: String!, newPassword: String!): StandardResponse!
     
@@ -101,14 +103,15 @@ const profileResolvers = {
         if (offAcc) {
             const { data: profile } = await supabase.from('officials').select('*').eq('id', offAcc.official_id).maybeSingle();
             if (profile) return {
-                id: profile.id, 
-                full_name: profile.full_name, 
+                id: profile.id,
+                full_name: profile.full_name,
                 username: offAcc.username,
-                email: profile.email || '', 
+                email: profile.email || '',
                 contact_number: profile.contact_number || '',
-                role: deriveSystemRole(profile.position), 
+                role: deriveSystemRole(profile.position),
                 theme_preference: offAcc.theme_preference,
-                avatar_url: profile.avatar_url || ''
+                avatar_url: profile.avatar_url || '',
+                signature_url: profile.signature_url || ''
             };
         }
 
@@ -134,7 +137,7 @@ const profileResolvers = {
     // 2. UPDATE PROFILE (Zero-Lag Fix + Image Saving)
     updateProfile: async (args, context) => {
         const { req, supabase } = context;
-        const { full_name, first_name, last_name, email, contact_number, phone, avatar_url } = args;
+        const { full_name, first_name, last_name, email, contact_number, phone, avatar_url, signature_url } = args;
         const targetId = req.user?.account_id || req.user?.official_id || req.user?.resident_id || req.user?.id || req.user?.sub;
         const safePhone = contact_number || phone;
 
@@ -146,9 +149,18 @@ const profileResolvers = {
         if (offAcc) {
             const payload = { full_name, email, contact_number: safePhone };
             if (avatar_url) payload.avatar_url = avatar_url; // 🖼️ Base64 Image string mapped here
-            
+
+            // ✍️ Signature goes through Cloudinary (unlike avatar_url) — it's meant to
+            // print on official documents, so it gets a real hosted URL, not a base64
+            // blob sitting in the row. Self-service only: targetId comes from the
+            // verified JWT, never a client-supplied id, so an official can only ever
+            // touch their OWN signature.
+            if (signature_url !== undefined) {
+                payload.signature_url = signature_url ? await uploadImage(signature_url, 'barangay_signatures') : null;
+            }
+
             const { data: updated } = await supabase.from('officials').update(payload).eq('id', offAcc.official_id).select().single();
-            
+
             // 🛡️ Returns immediate data back to frontend
             return {
                 id: updated.id,
@@ -158,7 +170,8 @@ const profileResolvers = {
                 contact_number: updated.contact_number || '',
                 role: deriveSystemRole(updated.position),
                 theme_preference: offAcc.theme_preference,
-                avatar_url: updated.avatar_url || ''
+                avatar_url: updated.avatar_url || '',
+                signature_url: updated.signature_url || ''
             };
         }
 

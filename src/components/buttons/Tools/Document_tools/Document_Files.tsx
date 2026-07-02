@@ -128,7 +128,7 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
     initialData?.referenceNo || `WALK-IN-${Date.now().toString().slice(-6)}`
   ).current;
 
-  const { residents, captainName, kagawadName, autoFilledAddress, autoFilledAge } = useDocumentDataAPI(
+  const { residents, captainName, kagawadName, captainSignatureUrl, kagawadSignatureUrl, autoFilledAddress, autoFilledAge } = useDocumentDataAPI(
     docConfig.residentName,
     docConfig.residentId
   );
@@ -277,7 +277,9 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
     captainName,
     kagawadName,
     handleSurfaceEdit,
-    { moveMode, zoom, layout: docConfig.layout, onMove: handleMove }
+    { moveMode, zoom, layout: docConfig.layout, onMove: handleMove },
+    captainSignatureUrl,
+    kagawadSignatureUrl
   );
 
   const handleInputChange = (

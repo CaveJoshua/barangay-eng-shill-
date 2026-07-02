@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { API_BASE_URL } from '../api';
 import { ThemeManager } from '../ThemeManager';
+import { cleanSignatureBackground } from '../utils/signatureImage';
 import './styles/Profile.css';
 
 // ── 0. GRAPHQL CLIENT ──
@@ -68,6 +69,13 @@ const Profile: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(fallbackInfo.avatar);
 
+  // ✍️ E-SIGNATURE UPLOAD STATE — officials only (a resident never signs a document).
+  const signatureInputRef = useRef<HTMLInputElement>(null);
+  const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
+  const [isProcessingSignature, setIsProcessingSignature] = useState(false);
+  const [signatureError, setSignatureError] = useState('');
+  const isOfficial = String(fallbackInfo.role || '').toLowerCase().replace(/\s+/g, '') !== 'resident';
+
   // 🛡️ SECURITY: Password & OTP States
   const [isPassModalOpen, setIsPassModalOpen] = useState(false);
   const [isChangingPass, setIsChangingPass] = useState(false);
@@ -99,6 +107,43 @@ const Profile: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
+  // ── 2b. E-SIGNATURE UPLOAD HANDLER ── background is cleaned client-side, then
+  // saved immediately (like theme) — it isn't tied to the Account Details
+  // edit/save toggle, so there's no risk of an upload silently not persisting.
+  const persistSignature = async (value: string | null) => {
+    setIsProcessingSignature(true);
+    try {
+      const mutation = `mutation UpdateSig($sig: String) { updateProfile(signature_url: $sig) { signature_url } }`;
+      const data = await gqlClient(mutation, { sig: value || '' });
+      setSignaturePreview(data.updateProfile?.signature_url || null);
+    } catch (err: any) {
+      setSignatureError(err.message || 'Could not save the signature.');
+    } finally {
+      setIsProcessingSignature(false);
+    }
+  };
+
+  const handleSignatureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    setSignatureError('');
+    setIsProcessingSignature(true);
+    try {
+      const cleaned = await cleanSignatureBackground(file);
+      await persistSignature(cleaned);
+    } catch (err: any) {
+      setSignatureError(err.message || 'Could not process the signature image.');
+      setIsProcessingSignature(false);
+    }
+  };
+
+  const handleRemoveSignature = () => {
+    setSignatureError('');
+    persistSignature(null);
+  };
+
   // ── 3. GRAPHQL PROFILE FETCH ──
   const fetchProfileData = useCallback(async () => {
     if (isFetching.current) return;
@@ -109,7 +154,7 @@ const Profile: React.FC = () => {
       const query = `
         query {
           getProfile {
-            id full_name username email contact_number role theme_preference avatar_url
+            id full_name username email contact_number role theme_preference avatar_url signature_url
           }
         }
       `;
@@ -134,6 +179,8 @@ const Profile: React.FC = () => {
         setAvatarPreview(profile.avatar_url);
         localStorage.setItem(`avatar_${activeId}`, profile.avatar_url);
       }
+
+      setSignaturePreview(profile.signature_url || null);
 
       setTheme(prevTheme => {
         if (profile.theme_preference && profile.theme_preference !== prevTheme) {
@@ -195,11 +242,11 @@ const Profile: React.FC = () => {
 
       const data = await gqlClient(mutation, variables);
       const updatedProfile = data.updateProfile;
-      
+
       if (updatedProfile?.id) {
         alert('Profile updated successfully!');
         setIsEditing(false);
-        
+
         // Push the confirmed new data into the session cache
         ['admin_session', 'user_session', 'resident_session'].forEach(key => {
           const sessionStr = localStorage.getItem(key);
@@ -524,6 +571,69 @@ const Profile: React.FC = () => {
           </div>
         </div>
       </section>
+
+      {isOfficial && (
+        <section className="PF_SETTING_SECTION">
+          <div className="PF_SECTION_LABEL">E-Signature</div>
+          <div className="PF_CONTENT_CARD" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+            <div>
+              <h3 style={{ margin: '0 0 4px 0', fontSize: '15px', color: 'var(--text-main)' }}>Signature on File</h3>
+              <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)' }}>
+                Used to sign barangay documents you issue. Upload a photo or scan — the background is cleaned automatically.
+              </p>
+              {signatureError && <p style={{ margin: '6px 0 0', fontSize: '13px', fontWeight: 600, color: '#dc2626' }}>{signatureError}</p>}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div
+                style={{
+                  width: 120, height: 64, flexShrink: 0, borderRadius: 8,
+                  border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  overflow: 'hidden', backgroundColor: '#fff',
+                  backgroundImage:
+                    'linear-gradient(45deg, #f1f5f9 25%, transparent 25%), linear-gradient(-45deg, #f1f5f9 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #f1f5f9 75%), linear-gradient(-45deg, transparent 75%, #f1f5f9 75%)',
+                  backgroundSize: '12px 12px',
+                  backgroundPosition: '0 0, 0 6px, 6px -6px, -6px 0',
+                }}
+              >
+                {isProcessingSignature ? (
+                  <i className="fas fa-spinner fa-spin" style={{ color: 'var(--text-muted)' }} />
+                ) : signaturePreview ? (
+                  <img src={signaturePreview} alt="Signature" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                ) : (
+                  <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)' }}>No signature</span>
+                )}
+              </div>
+
+              <button
+                className="PF_BTN_EDIT"
+                style={{ backgroundColor: 'var(--bg-main)', color: 'var(--text-main)', border: '1px solid var(--border-color)' }}
+                onClick={() => signatureInputRef.current?.click()}
+                disabled={isProcessingSignature}
+              >
+                {signaturePreview ? 'Replace' : 'Upload'}
+              </button>
+              {signaturePreview && (
+                <button
+                  className="PF_BTN_EDIT"
+                  style={{ backgroundColor: 'var(--bg-main)', color: '#dc2626', border: '1px solid var(--border-color)' }}
+                  onClick={handleRemoveSignature}
+                  disabled={isProcessingSignature}
+                >
+                  Remove
+                </button>
+              )}
+              <input
+                ref={signatureInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                hidden
+                onChange={handleSignatureUpload}
+              />
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="PF_SETTING_SECTION">
         <div className="PF_SECTION_LABEL">Security</div>

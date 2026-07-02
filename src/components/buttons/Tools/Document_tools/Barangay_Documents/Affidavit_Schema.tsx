@@ -138,10 +138,11 @@ export const AffidavitSchema: DocumentSchema = {
             // RIGHT SIDE — captain name (locked)
             align: 'center',
             lines: [
-              // ✍️ e-signature placeholder — empty for now, reserved just above the
-              // printed name. Will hold the official's signature image once profile
-              // signatures are added.
-              { content: '', fontSize: 18 },
+              // ✍️ Real signature if the Punong Barangay has one on file; otherwise
+              // a reserved blank line keeps the same space empty.
+              payload.captainSignatureUrl
+                ? { content: '', image: payload.captainSignatureUrl, imageHeightMm: 10 }
+                : { content: '', fontSize: 18 },
               {
                 content: payload.captainName.toUpperCase(),
                 isBold: true,

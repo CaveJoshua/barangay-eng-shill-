@@ -1,7 +1,8 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { logActivity } from '../lib/Auditlog.js'; 
-import { sendAutoMail } from '../lib/Mailer.js'; 
+import { logActivity } from '../lib/Auditlog.js';
+import { sendAutoMail } from '../lib/Mailer.js';
+import { uploadImage } from '../lib/cloud.js';
 
 // ==========================================
 // 🛡️ 1. SECURITY: ZERO TRUST RBAC
@@ -56,6 +57,14 @@ const generateSecureCode = (length = 6) => {
 const hashOtp = (code) => crypto.createHash('sha256').update(code).digest('hex');
 
 const masterOtpStore = new Map();
+
+// ✍️ Uploads a fresh base64 signature to Cloudinary; passes an existing URL through
+// unchanged; returns null for anything empty/invalid (uploadImage already guards
+// format + size). Never lets a raw base64 string reach the database.
+const resolveSignature = async (signatureUrl) => {
+    if (!signatureUrl) return null;
+    return uploadImage(signatureUrl, 'barangay_signatures');
+};
 
 // Only "Active" keeps an official's login alive. Everything else revokes access.
 const ACTIVE_STATUSES = ['active'];
@@ -119,7 +128,7 @@ export const OfficialsRouter = (router, supabase, authenticateToken) => {
     router.post('/officials', authenticateToken, checkSessionRole(['barangayhall', 'admin', 'superadmin']), async (req, res) => {
         try {
             // 🛡️ THE FIX: Destructure 'email' separately from 'full_name'
-            const { full_name, position, term_start, term_end, status, contact_number, otp, trace_id, email } = req.body;
+            const { full_name, position, term_start, term_end, status, contact_number, otp, trace_id, email, signature_url } = req.body;
             const isBarangayHall = position === 'Barangay Hall';
 
             if (isBarangayHall) {
@@ -143,6 +152,9 @@ export const OfficialsRouter = (router, supabase, authenticateToken) => {
                 masterOtpStore.delete(trace_id);
             }
 
+            // ✍️ Signature is optional at registration time — never blocks account creation.
+            const uploadedSignature = await resolveSignature(signature_url);
+
             // Create Official Profile
             const { data: profile, error: profileError } = await supabase
                 .from('officials')
@@ -153,7 +165,8 @@ export const OfficialsRouter = (router, supabase, authenticateToken) => {
                     term_start: isBarangayHall ? null : (term_start || null),
                     term_end: isBarangayHall ? null : (term_end || null),
                     status: status || 'Active',
-                    contact_number: isBarangayHall ? null : contact_number
+                    contact_number: isBarangayHall ? null : contact_number,
+                    signature_url: isBarangayHall ? null : uploadedSignature
                 }])
                 .select().single();
 
@@ -216,14 +229,21 @@ export const OfficialsRouter = (router, supabase, authenticateToken) => {
 
     // --- UPDATE OFFICIAL ---
     router.put('/officials/:id', authenticateToken, checkSessionRole(['barangayhall', 'admin', 'superadmin']), async (req, res) => {
-        try { 
-            const { id } = req.params; 
-            const updates = req.body;
-            const { data, error } = await supabase.from('officials').update(updates).eq('id', id).select(); 
-            if (error) throw error; 
-            res.json(data[0]); 
-        } catch (err) { 
-            res.status(400).json({ error: err.message }); 
+        try {
+            const { id } = req.params;
+            const updates = { ...req.body };
+
+            // ✍️ Only touch signature_url when the request actually sent one — an edit
+            // that omits it (e.g. renewing a term) must never wipe an existing signature.
+            if (Object.prototype.hasOwnProperty.call(updates, 'signature_url')) {
+                updates.signature_url = await resolveSignature(updates.signature_url);
+            }
+
+            const { data, error } = await supabase.from('officials').update(updates).eq('id', id).select();
+            if (error) throw error;
+            res.json(data[0]);
+        } catch (err) {
+            res.status(400).json({ error: err.message });
         }
     });
 

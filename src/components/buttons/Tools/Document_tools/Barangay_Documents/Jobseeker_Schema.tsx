@@ -128,10 +128,11 @@ export const JobseekerSchema: DocumentSchema = {
           {
             align: 'center',
             lines: [
-              // ✍️ e-signature placeholder — empty for now, reserved just above the
-              // printed name. Will hold the official's signature image once profile
-              // signatures are added.
-              { content: '', isBold: false, fontSize: 18 },
+              // ✍️ Punong Barangay's e-signature — real image if on file, else a
+              // reserved blank line so the layout is identical either way.
+              payload.captainSignatureUrl
+                ? { content: '', image: payload.captainSignatureUrl, imageHeightMm: 10 }
+                : { content: '', isBold: false, fontSize: 18 },
               { content: payload.captainName.toUpperCase(), isBold: true,  fontSize: 11 },
               { content: 'PUNONG BARANGAY',                 isBold: false, fontSize: 10 },
               {
@@ -141,8 +142,10 @@ export const JobseekerSchema: DocumentSchema = {
               },
               { content: '&nbsp;',          isBold: false, fontSize: 6  },
               { content: 'Witnessed by:',   isBold: false, fontSize: 10 },
-              // ✍️ Kagawad's e-signature placeholder — same idea, empty for now.
-              { content: '',                isBold: false, fontSize: 18 },
+              // ✍️ Kagawad's e-signature — same idea.
+              payload.kagawadSignatureUrl
+                ? { content: '', image: payload.kagawadSignatureUrl, imageHeightMm: 10 }
+                : { content: '', isBold: false, fontSize: 18 },
               { content: resolvedKagawad,   isBold: true,  fontSize: 11 },
               { content: 'BARANGAY KAGAWAD', isBold: false, fontSize: 10 },
               {
@@ -243,10 +246,11 @@ export const JobseekerSchema: DocumentSchema = {
             align: 'right',
             lines: [
               { content: 'Witnessed by:',                    isBold: false, fontSize: 10 },
-              // ✍️ e-signature placeholder — empty for now, reserved just above the
-              // printed name. Will hold the official's signature image once profile
-              // signatures are added.
-              { content: '',                                 isBold: false, fontSize: 18 },
+              // ✍️ Real signature if the Punong Barangay has one on file; otherwise
+              // a reserved blank line keeps the same space empty.
+              payload.captainSignatureUrl
+                ? { content: '', image: payload.captainSignatureUrl, imageHeightMm: 10 }
+                : { content: '',                               isBold: false, fontSize: 18 },
               { content: payload.captainName.toUpperCase(),  isBold: true,  fontSize: 10 },
               { content: 'Punong Barangay',                  isBold: false, fontSize: 10 },
             ],
