@@ -159,7 +159,8 @@ const profileResolvers = {
                 payload.signature_url = signature_url ? await uploadImage(signature_url, 'barangay_signatures') : null;
             }
 
-            const { data: updated } = await supabase.from('officials').update(payload).eq('id', offAcc.official_id).select().single();
+            const { data: updated, error: updateErr } = await supabase.from('officials').update(payload).eq('id', offAcc.official_id).select().single();
+            if (updateErr || !updated) throw new Error(updateErr?.message || 'Profile update failed.');
 
             // 🛡️ Returns immediate data back to frontend
             return {
@@ -187,8 +188,9 @@ const profileResolvers = {
             };
             if (avatar_url) payload.avatar_url = avatar_url;
 
-            const { data: updated } = await supabase.from('residents_records').update(payload).eq('record_id', resAcc.resident_id).select().single();
-            
+            const { data: updated, error: updateErr } = await supabase.from('residents_records').update(payload).eq('record_id', resAcc.resident_id).select().single();
+            if (updateErr || !updated) throw new Error(updateErr?.message || 'Profile update failed.');
+
             return {
                 id: updated.record_id,
                 full_name: `${updated.first_name || ''} ${updated.last_name || ''}`.trim(),
