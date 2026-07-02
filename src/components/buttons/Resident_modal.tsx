@@ -37,6 +37,9 @@ export interface IResident {
   soloParentIdNumber?: string;
   seniorIdNumber?: string;
   fourPsIdNumber?: string;
+  sssIdNumber?: string;
+  philhealthIdNumber?: string;
+  otherIdNumber?: string;
 }
 
 const initialState: IResident = {
@@ -48,7 +51,8 @@ const initialState: IResident = {
   education: 'ELEMENTARY GRADUATE', employment: '', employmentStatus: 'UNEMPLOYED', occupation: '', 
   activityStatus: 'Active', isVoter: false, isPWD: false, 
   is4Ps: false, isSoloParent: false, isSeniorCitizen: false,
-  voterIdNumber: '', pwdIdNumber: '', soloParentIdNumber: '', seniorIdNumber: '', fourPsIdNumber: ''
+  voterIdNumber: '', pwdIdNumber: '', soloParentIdNumber: '', seniorIdNumber: '', fourPsIdNumber: '',
+  sssIdNumber: '', philhealthIdNumber: '', otherIdNumber: ''
 };
 
 const NATIONALITIES = [
@@ -238,7 +242,7 @@ export const ResidentModal: React.FC<{
     }
 
     let v = value;
-    const uppers = ['lastName', 'firstName', 'middleName', 'currentAddress', 'occupation', 'employment', 'pwdIdNumber', 'seniorIdNumber', 'fourPsIdNumber', 'soloParentIdNumber', 'voterIdNumber', 'religion', 'civilStatus', 'education', 'employmentStatus'];
+    const uppers = ['lastName', 'firstName', 'middleName', 'currentAddress', 'occupation', 'employment', 'pwdIdNumber', 'seniorIdNumber', 'fourPsIdNumber', 'soloParentIdNumber', 'voterIdNumber', 'sssIdNumber', 'philhealthIdNumber', 'otherIdNumber', 'religion', 'civilStatus', 'education', 'employmentStatus'];
     if (uppers.includes(field as string)) v = String(value).toUpperCase();
 
     if (v === 'OTHERS') {
@@ -286,9 +290,11 @@ export const ResidentModal: React.FC<{
       employmentStatus: formData.employmentStatus, occupation: formData.occupation, isVoter: formData.isVoter,
       isPWD: formData.isPWD, is4Ps: formData.is4Ps, isSoloParent: formData.isSoloParent,
       isSeniorCitizen: formData.isSeniorCitizen,
-      voterIdNumber: formData.voterIdNumber, pwdIdNumber: formData.pwdIdNumber, 
-      soloParentIdNumber: formData.soloParentIdNumber, seniorIdNumber: formData.seniorIdNumber, 
+      voterIdNumber: formData.voterIdNumber, pwdIdNumber: formData.pwdIdNumber,
+      soloParentIdNumber: formData.soloParentIdNumber, seniorIdNumber: formData.seniorIdNumber,
       fourPsIdNumber: formData.fourPsIdNumber,
+      sssIdNumber: formData.sssIdNumber, philhealthIdNumber: formData.philhealthIdNumber,
+      otherIdNumber: formData.otherIdNumber,
       activityStatus: formData.activityStatus
     };
 
@@ -629,6 +635,28 @@ export const ResidentModal: React.FC<{
                   )}
                 </div>
               )}
+            </div>
+
+            <div className="RMS_SECTION">
+              <div className="RMS_SEC_TITLE">Government ID Numbers (Optional)</div>
+              <p style={{ margin: '0 0 12px', fontSize: '0.78rem', color: 'var(--text-muted, #64748b)' }}>
+                Not tied to a special classification — any resident may have these. Helps the
+                system tell apart two residents who happen to share the same name.
+              </p>
+              <div className="RMS_ID_CONTAINER">
+                <div className="RMS_GROUP">
+                  <label className="RMS_LABEL">SSS ID #</label>
+                  <input className="RMS_INPUT" value={formData.sssIdNumber} onChange={e => handleChange('sssIdNumber', e.target.value)} maxLength={20} />
+                </div>
+                <div className="RMS_GROUP">
+                  <label className="RMS_LABEL">PHILHEALTH ID #</label>
+                  <input className="RMS_INPUT" value={formData.philhealthIdNumber} onChange={e => handleChange('philhealthIdNumber', e.target.value)} maxLength={20} />
+                </div>
+                <div className="RMS_GROUP">
+                  <label className="RMS_LABEL">OTHER VALID ID #</label>
+                  <input className="RMS_INPUT" value={formData.otherIdNumber} onChange={e => handleChange('otherIdNumber', e.target.value)} maxLength={30} />
+                </div>
+              </div>
             </div>
           </div>
 

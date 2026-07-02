@@ -42,6 +42,9 @@ const normalizePayload = (val) => {
         fourPsIdNumber: val.fourPsIdNumber || val.four_ps_id_number,
         soloParentIdNumber: val.soloParentIdNumber || val.solo_parent_id_number,
         seniorIdNumber: val.seniorIdNumber || val.senior_id_number,
+        sssIdNumber: val.sssIdNumber || val.sss_id_number,
+        philhealthIdNumber: val.philhealthIdNumber || val.philhealth_id_number,
+        otherIdNumber: val.otherIdNumber || val.other_id_number,
         activityStatus: val.activityStatus || val.activity_status || 'Active'
     };
 };
@@ -87,6 +90,9 @@ const residentSchema = z.preprocess(normalizePayload, z.object({
     fourPsIdNumber: phIdString(20),
     soloParentIdNumber: phIdString(25),
     seniorIdNumber: phIdString(20),
+    sssIdNumber: phIdString(20),
+    philhealthIdNumber: phIdString(20),
+    otherIdNumber: phIdString(30),
     activityStatus: safeString
 }).passthrough());
 
@@ -192,10 +198,25 @@ const authorizeRoles = (allowedRoles) => {
 // Checks full name, contact number, and email independently.
 // excludeId: pass the record_id when updating so the record
 //            doesn't collide with itself.
-// Returns an array of collision objects, empty if clean.
+//
+// Full-name matching is IDENTITY-aware, not just string-aware: two real people
+// (e.g. a parent and child, or coincidental namesakes) can legitimately share a
+// full name. A name match alone is no longer a hard block — it's only treated
+// as the SAME person (and blocked) when the evidence says so too:
+//   - identical date of birth, OR
+//   - a shared, non-blank government ID number (voter/PWD/4Ps/solo-parent/senior)
+// Otherwise it's returned as a non-blocking ADVISORY so staff get a heads-up
+// without being stopped from registering a genuine namesake.
+//
+// Returns { collisions, advisories } — only `collisions` should block a save.
 // =========================================================
-const checkDuplicates = async (supabase, { firstName, middleName, lastName, contact_number, email }, excludeId = null) => {
+const checkDuplicates = async (supabase, {
+    firstName, middleName, lastName, dob, contact_number, email,
+    voterIdNumber, pwdIdNumber, fourPsIdNumber, soloParentIdNumber, seniorIdNumber,
+    sssIdNumber, philhealthIdNumber, otherIdNumber
+}, excludeId = null) => {
     const collisions = [];
+    const advisories = [];
 
     // ── 5a. Full Name Match (case-insensitive, trims whitespace) ──
     // Strategy: pull candidates by last_name first (indexed), then
@@ -203,27 +224,70 @@ const checkDuplicates = async (supabase, { firstName, middleName, lastName, cont
     // on large tables.
     const { data: nameMatches } = await supabase
         .from('residents_records')
-        .select('record_id, first_name, middle_name, last_name')
+        .select('record_id, first_name, middle_name, last_name, dob, voter_id_number, pwd_id_number, four_ps_id_number, solo_parent_id_number, senior_id_number, sss_id_number, philhealth_id_number, other_id_number')
         .ilike('last_name', lastName.trim())
         .ilike('first_name', firstName.trim())
         .neq('activity_status', 'Archived'); // Archived records are excluded from collision
 
     if (nameMatches?.length) {
         const normMiddle = (middleName || '').trim().toLowerCase();
+        const newDob = dob ? new Date(dob).toISOString().split('T')[0] : null;
+
+        // Only IDs actually provided on the incoming record can create a match —
+        // two blank ID fields never "collide" with each other. SSS/PhilHealth/Other
+        // are universal government IDs (not tied to a special-classification
+        // checkbox like PWD/4Ps), so they carry the same verification weight.
+        const idFields = [
+            ['voter_id_number', voterIdNumber],
+            ['pwd_id_number', pwdIdNumber],
+            ['four_ps_id_number', fourPsIdNumber],
+            ['solo_parent_id_number', soloParentIdNumber],
+            ['senior_id_number', seniorIdNumber],
+            ['sss_id_number', sssIdNumber],
+            ['philhealth_id_number', philhealthIdNumber],
+            ['other_id_number', otherIdNumber],
+        ].filter(([, val]) => val && String(val).trim() !== '');
+
         for (const match of nameMatches) {
             if (excludeId && match.record_id === excludeId) continue;
             const existingMiddle = (match.middle_name || '').trim().toLowerCase();
             // Treat blank vs blank as a match; treat blank vs non-blank as distinct
-            if (existingMiddle === normMiddle) {
+            if (existingMiddle !== normMiddle) continue;
+
+            const existingDob = match.dob ? new Date(match.dob).toISOString().split('T')[0] : null;
+            const sameDob = !!(newDob && existingDob && newDob === existingDob);
+            const sharedIdField = idFields.find(([col, val]) => {
+                const existingVal = match[col];
+                return existingVal && String(existingVal).trim() !== '' &&
+                    String(existingVal).trim().toLowerCase() === String(val).trim().toLowerCase();
+            });
+
+            const label = `${match.first_name} ${match.middle_name || ''} ${match.last_name}`.replace(/\s+/g, ' ').trim();
+
+            if (sameDob || sharedIdField) {
+                // Same name AND (same birth date OR a shared government ID) —
+                // strong signal this is the same person, not a namesake. Block.
                 collisions.push({
                     field: 'full_name',
-                    message: `A resident named "${match.first_name} ${match.middle_name || ''} ${match.last_name}".trim() already exists in the registry.`
+                    message: sharedIdField
+                        ? `A resident named "${label}" already exists with a matching government ID.`
+                        : `A resident named "${label}" with the same date of birth already exists in the registry.`
+                });
+            } else {
+                // Same name, but age/ID evidence points to a different person
+                // (e.g. parent & child, or an unrelated namesake) — don't block,
+                // just flag it so staff can double-check if something looks off.
+                advisories.push({
+                    field: 'full_name',
+                    message: `Note: another resident named "${label}" is already registered (different date of birth/ID — treated as a separate person).`
                 });
             }
         }
     }
 
     // ── 5b. Contact Number Match ──
+    // A phone number realistically belongs to one specific person/line, so this
+    // stays a hard block regardless of name — no "namesake" concept applies here.
     const safePhone = (contact_number || '').trim().replace(/\s+/g, '');
     if (safePhone) {
         const { data: phoneMatches } = await supabase
@@ -263,7 +327,7 @@ const checkDuplicates = async (supabase, { firstName, middleName, lastName, cont
         }
     }
 
-    return collisions;
+    return { collisions, advisories };
 };
 
 // 🛡️ DEFINED DATA HANDLERS (Matches Frontend restrictions)
@@ -347,13 +411,24 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
             try {
                 const r = req.body;
 
-                // 🔒 ANTI-DUPLICATE GATE — runs before any insert
-                const collisions = await checkDuplicates(supabase, {
+                // 🔒 ANTI-DUPLICATE GATE — runs before any insert. Only `collisions`
+                // (same person, per DOB/ID evidence) blocks; `advisories` (likely a
+                // genuine namesake) are surfaced to the caller but never block.
+                const { collisions, advisories } = await checkDuplicates(supabase, {
                     firstName: r.firstName,
                     middleName: r.middleName,
                     lastName: r.lastName,
+                    dob: r.dob,
                     contact_number: r.contact_number,
-                    email: r.email
+                    email: r.email,
+                    voterIdNumber: r.voterIdNumber,
+                    pwdIdNumber: r.pwdIdNumber,
+                    fourPsIdNumber: r.fourPsIdNumber,
+                    soloParentIdNumber: r.soloParentIdNumber,
+                    seniorIdNumber: r.seniorIdNumber,
+                    sssIdNumber: r.sssIdNumber,
+                    philhealthIdNumber: r.philhealthIdNumber,
+                    otherIdNumber: r.otherIdNumber
                 });
 
                 if (collisions.length > 0) {
@@ -397,6 +472,9 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                     four_ps_id_number: r.fourPsIdNumber || null,
                     solo_parent_id_number: r.soloParentIdNumber || null,
                     senior_id_number: r.seniorIdNumber || null,
+                    sss_id_number: r.sssIdNumber || null,
+                    philhealth_id_number: r.philhealthIdNumber || null,
+                    other_id_number: r.otherIdNumber || null,
                     activity_status: r.activityStatus || 'Active'
                 }]).select().single();
 
@@ -423,7 +501,9 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                     }]);
 
                     logActivity(supabase, req.user.username, 'RESIDENT_CREATED', profile.record_id, req).catch(() => {});
-                    res.status(201).json(profile);
+                    // Non-blocking heads-up (e.g. a same-named but distinct resident
+                    // already on file) rides along on the success response.
+                    res.status(201).json(advisories.length ? { ...profile, advisories } : profile);
                 } catch (aErr) {
                     await supabase.from('residents_records').delete().eq('record_id', profile.record_id);
                     throw new Error("Rollback: Account creation failed.");
@@ -441,12 +521,21 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                 const recordId = req.params.id;
 
                 // 🔒 ANTI-DUPLICATE GATE — excludes the current record from its own collision check
-                const collisions = await checkDuplicates(supabase, {
+                const { collisions, advisories } = await checkDuplicates(supabase, {
                     firstName: r.firstName,
                     middleName: r.middleName,
                     lastName: r.lastName,
+                    dob: r.dob,
                     contact_number: r.contact_number,
-                    email: r.email
+                    email: r.email,
+                    voterIdNumber: r.voterIdNumber,
+                    pwdIdNumber: r.pwdIdNumber,
+                    fourPsIdNumber: r.fourPsIdNumber,
+                    soloParentIdNumber: r.soloParentIdNumber,
+                    seniorIdNumber: r.seniorIdNumber,
+                    sssIdNumber: r.sssIdNumber,
+                    philhealthIdNumber: r.philhealthIdNumber,
+                    otherIdNumber: r.otherIdNumber
                 }, recordId);
 
                 if (collisions.length > 0) {
@@ -490,6 +579,9 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                     four_ps_id_number: r.fourPsIdNumber || null,
                     solo_parent_id_number: r.soloParentIdNumber || null,
                     senior_id_number: r.seniorIdNumber || null,
+                    sss_id_number: r.sssIdNumber || null,
+                    philhealth_id_number: r.philhealthIdNumber || null,
+                    other_id_number: r.otherIdNumber || null,
                     activity_status: r.activityStatus
                 };
 
@@ -507,7 +599,7 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                     .eq('resident_id', recordId);
 
                 logActivity(supabase, req.user.username, 'IDENTITY_REPLACED', recordId, req).catch(() => {});
-                res.json(data[0]);
+                res.json(advisories.length ? { ...data[0], advisories } : data[0]);
             } catch (err) { res.status(500).json({ error: "Identity replacement failed." }); }
         }
     );
