@@ -40,7 +40,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               const session = JSON.parse(raw);
               if (session.role !== data.role) {
                 session.role = data.role;
-                if (session.profile) session.profile.term_status = data.term_status || session.profile.term_status;
+                if (session.profile) {
+                  session.profile.term_status = data.term_status || session.profile.term_status;
+                  session.profile.official_status = data.official_status || session.profile.official_status;
+                }
                 localStorage.setItem('admin_session', JSON.stringify(session));
               }
             }

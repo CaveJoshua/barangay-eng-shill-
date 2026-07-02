@@ -2,16 +2,48 @@ import React from 'react';
 
 interface TermEndedLockProps {
   onLogout: () => void;
-  user?: { profile?: { profileName?: string; position?: string; term_end?: string } } | null;
+  user?: { profile?: { profileName?: string; position?: string; term_end?: string; official_status?: string } } | null;
 }
 
-// 🔒 Shown to an official whose term has lapsed. They authenticated successfully,
-// but their role was downgraded to 'restricted' server-side, so every admin API
-// call returns 403. This screen explains why and offers a clean way out.
+// 🔒 Shown to an official whose access has been restricted — a lapsed term OR an
+// explicit status change (Suspended / Resigned / End of Term) made by the Punong
+// Barangay. They authenticated successfully, but their role was downgraded to
+// 'restricted' server-side, so every admin API call returns 403. This screen
+// explains WHY (whichever reason applies) and always points them back to the
+// Barangay Hall Officials to resolve it — this is not a self-service unlock.
 const TermEndedLock: React.FC<TermEndedLockProps> = ({ onLogout, user }) => {
   const name = user?.profile?.profileName;
   const position = user?.profile?.position;
   const termEnd = user?.profile?.term_end;
+  const officialStatus = (user?.profile?.official_status || '').toLowerCase().trim();
+
+  // The term-end date is the most reliable signal for "this is a term lapse" —
+  // an explicit status (Suspended/Resigned) can be set independent of the term
+  // window, and older sessions won't carry official_status at all yet.
+  const isLapsedTerm = !officialStatus || officialStatus === 'active' ||
+    (termEnd ? new Date(termEnd) < new Date() : false);
+
+  const REASON_COPY: Record<string, { icon: string; headline: string; detail: string }> = {
+    suspended: {
+      icon: 'fa-user-slash',
+      headline: 'Your access has been suspended',
+      detail: 'has been placed under a suspension by the Punong Barangay, so official access is temporarily restricted.',
+    },
+    resigned: {
+      icon: 'fa-user-slash',
+      headline: 'This account is marked as resigned',
+      detail: 'has been recorded as resigned, so official access has been withdrawn.',
+    },
+    'end of term': {
+      icon: 'fa-user-clock',
+      headline: 'Your term has ended',
+      detail: 'no longer holds an active term, so official access has been restricted.',
+    },
+  };
+
+  const reason = isLapsedTerm
+    ? REASON_COPY['end of term']
+    : (REASON_COPY[officialStatus] || REASON_COPY['end of term']);
 
   return (
     <div
@@ -52,27 +84,27 @@ const TermEndedLock: React.FC<TermEndedLockProps> = ({ onLogout, user }) => {
             margin: '0 auto 20px',
           }}
         >
-          <i className="fas fa-user-clock"></i>
+          <i className={`fas ${reason.icon}`}></i>
         </div>
 
         <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: '0 0 10px' }}>
-          Your term has ended
+          {reason.headline}
         </h1>
 
         <p style={{ color: '#94a3b8', lineHeight: 1.6, margin: '0 0 8px' }}>
           {name ? <strong style={{ color: '#e2e8f0' }}>{name}</strong> : 'This account'}
-          {position ? ` — ${position}` : ''} no longer holds an active term, so official
-          access has been <strong style={{ color: '#f87171' }}>restricted</strong>.
+          {position ? ` — ${position}` : ''} {reason.detail} Official access has been{' '}
+          <strong style={{ color: '#f87171' }}>restricted</strong>.
         </p>
 
-        {termEnd && (
+        {isLapsedTerm && termEnd && (
           <p style={{ color: '#64748b', fontSize: '0.85rem', margin: '0 0 8px' }}>
             Term ended on {new Date(termEnd).toLocaleDateString()}.
           </p>
         )}
 
         <p style={{ color: '#94a3b8', lineHeight: 1.6, margin: '0 0 28px' }}>
-          To restore access, the Barangay Hall must register the official for the new term.
+          Please contact the <strong style={{ color: '#e2e8f0' }}>Barangay Hall Officials</strong> for access details.
         </p>
 
         <button

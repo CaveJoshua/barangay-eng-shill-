@@ -7,6 +7,41 @@ import { getSchemaById } from '../../buttons/Tools/Document_tools/Barangay_Docum
 
 type ArchiveTab = 'Documents' | 'Incidents' | 'Residents' | 'Officials' | 'Households' | 'Announcements';
 
+// Positions where only one official may hold the seat at a time. Restoring an
+// archived official into one of these must first check nobody else already
+// holds it — otherwise the barangay would end up with two "active" Captains.
+const SINGLE_SEAT_POSITIONS = ['Barangay Hall', 'Punong Barangay', 'Barangay Secretary', 'Barangay Treasurer', 'SK Chairperson'];
+
+// Statuses assignable from the Archive preview — mirrors the live directory's
+// dropdown so an official can be reclassified (e.g. Resigned → Suspended)
+// without first restoring them to Active.
+const OFFICIAL_STATUS_OPTIONS = ['Active', 'Suspended', 'Resigned', 'End of Term'];
+
+const isOfficialTermLapsed = (o: any): boolean => {
+  if (!o?.term_end) return false;
+  const end = new Date(o.term_end);
+  if (isNaN(end.getTime())) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return end < today;
+};
+
+// 🔒 Only the Punong Barangay / Barangay Hall may restore an official — same
+// tier that's allowed to change an official's Status on the live directory.
+const canRestoreOfficials = (): boolean => {
+  try {
+    const sessionStr = localStorage.getItem('admin_session');
+    if (!sessionStr) return false;
+    const session = JSON.parse(sessionStr);
+    const role = String(session.role || session.user?.role || '').toLowerCase().replace(/\s+/g, '');
+    const pos = String(session.position || session.profile?.position || '').toLowerCase().replace(/\s+/g, '');
+    const whitelist = ['superadmin', 'punongbarangay', 'barangayhall'];
+    return whitelist.includes(role) || whitelist.includes(pos);
+  } catch {
+    return false;
+  }
+};
+
 // Pull evidence (photos + a video) out of an archived incident narrative so the
 // vault can still SHOW + let you download it, even though incidents aren't restorable.
 const parseEvidence = (text: string): { images: string[]; videoUrl: string | null } => {
@@ -438,6 +473,103 @@ export default function Archive() {
     }
   };
 
+  // --- STATUS CHANGE (Officials) — the "wise" version ---------------------------
+  // The Archive isn't a dead end: an archived official's status can still be
+  // reclassified here (e.g. End of Term → Resigned) exactly like the live
+  // directory's dropdown. Reactivating (→ Active) gets the extra smart checks,
+  // since flipping the flag alone isn't enough to actually restore access:
+  //   1. Single-seat positions (Captain, Secretary, Treasurer, SK Chair, Hall) are
+  //      blocked if someone else currently, validly holds that seat.
+  //   2. A lapsed term is renewed (fresh 3-year term starting today) as part of
+  //      the same restore, so the official actually regains working access —
+  //      otherwise the login/session-refresh term gate would re-lock them anyway.
+  const handleOfficialStatusChange = async (item: any, newStatus: string) => {
+    if (newStatus === item.status) return;
+
+    if (item.position === 'Barangay Hall') {
+      alert('System Lock: the Barangay Hall master account status cannot be changed.');
+      return;
+    }
+
+    const reactivating = newStatus === 'Active';
+
+    setRestoring(true);
+    try {
+      let renewedTerm: { term_start: string; term_end: string } | null = null;
+
+      if (reactivating) {
+        // Check against the LIVE directory — the Archive's own official list only
+        // holds inactive/expired records, so a fresh read is needed to see who
+        // (if anyone) currently, validly holds this seat.
+        if (SINGLE_SEAT_POSITIONS.includes(item.position)) {
+          const all = await ApiService.getOfficials();
+          const holder = Array.isArray(all)
+            ? all.find((o: any) =>
+                o.id !== item.id &&
+                o.position === item.position &&
+                String(o.status || '').toLowerCase() === 'active' &&
+                !isOfficialTermLapsed(o)
+              )
+            : null;
+
+          if (holder) {
+            alert(`Cannot restore: ${holder.full_name} currently holds the ${item.position} seat. Only one official may occupy this position at a time.`);
+            return;
+          }
+        }
+
+        const lapsed = isOfficialTermLapsed(item);
+        if (lapsed) {
+          const todayIso = new Date().toISOString().split('T')[0];
+          const threeYearsOut = new Date();
+          threeYearsOut.setFullYear(threeYearsOut.getFullYear() + 3);
+          renewedTerm = { term_start: todayIso, term_end: threeYearsOut.toISOString().split('T')[0] };
+
+          const confirmed = window.confirm(
+            `${item.full_name}'s term ended on ${formatDate(item.term_end)}.\n\n` +
+            `Restoring will also assign a fresh 3-year term (${renewedTerm.term_start} → ${renewedTerm.term_end}) starting today, ` +
+            `so they regain working access immediately instead of being silently re-locked by the expired term.\n\nContinue?`
+          );
+          if (!confirmed) return;
+        } else {
+          if (!window.confirm(`Restore ${item.full_name} to Active? Their admin access will be re-enabled immediately.`)) return;
+        }
+      } else {
+        if (!window.confirm(`Set ${item.full_name}'s status to "${newStatus}"?`)) return;
+      }
+
+      if (renewedTerm) {
+        const termResult = await ApiService.saveOfficial(item.id, { ...item, ...renewedTerm });
+        if (termResult?.error) {
+          alert(`Status change failed while renewing term: ${termResult.error}`);
+          return;
+        }
+      }
+
+      const statusResult = await ApiService.updateOfficialStatus(item.id, newStatus);
+      if (statusResult?.error) {
+        alert(`Status change failed: ${statusResult.error}`);
+        return;
+      }
+
+      if (reactivating) {
+        // No longer archived — drop it from this list and force a fresh fetch next visit.
+        setOfficials(prev => prev.filter(o => o.id !== item.id));
+        loadedTabs.current.delete('Officials');
+        setPreviewItem(null);
+      } else {
+        // Still archived under a different terminal status — update in place.
+        const patch = { ...item, status: newStatus, ...(renewedTerm || {}) };
+        setOfficials(prev => prev.map(o => (o.id === item.id ? patch : o)));
+        setPreviewItem(patch);
+      }
+    } catch {
+      alert('System error during status change.');
+    } finally {
+      setRestoring(false);
+    }
+  };
+
   return (
     <div className={styles.ARC_PAGE_WRAP}>
       <div className={styles.ARC_MAIN_CONTAINER}>
@@ -507,8 +639,11 @@ export default function Archive() {
                        let currentStatus = String(item.status || item.activity_status || item.activityStatus || 'Archived').toUpperCase();
                        if (activeTab === 'Announcements') currentStatus = 'ARCHIVED';
                        if (activeTab === 'Officials') {
+                         // Only relabel an unset/"Active" record whose term quietly lapsed.
+                         // An explicitly assigned terminal status (Suspended, Resigned, ...)
+                         // is a deliberate admin decision and must never be overridden.
                          const isExpired = item.term_end && !isNaN(new Date(item.term_end).getTime()) && new Date(item.term_end) < new Date();
-                         if (isExpired && currentStatus !== 'INACTIVE' && currentStatus !== 'RESIGNED') {
+                         if (isExpired && currentStatus === 'ACTIVE') {
                              currentStatus = 'END OF TERM';
                          }
                        }
@@ -594,6 +729,22 @@ export default function Archive() {
                 </div>
               ))}
 
+              {/* 🧠 OFFICIALS — proactive restore guidance, computed from data already on hand. */}
+              {activeTab === 'Officials' && previewItem.position !== 'Barangay Hall' && (
+                <div style={{ marginTop: '10px', display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 8, fontSize: '0.8rem', lineHeight: 1.5, ...(isOfficialTermLapsed(previewItem)
+                  ? { background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e' }
+                  : { background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e3a8a' }) }}>
+                  <i className={`fas ${isOfficialTermLapsed(previewItem) ? 'fa-triangle-exclamation' : 'fa-circle-info'}`} style={{ marginTop: 2, flexShrink: 0 }} />
+                  <div>
+                    {isOfficialTermLapsed(previewItem)
+                      ? <>Term ended <strong>{formatDate(previewItem.term_end)}</strong>. Restoring will also assign a fresh 3-year term so access is actually regained, not just re-locked by the expired term.</>
+                      : SINGLE_SEAT_POSITIONS.includes(previewItem.position)
+                        ? <>Single-seat position — restore is blocked if another official currently, validly holds {previewItem.position}.</>
+                        : <>Term is still within its valid window — restoring will re-enable access immediately.</>}
+                  </div>
+                </div>
+              )}
+
               {/* 🔍 DOCUMENT MINI-PREVIEW — the real format, viewable inline (read-only). */}
               {activeTab === 'Documents' && (
                 <div style={{ paddingTop: '14px' }}>
@@ -662,7 +813,7 @@ export default function Archive() {
             </div>
 
             <div style={{ padding: '14px 22px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              {/* ♻️ Restore is offered for archived ANNOUNCEMENTS only — other vaults stay read-only. */}
+              {/* ♻️ Restore is offered for archived ANNOUNCEMENTS and OFFICIALS — other vaults stay read-only. */}
               {activeTab === 'Announcements' && (
                 <button
                   onClick={() => handleRestoreAnnouncement(previewItem)}
@@ -671,6 +822,31 @@ export default function Archive() {
                 >
                   <i className={`fas ${restoring ? 'fa-spinner fa-spin' : 'fa-trash-restore'}`} /> {restoring ? 'Restoring…' : 'Restore'}
                 </button>
+              )}
+              {activeTab === 'Officials' && previewItem.position !== 'Barangay Hall' && (
+                canRestoreOfficials() ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: 'auto' }}>
+                    <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                      Status:
+                    </label>
+                    <select
+                      value={previewItem.status}
+                      disabled={restoring}
+                      onChange={(e) => handleOfficialStatusChange(previewItem, e.target.value)}
+                      style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: restoring ? '#f1f5f9' : '#fff', color: '#0f172a', fontWeight: 700, fontSize: '0.85rem', cursor: restoring ? 'default' : 'pointer' }}
+                    >
+                      {!OFFICIAL_STATUS_OPTIONS.includes(previewItem.status) && (
+                        <option value={previewItem.status}>{previewItem.status}</option>
+                      )}
+                      {OFFICIAL_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    {restoring && <i className="fas fa-spinner fa-spin" style={{ color: '#64748b' }} />}
+                  </div>
+                ) : (
+                  <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic', marginRight: 'auto', alignSelf: 'center' }}>
+                    Only the Punong Barangay / Barangay Hall may change an official's status here.
+                  </span>
+                )
               )}
               <button onClick={() => setPreviewItem(null)} style={{ padding: '9px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', fontWeight: 700, cursor: 'pointer', color: '#334155' }}>
                 Close

@@ -280,6 +280,10 @@ export const OfficialsLoginRouter = (router, supabase) => {
                     position: position,
                     role: userRole,
                     term_status: restricted ? 'lapsed' : 'active',
+                    // Distinguishes WHY access is restricted (Suspended/Resigned/End of
+                    // Term vs. a simply-lapsed term) so the lock screen can explain it
+                    // instead of always blaming an expired term.
+                    official_status: accountData.officials?.status || 'Active',
                     ...(isMasterAccount ? {} : {
                         term_start: accountData.officials?.term_start,
                         term_end: accountData.officials?.term_end
@@ -329,6 +333,7 @@ export const OfficialsLoginRouter = (router, supabase) => {
 
                 const { iat, exp, ...newPayload } = decoded;
                 let termStatus = 'active';
+                let officialStatus;
 
                 // 🗓️ Re-evaluate term against current DB state on every refresh so a
                 // mid-session lapse downgrades to 'restricted' (and a re-extended term
@@ -347,6 +352,10 @@ export const OfficialsLoginRouter = (router, supabase) => {
                             const restricted = isTermLapsed(acct.officials) || isAccessRevoked(acct.officials);
                             newPayload.user_role = restricted ? 'restricted' : derivedRole;
                             termStatus = restricted ? 'lapsed' : 'active';
+                            // Mid-session status change (e.g. Punong Barangay suspends this
+                            // official) also needs to reach the lock screen's copy, not just
+                            // the role flip — otherwise it always blames an "expired term".
+                            officialStatus = acct.officials?.status || 'Active';
                         }
                     } catch {
                         // On lookup failure, keep the existing token role unchanged.
@@ -362,7 +371,7 @@ export const OfficialsLoginRouter = (router, supabase) => {
                     maxAge: 86400000
                 });
 
-                res.status(200).json({ message: 'Session refreshed.', role: newPayload.user_role, term_status: termStatus });
+                res.status(200).json({ message: 'Session refreshed.', role: newPayload.user_role, term_status: termStatus, official_status: officialStatus });
             });
         } catch (err) {
             res.status(500).json({ error: 'Refresh failed.' });
