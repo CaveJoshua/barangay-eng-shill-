@@ -1,0 +1,116 @@
+/* =========================================================
+ * DRAFT ANNOUNCEMENTS — dedicated queue page
+ * Shares the --ANN-* design tokens from Announcement.css but renders as a
+ * dense, scannable table (a work queue) instead of the Bulletin's card stream.
+ * ========================================================= */
+
+.ANN_TITLE {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Red queue-count pill next to the page title — mirrors the sidebar
+   FRAME_MENU_BADGE so the same number reads the same way everywhere. */
+.ADQ_HEADER_COUNT {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18);
+}
+
+.ADQ_TABLE_WRAP {
+  background: var(--ANN-bg-card);
+  border: 1px solid var(--ANN-border);
+  border-radius: var(--ANN-radius);
+  overflow: hidden;
+}
+
+.ADQ_TABLE {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ADQ_TABLE thead th {
+  text-align: left;
+  padding: 14px 20px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ANN-text-sub);
+  background: var(--ANN-bg-page);
+  border-bottom: 1px solid var(--ANN-border);
+  font-weight: 800;
+}
+
+.ADQ_TABLE tbody td {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--ANN-border);
+  color: var(--ANN-text-main);
+  font-size: 0.9rem;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+.ADQ_ROW {
+  transition: background-color 0.15s ease;
+}
+
+.ADQ_ROW:hover {
+  background: var(--ANN-brand-soft);
+}
+
+.ADQ_ROW:last-child td {
+  border-bottom: none;
+}
+
+.ADQ_ALIGN_RIGHT {
+  text-align: right;
+}
+
+.ADQ_TITLE_CELL {
+  max-width: 320px;
+}
+
+.ADQ_TITLE_FLEX {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ADQ_THUMB {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  border-radius: 10px;
+  background: var(--ANN-block-grad);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  overflow: hidden;
+}
+
+.ADQ_THUMB img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (max-width: 700px) {
+  .ADQ_TABLE thead { display: none; }
+  .ADQ_TABLE, .ADQ_TABLE tbody, .ADQ_TABLE tr, .ADQ_TABLE td { display: block; width: 100%; }
+  .ADQ_ROW { border-bottom: 1px solid var(--ANN-border); padding: 12px 0; }
+  .ADQ_TABLE td { border-bottom: none; padding: 6px 20px; }
+  .ADQ_ALIGN_RIGHT { text-align: left; }
+}

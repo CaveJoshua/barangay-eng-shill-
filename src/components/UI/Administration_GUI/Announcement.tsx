@@ -85,10 +85,11 @@ export default function AnnouncementPage() {
   };
 
   // --- FILTER LOGIC ---
+  // Drafts live on their own dedicated page (see AnnouncementDrafts.tsx) and are
+  // never mixed into this published stream.
   const filteredList = useMemo(() => {
     return announcements.filter(a => {
-      // EXCLUDE ARCHIVED/EXPIRED ANNOUNCEMENTS FROM THIS VIEW (they live on the Archive page)
-      if (a.status === 'Archived') return false;
+      if (a.status === 'Archived' || a.status === 'Draft') return false;
 
       const matchesSearch = (a.title?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
                             (a.content?.toLowerCase() || "").includes(searchTerm.toLowerCase());
@@ -159,20 +160,10 @@ export default function AnnouncementPage() {
 
                   <div className="ANN_INFO_BOX">
                     <div className="ANN_TOP_LINE">
-                      <h4>
-                        {item.status === 'Draft' && <span style={{ color: '#b45309' }} title="Unpublished draft">∗ </span>}
-                        {item.title}
-                      </h4>
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        {item.status === 'Draft' && (
-                          <span style={{ fontSize: '0.66rem', fontWeight: 800, letterSpacing: '0.05em', color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '3px 8px' }}>
-                            DRAFT
-                          </span>
-                        )}
-                        <span className={`PRIO_BADGE ${item.priority?.toLowerCase() || 'low'}`}>
-                          {item.priority}
-                        </span>
-                      </div>
+                      <h4>{item.title}</h4>
+                      <span className={`PRIO_BADGE ${item.priority?.toLowerCase() || 'low'}`}>
+                        {item.priority}
+                      </span>
                     </div>
 
                     <div className="ANN_CAT_TAG">{item.category}</div>
