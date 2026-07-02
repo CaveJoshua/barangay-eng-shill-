@@ -127,7 +127,7 @@ export const AffidavitSchema: DocumentSchema = {
       //    can never be accidentally renamed via inline editing in the preview.
       {
         type: 'columns',
-        heightInMm: 25,
+        heightInMm: 32,
         columns: [
           {
             // LEFT SIDE — colon indicator
@@ -141,8 +141,8 @@ export const AffidavitSchema: DocumentSchema = {
               // ✍️ Real signature if the Punong Barangay has one on file; otherwise
               // a reserved blank line keeps the same space empty.
               payload.captainSignatureUrl
-                ? { content: '', image: payload.captainSignatureUrl, imageHeightMm: 10 }
-                : { content: '', fontSize: 18 },
+                ? { content: '', image: payload.captainSignatureUrl, imageHeightMm: 16 }
+                : { content: '', fontSize: 30 },
               {
                 content: payload.captainName.toUpperCase(),
                 isBold: true,

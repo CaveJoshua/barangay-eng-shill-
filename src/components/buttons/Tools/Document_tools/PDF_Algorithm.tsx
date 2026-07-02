@@ -504,13 +504,18 @@ export const calculatePagination = (
               <div key={cIdx} style={{ flex: 1, textAlign: col.align as any, minWidth: 0 }}>
                 {col.lines.map((l, lIdx) => {
                   // ✍️ A signature line renders as an image, not editable text.
+                  // Same alignOffset nudge as the text lines, so it lines up over
+                  // a name that's been shifted sideways (e.g. the +18mm nudge below).
                   if (l.image) {
                     return (
                       <img
                         key={lIdx}
                         src={l.image}
                         alt="signature"
-                        style={{ height: `${l.imageHeightMm || 10}mm`, width: 'auto', display: 'inline-block' }}
+                        style={{
+                          height: `${l.imageHeightMm || 16}mm`, width: 'auto',
+                          display: 'inline-block', position: 'relative', left: `${l.alignOffset || 0}mm`,
+                        }}
                       />
                     );
                   }
@@ -944,20 +949,23 @@ export const generateVectorPDF = async (
             const lineAlign = line.align || col.align || 'left';
 
             // ✍️ A signature line draws an image (if it loaded) instead of text,
-            // top-left-anchored, aligned the same way the column's text is.
+            // top-left-anchored, aligned the same way the column's text is —
+            // including alignOffset, so it lines up over a name that's been
+            // nudged sideways (several schemas shift the printed name +18mm).
             if (line.image) {
               const sigImg = signatureImages[line.image];
-              const imgH = line.imageHeightMm || 10;
+              const imgH = line.imageHeightMm || 16;
               if (sigImg) {
                 const imgW = imgH * (sigImg.naturalWidth / sigImg.naturalHeight);
                 let imgX = startX;
                 if (lineAlign === 'center') imgX = startX + (colWidth - imgW) / 2;
                 if (lineAlign === 'right') imgX = startX + colWidth - imgW;
+                imgX += (line.alignOffset || 0);
                 try {
                   pdf.addImage(sigImg, 'PNG', imgX, colY, imgW, imgH);
                 } catch { /* best-effort — a failed embed just leaves the space blank */ }
               }
-              colY += imgH + 1;
+              colY += imgH + 2;
               return;
             }
 

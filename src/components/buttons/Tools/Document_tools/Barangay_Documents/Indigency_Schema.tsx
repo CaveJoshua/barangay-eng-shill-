@@ -97,7 +97,7 @@ export const IndigencySchema: DocumentSchema = {
       // 6. Signature block — same two-column layout as Clearance
     {
   type: 'columns',
-  heightInMm: 25,
+  heightInMm: 32,
   columns: [
     { 
       // 1. Keep the whole block on the LEFT margin
@@ -119,10 +119,11 @@ export const IndigencySchema: DocumentSchema = {
       align: 'center',
       lines: [
         // ✍️ Real signature if the Punong Barangay has one on file; otherwise a
-        // reserved blank line keeps the same space empty.
+        // reserved blank line keeps the same space empty. alignOffset matches the
+        // name below so the signature sits directly above it, not the column center.
         payload.captainSignatureUrl
-          ? { content: '', image: payload.captainSignatureUrl, imageHeightMm: 10 }
-          : { content: '', fontSize: 18 },
+          ? { content: '', image: payload.captainSignatureUrl, imageHeightMm: 16, alignOffset: 18 }
+          : { content: '', fontSize: 30 },
         {
           content: payload.captainName.toUpperCase(),
           isBold: true,

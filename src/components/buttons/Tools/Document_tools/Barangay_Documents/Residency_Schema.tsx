@@ -106,7 +106,7 @@ export const ResidencySchema: DocumentSchema = {
       // 6. Signature block — captain centred in the right half
       {
         type: 'columns',
-        heightInMm: 25,
+        heightInMm: 32,
         columns: [
           { align: 'left', lines: [] },
           {
@@ -115,8 +115,8 @@ export const ResidencySchema: DocumentSchema = {
               // ✍️ Real signature if the Punong Barangay has one on file; otherwise
               // a reserved blank line keeps the same space empty.
               payload.captainSignatureUrl
-                ? { content: '', image: payload.captainSignatureUrl, imageHeightMm: 10 }
-                : { content: '', fontSize: 18 },
+                ? { content: '', image: payload.captainSignatureUrl, imageHeightMm: 16 }
+                : { content: '', fontSize: 30 },
               { content: payload.captainName.toUpperCase(), isBold: true, fontSize: 12 },
               { content: 'Punong Barangay', isBold: false, fontSize: 11 },
             ],

@@ -122,7 +122,7 @@ export const JobseekerSchema: DocumentSchema = {
       // 6. Signature block — empty left column, all signatures centred in right column
       {
         type: 'columns',
-        heightInMm: 68,
+        heightInMm: 84,
         columns: [
           { align: 'left', lines: [] },
           {
@@ -131,8 +131,8 @@ export const JobseekerSchema: DocumentSchema = {
               // ✍️ Punong Barangay's e-signature — real image if on file, else a
               // reserved blank line so the layout is identical either way.
               payload.captainSignatureUrl
-                ? { content: '', image: payload.captainSignatureUrl, imageHeightMm: 10 }
-                : { content: '', isBold: false, fontSize: 18 },
+                ? { content: '', image: payload.captainSignatureUrl, imageHeightMm: 16 }
+                : { content: '', isBold: false, fontSize: 30 },
               { content: payload.captainName.toUpperCase(), isBold: true,  fontSize: 11 },
               { content: 'PUNONG BARANGAY',                 isBold: false, fontSize: 10 },
               {
@@ -144,8 +144,8 @@ export const JobseekerSchema: DocumentSchema = {
               { content: 'Witnessed by:',   isBold: false, fontSize: 10 },
               // ✍️ Kagawad's e-signature — same idea.
               payload.kagawadSignatureUrl
-                ? { content: '', image: payload.kagawadSignatureUrl, imageHeightMm: 10 }
-                : { content: '', isBold: false, fontSize: 18 },
+                ? { content: '', image: payload.kagawadSignatureUrl, imageHeightMm: 16 }
+                : { content: '', isBold: false, fontSize: 30 },
               { content: resolvedKagawad,   isBold: true,  fontSize: 11 },
               { content: 'BARANGAY KAGAWAD', isBold: false, fontSize: 10 },
               {
@@ -231,7 +231,7 @@ export const JobseekerSchema: DocumentSchema = {
 
       {
         type: 'columns',
-        heightInMm: 28,
+        heightInMm: 36,
         columns: [
           {
             align: 'left',
@@ -249,8 +249,8 @@ export const JobseekerSchema: DocumentSchema = {
               // ✍️ Real signature if the Punong Barangay has one on file; otherwise
               // a reserved blank line keeps the same space empty.
               payload.captainSignatureUrl
-                ? { content: '', image: payload.captainSignatureUrl, imageHeightMm: 10 }
-                : { content: '',                               isBold: false, fontSize: 18 },
+                ? { content: '', image: payload.captainSignatureUrl, imageHeightMm: 16 }
+                : { content: '',                               isBold: false, fontSize: 30 },
               { content: payload.captainName.toUpperCase(),  isBold: true,  fontSize: 10 },
               { content: 'Punong Barangay',                  isBold: false, fontSize: 10 },
             ],

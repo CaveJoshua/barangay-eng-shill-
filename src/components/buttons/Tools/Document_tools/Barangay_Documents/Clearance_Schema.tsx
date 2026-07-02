@@ -100,32 +100,33 @@ export const ClearanceSchema: DocumentSchema = {
       //    RIGHT → Captain name + "Punong Barangay"
      {
   type: 'columns',
-  heightInMm: 25,
+  heightInMm: 32,
   columns: [
-    { 
+    {
       // 1. Keep the whole block on the LEFT margin
-      align: 'left', 
+      align: 'left',
       lines: [
-        { content: '________________________', isBold: true, fontSize: 12 }, 
-        { 
-          content: 'Signature', 
-          isBold: false, 
+        { content: '________________________', isBold: true, fontSize: 12 },
+        {
+          content: 'Signature',
+          isBold: false,
           fontSize: 10,
           // 2. Use alignOffset to push the word to the right.
           // 25 to 30 is usually the "sweet spot" for centering under this line length.
           alignOffset: 20,
         }
-      ] 
+      ]
         },
              {
       // 2. KAPITAN SIDE (The "Nudge" Fix)
       align: 'center',
       lines: [
         // ✍️ Real signature if the Punong Barangay has one on file; otherwise a
-        // reserved blank line keeps the same space empty.
+        // reserved blank line keeps the same space empty. alignOffset matches the
+        // name below so the signature sits directly above it, not the column center.
         payload.captainSignatureUrl
-          ? { content: '', image: payload.captainSignatureUrl, imageHeightMm: 10 }
-          : { content: '', fontSize: 18 },
+          ? { content: '', image: payload.captainSignatureUrl, imageHeightMm: 16, alignOffset: 18 }
+          : { content: '', fontSize: 30 },
         {
           content: payload.captainName.toUpperCase(),
           isBold: true,
