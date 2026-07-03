@@ -69,6 +69,9 @@ export const ResidentModal: React.FC<{
   // 📨 Where the NEW resident's account confirmation (credentials) gets sent —
   // asked before the account is created. Not a resident field, so kept separate.
   const [confirmationChannel, setConfirmationChannel] = useState<'email' | 'sms'>('email');
+  // 🪪 Government-ID checklist (SSS / PhilHealth / Other). UI-only toggles that
+  // reveal the ID input; once checked, entering the ID number is REQUIRED.
+  const [govIdChecks, setGovIdChecks] = useState({ sss: false, philhealth: false, other: false });
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   
@@ -98,10 +101,21 @@ export const ResidentModal: React.FC<{
   useEffect(() => {
     if (isOpen) {
       if (residentData) {
-        setFormData({ ...residentData });
-        const d = new Date(residentData.dob);
-        
         const rawDB = residentData as any;
+        // Normalize the government-ID trio (parents sometimes pass raw DB rows
+        // in snake_case) so the inputs show existing values on edit.
+        setFormData({
+          ...residentData,
+          sssIdNumber: residentData.sssIdNumber || rawDB.sss_id_number || '',
+          philhealthIdNumber: residentData.philhealthIdNumber || rawDB.philhealth_id_number || '',
+          otherIdNumber: residentData.otherIdNumber || rawDB.other_id_number || '',
+        });
+        setGovIdChecks({
+          sss: !!(residentData.sssIdNumber || rawDB.sss_id_number),
+          philhealth: !!(residentData.philhealthIdNumber || rawDB.philhealth_id_number),
+          other: !!(residentData.otherIdNumber || rawDB.other_id_number),
+        });
+        const d = new Date(residentData.dob);
         let pCountry = residentData.birthCountry || rawDB.birth_country || 'PHILIPPINES';
         let pProv = residentData.birthProvince || rawDB.birth_province || '';
         let pCity = residentData.birthCity || rawDB.birth_city || '';
@@ -145,6 +159,7 @@ export const ResidentModal: React.FC<{
         setCustomFields(customObj);
       } else {
         setFormData(initialState);
+        setGovIdChecks({ sss: false, philhealth: false, other: false });
         setSearch({ day: '', month: '', year: '', country: 'PHILIPPINES', province: '', city: '', nationality: 'FILIPINO' });
         setCustomFields({});
       }
@@ -266,9 +281,22 @@ export const ResidentModal: React.FC<{
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    // 🪪 A ticked government-ID checkbox REQUIRES its ID number (backs up the
+    // native `required` attribute in case browser validation is bypassed).
+    const missingGovIds = [
+      govIdChecks.sss && !formData.sssIdNumber?.trim() && 'SSS ID #',
+      govIdChecks.philhealth && !formData.philhealthIdNumber?.trim() && 'PHILHEALTH ID #',
+      govIdChecks.other && !formData.otherIdNumber?.trim() && 'OTHER VALID ID #',
+    ].filter(Boolean);
+    if (missingGovIds.length > 0) {
+      setGlobalError(`Required ID number missing: ${missingGovIds.join(', ')}`);
+      if (scrollRef.current) scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
     const valErrors = validateResidentForm(formData);
-    if (Object.keys(valErrors).length > 0) { 
+    if (Object.keys(valErrors).length > 0) {
         setErrors(valErrors); 
 
         const failedKeys = Object.keys(valErrors).map(k => k.replace(/([A-Z])/g, ' $1').toUpperCase()).join(', ');
@@ -593,10 +621,10 @@ export const ResidentModal: React.FC<{
               
               <div className="RMS_CHECK_GRID">
                 {[
-                  { k: 'isVoter', l: "VOTER / SUFFRAGE (OPTIONAL)" }, 
-                  { k: 'isPWD', l: 'PWD (OPTIONAL)' }, 
-                  { k: 'is4Ps', l: '4PS (OPTIONAL)' }, 
-                  { k: 'isSoloParent', l: 'SOLO PARENT (OPTIONAL)' }, 
+                  { k: 'isVoter', l: "VOTER / SUFFRAGE (OPTIONAL)" },
+                  { k: 'isPWD', l: 'PWD (OPTIONAL)' },
+                  { k: 'is4Ps', l: '4PS (OPTIONAL)' },
+                  { k: 'isSoloParent', l: 'SOLO PARENT (OPTIONAL)' },
                   { k: 'isSeniorCitizen', l: 'SENIOR (OPTIONAL)' }
                 ].map(item => (
                   <label key={item.k} className="RMS_CHECK_ITEM">
@@ -604,9 +632,28 @@ export const ResidentModal: React.FC<{
                     <span>{item.l}</span>
                   </label>
                 ))}
+                {/* 🪪 Government IDs — same checklist; ticking one REQUIRES its ID number. */}
+                {([
+                  { k: 'sss', l: 'SSS ID', field: 'sssIdNumber' },
+                  { k: 'philhealth', l: 'PHILHEALTH ID', field: 'philhealthIdNumber' },
+                  { k: 'other', l: 'OTHER VALID ID', field: 'otherIdNumber' },
+                ] as const).map(item => (
+                  <label key={item.k} className="RMS_CHECK_ITEM">
+                    <input
+                      type="checkbox"
+                      checked={govIdChecks[item.k]}
+                      onChange={e => {
+                        const on = e.target.checked;
+                        setGovIdChecks(p => ({ ...p, [item.k]: on }));
+                        if (!on) handleChange(item.field, ''); // unticking clears the ID
+                      }}
+                    />
+                    <span>{item.l}</span>
+                  </label>
+                ))}
               </div>
-              
-              {(formData.isVoter || formData.isPWD || formData.is4Ps || formData.isSoloParent || formData.isSeniorCitizen) && (
+
+              {(formData.isVoter || formData.isPWD || formData.is4Ps || formData.isSoloParent || formData.isSeniorCitizen || govIdChecks.sss || govIdChecks.philhealth || govIdChecks.other) && (
                 <div className="RMS_ID_CONTAINER">
                   {formData.isVoter && (
                     <div className="RMS_GROUP">
@@ -638,30 +685,26 @@ export const ResidentModal: React.FC<{
                       <input className="RMS_INPUT" value={formData.seniorIdNumber} onChange={e => handleChange('seniorIdNumber', e.target.value)} maxLength={20} />
                     </div>
                   )}
+                  {govIdChecks.sss && (
+                    <div className="RMS_GROUP">
+                      <label className="RMS_LABEL">SSS ID # *</label>
+                      <input className="RMS_INPUT" required value={formData.sssIdNumber} onChange={e => handleChange('sssIdNumber', e.target.value)} maxLength={20} />
+                    </div>
+                  )}
+                  {govIdChecks.philhealth && (
+                    <div className="RMS_GROUP">
+                      <label className="RMS_LABEL">PHILHEALTH ID # *</label>
+                      <input className="RMS_INPUT" required value={formData.philhealthIdNumber} onChange={e => handleChange('philhealthIdNumber', e.target.value)} maxLength={20} />
+                    </div>
+                  )}
+                  {govIdChecks.other && (
+                    <div className="RMS_GROUP">
+                      <label className="RMS_LABEL">OTHER VALID ID # *</label>
+                      <input className="RMS_INPUT" required value={formData.otherIdNumber} onChange={e => handleChange('otherIdNumber', e.target.value)} maxLength={30} />
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-
-            <div className="RMS_SECTION">
-              <div className="RMS_SEC_TITLE">Government ID Numbers (Optional)</div>
-              <p style={{ margin: '0 0 12px', fontSize: '0.78rem', color: 'var(--text-muted, #64748b)' }}>
-                Not tied to a special classification — any resident may have these. Helps the
-                system tell apart two residents who happen to share the same name.
-              </p>
-              <div className="RMS_ID_CONTAINER">
-                <div className="RMS_GROUP">
-                  <label className="RMS_LABEL">SSS ID #</label>
-                  <input className="RMS_INPUT" value={formData.sssIdNumber} onChange={e => handleChange('sssIdNumber', e.target.value)} maxLength={20} />
-                </div>
-                <div className="RMS_GROUP">
-                  <label className="RMS_LABEL">PHILHEALTH ID #</label>
-                  <input className="RMS_INPUT" value={formData.philhealthIdNumber} onChange={e => handleChange('philhealthIdNumber', e.target.value)} maxLength={20} />
-                </div>
-                <div className="RMS_GROUP">
-                  <label className="RMS_LABEL">OTHER VALID ID #</label>
-                  <input className="RMS_INPUT" value={formData.otherIdNumber} onChange={e => handleChange('otherIdNumber', e.target.value)} maxLength={30} />
-                </div>
-              </div>
             </div>
 
             {/* 📨 Asked BEFORE the account is created: where do the new resident's
