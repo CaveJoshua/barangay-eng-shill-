@@ -66,6 +66,9 @@ export const ResidentModal: React.FC<{
   residentData: IResident | null;
 }> = ({ isOpen, onClose, onSuccess, residentData }) => {
   const [formData, setFormData] = useState<IResident>(initialState);
+  // 📨 Where the NEW resident's account confirmation (credentials) gets sent —
+  // asked before the account is created. Not a resident field, so kept separate.
+  const [confirmationChannel, setConfirmationChannel] = useState<'email' | 'sms'>('email');
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   
@@ -295,7 +298,9 @@ export const ResidentModal: React.FC<{
       fourPsIdNumber: formData.fourPsIdNumber,
       sssIdNumber: formData.sssIdNumber, philhealthIdNumber: formData.philhealthIdNumber,
       otherIdNumber: formData.otherIdNumber,
-      activityStatus: formData.activityStatus
+      activityStatus: formData.activityStatus,
+      // Only meaningful on CREATE — the backend sends credentials on this channel.
+      ...(isUpdateMode ? {} : { confirmationChannel })
     };
 
     try {
@@ -658,6 +663,42 @@ export const ResidentModal: React.FC<{
                 </div>
               </div>
             </div>
+
+            {/* 📨 Asked BEFORE the account is created: where do the new resident's
+                login credentials go — their Gmail or their phone number? */}
+            {!isUpdateMode && (
+              <div className="RMS_SECTION">
+                <div className="RMS_SEC_TITLE">Account Confirmation</div>
+                <p style={{ margin: '0 0 12px', fontSize: '0.78rem', color: 'var(--text-muted, #64748b)' }}>
+                  The resident's username and temporary password will be sent to the channel
+                  you choose, confirming the account reaches the right person.
+                </p>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  {([
+                    { key: 'email', icon: 'fa-envelope', label: 'Gmail / Email', dest: formData.email },
+                    { key: 'sms', icon: 'fa-mobile-alt', label: 'Text (SMS)', dest: formData.contact_number },
+                  ] as const).map(opt => (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => setConfirmationChannel(opt.key)}
+                      style={{
+                        flex: 1, padding: '12px 10px', borderRadius: 10, cursor: 'pointer',
+                        textAlign: 'left', fontWeight: 700, fontSize: '0.82rem',
+                        border: confirmationChannel === opt.key ? '2px solid #3b82f6' : '1px solid #cbd5e1',
+                        background: confirmationChannel === opt.key ? 'rgba(59,130,246,0.08)' : 'transparent',
+                        color: confirmationChannel === opt.key ? '#2563eb' : 'inherit',
+                      }}
+                    >
+                      <i className={`fas ${opt.icon}`} style={{ marginRight: 6 }}></i>{opt.label}
+                      <div style={{ fontSize: '0.72rem', fontWeight: 500, marginTop: 4, color: opt.dest ? 'inherit' : '#ef4444' }}>
+                        {opt.dest || 'not provided above'}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="RMS_FOOTER">

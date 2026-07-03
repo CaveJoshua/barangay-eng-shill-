@@ -651,22 +651,39 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
 
                     logActivity(supabase, req.user.username, 'RESIDENT_CREATED', profile.record_id, req).catch(() => {});
 
-                    // 📧 ACCOUNT-CONFIRMATION EMAIL (fire-and-forget) — during credential
-                    // distribution the resident gets their login details at the address
-                    // THEY registered, which itself confirms the account reaches the right
-                    // person. A dead mailer never blocks registration.
-                    if (profile.email) {
-                        sendAutoMail(
-                            profile.email,
-                            'Your Smart Barangay Resident Account',
-                            'Welcome to Barangay Engineer\'s Hill',
-                            `Hello <b>${profile.first_name} ${profile.last_name}</b>,<br><br>
-                             A resident account has been created for you in the Smart Barangay system.<br><br>
-                             <b>Username:</b> ${username}<br>
-                             <b>Temporary Password:</b> ${tempPass}<br><br>
-                             You will be asked to set your own password on first login.
-                             If you did not expect this account, please contact the Barangay Hall.`
-                        ).catch(() => {});
+                    // 📨 ACCOUNT-CONFIRMATION (fire-and-forget) — the registration form asks
+                    // BEFORE creating the account where the resident wants their credentials:
+                    // their Gmail or their phone number (confirmationChannel: 'email'|'sms').
+                    // Whichever channel is chosen but unusable falls back to the other, so
+                    // credentials are never silently lost. A dead sender never blocks
+                    // registration.
+                    const channel = String(r.confirmationChannel || 'email').toLowerCase();
+                    const sendCredsEmail = () => sendAutoMail(
+                        profile.email,
+                        'Your Smart Barangay Resident Account',
+                        'Welcome to Barangay Engineer\'s Hill',
+                        `Hello <b>${profile.first_name} ${profile.last_name}</b>,<br><br>
+                         A resident account has been created for you in the Smart Barangay system.<br><br>
+                         <b>Username:</b> ${username}<br>
+                         <b>Temporary Password:</b> ${tempPass}<br><br>
+                         You will be asked to set your own password on first login.
+                         If you did not expect this account, please contact the Barangay Hall.`
+                    );
+                    const sendCredsSms = () => sendSms(
+                        profile.contact_number,
+                        `Smart Barangay: your resident account is ready. Username: ${username} Temp password: ${tempPass} (change it on first login). - Brgy Engineer's Hill`
+                    );
+
+                    if (channel === 'sms' && profile.contact_number) {
+                        sendCredsSms().then(ok => {
+                            if (!ok && profile.email) return sendCredsEmail();
+                        }).catch(() => {});
+                    } else if (profile.email) {
+                        sendCredsEmail().then(ok => {
+                            if (!ok && profile.contact_number) return sendCredsSms();
+                        }).catch(() => {});
+                    } else if (profile.contact_number) {
+                        sendCredsSms().catch(() => {});
                     }
 
                     // Non-blocking heads-up (e.g. a same-named but distinct resident

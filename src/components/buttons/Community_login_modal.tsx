@@ -14,13 +14,6 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
   const [isForgotPasswordView, setIsForgotPasswordView] = useState(false);
   const [recoveryPhase, setRecoveryPhase] = useState<'request' | 'reset'>('request');
 
-  // --- Account Verification State (confirm ownership BEFORE first use) ---
-  const [isVerifyView, setIsVerifyView] = useState(false);
-  const [verifyPhase, setVerifyPhase] = useState<'request' | 'confirm' | 'done'>('request');
-  const [verifyIdentifier, setVerifyIdentifier] = useState('');
-  const [verifyChannel, setVerifyChannel] = useState<'email' | 'sms'>('email');
-  const [verifyOtp, setVerifyOtp] = useState('');
-
   // --- Login State ---
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -215,71 +208,10 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
     }
   };
 
-  // ─── ACCOUNT VERIFICATION (ownership check BEFORE first use) ────
-  // The resident chooses WHERE to receive the code: their Gmail or their
-  // phone number. Both hit the same public endpoint with a channel flag.
-  const handleVerifyRequest = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (lockoutRemaining > 0) return;
-
-    setError('');
-    setRecoverySuccessMsg('');
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/residents/verify/request`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ identifier: verifyIdentifier.trim(), channel: verifyChannel })
-      });
-      const data = await res.json();
-
-      if (res.status === 429) {
-        applyLockout(60, data.error || 'Please wait before requesting another code.');
-        return;
-      }
-      if (!res.ok) throw new Error(data.error || 'Could not send the verification code.');
-
-      setRecoverySuccessMsg(
-        verifyChannel === 'email'
-          ? 'If the account exists, a 6-digit code was sent to its email address.'
-          : 'If the account exists, a 6-digit code was texted to its phone number.'
-      );
-      setVerifyPhase('confirm');
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyConfirm = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (lockoutRemaining > 0) return;
-
-    setError('');
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/residents/verify/confirm`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ identifier: verifyIdentifier.trim(), otp: verifyOtp.trim() })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Verification failed.');
-
-      setVerifyPhase('done');
-      setRecoverySuccessMsg('');
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // ─── UTILS ──────────────────────────────────────────────────────
-  const resetSharedState = () => {
+  const toggleView = () => {
+    setIsForgotPasswordView(!isForgotPasswordView);
+    setRecoveryPhase('request'); 
     setError('');
     setRecoverySuccessMsg('');
     setUsername('');
@@ -287,24 +219,6 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
     setRecoveryIdentifier('');
     setOtpCode('');
     setNewPassword('');
-    setVerifyPhase('request');
-    setVerifyIdentifier('');
-    setVerifyChannel('email');
-    setVerifyOtp('');
-  };
-
-  const toggleView = () => {
-    setIsForgotPasswordView(!isForgotPasswordView);
-    setIsVerifyView(false);
-    setRecoveryPhase('request');
-    resetSharedState();
-  };
-
-  const openVerifyView = (open: boolean) => {
-    setIsVerifyView(open);
-    setIsForgotPasswordView(false);
-    setRecoveryPhase('request');
-    resetSharedState();
   };
 
   if (!isOpen) return null;
@@ -318,108 +232,7 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
           <i className="fas fa-times"></i>
         </button>
         
-        {isVerifyView ? (
-          <>
-            <div className="CM_LOGIN_HEADER">
-              <div className="CM_LOGIN_ICON"><i className="fas fa-user-check"></i></div>
-              <h2>Verify Your Account</h2>
-              <p>Confirm you own this account before using it. Choose where to receive your code.</p>
-            </div>
-
-            {verifyPhase === 'request' && (
-              <form onSubmit={handleVerifyRequest} className="CM_LOGIN_FORM">
-                {error && (
-                  <div className="CM_ERROR_MSG">
-                    <i className={lockoutRemaining > 0 ? 'fas fa-lock' : 'fas fa-exclamation-triangle'}></i> {error}
-                  </div>
-                )}
-
-                <div className="CM_INPUT_GROUP">
-                  <label>Username, Email, or Phone Number</label>
-                  <div className="CM_INPUT_WRAPPER">
-                    <i className="fas fa-user-tag"></i>
-                    <input type="text" placeholder="Any of the three works" value={verifyIdentifier} onChange={e => setVerifyIdentifier(e.target.value)} required disabled={isBlocked} />
-                  </div>
-                </div>
-
-                <div className="CM_INPUT_GROUP">
-                  <label>Send my code via</label>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    {([
-                      { key: 'email', icon: 'fa-envelope', label: 'Gmail / Email' },
-                      { key: 'sms', icon: 'fa-mobile-alt', label: 'Text (SMS)' },
-                    ] as const).map(opt => (
-                      <button
-                        key={opt.key}
-                        type="button"
-                        onClick={() => setVerifyChannel(opt.key)}
-                        disabled={isBlocked}
-                        style={{
-                          flex: 1, padding: '12px 8px', borderRadius: 10, cursor: 'pointer',
-                          fontWeight: 700, fontSize: '0.85rem',
-                          border: verifyChannel === opt.key ? '2px solid #3b82f6' : '1px solid #cbd5e1',
-                          background: verifyChannel === opt.key ? 'rgba(59,130,246,0.08)' : 'transparent',
-                          color: verifyChannel === opt.key ? '#2563eb' : 'inherit',
-                        }}
-                      >
-                        <i className={`fas ${opt.icon}`} style={{ marginRight: 6 }}></i>{opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <button type="submit" className="CM_LOGIN_SUBMIT" disabled={isBlocked}>
-                  {lockoutRemaining > 0 ? `Please Wait (${lockoutRemaining}s)` : loading ? <i className="fas fa-circle-notch fa-spin"></i> : 'Send Verification Code'}
-                </button>
-              </form>
-            )}
-
-            {verifyPhase === 'confirm' && (
-              <form onSubmit={handleVerifyConfirm} className="CM_LOGIN_FORM">
-                {error && (
-                  <div className="CM_ERROR_MSG">
-                    <i className="fas fa-exclamation-triangle"></i> {error}
-                  </div>
-                )}
-                {recoverySuccessMsg && !error && <div className="CM_SUCCESS_MSG"><i className="fas fa-check-circle"></i> {recoverySuccessMsg}</div>}
-
-                <div className="CM_INPUT_GROUP">
-                  <label>6-Digit Code</label>
-                  <div className="CM_INPUT_WRAPPER">
-                    <i className="fas fa-hashtag"></i>
-                    <input type="text" inputMode="numeric" placeholder="e.g., 482913" value={verifyOtp} onChange={e => setVerifyOtp(e.target.value.replace(/\D/g, ''))} required disabled={isBlocked} maxLength={6} className="CM_OTP_INPUT" />
-                  </div>
-                  <div style={{ textAlign: 'right', marginTop: '8px' }}>
-                    <button type="button" className="CM_FORGOT_BTN" onClick={() => handleVerifyRequest()} disabled={isBlocked} style={{ fontSize: '0.85rem' }}>
-                      Didn't get it? Send a new code.
-                    </button>
-                  </div>
-                </div>
-
-                <button type="submit" className="CM_LOGIN_SUBMIT success" disabled={isBlocked || verifyOtp.length !== 6}>
-                  {loading ? <i className="fas fa-circle-notch fa-spin"></i> : 'Confirm Account'}
-                </button>
-              </form>
-            )}
-
-            {verifyPhase === 'done' && (
-              <div className="CM_LOGIN_FORM">
-                <div className="CM_SUCCESS_MSG" style={{ textAlign: 'center' }}>
-                  <i className="fas fa-check-circle"></i> Account ownership confirmed! You can now log in.
-                </div>
-                <button type="button" className="CM_LOGIN_SUBMIT success" onClick={() => openVerifyView(false)}>
-                  Proceed to Login
-                </button>
-              </div>
-            )}
-
-            <div className="CM_LOGIN_FOOTER">
-              <button type="button" className="CM_RETURN_BTN" onClick={() => openVerifyView(false)} disabled={isBlocked}>
-                <i className="fas fa-arrow-left"></i> Return to Login
-              </button>
-            </div>
-          </>
-        ) : !isForgotPasswordView ? (
+        {!isForgotPasswordView ? (
           <>
             <div className="CM_LOGIN_HEADER">
               <div className="CM_LOGIN_ICON"><i className="fas fa-user-shield"></i></div>
@@ -451,10 +264,7 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
                 </div>
               </div>
 
-              <div className="CM_LOGIN_ACTIONS" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <button type="button" className="CM_FORGOT_BTN" onClick={() => openVerifyView(true)} disabled={isBlocked}>
-                  New account? Verify it first
-                </button>
+              <div className="CM_LOGIN_ACTIONS">
                 <button type="button" className="CM_FORGOT_BTN" onClick={toggleView} disabled={isBlocked}>
                   Forgot Password?
                 </button>
