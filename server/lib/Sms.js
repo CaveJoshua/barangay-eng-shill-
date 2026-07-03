@@ -58,7 +58,10 @@ const sendViaTextbelt = async (to, message) => {
 
 const sendViaHttpSms = async (to, message) => {
     const key = process.env.SMS_HTTPSMS_KEY;
-    const from = process.env.SMS_HTTPSMS_FROM;
+    // Accept the FROM number in any PH format (0917…, 63917…, +63917…) —
+    // httpSMS itself requires strict E.164, so normalize here instead of
+    // failing on a missing '+' in the .env.
+    const from = normalizePhNumber(process.env.SMS_HTTPSMS_FROM);
     if (!key || !from) throw new Error('SMS_HTTPSMS_KEY / SMS_HTTPSMS_FROM not configured.');
     const resp = await fetch('https://api.httpsms.com/v1/messages/send', {
         method: 'POST',
