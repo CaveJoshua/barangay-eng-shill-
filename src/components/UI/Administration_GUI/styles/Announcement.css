@@ -362,11 +362,6 @@
   color: var(--ANN-brand);
 }
 
-.ANN_VALIDITY_TAG {
-  color: var(--ANN-text-muted);
-  font-weight: 600;
-}
-
 .PRIO_BADGE {
   font-size: 0.7rem;
   font-weight: 800;

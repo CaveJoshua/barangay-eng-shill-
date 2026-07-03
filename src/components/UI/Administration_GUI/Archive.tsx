@@ -326,7 +326,6 @@ export default function Archive() {
         { label: 'Category', value: fmt(item.category) },
         { label: 'Priority', value: fmt(item.priority) },
         { label: 'Content', value: fmt(item.content) },
-        { label: 'Valid Until', value: formatDate(item.expires_at) },
       ];
       default: return [];
     }
@@ -635,7 +634,7 @@ export default function Archive() {
                        {activeTab === 'Residents' && (<><th>ID</th><th>FULL NAME</th><th>SEX</th><th>DOB</th></>)}
                        {activeTab === 'Officials' && (<><th>NAME</th><th>POSITION</th><th>TERM START</th><th>TERM END</th></>)}
                        {activeTab === 'Households' && (<><th>HH NO.</th><th>HEAD</th><th>ZONE</th><th>STATUS</th></>)}
-                       {activeTab === 'Announcements' && (<><th>TITLE</th><th>CATEGORY</th><th>PRIORITY</th><th>VALID UNTIL</th></>)}
+                       {activeTab === 'Announcements' && (<><th>TITLE</th><th>CATEGORY</th><th>PRIORITY</th></>)}
                        <th className={styles.ARC_ALIGN_RIGHT}>FINAL STATUS</th>
                      </tr>
                    </thead>
@@ -681,7 +680,7 @@ export default function Archive() {
                            <><td className={styles.ARC_ID_CELL}>{item.household_number}</td><td className={styles.ARC_NAME_CELL}>{item.head}</td><td>{item.zone}</td><td>{item.status}</td></>
                          )}
                          {activeTab === 'Announcements' && (
-                           <><td className={styles.ARC_NAME_CELL}>{item.title}</td><td>{item.category}</td><td>{item.priority}</td><td>{formatDate(item.expires_at)}</td></>
+                           <><td className={styles.ARC_NAME_CELL}>{item.title}</td><td>{item.category}</td><td>{item.priority}</td></>
                          )}
                          <td className={styles.ARC_ALIGN_RIGHT}>
                            <span className={`${styles.ARC_BADGE} ${badgeClass}`}>{currentStatus}</span>
