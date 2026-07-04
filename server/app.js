@@ -332,11 +332,6 @@ router.post('/announcements',
                 }
             }
 
-            // 📅 "Announced" date — the moment it actually goes live, distinct from
-            // created_at (which for a post that started as a Draft reflects when the
-            // DRAFT row was first created, not when it was published).
-            const initialStatus = status || 'Active';
-
             const { data, error } = await supabase
                 .from('announcements')
                 .insert([{
@@ -345,9 +340,8 @@ router.post('/announcements',
                     category: category || 'Public Advisory',
                     priority: priority || 'Low',
                     expires_at,
-                    image_url: secureImageUrl || image_url,
-                    status: initialStatus,
-                    published_at: initialStatus === 'Active' ? new Date().toISOString() : null
+                    image_url: secureImageUrl || image_url, 
+                    status: status || 'Active'
                 }])
                 .select()
                 .single();
@@ -378,17 +372,6 @@ router.put('/announcements/:id',
             if (priority  !== undefined) updates.priority   = priority;
             if (expires_at!== undefined) updates.expires_at = expires_at;
             if (status    !== undefined) updates.status     = status;
-
-            // 📅 Stamp published_at the FIRST time this post actually goes live (e.g.
-            // a Draft being published) — never overwritten again afterward, so a
-            // later content edit doesn't reset its "announced" date.
-            if (status === 'Active') {
-                const { data: existing } = await supabase
-                    .from('announcements').select('published_at').eq('id', id).maybeSingle();
-                if (!existing?.published_at) {
-                    updates.published_at = new Date().toISOString();
-                }
-            }
 
             if (image_url !== undefined) {
                 if (image_url && image_url.includes('base64,')) {

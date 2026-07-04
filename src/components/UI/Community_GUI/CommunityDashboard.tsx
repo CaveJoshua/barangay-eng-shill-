@@ -154,12 +154,6 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
           String(news.content || '').trim() === '(draft in progress)' ||
           String(news.title || '').trim() === '(Untitled draft)';
 
-        // 📅 The date it was ANNOUNCED — distinct from created_at, which for a
-        // post that started as a Draft reflects when the draft row was first
-        // saved, not when it actually went live. Falls back to created_at for
-        // older rows saved before published_at existed.
-        const announcedAt = (news: any) => news.published_at || news.created_at || news.date_posted;
-
         const filteredNews = rawNews
           .filter((news: any) => {
             // 📝 Drafts AND discarded drafts (thrown away — never actually
@@ -176,7 +170,9 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
           })
           // 🆕 Newest first, always — doesn't depend on the backend's own
           // ordering (or anything upstream preserving it).
-          .sort((a: any, b: any) => new Date(announcedAt(b)).getTime() - new Date(announcedAt(a)).getTime());
+          .sort((a: any, b: any) =>
+            new Date(b.created_at || b.date_posted).getTime() - new Date(a.created_at || a.date_posted).getTime()
+          );
 
         return (
           <div className="BULLETIN_CONTAINER">
@@ -228,7 +224,7 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                     </div>
                     <div className="NEWS_BODY">
                       <span className="NEWS_DATE">
-                        <i className="far fa-calendar-alt"></i> {new Date(announcedAt(news)).toLocaleDateString()}
+                        <i className="far fa-calendar-alt"></i> {new Date(news.date_posted || news.created_at).toLocaleDateString()}
                       </span>
                       <h4>{news.title}</h4>
                       <p>{news.content}</p>
@@ -237,7 +233,7 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                         className="BTN_READ_MORE"
                         onClick={() => setSelectedArticle({
                           ...news,
-                          created_at: announcedAt(news)
+                          created_at: news.created_at || news.date_posted
                         })}
                       >
                         Read Full Advisory <i className="fas fa-arrow-right" />
