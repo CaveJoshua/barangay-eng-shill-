@@ -68,11 +68,15 @@ const Community: React.FC<CommunityProps> = ({ onLoginSuccess }) => {
   // "Discarded" is a distinct status from "Archived" precisely so a never-live
   // draft can never masquerade as a real past announcement.
   const filteredNews = useMemo(() => {
-    return newsList.filter((n: any) => {
-      const status = String(n.status || '').toLowerCase();
-      if (status === 'draft' || status === 'discarded' || isPlaceholderDraft(n)) return false;
-      return activeFilter === 'All' || n.category === activeFilter;
-    });
+    return newsList
+      .filter((n: any) => {
+        const status = String(n.status || '').toLowerCase();
+        if (status === 'draft' || status === 'discarded' || isPlaceholderDraft(n)) return false;
+        return activeFilter === 'All' || n.category === activeFilter;
+      })
+      // 🆕 Newest first, always — an explicit sort here doesn't depend on the
+      // backend's own ordering (or on anything upstream preserving it).
+      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [newsList, activeFilter]);
 
   const isPastAnnouncement = (n: any) => {

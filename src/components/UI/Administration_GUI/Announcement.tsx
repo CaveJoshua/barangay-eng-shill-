@@ -123,15 +123,20 @@ export default function AnnouncementPage() {
   }, [searchTerm]);
 
   const publishedList = useMemo(() => {
-    return announcements.filter(a => {
-      if (a.status === 'Archived' || a.status === 'Draft' || a.status === 'Discarded') return false;
-      const matchesPriority = priorityFilter === 'All' || a.priority === priorityFilter;
-      return matchesSearch(a) && matchesPriority;
-    });
+    return announcements
+      .filter(a => {
+        if (a.status === 'Archived' || a.status === 'Draft' || a.status === 'Discarded') return false;
+        const matchesPriority = priorityFilter === 'All' || a.priority === priorityFilter;
+        return matchesSearch(a) && matchesPriority;
+      })
+      // 🆕 Newest first, always.
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [announcements, matchesSearch, priorityFilter]);
 
   const draftsList = useMemo(
-    () => announcements.filter(a => a.status === 'Draft' && matchesSearch(a)),
+    () => announcements
+      .filter(a => a.status === 'Draft' && matchesSearch(a))
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
     [announcements, matchesSearch]
   );
 

@@ -154,19 +154,25 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
           String(news.content || '').trim() === '(draft in progress)' ||
           String(news.title || '').trim() === '(Untitled draft)';
 
-        const filteredNews = rawNews.filter((news: any) => {
-          // 📝 Drafts AND discarded drafts (thrown away — never actually
-          // published) are always hidden from residents. "Discarded" is a
-          // distinct status from "Archived" precisely so a never-live draft
-          // can never masquerade as a real past announcement.
-          const status = String(news.status || '').toLowerCase();
-          if (status === 'draft' || status === 'discarded' || isPlaceholderDraft(news)) {
-            return false;
-          }
+        const filteredNews = rawNews
+          .filter((news: any) => {
+            // 📝 Drafts AND discarded drafts (thrown away — never actually
+            // published) are always hidden from residents. "Discarded" is a
+            // distinct status from "Archived" precisely so a never-live draft
+            // can never masquerade as a real past announcement.
+            const status = String(news.status || '').toLowerCase();
+            if (status === 'draft' || status === 'discarded' || isPlaceholderDraft(news)) {
+              return false;
+            }
 
-          if (bulletinCategory === 'All') return true;
-          return news.category?.toLowerCase() === bulletinCategory.toLowerCase();
-        });
+            if (bulletinCategory === 'All') return true;
+            return news.category?.toLowerCase() === bulletinCategory.toLowerCase();
+          })
+          // 🆕 Newest first, always — doesn't depend on the backend's own
+          // ordering (or anything upstream preserving it).
+          .sort((a: any, b: any) =>
+            new Date(b.created_at || b.date_posted).getTime() - new Date(a.created_at || a.date_posted).getTime()
+          );
 
         return (
           <div className="BULLETIN_CONTAINER">
