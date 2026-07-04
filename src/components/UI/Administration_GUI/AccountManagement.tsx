@@ -38,8 +38,10 @@ export default function AccountManagement() {
   const [resetStep,        setResetStep]       = useState<ResetStep>('INIT');
   const [resetOtp,         setResetOtp]        = useState('');
   const [useFallback,      setUseFallback]     = useState<boolean>(false);
+  const [viaPhone,         setViaPhone]        = useState<boolean>(false);
   const [newPassword,      setNewPassword]     = useState('');
-  const [showPassword,     setShowPassword]    = useState(false); 
+  const [confirmPassword,  setConfirmPassword] = useState('');
+  const [showPassword,     setShowPassword]    = useState(false);
   const [modalLoading,     setModalLoading]    = useState(false);
   const [modalError,       setModalError]      = useState('');
 
@@ -203,7 +205,7 @@ export default function AccountManagement() {
     }
 
     try {
-      const response = await ApiService.requestPasswordResetOTP(targetIdentifier, useFallback);
+      const response = await ApiService.requestPasswordResetOTP(targetIdentifier, useFallback, viaPhone);
       if (response.success) {
         setResetStep('OTP');
       } else {
@@ -242,13 +244,14 @@ export default function AccountManagement() {
   const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword.length < 8) return setModalError('Minimum 8 characters required.');
+    if (newPassword !== confirmPassword) return setModalError('Passwords do not match. Please re-enter.');
     if (!selectedAccount) return;
-    
+
     setModalLoading(true);
     setModalError('');
 
     try {
-      const result = await ApiService.resetPassword(selectedAccount.id, { 
+      const result = await ApiService.resetPassword(selectedAccount.id, {
         password: newPassword,
         otp: resetOtp // Send OTP in case backend validates it on this endpoint too
       });
@@ -256,10 +259,11 @@ export default function AccountManagement() {
         alert('Password updated successfully.');
         setIsResetOpen(false);
         setNewPassword('');
+        setConfirmPassword('');
         setResetOtp('');
         setShowPassword(false);
         setResetStep('INIT');
-      } else { 
+      } else {
         throw new Error(result.error); 
       }
     } catch (err: any) { 
@@ -493,10 +497,12 @@ export default function AccountManagement() {
                               onClick={() => {
                                 setSelectedAccount(acc);
                                 setNewPassword('');
+                                setConfirmPassword('');
                                 setResetOtp('');
                                 setShowPassword(false);
                                 setResetStep('INIT');
                                 setUseFallback(false);
+                                setViaPhone(false);
                                 setModalError('');
                                 setIsResetOpen(true);
                               }}
@@ -564,23 +570,37 @@ export default function AccountManagement() {
                   
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '10px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
-                      <input 
-                        type="radio" 
-                        name="recoveryMode" 
-                        checked={!useFallback} 
-                        onChange={() => setUseFallback(false)}
+                      <input
+                        type="radio"
+                        name="recoveryMode"
+                        checked={!useFallback && !viaPhone}
+                        onChange={() => { setUseFallback(false); setViaPhone(false); }}
                         disabled={modalLoading}
                         style={{ accentColor: '#3b82f6', width: '16px', height: '16px' }}
                       />
                       <span>User's Registered Email</span>
                     </label>
-                    
+
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
-                      <input 
-                        type="radio" 
-                        name="recoveryMode" 
-                        checked={useFallback} 
-                        onChange={() => setUseFallback(true)}
+                      <input
+                        type="radio"
+                        name="recoveryMode"
+                        checked={viaPhone}
+                        onChange={() => { setViaPhone(true); setUseFallback(false); }}
+                        disabled={modalLoading}
+                        style={{ accentColor: '#059669', width: '16px', height: '16px' }}
+                      />
+                      <span style={{ color: viaPhone ? '#047857' : 'inherit', fontWeight: viaPhone ? '600' : 'normal' }}>
+                        User's Registered Phone Number <small style={{ fontWeight: 'normal', color: '#94a3b8' }}>(SMS)</small>
+                      </span>
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
+                      <input
+                        type="radio"
+                        name="recoveryMode"
+                        checked={useFallback}
+                        onChange={() => { setUseFallback(true); setViaPhone(false); }}
                         disabled={modalLoading}
                         style={{ accentColor: '#d97706', width: '16px', height: '16px' }}
                       />
@@ -595,7 +615,12 @@ export default function AccountManagement() {
                   <button type="button" className="ACC_BTN_CANCEL" onClick={() => setIsResetOpen(false)} disabled={modalLoading}>
                     Cancel
                   </button>
-                  <button type="submit" className="ACC_BTN_SAVE" disabled={modalLoading} style={useFallback ? { backgroundColor: '#d97706', borderColor: '#b45309' } : {}}>
+                  <button
+                    type="submit"
+                    className="ACC_BTN_SAVE"
+                    disabled={modalLoading}
+                    style={useFallback ? { backgroundColor: '#d97706', borderColor: '#b45309' } : viaPhone ? { backgroundColor: '#059669', borderColor: '#047857' } : {}}
+                  >
                     {modalLoading ? <i className="fas fa-spinner fa-spin" /> : 'Send Code'}
                   </button>
                 </div>
@@ -658,9 +683,9 @@ export default function AccountManagement() {
                       onChange={e => setNewPassword(e.target.value)}
                       disabled={modalLoading}
                     />
-                    <button 
-                      type="button" 
-                      className="ACC_PASS_TOGGLE" 
+                    <button
+                      type="button"
+                      className="ACC_PASS_TOGGLE"
                       onClick={() => setShowPassword(!showPassword)}
                       tabIndex={-1}
                       disabled={modalLoading}
@@ -670,11 +695,31 @@ export default function AccountManagement() {
                   </div>
                 </div>
 
+                <div className="ACC_INPUT_GROUP" style={{ marginTop: '16px' }}>
+                  <label htmlFor="acc-confirm-password">Re-enter New Password</label>
+                  <div className="ACC_PASS_INPUT_WRAPPER">
+                    <i className="fas fa-lock ACC_INPUT_ICON"></i>
+                    <input
+                      id="acc-confirm-password"
+                      name="confirm-password"
+                      type={showPassword ? "text" : "password"}
+                      required
+                      minLength={8}
+                      autoComplete="new-password"
+                      className="ACC_PRO_INPUT"
+                      placeholder="Confirm the password above..."
+                      value={confirmPassword}
+                      onChange={e => setConfirmPassword(e.target.value)}
+                      disabled={modalLoading}
+                    />
+                  </div>
+                </div>
+
                 <div className="ACC_MODAL_ACTIONS">
                   <button type="button" className="ACC_BTN_CANCEL" onClick={() => setIsResetOpen(false)} disabled={modalLoading}>
                     Cancel
                   </button>
-                  <button type="submit" className="ACC_BTN_SAVE" disabled={modalLoading}>
+                  <button type="submit" className="ACC_BTN_SAVE" disabled={modalLoading || !newPassword || newPassword !== confirmPassword}>
                     {modalLoading ? <i className="fas fa-spinner fa-spin" /> : 'Update Password'}
                   </button>
                 </div>

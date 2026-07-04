@@ -123,7 +123,7 @@ export const RbacRouter = (router, supabase, authenticateToken) => {
             .from('officials_accounts')
             .select(`
                 account_id, username, role, status, created_at,
-                officials (full_name)
+                officials (full_name, status)
             `)
             .order('created_at', { ascending: false }),
         ]);
@@ -163,7 +163,10 @@ export const RbacRouter = (router, supabase, authenticateToken) => {
               id: acc.account_id,
               username: acc.username,
               role: acc.role || 'staff',
-              status: acc.status || 'Active',
+              // 🛡️ officials.status (Active/Suspended/Resigned/End of Term) is the
+              // source of truth managed on the directory — officials_accounts.status
+              // is only a synced mirror and can drift if that sync ever fails.
+              status: rec?.status || acc.status || 'Active',
               created_at: acc.created_at,
               source: 'official',
               profileName:

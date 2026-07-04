@@ -5,7 +5,8 @@ import { ApiService } from '../api';
 import { generateVectorPDF, type DocumentPayload } from '../../buttons/Tools/Document_tools/PDF_Algorithm';
 import { getSchemaById } from '../../buttons/Tools/Document_tools/Barangay_Documents/schemaRegistry';
 
-type ArchiveTab = 'Documents' | 'Incidents' | 'Residents' | 'Officials' | 'Households' | 'Announcements';
+type ArchiveTab = 'Documents' | 'Incidents' | 'Residents' | 'Officials' | 'Households' | 'Announcements' | 'Account Mgmt';
+type AcctSourceFilter = 'All' | 'Residents' | 'Officials';
 
 // Positions where only one official may hold the seat at a time. Restoring an
 // archived official into one of these must first check nobody else already
@@ -67,6 +68,8 @@ export default function Archive() {
   const [officials, setOfficials] = useState<any[]>([]);
   const [households, setHouseholds] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [acctAccounts, setAcctAccounts] = useState<any[]>([]);
+  const [acctSourceFilter, setAcctSourceFilter] = useState<AcctSourceFilter>('All');
   
   // Track which tabs have already been loaded to prevent redundant fetches
   const loadedTabs = useRef<Set<string>>(new Set());
@@ -165,6 +168,25 @@ export default function Archive() {
             }));
           }
           break;
+        case 'Account Mgmt':
+          data = await ApiService.getAccounts(signal);
+          if (data && isMounted.current) {
+            // 🛡️ One combined pool — archived/inactive across BOTH residents and
+            // officials, each judged against its own terminal-status vocabulary.
+            // The Residents/Officials/All split is a client-side filter, not a
+            // separate fetch, so switching it never re-hits the network.
+            setAcctAccounts(data.filter((a: any) => {
+              const stat = String(a.status || 'Active').trim().toLowerCase();
+              if (a.source === 'resident') {
+                return ['inactive', 'archived', 'deceased', 'relocated', 'suspended'].includes(stat);
+              }
+              if (a.source === 'official') {
+                return ['inactive', 'archived', 'suspended', 'resigned', 'end of term'].includes(stat);
+              }
+              return false;
+            }));
+          }
+          break;
       }
 
       if (isMounted.current) loadedTabs.current.add(tab);
@@ -250,9 +272,21 @@ export default function Archive() {
             ((a.title || '').toLowerCase().includes(q) || (a.category || '').toLowerCase().includes(q));
         }).sort((a, b) => new Date(b.expires_at).getTime() - new Date(a.expires_at).getTime());
 
+      case 'Account Mgmt':
+        return acctAccounts.filter(a => {
+          const stat = String(a.status || 'Active').trim().toLowerCase();
+          const matchesSource =
+            acctSourceFilter === 'All' ||
+            (acctSourceFilter === 'Residents' && a.source === 'resident') ||
+            (acctSourceFilter === 'Officials' && a.source === 'official');
+          return matchesSource &&
+            (filterStatus === 'All' || stat === filterStatus.toLowerCase()) &&
+            ((a.username || '').toLowerCase().includes(q) || (a.profileName || '').toLowerCase().includes(q));
+        }).sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+
       default: return [];
     }
-  }, [documents, blotters, residents, officials, households, announcements, activeTab, searchTerm, filterStatus]);
+  }, [documents, blotters, residents, officials, households, announcements, acctAccounts, activeTab, searchTerm, filterStatus, acctSourceFilter]);
 
   // --- 3. PAGINATION ---
   const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
@@ -275,6 +309,7 @@ export default function Archive() {
       case 'Officials': return ['All', 'Archived', 'Inactive', 'Resigned', 'Suspended', 'End of Term'];
       case 'Households': return ['All', 'Archived', 'Inactive', 'Relocated'];
       case 'Announcements': return ['All', 'Archived', 'Discarded'];
+      case 'Account Mgmt': return ['All', 'Inactive', 'Archived', 'Deceased', 'Relocated', 'Suspended', 'Resigned', 'End of Term'];
       default: return ['All'];
     }
   };
@@ -335,6 +370,14 @@ export default function Archive() {
         { label: 'Category', value: fmt(item.category) },
         { label: 'Priority', value: fmt(item.priority) },
         { label: 'Content', value: fmt(item.content) },
+      ];
+      case 'Account Mgmt': return [
+        { label: 'Type', value: item.source === 'official' ? 'Official' : 'Resident' },
+        { label: 'Profile Name', value: fmt(item.profileName) },
+        { label: 'Username', value: fmt(item.username) },
+        { label: 'Role', value: fmt(item.role) },
+        { label: 'Status', value: fmt(item.status) },
+        { label: 'Created', value: formatDate(item.created_at) },
       ];
       default: return [];
     }
@@ -607,7 +650,7 @@ export default function Archive() {
         </div>
 
         <div className={styles.ARC_TABS_CONTAINER}>
-          {(['Documents', 'Incidents', 'Residents', 'Officials', 'Households', 'Announcements'] as ArchiveTab[]).map((tab) => (
+          {(['Documents', 'Incidents', 'Residents', 'Officials', 'Households', 'Announcements', 'Account Mgmt'] as ArchiveTab[]).map((tab) => (
             <button key={tab} className={`${styles.ARC_TAB_BTN} ${activeTab === tab ? styles.ACTIVE : ''}`} onClick={() => setActiveTab(tab)}>
               {tab}
             </button>
@@ -619,6 +662,14 @@ export default function Archive() {
              <i className={`fas fa-search ${styles.ARC_SEARCH_ICON}`}></i>
              <input className={styles.ARC_SEARCH_INPUT} placeholder={`Search ${activeTab.toLowerCase()} archive...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
            </div>
+           {activeTab === 'Account Mgmt' && (
+             <div className={styles.ARC_FILTER_WRAPPER}>
+               <label className={styles.ARC_FILTER_LABEL}>Type:</label>
+               <select className={styles.ARC_FILTER_SELECT} value={acctSourceFilter} onChange={(e) => setAcctSourceFilter(e.target.value as AcctSourceFilter)}>
+                 {(['All', 'Residents', 'Officials'] as AcctSourceFilter[]).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+               </select>
+             </div>
+           )}
            <div className={styles.ARC_FILTER_WRAPPER}>
              <label className={styles.ARC_FILTER_LABEL}>Status:</label>
              <select className={styles.ARC_FILTER_SELECT} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
@@ -644,12 +695,13 @@ export default function Archive() {
                        {activeTab === 'Officials' && (<><th>NAME</th><th>POSITION</th><th>TERM START</th><th>TERM END</th></>)}
                        {activeTab === 'Households' && (<><th>HH NO.</th><th>HEAD</th><th>ZONE</th><th>STATUS</th></>)}
                        {activeTab === 'Announcements' && (<><th>TITLE</th><th>CATEGORY</th><th>PRIORITY</th></>)}
+                       {activeTab === 'Account Mgmt' && (<><th>TYPE</th><th>PROFILE NAME</th><th>USERNAME</th><th>ROLE</th></>)}
                        <th className={styles.ARC_ALIGN_RIGHT}>FINAL STATUS</th>
                      </tr>
                    </thead>
                    <tbody>
                      {paginatedData.length === 0 ? (
-                        <tr><td colSpan={6} className={styles.ARC_EMPTY_STATE}><i className="fas fa-box-open"></i><br/>No archived records found.</td></tr>
+                        <tr><td colSpan={activeTab === 'Announcements' ? 4 : 5} className={styles.ARC_EMPTY_STATE}><i className="fas fa-box-open"></i><br/>No archived records found.</td></tr>
                      ) : paginatedData.map((item, index) => {
                        
                        let currentStatus = String(item.status || item.activity_status || item.activityStatus || 'Archived').toUpperCase();
@@ -697,6 +749,9 @@ export default function Archive() {
                          )}
                          {activeTab === 'Announcements' && (
                            <><td className={styles.ARC_NAME_CELL}>{item.title}</td><td>{item.category}</td><td>{item.priority}</td></>
+                         )}
+                         {activeTab === 'Account Mgmt' && (
+                           <><td>{item.source === 'official' ? 'Official' : 'Resident'}</td><td className={styles.ARC_NAME_CELL}>{item.profileName}</td><td>{item.username}</td><td>{item.role}</td></>
                          )}
                          <td className={styles.ARC_ALIGN_RIGHT}>
                            <span className={`${styles.ARC_BADGE} ${badgeClass}`}>{currentStatus}</span>

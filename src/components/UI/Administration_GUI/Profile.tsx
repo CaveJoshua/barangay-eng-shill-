@@ -76,6 +76,14 @@ const Profile: React.FC = () => {
   const [signatureError, setSignatureError] = useState('');
   const isOfficial = String(fallbackInfo.role || '').toLowerCase().replace(/\s+/g, '') !== 'resident';
 
+  // 🔒 A signature signs real documents, so applying it requires re-entering the
+  // account password first — the upload/removal is staged here until confirmed.
+  const [pendingSignature, setPendingSignature] = useState<{ value: string | null } | null>(null);
+  const [isSigConfirmOpen, setIsSigConfirmOpen] = useState(false);
+  const [sigConfirmPassword, setSigConfirmPassword] = useState('');
+  const [sigConfirmError, setSigConfirmError] = useState('');
+  const [showSigConfirmPassword, setShowSigConfirmPassword] = useState(false);
+
   // 🛡️ SECURITY: Password & OTP States
   const [isPassModalOpen, setIsPassModalOpen] = useState(false);
   const [isChangingPass, setIsChangingPass] = useState(false);
@@ -108,19 +116,13 @@ const Profile: React.FC = () => {
   };
 
   // ── 2b. E-SIGNATURE UPLOAD HANDLER ── background is cleaned client-side, then
-  // saved immediately (like theme) — it isn't tied to the Account Details
-  // edit/save toggle, so there's no risk of an upload silently not persisting.
-  const persistSignature = async (value: string | null) => {
-    setIsProcessingSignature(true);
-    try {
-      const mutation = `mutation UpdateSig($sig: String) { updateProfile(signature_url: $sig) { signature_url } }`;
-      const data = await gqlClient(mutation, { sig: value || '' });
-      setSignaturePreview(data.updateProfile?.signature_url || null);
-    } catch (err: any) {
-      setSignatureError(err.message || 'Could not save the signature.');
-    } finally {
-      setIsProcessingSignature(false);
-    }
+  // staged behind a password-confirmation step before it's actually saved —
+  // a signature signs real documents, so it isn't tied to the Account Details
+  // edit/save toggle and needs the same proof of identity as a password change.
+  const persistSignature = async (value: string | null, currentPassword: string) => {
+    const mutation = `mutation UpdateSig($sig: String, $pass: String) { updateProfile(signature_url: $sig, currentPassword: $pass) { signature_url } }`;
+    const data = await gqlClient(mutation, { sig: value || '', pass: currentPassword });
+    setSignaturePreview(data.updateProfile?.signature_url || null);
   };
 
   const handleSignatureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -132,16 +134,46 @@ const Profile: React.FC = () => {
     setIsProcessingSignature(true);
     try {
       const cleaned = await cleanSignatureBackground(file);
-      await persistSignature(cleaned);
+      setPendingSignature({ value: cleaned });
+      setSigConfirmPassword('');
+      setSigConfirmError('');
+      setIsSigConfirmOpen(true);
     } catch (err: any) {
       setSignatureError(err.message || 'Could not process the signature image.');
+    } finally {
       setIsProcessingSignature(false);
     }
   };
 
   const handleRemoveSignature = () => {
     setSignatureError('');
-    persistSignature(null);
+    setPendingSignature({ value: null });
+    setSigConfirmPassword('');
+    setSigConfirmError('');
+    setIsSigConfirmOpen(true);
+  };
+
+  const closeSigConfirm = () => {
+    setIsSigConfirmOpen(false);
+    setPendingSignature(null);
+    setSigConfirmPassword('');
+    setSigConfirmError('');
+    setShowSigConfirmPassword(false);
+  };
+
+  const confirmSignatureChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pendingSignature) return;
+    setSigConfirmError('');
+    setIsProcessingSignature(true);
+    try {
+      await persistSignature(pendingSignature.value, sigConfirmPassword);
+      closeSigConfirm();
+    } catch (err: any) {
+      setSigConfirmError(err.message || 'Incorrect password.');
+    } finally {
+      setIsProcessingSignature(false);
+    }
   };
 
   // ── 3. GRAPHQL PROFILE FETCH ──
@@ -837,6 +869,48 @@ const Profile: React.FC = () => {
               </form>
             )}
 
+          </div>
+        </div>
+      )}
+
+      {/* 🔒 SIGNATURE CHANGE — PASSWORD RE-CONFIRMATION */}
+      {isSigConfirmOpen && (
+        <div className="PF_MODAL_OVERLAY" onClick={closeSigConfirm}>
+          <div className="PF_MODAL_BOX" onClick={e => e.stopPropagation()}>
+            <h2 className="PF_MODAL_TITLE">Confirm Your Password</h2>
+            <p className="PF_MODAL_DESC">
+              {pendingSignature?.value
+                ? 'Re-enter your password to save this signature.'
+                : 'Re-enter your password to remove your signature on file.'}
+            </p>
+
+            {sigConfirmError && <div className="PF_MODAL_ERROR">{sigConfirmError}</div>}
+
+            <form onSubmit={confirmSignatureChange} className="PF_MODAL_FORM">
+              <div className="PF_INPUT_GROUP">
+                <label className="PF_MODAL_LABEL">Current Password</label>
+                <div className="PF_MODAL_INPUT_WRAP">
+                  <input
+                    type={showSigConfirmPassword ? "text" : "password"}
+                    required
+                    autoFocus
+                    value={sigConfirmPassword}
+                    onChange={(e) => setSigConfirmPassword(e.target.value)}
+                    className="PF_CLEAN_INPUT"
+                  />
+                  <button type="button" className="PF_MODAL_EYE_BTN" onClick={() => setShowSigConfirmPassword(!showSigConfirmPassword)}>
+                    <i className={`fas ${showSigConfirmPassword ? 'fa-eye-slash' : 'fa-eye'}`} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="PF_MODAL_ACTIONS_ROW">
+                <button type="button" className="PF_BTN_CANCEL" onClick={closeSigConfirm} disabled={isProcessingSignature}>Cancel</button>
+                <button type="submit" className="PF_BTN_SAVE" disabled={isProcessingSignature || !sigConfirmPassword}>
+                  {isProcessingSignature ? 'Confirming...' : 'Confirm'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

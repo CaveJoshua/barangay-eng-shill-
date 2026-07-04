@@ -26,7 +26,7 @@ export default function OfficialsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Statuses the Punong Barangay may assign from the directory dropdown.
-  const STATUS_OPTIONS = ['Active', 'Suspended', 'Resigned', 'End of Term'];
+  const STATUS_OPTIONS = ['Active', 'Suspended', 'Resigned'];
 
   const isMounted = useRef(true);
 
@@ -107,19 +107,10 @@ export default function OfficialsPage() {
         return;
       }
 
-      const now = new Date();
-      const processedData = data.map((item: IOfficial) => {
-        let currentStatus = item.status;
-        if (item.term_end) {
-          const endDate = new Date(item.term_end);
-          if (!isNaN(endDate.getTime()) && endDate < now && currentStatus === 'Active') {
-            currentStatus = 'End of Term' as any;
-          }
-        }
-        return { ...item, status: currentStatus };
-      });
-
-      setOfficials(processedData);
+      // 🗓️ Status is the sole source of truth now — no more auto-deriving
+      // "End of Term" off a term_end date, since terms are silently
+      // auto-assigned and no longer meaningfully tracked here.
+      setOfficials(data);
       setError('');
     } catch (err: any) {
       if (err.name !== 'AbortError' && isMounted.current) {
@@ -142,9 +133,11 @@ export default function OfficialsPage() {
 
   const filteredOfficials = useMemo(() => {
     return officials.filter(o => {
-      // Only show Active in the main directory
-      const isActive = o.status.toLowerCase() === 'active';
-      if (!isActive) return false;
+      // Active AND Suspended both stay in the live directory — only Resigned
+      // actually leaves it (and lands in the Archive).
+      const stat = o.status.toLowerCase();
+      const isVisible = stat === 'active' || stat === 'suspended';
+      if (!isVisible) return false;
 
       if (!searchTerm.trim()) return true;
       const lowerSearch = searchTerm.toLowerCase();
@@ -156,36 +149,23 @@ export default function OfficialsPage() {
   }, [officials, searchTerm]);
 
   // 🔁 Reassign an official's status. A non-Active status revokes their admin
-  // access on their next session refresh (enforced server-side).
+  // access on their next session refresh (enforced server-side). Only
+  // Resigned actually removes them from this directory — Suspended stays
+  // visible here so their access-revoked state is still tracked at a glance.
   const handleStatusChange = async (off: IOfficial, newStatus: string) => {
     if (newStatus === off.status) return;
 
-    const revoking = newStatus.toLowerCase() !== 'active';
-    const warn = revoking
-      ? `Set ${off.full_name} to "${newStatus}"?\n\nThis immediately revokes their admin access and moves them to the Archive.`
-      : `Restore ${off.full_name} to Active? Their admin access will be re-enabled.`;
+    const target = newStatus.toLowerCase();
+    const warn = target === 'active'
+      ? `Restore ${off.full_name} to Active? Their admin access will be re-enabled.`
+      : target === 'resigned'
+        ? `Set ${off.full_name} to "${newStatus}"?\n\nThis immediately revokes their admin access and moves them to the Archive.`
+        : `Set ${off.full_name} to "${newStatus}"?\n\nThis immediately revokes their admin access. They'll stay listed here until reactivated or resigned.`;
     if (!window.confirm(warn)) return;
 
     setSavingId(off.id);
     try {
       const result = await ApiService.updateOfficialStatus(off.id, newStatus);
-      if (result?.error) {
-        alert(result.error);
-        return;
-      }
-      await fetchOfficials();
-    } finally {
-      setSavingId(null);
-    }
-  };
-
-  // 🗄️ Archive: soft-removes the official (backend sets End of Term + revokes access).
-  const handleArchive = async (off: IOfficial) => {
-    if (!window.confirm(`Archive ${off.full_name}?\n\nThey are removed from the active directory and lose admin access. You can review them in the Archive.`)) return;
-
-    setSavingId(off.id);
-    try {
-      const result = await ApiService.deleteOfficial(off.id);
       if (result?.error) {
         alert(result.error);
         return;
@@ -252,16 +232,14 @@ export default function OfficialsPage() {
                 <tr>
                   <th>NAME</th>
                   <th>POSITION</th>
-                  <th>TERM START</th>
                   <th className={canManageOfficial ? '' : 'OFFIC_ALIGN_RIGHT'}>STATUS</th>
-                  {canManageOfficial && <th className="OFFIC_ALIGN_RIGHT">ACTIONS</th>}
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                   <tr><td colSpan={canManageOfficial ? 5 : 4} className="OFFIC_TABLE_LOAD"><div className="OFFIC_SYNC_SPINNER"></div>Syncing...</td></tr>
+                   <tr><td colSpan={3} className="OFFIC_TABLE_LOAD"><div className="OFFIC_SYNC_SPINNER"></div>Syncing...</td></tr>
                 ) : filteredOfficials.length === 0 ? (
-                   <tr><td colSpan={canManageOfficial ? 5 : 4} className="OFFIC_TABLE_EMPTY">No active officials found matching your search.</td></tr>
+                   <tr><td colSpan={3} className="OFFIC_TABLE_EMPTY">No active officials found matching your search.</td></tr>
                 ) : (
                   filteredOfficials.map((off) => {
                     // Master account is the system anchor — its status can't be changed/archived.
@@ -278,7 +256,6 @@ export default function OfficialsPage() {
                         </div>
                       </td>
                       <td>{off.position}</td>
-                      <td>{off.term_start}</td>
                       <td className={canManageOfficial ? '' : 'OFFIC_ALIGN_RIGHT'}>
                         {canManageOfficial && !isMaster ? (
                           <select
@@ -299,24 +276,6 @@ export default function OfficialsPage() {
                           <span className="OFFIC_STATUS_BADGE ACTIVE">{off.status || 'Active'}</span>
                         )}
                       </td>
-                      {canManageOfficial && (
-                        <td className="OFFIC_ALIGN_RIGHT">
-                          {isMaster ? (
-                            <span className="OFFIC_LOCK_HINT" title="Master account is system-locked">
-                              <i className="fas fa-lock"></i>
-                            </span>
-                          ) : (
-                            <button
-                              className="OFFIC_ARCHIVE_BTN"
-                              onClick={() => handleArchive(off)}
-                              disabled={busy}
-                              title="Archive official"
-                            >
-                              <i className={`fas ${busy ? 'fa-spinner fa-spin' : 'fa-box-archive'}`}></i> Archive
-                            </button>
-                          )}
-                        </td>
-                      )}
                     </tr>
                     );
                   })

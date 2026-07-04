@@ -385,10 +385,11 @@ export const ApiService = {
     triggerAction(`${API_BASE_URL}/auth/root-request`, 'POST', { username: 'SYSTEM_ROOT_ADMIN' }, signal),
 
   // ── OTP / PASSWORD RESET (RESTORED TO PURE REST) ────────────────────────────
-  requestPasswordResetOTP: async (email: string, useFallback: boolean = false) => {
+  requestPasswordResetOTP: async (email: string, useFallback: boolean = false, viaPhone: boolean = false) => {
     const r = await triggerAction(`${API_BASE_URL}/accounts/request-otp`, 'POST', {
       identifier: email,
-      useFallback: useFallback
+      useFallback: useFallback,
+      viaPhone: viaPhone
     });
     return r.success
       ? { success: true, message: r.data?.message }

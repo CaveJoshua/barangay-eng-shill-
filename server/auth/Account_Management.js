@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer'; // 🛡️ ADDED: Nodemailer Import
 import { sendAutoMail } from '../lib/Mailer.js';
+import { sendSms, normalizePhNumber } from '../lib/Sms.js';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 
 // =========================================================
@@ -41,24 +42,24 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
             .maybeSingle();
 
         if (resAuth) {
-            const { data: resProfile } = await supabase.from('residents_records').select('email, first_name').eq('record_id', resAuth.resident_id).maybeSingle();
-            return resProfile ? { email: resProfile.email, firstName: resProfile.first_name, accountId: resAuth.resident_id, role: 'resident' } : null;
+            const { data: resProfile } = await supabase.from('residents_records').select('email, first_name, contact_number').eq('record_id', resAuth.resident_id).maybeSingle();
+            return resProfile ? { email: resProfile.email, contactNumber: resProfile.contact_number, firstName: resProfile.first_name, accountId: resAuth.resident_id, role: 'resident' } : null;
         }
 
-        const { data: resProfileByEmail } = await supabase.from('residents_records').select('record_id, email, first_name').eq('email', identifier).maybeSingle();
-        if (resProfileByEmail) return { email: resProfileByEmail.email, firstName: resProfileByEmail.first_name, accountId: resProfileByEmail.record_id, role: 'resident' };
+        const { data: resProfileByEmail } = await supabase.from('residents_records').select('record_id, email, first_name, contact_number').eq('email', identifier).maybeSingle();
+        if (resProfileByEmail) return { email: resProfileByEmail.email, contactNumber: resProfileByEmail.contact_number, firstName: resProfileByEmail.first_name, accountId: resProfileByEmail.record_id, role: 'resident' };
 
         // --- 2. CHECK OFFICIALS / ADMINS ---
         const { data: offAuth } = await supabase.from('officials_accounts').select('account_id, official_id, username').eq('username', identifier).maybeSingle();
         if (offAuth) {
-            const { data: offProfile } = await supabase.from('officials').select('email, full_name').eq('id', offAuth.official_id).maybeSingle();
-            return offProfile ? { email: offProfile.email, firstName: offProfile.full_name, accountId: offAuth.account_id, role: 'official' } : null;
+            const { data: offProfile } = await supabase.from('officials').select('email, full_name, contact_number').eq('id', offAuth.official_id).maybeSingle();
+            return offProfile ? { email: offProfile.email, contactNumber: offProfile.contact_number, firstName: offProfile.full_name, accountId: offAuth.account_id, role: 'official' } : null;
         }
 
-        const { data: offProfileByEmail } = await supabase.from('officials').select('id, email, full_name').eq('email', identifier).maybeSingle();
+        const { data: offProfileByEmail } = await supabase.from('officials').select('id, email, full_name, contact_number').eq('email', identifier).maybeSingle();
         if (offProfileByEmail) {
             const { data: offAuthByEmail } = await supabase.from('officials_accounts').select('account_id').eq('official_id', offProfileByEmail.id).maybeSingle();
-            if (offAuthByEmail) return { email: offProfileByEmail.email, firstName: offProfileByEmail.full_name, accountId: offAuthByEmail.account_id, role: 'official' };
+            if (offAuthByEmail) return { email: offProfileByEmail.email, contactNumber: offProfileByEmail.contact_number, firstName: offProfileByEmail.full_name, accountId: offAuthByEmail.account_id, role: 'official' };
         }
 
         return null;
@@ -70,7 +71,7 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
     // =========================================================
     router.post('/accounts/request-otp', async (req, res) => {
         try {
-            const { identifier, useFallback = false } = req.body;
+            const { identifier, useFallback = false, viaPhone = false } = req.body;
             const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
             const identifierNorm = identifier?.toLowerCase().trim();
             
@@ -90,8 +91,12 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
 
             const targetMapKey = (userData.email || userData.accountId).toLowerCase();
             let destinationEmail = userData.email?.toLowerCase();
+            let destinationPhone = null;
 
-            if (useFallback) {
+            if (viaPhone) {
+                destinationPhone = normalizePhNumber(userData.contactNumber);
+                if (!destinationPhone) return res.status(400).json({ error: 'No valid phone number registered for this account.' });
+            } else if (useFallback) {
                 const { data: hallData } = await supabase.from('officials').select('email').eq('position', 'Barangay Hall').limit(1).maybeSingle();
                 if (hallData && hallData.email) destinationEmail = hallData.email.toLowerCase();
                 else if (process.env.ROOT_EMAIL) destinationEmail = process.env.ROOT_EMAIL.toLowerCase();
@@ -103,11 +108,18 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
             const otpCode = generateSecureCode(6);
             otpStore.set(targetMapKey, { codeHash: hashOtp(otpCode), expires: Date.now() + 300000, attempts: 0 });
 
+            // 📱 SMS CHANNEL — bypasses the email transports entirely
+            if (viaPhone) {
+                const smsSent = await sendSms(destinationPhone, `Barangay Engineer's Hill: Your password reset code is ${otpCode}. It expires in 5 minutes. Do not share this code.`);
+                if (!smsSent) return res.status(500).json({ error: 'Failed to dispatch SMS. Verify the SMS provider is configured.' });
+                return res.status(200).json({ success: true, message: 'Security code dispatched via SMS.' });
+            }
+
             // Prepare Email Payload
             let subjectLine = useFallback ? "URGENT: Fallback Account Recovery Request" : "Password Reset Request";
-            
-            let emailMessage = useFallback 
-                ? `An emergency password reset was requested for <b>${userData.firstName}</b>.<br><br>The 5-Minute Security Code is: <br><br><span style="font-size: 24px; font-weight: bold; background: #f1f5f9; padding: 10px; letter-spacing: 4px;">${otpCode}</span><br><br>STRICTLY DO NOT SHARE THIS CODE WITH ANYONE TO PREVENT UNAUTHORIZED ACCESS AND COMPROMISE.` 
+
+            let emailMessage = useFallback
+                ? `An emergency password reset was requested for <b>${userData.firstName}</b>.<br><br>The 5-Minute Security Code is: <br><br><span style="font-size: 24px; font-weight: bold; background: #f1f5f9; padding: 10px; letter-spacing: 4px;">${otpCode}</span><br><br>STRICTLY DO NOT SHARE THIS CODE WITH ANYONE TO PREVENT UNAUTHORIZED ACCESS AND COMPROMISE.`
                 : `Hello <b>${userData.firstName}</b>,<br><br>A password reset was requested for your account. Your 5-Minute Security Code is:<br><br><span style="font-size: 24px; font-weight: bold; background: #f1f5f9; padding: 10px; letter-spacing: 4px;">${otpCode}</span><br><br>If you did not request this, please secure your account immediately.`;
 
             let isSent = false;
@@ -127,7 +139,7 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
                         const transporter = nodemailer.createTransport({
                             host: process.env.SMTP_HOST,
                             port: process.env.SMTP_PORT || 587,
-                            secure: process.env.SMTP_PORT == 465, 
+                            secure: process.env.SMTP_PORT == 465,
                             auth: {
                                 user: process.env.SMTP_USER,
                                 pass: process.env.SMTP_PASS,

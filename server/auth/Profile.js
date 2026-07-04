@@ -77,7 +77,8 @@ const profileSchema = buildSchema(`
 
   type Mutation {
     # 🛡️ THE FIX: Returns the Profile object instantly so the frontend doesn't lag
-    updateProfile(full_name: String, first_name: String, last_name: String, email: String, contact_number: String, phone: String, avatar_url: String, signature_url: String): Profile!
+    # currentPassword is only checked when signature_url is included in the call.
+    updateProfile(full_name: String, first_name: String, last_name: String, email: String, contact_number: String, phone: String, avatar_url: String, signature_url: String, currentPassword: String): Profile!
     updateTheme(theme: String!): StandardResponse!
     changePassword(currentPassword: String!, newPassword: String!): StandardResponse!
     
@@ -138,14 +139,14 @@ const profileResolvers = {
     updateProfile: async (args, context) => {
       try {
         const { req, supabase } = context;
-        const { full_name, first_name, last_name, email, contact_number, phone, avatar_url, signature_url } = args;
+        const { full_name, first_name, last_name, email, contact_number, phone, avatar_url, signature_url, currentPassword } = args;
         const targetId = req.user?.account_id || req.user?.official_id || req.user?.resident_id || req.user?.id || req.user?.sub;
         const safePhone = contact_number || phone;
 
         if (!targetId) throw new Error("Unauthorized");
 
-        let { data: offAcc } = await supabase.from('officials_accounts').select('official_id, username, theme_preference').eq('account_id', targetId).maybeSingle();
-        if (!offAcc) offAcc = (await supabase.from('officials_accounts').select('official_id, username, theme_preference').eq('official_id', targetId).maybeSingle()).data;
+        let { data: offAcc } = await supabase.from('officials_accounts').select('official_id, username, theme_preference, password').eq('account_id', targetId).maybeSingle();
+        if (!offAcc) offAcc = (await supabase.from('officials_accounts').select('official_id, username, theme_preference, password').eq('official_id', targetId).maybeSingle()).data;
 
         if (offAcc) {
             const payload = { full_name, email, contact_number: safePhone };
@@ -155,8 +156,13 @@ const profileResolvers = {
             // print on official documents, so it gets a real hosted URL, not a base64
             // blob sitting in the row. Self-service only: targetId comes from the
             // verified JWT, never a client-supplied id, so an official can only ever
-            // touch their OWN signature.
+            // touch their OWN signature. Re-verify the account's own password first —
+            // a signature signs real documents, so swapping it needs the same proof
+            // of identity as a password change, not just an active session.
             if (signature_url !== undefined) {
+                if (!currentPassword || !bcrypt.compareSync(currentPassword, offAcc.password)) {
+                    throw new Error("Incorrect password. Signature was not changed.");
+                }
                 payload.signature_url = signature_url ? await uploadImage(signature_url, 'barangay_signatures') : null;
             }
 

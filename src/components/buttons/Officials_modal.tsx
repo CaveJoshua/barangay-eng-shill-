@@ -3,12 +3,14 @@ import './styles/Officials_modal.css';
 import { ApiService, OFFICIALS_API, getAuthHeaders } from '../UI/api';
 import { cleanSignatureBackground } from '../UI/utils/signatureImage';
 
-// 🗳️ Preset 3-year barangay terms. Picking one fills both the start and end date,
-// so admins choose a term from a dropdown instead of hand-entering two dates.
-const TERM_OPTIONS = Array.from({ length: 6 }, (_, i) => {
-  const y = 2019 + i * 3;
-  return { start: `${y}-01-01`, end: `${y + 3}-01-01`, label: `${y} – ${y + 3}` };
-});
+// 🗓️ Terms are no longer hand-entered in this form — every official just gets
+// the standard 3-year term automatically, silently, on add.
+const defaultTermEnd = (startIso: string) => {
+  const d = new Date(startIso);
+  if (isNaN(d.getTime())) return '';
+  d.setFullYear(d.getFullYear() + 3);
+  return d.toISOString().split('T')[0];
+};
 
 interface IOfficial {
   id?: string;
@@ -74,7 +76,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
     email: '',
     position: 'Barangay Kagawad',
     term_start: new Date().toISOString().split('T')[0],
-    term_end: '',
+    term_end: defaultTermEnd(new Date().toISOString().split('T')[0]),
     status: 'Active',
     contact_number: '',
     role: 'staff',
@@ -115,7 +117,7 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
           email: '',
           position: 'Barangay Kagawad',
           term_start: new Date().toISOString().split('T')[0],
-          term_end: '',
+          term_end: defaultTermEnd(new Date().toISOString().split('T')[0]),
           status: 'Active',
           contact_number: '',
           role: 'staff',
@@ -345,13 +347,14 @@ ROLE: SUPERADMIN
               onChange={e => {
                 const newPos = e.target.value as any;
                 const isHall = newPos === 'Barangay Hall';
-                
+                const newStart = isHall ? '' : new Date().toISOString().split('T')[0];
+
                 setFormData({
                   ...formData,
                   position: newPos,
                   full_name: isHall ? "Barangay Engineer's Hill" : '',
-                  term_start: isHall ? '' : new Date().toISOString().split('T')[0],
-                  term_end: '',
+                  term_start: newStart,
+                  term_end: isHall ? '' : defaultTermEnd(newStart),
                   role: isHall ? 'superadmin' : 'staff'
                 });
                 setOtpSent(false);
@@ -451,31 +454,6 @@ ROLE: SUPERADMIN
 
           {!isBarangayHallMode && (
             <>
-              <div className="OM_FORM_GROUP">
-                <label>Term</label>
-                <select
-                  className="OM_INPUT"
-                  required
-                  value={formData.term_start && formData.term_end ? `${formData.term_start}|${formData.term_end}` : ''}
-                  onChange={e => {
-                    const [s, en] = e.target.value.split('|');
-                    setFormData({ ...formData, term_start: s || '', term_end: en || '' });
-                  }}
-                >
-                  <option value="">Select term…</option>
-                  {/* Keep an existing non-preset term selectable/viewable when editing. */}
-                  {formData.term_start && formData.term_end &&
-                    !TERM_OPTIONS.some(o => o.start === formData.term_start && o.end === formData.term_end) && (
-                    <option value={`${formData.term_start}|${formData.term_end}`}>
-                      {formData.term_start} → {formData.term_end} (current)
-                    </option>
-                  )}
-                  {TERM_OPTIONS.map(o => (
-                    <option key={o.label} value={`${o.start}|${o.end}`}>{o.label}</option>
-                  ))}
-                </select>
-              </div>
-
               <div className="OM_FORM_GROUP">
                 <label>Email Address</label>
                 <input
