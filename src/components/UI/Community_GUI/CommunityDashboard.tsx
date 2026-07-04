@@ -146,13 +146,21 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
           return isArchivedStatus || isExpired;
         };
 
+        // 🧟 Belt-and-suspenders for ZOMBIE rows discarded BEFORE the 'Discarded'
+        // status existed — those got saved with status: 'Archived' (the old,
+        // buggy behavior) and the modal's own placeholder text, so status alone
+        // can't catch them. Content-sniff the exact auto-save placeholders.
+        const isPlaceholderDraft = (news: any) =>
+          String(news.content || '').trim() === '(draft in progress)' ||
+          String(news.title || '').trim() === '(Untitled draft)';
+
         const filteredNews = rawNews.filter((news: any) => {
           // 📝 Drafts AND discarded drafts (thrown away — never actually
           // published) are always hidden from residents. "Discarded" is a
           // distinct status from "Archived" precisely so a never-live draft
           // can never masquerade as a real past announcement.
           const status = String(news.status || '').toLowerCase();
-          if (status === 'draft' || status === 'discarded') {
+          if (status === 'draft' || status === 'discarded' || isPlaceholderDraft(news)) {
             return false;
           }
 

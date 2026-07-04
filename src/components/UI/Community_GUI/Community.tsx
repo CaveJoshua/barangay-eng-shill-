@@ -53,6 +53,14 @@ const Community: React.FC<CommunityProps> = ({ onLoginSuccess }) => {
 
   const filters = ['All', 'Public Advisory', 'Senior Citizen', 'Health & Safety', 'Youth & Sports', 'Community Project'];
 
+  // 🧟 Belt-and-suspenders for ZOMBIE rows discarded BEFORE the 'Discarded'
+  // status existed — those got saved with status: 'Archived' (the old, buggy
+  // behavior) and the modal's own placeholder text, so status alone can't
+  // catch them. Content-sniff the exact auto-save placeholders as a fallback.
+  const isPlaceholderDraft = (n: any) =>
+    String(n.content || '').trim() === '(draft in progress)' ||
+    String(n.title || '').trim() === '(Untitled draft)';
+
   // 🗄️ Archived/expired notices stay IN the regular feed (not a separate tab) —
   // they're still important, so they show up alongside current ones, just
   // tagged so residents can tell them apart. Drafts AND discarded drafts (a
@@ -62,7 +70,7 @@ const Community: React.FC<CommunityProps> = ({ onLoginSuccess }) => {
   const filteredNews = useMemo(() => {
     return newsList.filter((n: any) => {
       const status = String(n.status || '').toLowerCase();
-      if (status === 'draft' || status === 'discarded') return false;
+      if (status === 'draft' || status === 'discarded' || isPlaceholderDraft(n)) return false;
       return activeFilter === 'All' || n.category === activeFilter;
     });
   }, [newsList, activeFilter]);
