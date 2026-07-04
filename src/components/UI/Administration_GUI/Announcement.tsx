@@ -12,10 +12,17 @@ export interface IAnnouncement {
   priority: 'Low' | 'Medium' | 'High';
   status: 'Active' | 'Archived' | 'Draft' | 'Discarded';
   created_at: string;
+  published_at?: string;
   expires_at: string;
   views: number;
   image_url?: string;
 }
+
+// 📅 The date it was ANNOUNCED — distinct from created_at, which for a post
+// that started as a Draft reflects when the draft row was first saved, not
+// when it actually went live. Falls back to created_at for older rows saved
+// before published_at existed (and for Drafts, which have no announce date yet).
+const announcedAt = (a: IAnnouncement) => a.published_at || a.created_at;
 
 type AnnView = 'Published' | 'Drafts';
 
@@ -130,7 +137,7 @@ export default function AnnouncementPage() {
         return matchesSearch(a) && matchesPriority;
       })
       // 🆕 Newest first, always.
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      .sort((a, b) => new Date(announcedAt(b)).getTime() - new Date(announcedAt(a)).getTime());
   }, [announcements, matchesSearch, priorityFilter]);
 
   const draftsList = useMemo(
@@ -233,7 +240,7 @@ export default function AnnouncementPage() {
                       <p className="ANN_SNIPPET">{item.content}</p>
 
                       <div className="ANN_FOOT_LINE">
-                        <span><i className="fas fa-calendar-alt"></i> {new Date(item.created_at).toLocaleDateString()}</span>
+                        <span><i className="fas fa-calendar-alt"></i> {new Date(announcedAt(item)).toLocaleDateString()}</span>
                       </div>
                     </div>
 

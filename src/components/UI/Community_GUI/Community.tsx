@@ -61,6 +61,12 @@ const Community: React.FC<CommunityProps> = ({ onLoginSuccess }) => {
     String(n.content || '').trim() === '(draft in progress)' ||
     String(n.title || '').trim() === '(Untitled draft)';
 
+  // 📅 The date it was ANNOUNCED — distinct from created_at, which for a post
+  // that started life as a Draft reflects when the draft row was first saved,
+  // not when it actually went live. Falls back to created_at for older rows
+  // saved before published_at existed.
+  const announcedAt = (n: any) => n.published_at || n.created_at;
+
   // 🗄️ Archived/expired notices stay IN the regular feed (not a separate tab) —
   // they're still important, so they show up alongside current ones, just
   // tagged so residents can tell them apart. Drafts AND discarded drafts (a
@@ -76,7 +82,7 @@ const Community: React.FC<CommunityProps> = ({ onLoginSuccess }) => {
       })
       // 🆕 Newest first, always — an explicit sort here doesn't depend on the
       // backend's own ordering (or on anything upstream preserving it).
-      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      .sort((a: any, b: any) => new Date(announcedAt(b)).getTime() - new Date(announcedAt(a)).getTime());
   }, [newsList, activeFilter]);
 
   const isPastAnnouncement = (n: any) => {
@@ -150,7 +156,7 @@ const Community: React.FC<CommunityProps> = ({ onLoginSuccess }) => {
                 const isPast = isPastAnnouncement(news);
 
                 return (
-                  <article key={news.id} className="C_NEWS_ITEM" onClick={() => setSelectedArticle(news)}>
+                  <article key={news.id} className="C_NEWS_ITEM" onClick={() => setSelectedArticle({ ...news, created_at: announcedAt(news) })}>
                     <div className={`C_CATEGORY_INDICATOR ${colorMap.indicator}`}></div>
 
                     <div className="C_NEWS_PREVIEW_IMG">
@@ -163,7 +169,7 @@ const Community: React.FC<CommunityProps> = ({ onLoginSuccess }) => {
 
                     <div className="C_NEWS_BODY">
                       <div className="C_NEWS_META">
-                        <span className="C_NEWS_DATE">{new Date(news.created_at || '').toLocaleDateString()}</span>
+                        <span className="C_NEWS_DATE">{new Date(announcedAt(news) || '').toLocaleDateString()}</span>
                         <span className={`C_NEWS_CAT ${colorMap.text}`}>{news.category}</span>
                         {isPast && (
                           <span className="C_NEWS_CAT" style={{ color: '#94a3b8' }}>ARCHIVED</span>
