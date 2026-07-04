@@ -10,7 +10,7 @@ export interface IAnnouncement {
   content: string;
   category: string;
   priority: 'Low' | 'Medium' | 'High';
-  status: 'Active' | 'Archived' | 'Draft';
+  status: 'Active' | 'Archived' | 'Draft' | 'Discarded';
   created_at: string;
   expires_at: string;
   views: number;
@@ -38,12 +38,14 @@ export default function AnnouncementPage() {
       const now = new Date();
 
       // Process data: mark as Archived if the expiration date has passed.
-      // Drafts are exempt — an unpublished draft never auto-archives on expiry.
+      // Drafts and Discarded drafts are exempt — neither was ever published,
+      // so an unpublished item never auto-archives on its leftover expiry date.
       const processedData = data.map((item: IAnnouncement) => {
         const isExpired = new Date(item.expires_at) < now;
+        const neverPublished = item.status === 'Draft' || item.status === 'Discarded';
         return {
           ...item,
-          status: (isExpired && item.status !== 'Draft') ? 'Archived' : item.status
+          status: (isExpired && !neverPublished) ? 'Archived' : item.status
         };
       });
 
@@ -83,6 +85,27 @@ export default function AnnouncementPage() {
     }
   };
 
+  // 🗑️ A discarded DRAFT never went live — it must NEVER be mistaken for a real
+  // "was published, now archived" notice. Using a distinct status (not
+  // 'Archived') is what lets the resident-facing feed tell the two apart,
+  // since a never-published draft has no historical significance to residents.
+  const handleDiscardDraft = async (item: IAnnouncement) => {
+    if (!window.confirm("Discard this draft? It was never published and will be removed from the queue.")) return;
+
+    try {
+      const payload = { ...item, status: 'Discarded' };
+      const result = await ApiService.saveAnnouncement(item.id, payload);
+
+      if (result.success) {
+        fetchAnnouncements();
+      } else {
+        alert(`Discard failed: ${result.error}`);
+      }
+    } catch (err) {
+      alert("System error while discarding.");
+    }
+  };
+
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingItem(null);
@@ -101,7 +124,7 @@ export default function AnnouncementPage() {
 
   const publishedList = useMemo(() => {
     return announcements.filter(a => {
-      if (a.status === 'Archived' || a.status === 'Draft') return false;
+      if (a.status === 'Archived' || a.status === 'Draft' || a.status === 'Discarded') return false;
       const matchesPriority = priorityFilter === 'All' || a.priority === priorityFilter;
       return matchesSearch(a) && matchesPriority;
     });
@@ -257,7 +280,7 @@ export default function AnnouncementPage() {
                           <button className="ANN_ICON_BTN" onClick={() => { setEditingItem(item); setIsModalOpen(true); }} title="Resume editing">
                             <i className="fas fa-pen"></i>
                           </button>
-                          <button className="ANN_ICON_BTN ARC" onClick={() => handleArchive(item)} title="Discard draft">
+                          <button className="ANN_ICON_BTN ARC" onClick={() => handleDiscardDraft(item)} title="Discard draft">
                             <i className="fas fa-trash"></i>
                           </button>
                         </td>

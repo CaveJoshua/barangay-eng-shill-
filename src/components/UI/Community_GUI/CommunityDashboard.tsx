@@ -147,8 +147,12 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
         };
 
         const filteredNews = rawNews.filter((news: any) => {
-          // 📝 Drafts are admin-only — never surface unpublished work to residents.
-          if (String(news.status || '').toLowerCase() === 'draft') {
+          // 📝 Drafts AND discarded drafts (thrown away — never actually
+          // published) are always hidden from residents. "Discarded" is a
+          // distinct status from "Archived" precisely so a never-live draft
+          // can never masquerade as a real past announcement.
+          const status = String(news.status || '').toLowerCase();
+          if (status === 'draft' || status === 'discarded') {
             return false;
           }
 

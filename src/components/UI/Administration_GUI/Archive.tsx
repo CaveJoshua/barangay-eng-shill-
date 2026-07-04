@@ -157,6 +157,10 @@ export default function Archive() {
           if (data && isMounted.current) {
             setAnnouncements(data.filter((a: any) => {
               const stat = String(a.status || '').trim().toLowerCase();
+              // Discarded drafts never went live, so they're included on status
+              // alone — never fall back to the expiry check (a leftover default
+              // expiry date is meaningless for something that was never published).
+              if (stat === 'discarded') return true;
               return stat === 'archived' || new Date(a.expires_at) < now;
             }));
           }
@@ -236,10 +240,15 @@ export default function Archive() {
         }).sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
       
       case 'Announcements':
-        return announcements.filter(a => 
-          (filterStatus === 'All' || filterStatus === 'Archived') &&
-          ((a.title || '').toLowerCase().includes(q) || (a.category || '').toLowerCase().includes(q))
-        ).sort((a, b) => new Date(b.expires_at).getTime() - new Date(a.expires_at).getTime());
+        return announcements.filter(a => {
+          const stat = String(a.status || '').trim().toLowerCase();
+          // Mirrors the badge normalization: anything not explicitly Discarded
+          // displays (and filters) as Archived, including expired items whose
+          // DB status never got flipped from Active.
+          const displayStat = stat === 'discarded' ? 'discarded' : 'archived';
+          return (filterStatus === 'All' || displayStat === filterStatus.toLowerCase()) &&
+            ((a.title || '').toLowerCase().includes(q) || (a.category || '').toLowerCase().includes(q));
+        }).sort((a, b) => new Date(b.expires_at).getTime() - new Date(a.expires_at).getTime());
 
       default: return [];
     }
@@ -265,7 +274,7 @@ export default function Archive() {
       case 'Residents': return ['All', 'Archived', 'Deceased', 'Relocated', 'Inactive'];
       case 'Officials': return ['All', 'Archived', 'Inactive', 'Resigned', 'Suspended', 'End of Term'];
       case 'Households': return ['All', 'Archived', 'Inactive', 'Relocated'];
-      case 'Announcements': return ['All', 'Archived'];
+      case 'Announcements': return ['All', 'Archived', 'Discarded'];
       default: return ['All'];
     }
   };
@@ -644,7 +653,14 @@ export default function Archive() {
                      ) : paginatedData.map((item, index) => {
                        
                        let currentStatus = String(item.status || item.activity_status || item.activityStatus || 'Archived').toUpperCase();
-                       if (activeTab === 'Announcements') currentStatus = 'ARCHIVED';
+                       // An announcement's DB status can lag "Archived" for one that merely
+                       // EXPIRED without ever being manually archived (still 'Active' in the
+                       // row) — normalize that display to ARCHIVED. But preserve DISCARDED
+                       // as its own distinct label — a discarded draft never went live and
+                       // must never be shown/confused as a real archived announcement.
+                       if (activeTab === 'Announcements' && currentStatus !== 'DISCARDED') {
+                         currentStatus = 'ARCHIVED';
+                       }
                        if (activeTab === 'Officials') {
                          // Only relabel an unset/"Active" record whose term quietly lapsed.
                          // An explicitly assigned terminal status (Suspended, Resigned, ...)

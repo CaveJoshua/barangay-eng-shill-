@@ -55,10 +55,14 @@ const Community: React.FC<CommunityProps> = ({ onLoginSuccess }) => {
 
   // 🗄️ Archived/expired notices stay IN the regular feed (not a separate tab) —
   // they're still important, so they show up alongside current ones, just
-  // tagged so residents can tell them apart. Only drafts are ever hidden.
+  // tagged so residents can tell them apart. Drafts AND discarded drafts (a
+  // draft that was thrown away — never actually published) are always hidden;
+  // "Discarded" is a distinct status from "Archived" precisely so a never-live
+  // draft can never masquerade as a real past announcement.
   const filteredNews = useMemo(() => {
     return newsList.filter((n: any) => {
-      if (String(n.status || '').toLowerCase() === 'draft') return false;
+      const status = String(n.status || '').toLowerCase();
+      if (status === 'draft' || status === 'discarded') return false;
       return activeFilter === 'All' || n.category === activeFilter;
     });
   }, [newsList, activeFilter]);
