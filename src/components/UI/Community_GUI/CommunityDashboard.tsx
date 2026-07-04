@@ -129,29 +129,30 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
         const now = new Date().getTime();
 
         const filteredNews = rawNews.filter((news: any) => {
-          // 🗄️ ARCHIVE FIX: hide anything the admin archived. The shared
-          // /announcements endpoint returns every status (the admin Archive page
-          // needs them), so residents must filter archived items out here.
-          if (String(news.status || '').toLowerCase() === 'archived') {
-            return false;
-          }
-
-          // 📝 Drafts are admin-only — never surface unpublished work to residents.
+          // 📝 Drafts are admin-only — never surface unpublished work to residents,
+          // in ANY view, including Archived.
           if (String(news.status || '').toLowerCase() === 'draft') {
             return false;
           }
 
-          // ⏰ DATE FIX: hide lapsed items, but keep an announcement visible through
-          // the ENTIRE day it expires. Comparing against the raw timestamp made a
-          // "valid until June 18" notice disappear at midnight; compare against the
-          // end of the expiry day so the date reflects correctly.
+          // 🗄️ Past = explicitly archived OR its expiry has lapsed. Kept BROWSABLE
+          // (not hidden outright) behind the dedicated "Archived" tab — everywhere
+          // else it's excluded so the default bulletin stays current-only.
+          // ⏰ Compare against the END of the expiry day (not the raw timestamp) so
+          // a "valid until June 18" notice doesn't vanish at midnight.
+          const isArchivedStatus = String(news.status || '').toLowerCase() === 'archived';
+          let isExpired = false;
           if (news.expires_at) {
             const exp = new Date(news.expires_at);
             if (!isNaN(exp.getTime())) {
               exp.setHours(23, 59, 59, 999);
-              if (exp.getTime() < now) return false; // truly lapsed
+              isExpired = exp.getTime() < now;
             }
           }
+          const isPast = isArchivedStatus || isExpired;
+
+          if (bulletinCategory === 'Archived') return isPast;
+          if (isPast) return false;
 
           // Then apply the category filter
           if (bulletinCategory === 'All') return true;
@@ -167,7 +168,7 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
               </div>
               
               <div className="BULLETIN_FILTER_TABS">
-                {['All', 'Public Advisory', 'Health & Safety', 'Senior Citizen', 'Events'].map(cat => (
+                {['All', 'Public Advisory', 'Health & Safety', 'Senior Citizen', 'Events', 'Archived'].map(cat => (
                   <button
                     key={cat}
                     onClick={() => setBulletinCategory(cat)}
@@ -182,7 +183,11 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
             {filteredNews.length === 0 ? (
               <div className="BULLETIN_EMPTY_STATE">
                 <i className="fas fa-bullhorn"></i>
-                <p>No {bulletinCategory !== 'All' ? bulletinCategory.toLowerCase() : ''} announcements at this time.</p>
+                <p>
+                  {bulletinCategory === 'Archived'
+                    ? 'No archived announcements yet.'
+                    : `No ${bulletinCategory !== 'All' ? bulletinCategory.toLowerCase() : ''} announcements at this time.`}
+                </p>
               </div>
             ) : (
               <div className="BULLETIN_GRID">
@@ -197,6 +202,14 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                         </div>
                       )}
                       <span className="NEWS_CAT_TAG">{news.category || 'General'}</span>
+                      {bulletinCategory === 'Archived' && (
+                        <span
+                          className="NEWS_CAT_TAG"
+                          style={{ right: 'auto', left: '1.25rem', background: 'rgba(100,116,139,0.9)' }}
+                        >
+                          ARCHIVED
+                        </span>
+                      )}
                     </div>
                     <div className="NEWS_BODY">
                       <span className="NEWS_DATE">
@@ -204,12 +217,12 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                       </span>
                       <h4>{news.title}</h4>
                       <p>{news.content}</p>
-                      
-                      <button 
+
+                      <button
                         className="BTN_READ_MORE"
                         onClick={() => setSelectedArticle({
                           ...news,
-                          created_at: news.created_at || news.date_posted 
+                          created_at: news.created_at || news.date_posted
                         })}
                       >
                         Read Full Advisory <i className="fas fa-arrow-right" />
