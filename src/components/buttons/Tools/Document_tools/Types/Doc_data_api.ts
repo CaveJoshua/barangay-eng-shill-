@@ -29,21 +29,13 @@ export interface IOfficial {
   full_name: string;
   position: string;
   status: string;
-  term_end?: string; // ISO date — when this official's term lapses
+  created_at?: string;
   signature_url?: string; // e-signature on file, if any (Cloudinary URL)
 }
 
-// 🗓️ An official is "in term" when they're Active AND their term hasn't lapsed.
-// A missing term_end (e.g. the Barangay Hall master) counts as always-active.
-export const isTermActive = (o: { status?: string; term_end?: string }): boolean => {
-  if ((o.status || '').toLowerCase() !== 'active') return false;
-  if (!o.term_end) return true;
-  const end = new Date(o.term_end);
-  if (isNaN(end.getTime())) return true;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return end >= today;
-};
+// An official's signature is eligible for documents while they're Active.
+export const isOfficialActive = (o: { status?: string }): boolean =>
+  (o.status || '').toLowerCase() === 'active';
 
 export const useDocumentDataAPI = (initialResidentName: string, initialResidentId?: string) => {
   const [residents, setResidents] = useState<IResident[]>([]);
@@ -98,17 +90,17 @@ export const useDocumentDataAPI = (initialResidentName: string, initialResidentI
             ? officialsData
             : (officialsData.officials || []);
 
-          // 🗓️ TERM-SMART, WITH CONTINUITY: prefer an in-term official for the
-          // position; if none is currently in term, fall back to the most recent
-          // (outgoing) one so the document keeps a name until a replacement is
-          // registered for the new term — at which point step 1 picks them.
+          // WITH CONTINUITY: prefer an Active official for the position; if
+          // none is currently Active, fall back to the most recently
+          // registered one so the document keeps a name until a replacement
+          // is registered — at which point step 1 picks them.
           const pickOfficial = (matches: IOfficial[]): IOfficial | null => {
             if (matches.length === 0) return null;
-            const inTerm = matches.find(isTermActive);
-            if (inTerm) return inTerm;
+            const active = matches.find(isOfficialActive);
+            if (active) return active;
             return matches
               .slice()
-              .sort((a, b) => new Date(b.term_end || 0).getTime() - new Date(a.term_end || 0).getTime())[0];
+              .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0];
           };
 
           const captain = pickOfficial(

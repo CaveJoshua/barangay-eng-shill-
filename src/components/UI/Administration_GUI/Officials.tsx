@@ -7,9 +7,7 @@ interface IOfficial {
   id: string;
   full_name: string;
   position: string;
-  term_start: string;
-  term_end: string;
-  status: 'Active' | 'End of Term' | 'Resigned' | 'Archived' | 'Inactive' | 'Former' | 'Suspended';
+  status: 'Active' | 'Suspended' | 'Resigned' | 'Archived' | 'Inactive' | 'Former';
   contact_number?: string;
 }
 
@@ -107,9 +105,7 @@ export default function OfficialsPage() {
         return;
       }
 
-      // 🗓️ Status is the sole source of truth now — no more auto-deriving
-      // "End of Term" off a term_end date, since terms are silently
-      // auto-assigned and no longer meaningfully tracked here.
+      // Status is the sole source of truth — officials no longer track terms.
       setOfficials(data);
       setError('');
     } catch (err: any) {

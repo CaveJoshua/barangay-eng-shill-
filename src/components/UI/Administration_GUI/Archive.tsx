@@ -5,7 +5,7 @@ import { ApiService } from '../api';
 import { generateVectorPDF, type DocumentPayload } from '../../buttons/Tools/Document_tools/PDF_Algorithm';
 import { getSchemaById } from '../../buttons/Tools/Document_tools/Barangay_Documents/schemaRegistry';
 
-type ArchiveTab = 'Documents' | 'Incidents' | 'Residents' | 'Officials' | 'Households' | 'Announcements' | 'Account Mgmt';
+type ArchiveTab = 'Documents' | 'Incidents' | 'Residents' | 'Officials' | 'Households' | 'Announcements' | 'Account';
 type AcctSourceFilter = 'All' | 'Residents' | 'Officials';
 
 // Positions where only one official may hold the seat at a time. Restoring an
@@ -16,16 +16,7 @@ const SINGLE_SEAT_POSITIONS = ['Barangay Hall', 'Punong Barangay', 'Barangay Sec
 // Statuses assignable from the Archive preview — mirrors the live directory's
 // dropdown so an official can be reclassified (e.g. Resigned → Suspended)
 // without first restoring them to Active.
-const OFFICIAL_STATUS_OPTIONS = ['Active', 'Suspended', 'Resigned', 'End of Term'];
-
-const isOfficialTermLapsed = (o: any): boolean => {
-  if (!o?.term_end) return false;
-  const end = new Date(o.term_end);
-  if (isNaN(end.getTime())) return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return end < today;
-};
+const OFFICIAL_STATUS_OPTIONS = ['Active', 'Suspended', 'Resigned'];
 
 // 🔒 Only the Punong Barangay / Barangay Hall may restore an official — same
 // tier that's allowed to change an official's Status on the live directory.
@@ -137,12 +128,11 @@ export default function Archive() {
         case 'Officials':
           data = await ApiService.getOfficials(signal);
           if (data && isMounted.current) {
-            // 🛡️ Captures former officials and expired terms
+            // 🛡️ Only Resigned (and legacy archived/inactive/former values) leave
+            // the live directory — Suspended stays tracked there, not here.
             setOfficials(data.filter((o: any) => {
               const stat = String(o.status || '').trim().toLowerCase();
-              const isExpired = o.term_end && !isNaN(new Date(o.term_end).getTime()) && new Date(o.term_end) < now;
-              const isInactiveStatus = ['archived', 'inactive', 'former', 'end of term', 'resigned', 'suspended'].includes(stat);
-              return isExpired || isInactiveStatus;
+              return ['archived', 'inactive', 'former', 'resigned'].includes(stat);
             }));
           }
           break;
@@ -168,7 +158,7 @@ export default function Archive() {
             }));
           }
           break;
-        case 'Account Mgmt':
+        case 'Account':
           data = await ApiService.getAccounts(signal);
           if (data && isMounted.current) {
             // 🛡️ One combined pool — archived/inactive across BOTH residents and
@@ -181,7 +171,7 @@ export default function Archive() {
                 return ['inactive', 'archived', 'deceased', 'relocated', 'suspended'].includes(stat);
               }
               if (a.source === 'official') {
-                return ['inactive', 'archived', 'suspended', 'resigned', 'end of term'].includes(stat);
+                return ['inactive', 'archived', 'suspended', 'resigned'].includes(stat);
               }
               return false;
             }));
@@ -248,11 +238,10 @@ export default function Archive() {
 
       case 'Officials':
         return officials.filter(o => {
-          // Officials have complex terminal states (expired vs inactive)
           const stat = String(o.status || '').trim().toLowerCase();
           return (filterStatus === 'All' || stat === filterStatus.toLowerCase() || filterStatus === 'Archived') &&
             ((o.full_name || '').toLowerCase().includes(q) || (o.position || '').toLowerCase().includes(q));
-        }).sort((a, b) => new Date(b.term_end || b.updated_at || 0).getTime() - new Date(a.term_end || a.updated_at || 0).getTime());
+        }).sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
 
       case 'Households':
         return households.filter(h => {
@@ -272,7 +261,7 @@ export default function Archive() {
             ((a.title || '').toLowerCase().includes(q) || (a.category || '').toLowerCase().includes(q));
         }).sort((a, b) => new Date(b.expires_at).getTime() - new Date(a.expires_at).getTime());
 
-      case 'Account Mgmt':
+      case 'Account':
         return acctAccounts.filter(a => {
           const stat = String(a.status || 'Active').trim().toLowerCase();
           const matchesSource =
@@ -306,10 +295,10 @@ export default function Archive() {
       case 'Documents': return ['All', 'Completed', 'Rejected', 'Archived'];
       case 'Incidents': return ['All', 'Settled', 'Dismissed', 'Archived', 'Rejected'];
       case 'Residents': return ['All', 'Archived', 'Deceased', 'Relocated', 'Inactive'];
-      case 'Officials': return ['All', 'Archived', 'Inactive', 'Resigned', 'Suspended', 'End of Term'];
+      case 'Officials': return ['All', 'Archived', 'Inactive', 'Former', 'Resigned'];
       case 'Households': return ['All', 'Archived', 'Inactive', 'Relocated'];
       case 'Announcements': return ['All', 'Archived', 'Discarded'];
-      case 'Account Mgmt': return ['All', 'Inactive', 'Archived', 'Deceased', 'Relocated', 'Suspended', 'Resigned', 'End of Term'];
+      case 'Account': return ['All', 'Inactive', 'Archived', 'Deceased', 'Relocated', 'Suspended', 'Resigned'];
       default: return ['All'];
     }
   };
@@ -354,8 +343,6 @@ export default function Archive() {
         { label: 'Position', value: fmt(item.position) },
         { label: 'Email', value: fmt(item.email) },
         { label: 'Contact', value: fmt(item.contact_number) },
-        { label: 'Term Start', value: formatDate(item.term_start) },
-        { label: 'Term End', value: formatDate(item.term_end) },
         { label: 'Status', value: fmt(item.status) },
       ];
       case 'Households': return [
@@ -371,7 +358,7 @@ export default function Archive() {
         { label: 'Priority', value: fmt(item.priority) },
         { label: 'Content', value: fmt(item.content) },
       ];
-      case 'Account Mgmt': return [
+      case 'Account': return [
         { label: 'Type', value: item.source === 'official' ? 'Official' : 'Resident' },
         { label: 'Profile Name', value: fmt(item.profileName) },
         { label: 'Username', value: fmt(item.username) },
@@ -532,16 +519,11 @@ export default function Archive() {
     }
   };
 
-  // --- STATUS CHANGE (Officials) — the "wise" version ---------------------------
+  // --- STATUS CHANGE (Officials) ------------------------------------------------
   // The Archive isn't a dead end: an archived official's status can still be
-  // reclassified here (e.g. End of Term → Resigned) exactly like the live
-  // directory's dropdown. Reactivating (→ Active) gets the extra smart checks,
-  // since flipping the flag alone isn't enough to actually restore access:
-  //   1. Single-seat positions (Captain, Secretary, Treasurer, SK Chair, Hall) are
-  //      blocked if someone else currently, validly holds that seat.
-  //   2. A lapsed term is renewed (fresh 3-year term starting today) as part of
-  //      the same restore, so the official actually regains working access —
-  //      otherwise the login/session-refresh term gate would re-lock them anyway.
+  // reclassified here (e.g. Resigned → Suspended) exactly like the live
+  // directory's dropdown. Reactivating (→ Active) is blocked if a single-seat
+  // position is already validly held by someone else.
   const handleOfficialStatusChange = async (item: any, newStatus: string) => {
     if (newStatus === item.status) return;
 
@@ -554,20 +536,17 @@ export default function Archive() {
 
     setRestoring(true);
     try {
-      let renewedTerm: { term_start: string; term_end: string } | null = null;
-
       if (reactivating) {
         // Check against the LIVE directory — the Archive's own official list only
-        // holds inactive/expired records, so a fresh read is needed to see who
-        // (if anyone) currently, validly holds this seat.
+        // holds inactive records, so a fresh read is needed to see who (if
+        // anyone) currently, validly holds this seat.
         if (SINGLE_SEAT_POSITIONS.includes(item.position)) {
           const all = await ApiService.getOfficials();
           const holder = Array.isArray(all)
             ? all.find((o: any) =>
                 o.id !== item.id &&
                 o.position === item.position &&
-                String(o.status || '').toLowerCase() === 'active' &&
-                !isOfficialTermLapsed(o)
+                ['active', 'suspended'].includes(String(o.status || '').toLowerCase())
               )
             : null;
 
@@ -577,32 +556,9 @@ export default function Archive() {
           }
         }
 
-        const lapsed = isOfficialTermLapsed(item);
-        if (lapsed) {
-          const todayIso = new Date().toISOString().split('T')[0];
-          const threeYearsOut = new Date();
-          threeYearsOut.setFullYear(threeYearsOut.getFullYear() + 3);
-          renewedTerm = { term_start: todayIso, term_end: threeYearsOut.toISOString().split('T')[0] };
-
-          const confirmed = window.confirm(
-            `${item.full_name}'s term ended on ${formatDate(item.term_end)}.\n\n` +
-            `Restoring will also assign a fresh 3-year term (${renewedTerm.term_start} → ${renewedTerm.term_end}) starting today, ` +
-            `so they regain working access immediately instead of being silently re-locked by the expired term.\n\nContinue?`
-          );
-          if (!confirmed) return;
-        } else {
-          if (!window.confirm(`Restore ${item.full_name} to Active? Their admin access will be re-enabled immediately.`)) return;
-        }
+        if (!window.confirm(`Restore ${item.full_name} to Active? Their admin access will be re-enabled immediately.`)) return;
       } else {
         if (!window.confirm(`Set ${item.full_name}'s status to "${newStatus}"?`)) return;
-      }
-
-      if (renewedTerm) {
-        const termResult = await ApiService.saveOfficial(item.id, { ...item, ...renewedTerm });
-        if (termResult?.error) {
-          alert(`Status change failed while renewing term: ${termResult.error}`);
-          return;
-        }
       }
 
       const statusResult = await ApiService.updateOfficialStatus(item.id, newStatus);
@@ -618,7 +574,7 @@ export default function Archive() {
         setPreviewItem(null);
       } else {
         // Still archived under a different terminal status — update in place.
-        const patch = { ...item, status: newStatus, ...(renewedTerm || {}) };
+        const patch = { ...item, status: newStatus };
         setOfficials(prev => prev.map(o => (o.id === item.id ? patch : o)));
         setPreviewItem(patch);
       }
@@ -650,7 +606,7 @@ export default function Archive() {
         </div>
 
         <div className={styles.ARC_TABS_CONTAINER}>
-          {(['Documents', 'Incidents', 'Residents', 'Officials', 'Households', 'Announcements', 'Account Mgmt'] as ArchiveTab[]).map((tab) => (
+          {(['Documents', 'Incidents', 'Residents', 'Officials', 'Households', 'Announcements', 'Account'] as ArchiveTab[]).map((tab) => (
             <button key={tab} className={`${styles.ARC_TAB_BTN} ${activeTab === tab ? styles.ACTIVE : ''}`} onClick={() => setActiveTab(tab)}>
               {tab}
             </button>
@@ -662,7 +618,7 @@ export default function Archive() {
              <i className={`fas fa-search ${styles.ARC_SEARCH_ICON}`}></i>
              <input className={styles.ARC_SEARCH_INPUT} placeholder={`Search ${activeTab.toLowerCase()} archive...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
            </div>
-           {activeTab === 'Account Mgmt' && (
+           {activeTab === 'Account' && (
              <div className={styles.ARC_FILTER_WRAPPER}>
                <label className={styles.ARC_FILTER_LABEL}>Type:</label>
                <select className={styles.ARC_FILTER_SELECT} value={acctSourceFilter} onChange={(e) => setAcctSourceFilter(e.target.value as AcctSourceFilter)}>
@@ -692,10 +648,10 @@ export default function Archive() {
                        {activeTab === 'Documents' && (<><th>REF NO.</th><th>RESIDENT</th><th>TYPE</th><th>FINALIZED</th></>)}
                        {activeTab === 'Incidents' && (<><th>CASE NO.</th><th>COMPLAINANT</th><th>RESPONDENT</th><th>FILED</th></>)}
                        {activeTab === 'Residents' && (<><th>ID</th><th>FULL NAME</th><th>SEX</th><th>DOB</th></>)}
-                       {activeTab === 'Officials' && (<><th>NAME</th><th>POSITION</th><th>TERM START</th><th>TERM END</th></>)}
+                       {activeTab === 'Officials' && (<><th>NAME</th><th>POSITION</th><th>EMAIL</th><th>CONTACT</th></>)}
                        {activeTab === 'Households' && (<><th>HH NO.</th><th>HEAD</th><th>ZONE</th><th>STATUS</th></>)}
                        {activeTab === 'Announcements' && (<><th>TITLE</th><th>CATEGORY</th><th>PRIORITY</th></>)}
-                       {activeTab === 'Account Mgmt' && (<><th>TYPE</th><th>PROFILE NAME</th><th>USERNAME</th><th>ROLE</th></>)}
+                       {activeTab === 'Account' && (<><th>TYPE</th><th>PROFILE NAME</th><th>USERNAME</th><th>ROLE</th></>)}
                        <th className={styles.ARC_ALIGN_RIGHT}>FINAL STATUS</th>
                      </tr>
                    </thead>
@@ -713,16 +669,6 @@ export default function Archive() {
                        if (activeTab === 'Announcements' && currentStatus !== 'DISCARDED') {
                          currentStatus = 'ARCHIVED';
                        }
-                       if (activeTab === 'Officials') {
-                         // Only relabel an unset/"Active" record whose term quietly lapsed.
-                         // An explicitly assigned terminal status (Suspended, Resigned, ...)
-                         // is a deliberate admin decision and must never be overridden.
-                         const isExpired = item.term_end && !isNaN(new Date(item.term_end).getTime()) && new Date(item.term_end) < new Date();
-                         if (isExpired && currentStatus === 'ACTIVE') {
-                             currentStatus = 'END OF TERM';
-                         }
-                       }
-                       
                        const badgeClass = styles[`STATUS_${currentStatus.replace(/\s+/g, '_')}`] || styles.STATUS_DEFAULT;
 
                        return (
@@ -742,7 +688,7 @@ export default function Archive() {
                            <><td className={styles.ARC_ID_CELL}>{item.record_id || item.id}</td><td className={styles.ARC_NAME_CELL}>{item.first_name || item.firstName} {item.last_name || item.lastName}</td><td>{item.sex}</td><td>{formatDate(item.dob)}</td></>
                          )}
                          {activeTab === 'Officials' && (
-                           <><td className={styles.ARC_NAME_CELL}>{item.full_name}</td><td>{item.position}</td><td>{formatDate(item.term_start)}</td><td>{formatDate(item.term_end)}</td></>
+                           <><td className={styles.ARC_NAME_CELL}>{item.full_name}</td><td>{item.position}</td><td>{item.email || '—'}</td><td>{item.contact_number || '—'}</td></>
                          )}
                          {activeTab === 'Households' && (
                            <><td className={styles.ARC_ID_CELL}>{item.household_number}</td><td className={styles.ARC_NAME_CELL}>{item.head}</td><td>{item.zone}</td><td>{item.status}</td></>
@@ -750,7 +696,7 @@ export default function Archive() {
                          {activeTab === 'Announcements' && (
                            <><td className={styles.ARC_NAME_CELL}>{item.title}</td><td>{item.category}</td><td>{item.priority}</td></>
                          )}
-                         {activeTab === 'Account Mgmt' && (
+                         {activeTab === 'Account' && (
                            <><td>{item.source === 'official' ? 'Official' : 'Resident'}</td><td className={styles.ARC_NAME_CELL}>{item.profileName}</td><td>{item.username}</td><td>{item.role}</td></>
                          )}
                          <td className={styles.ARC_ALIGN_RIGHT}>
@@ -808,18 +754,10 @@ export default function Archive() {
               ))}
 
               {/* 🧠 OFFICIALS — proactive restore guidance, computed from data already on hand. */}
-              {activeTab === 'Officials' && previewItem.position !== 'Barangay Hall' && (
-                <div style={{ marginTop: '10px', display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 8, fontSize: '0.8rem', lineHeight: 1.5, ...(isOfficialTermLapsed(previewItem)
-                  ? { background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e' }
-                  : { background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e3a8a' }) }}>
-                  <i className={`fas ${isOfficialTermLapsed(previewItem) ? 'fa-triangle-exclamation' : 'fa-circle-info'}`} style={{ marginTop: 2, flexShrink: 0 }} />
-                  <div>
-                    {isOfficialTermLapsed(previewItem)
-                      ? <>Term ended <strong>{formatDate(previewItem.term_end)}</strong>. Restoring will also assign a fresh 3-year term so access is actually regained, not just re-locked by the expired term.</>
-                      : SINGLE_SEAT_POSITIONS.includes(previewItem.position)
-                        ? <>Single-seat position — restore is blocked if another official currently, validly holds {previewItem.position}.</>
-                        : <>Term is still within its valid window — restoring will re-enable access immediately.</>}
-                  </div>
+              {activeTab === 'Officials' && previewItem.position !== 'Barangay Hall' && SINGLE_SEAT_POSITIONS.includes(previewItem.position) && (
+                <div style={{ marginTop: '10px', display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 8, fontSize: '0.8rem', lineHeight: 1.5, background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e3a8a' }}>
+                  <i className="fas fa-circle-info" style={{ marginTop: 2, flexShrink: 0 }} />
+                  <div>Single-seat position — restore is blocked if another official currently, validly holds {previewItem.position}.</div>
                 </div>
               )}
 

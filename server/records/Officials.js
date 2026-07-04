@@ -69,7 +69,7 @@ const resolveSignature = async (signatureUrl) => {
 // Only "Active" keeps an official's login alive. Everything else revokes access.
 const ACTIVE_STATUSES = ['active'];
 // Statuses a manager may assign from the directory Status dropdown.
-const ASSIGNABLE_STATUSES = ['Active', 'Suspended', 'Resigned', 'End of Term'];
+const ASSIGNABLE_STATUSES = ['Active', 'Suspended', 'Resigned'];
 
 // ==========================================
 // 🚀 3. MAIN ROUTER EXPORT
@@ -128,7 +128,7 @@ export const OfficialsRouter = (router, supabase, authenticateToken) => {
     router.post('/officials', authenticateToken, checkSessionRole(['barangayhall', 'admin', 'superadmin']), async (req, res) => {
         try {
             // 🛡️ THE FIX: Destructure 'email' separately from 'full_name'
-            const { full_name, position, term_start, term_end, status, contact_number, otp, trace_id, email, signature_url } = req.body;
+            const { full_name, position, status, contact_number, otp, trace_id, email, signature_url } = req.body;
             const isBarangayHall = position === 'Barangay Hall';
 
             if (isBarangayHall) {
@@ -162,8 +162,6 @@ export const OfficialsRouter = (router, supabase, authenticateToken) => {
                     full_name, // Saves as "Barangay Engineer's Hill" for Hall mode
                     email: email ? email.toLowerCase().trim() : null, // 🛠️ FIX: persist email (was dropped → blank on Profile page)
                     position,
-                    term_start: isBarangayHall ? null : (term_start || null),
-                    term_end: isBarangayHall ? null : (term_end || null),
                     status: status || 'Active',
                     contact_number: isBarangayHall ? null : contact_number,
                     signature_url: isBarangayHall ? null : uploadedSignature
@@ -302,8 +300,8 @@ export const OfficialsRouter = (router, supabase, authenticateToken) => {
                 return res.status(403).json({ error: 'System Lock: Master account cannot be archived.' });
             }
             
-            await supabase.from('officials').update({ status: 'End of Term', term_end: new Date().toISOString().split('T')[0] }).eq('id', id); 
-            res.json({ message: 'Personnel identity archived.' }); 
+            await supabase.from('officials').update({ status: 'Resigned' }).eq('id', id);
+            res.json({ message: 'Personnel identity archived.' });
         } catch (err) { 
             res.status(400).json({ error: err.message }); 
         }

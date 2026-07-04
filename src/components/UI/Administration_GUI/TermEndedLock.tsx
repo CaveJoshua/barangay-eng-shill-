@@ -2,26 +2,19 @@ import React from 'react';
 
 interface TermEndedLockProps {
   onLogout: () => void;
-  user?: { profile?: { profileName?: string; position?: string; term_end?: string; official_status?: string } } | null;
+  user?: { profile?: { profileName?: string; position?: string; official_status?: string } } | null;
 }
 
-// 🔒 Shown to an official whose access has been restricted — a lapsed term OR an
-// explicit status change (Suspended / Resigned / End of Term) made by the Punong
-// Barangay. They authenticated successfully, but their role was downgraded to
-// 'restricted' server-side, so every admin API call returns 403. This screen
-// explains WHY (whichever reason applies) and always points them back to the
-// Barangay Hall Officials to resolve it — this is not a self-service unlock.
+// 🔒 Shown to an official whose access has been restricted by an explicit
+// status change (Suspended / Resigned) made by the Punong Barangay. They
+// authenticated successfully, but their role was downgraded to 'restricted'
+// server-side, so every admin API call returns 403. This screen explains why
+// and always points them back to the Barangay Hall Officials to resolve it —
+// this is not a self-service unlock.
 const TermEndedLock: React.FC<TermEndedLockProps> = ({ onLogout, user }) => {
   const name = user?.profile?.profileName;
   const position = user?.profile?.position;
-  const termEnd = user?.profile?.term_end;
   const officialStatus = (user?.profile?.official_status || '').toLowerCase().trim();
-
-  // The term-end date is the most reliable signal for "this is a term lapse" —
-  // an explicit status (Suspended/Resigned) can be set independent of the term
-  // window, and older sessions won't carry official_status at all yet.
-  const isLapsedTerm = !officialStatus || officialStatus === 'active' ||
-    (termEnd ? new Date(termEnd) < new Date() : false);
 
   const REASON_COPY: Record<string, { icon: string; headline: string; detail: string }> = {
     suspended: {
@@ -34,16 +27,15 @@ const TermEndedLock: React.FC<TermEndedLockProps> = ({ onLogout, user }) => {
       headline: 'This account is marked as resigned',
       detail: 'has been recorded as resigned, so official access has been withdrawn.',
     },
-    'end of term': {
-      icon: 'fa-user-clock',
-      headline: 'Your term has ended',
-      detail: 'no longer holds an active term, so official access has been restricted.',
-    },
   };
 
-  const reason = isLapsedTerm
-    ? REASON_COPY['end of term']
-    : (REASON_COPY[officialStatus] || REASON_COPY['end of term']);
+  const DEFAULT_REASON = {
+    icon: 'fa-lock',
+    headline: 'Your access has been restricted',
+    detail: 'no longer has active official access.',
+  };
+
+  const reason = REASON_COPY[officialStatus] || DEFAULT_REASON;
 
   return (
     <div
@@ -96,12 +88,6 @@ const TermEndedLock: React.FC<TermEndedLockProps> = ({ onLogout, user }) => {
           {position ? ` — ${position}` : ''} {reason.detail} Official access has been{' '}
           <strong style={{ color: '#f87171' }}>restricted</strong>.
         </p>
-
-        {isLapsedTerm && termEnd && (
-          <p style={{ color: '#64748b', fontSize: '0.85rem', margin: '0 0 8px' }}>
-            Term ended on {new Date(termEnd).toLocaleDateString()}.
-          </p>
-        )}
 
         <p style={{ color: '#94a3b8', lineHeight: 1.6, margin: '0 0 28px' }}>
           Please contact the <strong style={{ color: '#e2e8f0' }}>Barangay Hall Officials</strong> for access details.

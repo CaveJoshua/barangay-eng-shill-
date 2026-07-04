@@ -303,7 +303,7 @@ export default function AccountManagement() {
     return accounts.filter(acc => {
       // 🛡️ THE GHOST PROTOCOL: Instantly banish inactive/archived users from the roster
       const currentStatus = (acc.status || 'Active').toUpperCase();
-      if (['INACTIVE', 'ARCHIVED', 'DECEASED', 'RELOCATED', 'SUSPENDED'].includes(currentStatus)) {
+      if (['INACTIVE', 'ARCHIVED', 'DECEASED', 'RELOCATED', 'SUSPENDED', 'RESIGNED'].includes(currentStatus)) {
         return false;
       }
 

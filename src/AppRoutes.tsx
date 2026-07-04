@@ -188,8 +188,8 @@ const RoutesWithLogout: React.FC<{
           path="/admin/dashboard/*"
           element={
             localStorage.getItem('admin_session') ? (
-              // 🔒 Term lapsed → role downgraded to 'restricted' → show the locked
-              // notice instead of the dashboard (backend also 403s every admin call).
+              // 🔒 Non-Active status → role downgraded to 'restricted' → show the
+              // locked notice instead of the dashboard (backend also 403s every admin call).
               getAdminUser()?.role === 'restricted' ? (
                 <TermEndedLock onLogout={logoutAndRedirect} user={getAdminUser()} />
               ) : (

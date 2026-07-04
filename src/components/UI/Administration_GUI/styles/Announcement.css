@@ -139,6 +139,14 @@
 
 .ANN_TAB:hover { color: var(--ANN-text-main); }
 
+/* Opt out of the global button focus-ring box — the ACTIVE underline below
+   is the intended focus/selected indicator for these tabs, not a box. */
+.ANN_TAB:focus,
+.ANN_TAB:focus-visible {
+  outline: none;
+  border-bottom-color: var(--ANN-brand);
+}
+
 .ANN_TAB.ACTIVE {
   color: var(--ANN-brand);
   border-bottom-color: var(--ANN-brand);

@@ -32,8 +32,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUserRole(data.role || 'staff');
 
           // 🔒 Keep the persisted admin session role in sync with the server's
-          // re-evaluated term. If a term lapsed mid-session, the backend now
-          // reports role 'restricted'; reflect it so the lock screen appears.
+          // re-evaluated status. If it changed to non-Active mid-session, the
+          // backend now reports role 'restricted'; reflect it so the lock screen appears.
           try {
             const raw = localStorage.getItem('admin_session');
             if (raw && data.role) {

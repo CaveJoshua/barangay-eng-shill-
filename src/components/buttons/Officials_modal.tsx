@@ -3,23 +3,12 @@ import './styles/Officials_modal.css';
 import { ApiService, OFFICIALS_API, getAuthHeaders } from '../UI/api';
 import { cleanSignatureBackground } from '../UI/utils/signatureImage';
 
-// 🗓️ Terms are no longer hand-entered in this form — every official just gets
-// the standard 3-year term automatically, silently, on add.
-const defaultTermEnd = (startIso: string) => {
-  const d = new Date(startIso);
-  if (isNaN(d.getTime())) return '';
-  d.setFullYear(d.getFullYear() + 3);
-  return d.toISOString().split('T')[0];
-};
-
 interface IOfficial {
   id?: string;
   full_name: string;
   email?: string;
   position: 'Barangay Hall' | 'Punong Barangay' | 'Barangay Secretary' | 'Barangay Treasurer' | 'Barangay Kagawad' | 'SK Chairperson' | 'Barangay Health Worker' | 'Barangay Nutrition Scholar';
-  term_start: string;
-  term_end: string;
-  status: 'Active' | 'End of Term' | 'Resigned';
+  status: 'Active' | 'Suspended' | 'Resigned';
   contact_number?: string;
   role?: string;
   signature_url?: string;
@@ -75,8 +64,6 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
     full_name: '',
     email: '',
     position: 'Barangay Kagawad',
-    term_start: new Date().toISOString().split('T')[0],
-    term_end: defaultTermEnd(new Date().toISOString().split('T')[0]),
     status: 'Active',
     contact_number: '',
     role: 'staff',
@@ -116,8 +103,6 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
           full_name: '',
           email: '',
           position: 'Barangay Kagawad',
-          term_start: new Date().toISOString().split('T')[0],
-          term_end: defaultTermEnd(new Date().toISOString().split('T')[0]),
           status: 'Active',
           contact_number: '',
           role: 'staff',
@@ -178,18 +163,10 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
     setShowDropdown(false);
   };
 
-  // 🗓️ An official only blocks the seat while their term is still running. Once
-  // term_end has lapsed, a replacement for the same single-seat position can be
-  // registered for the new term (mirrors the backend term rule).
-  const stillHoldsSeat = (o: IOfficial) => {
-    if (o.status !== 'Active') return false;
-    if (!o.term_end) return true; // no term = permanent seat (e.g. Barangay Hall)
-    const end = new Date(o.term_end);
-    if (isNaN(end.getTime())) return true;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return end >= today;
-  };
+  // An official blocks a single-seat position while Active OR Suspended (both
+  // still show in the live directory) — only Resigned actually frees the seat
+  // for a replacement, mirroring the directory's own visibility rule.
+  const stillHoldsSeat = (o: IOfficial) => o.status === 'Active' || o.status === 'Suspended';
 
   const canAddPosition = (pos: string) => {
     if (officialToEdit && officialToEdit.position === pos) return true;
@@ -246,13 +223,6 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
 
       if (!nameExists) {
          return alert("Registration Error: Official must be an existing registered resident. Please select a valid name from the search dropdown.");
-      }
-    }
-
-    if (!isBarangayHallMode) {
-      if (!formData.term_start || !formData.term_end) return alert("Please select a term.");
-      if (new Date(formData.term_end) <= new Date(formData.term_start)) {
-        return alert("Invalid term: end date must be after start date.");
       }
     }
 
@@ -333,8 +303,8 @@ ROLE: SUPERADMIN
               <i className="fas fa-circle-info" />
               <div>
                 <strong>{officialToEdit ? 'Editing constraints' : 'Adding constraints'}:</strong> single-seat roles
-                (Punong Barangay, Secretary, Treasurer, SK Chairperson) allow only one active official per term.
-                When a term lapses, that official's access is automatically restricted — assign a current term to keep them active.
+                (Punong Barangay, Secretary, Treasurer, SK Chairperson) allow only one Active/Suspended official at a
+                time — set the current holder to Resigned to free the seat for a replacement.
               </div>
             </div>
           )}
@@ -347,14 +317,11 @@ ROLE: SUPERADMIN
               onChange={e => {
                 const newPos = e.target.value as any;
                 const isHall = newPos === 'Barangay Hall';
-                const newStart = isHall ? '' : new Date().toISOString().split('T')[0];
 
                 setFormData({
                   ...formData,
                   position: newPos,
                   full_name: isHall ? "Barangay Engineer's Hill" : '',
-                  term_start: newStart,
-                  term_end: isHall ? '' : defaultTermEnd(newStart),
                   role: isHall ? 'superadmin' : 'staff'
                 });
                 setOtpSent(false);
