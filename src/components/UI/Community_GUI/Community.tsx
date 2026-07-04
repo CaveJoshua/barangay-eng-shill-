@@ -51,26 +51,22 @@ const Community: React.FC<CommunityProps> = ({ onLoginSuccess }) => {
     };
   }, [fetchNews]);
 
-  // 🗄️ "Archived" is its own filter tab — past/expired notices stay browsable
-  // instead of disappearing outright, they just sit outside the default view.
-  const filters = ['All', 'Public Advisory', 'Senior Citizen', 'Health & Safety', 'Youth & Sports', 'Community Project', 'Archived'];
+  const filters = ['All', 'Public Advisory', 'Senior Citizen', 'Health & Safety', 'Youth & Sports', 'Community Project'];
 
+  // 🗄️ Archived/expired notices stay IN the regular feed (not a separate tab) —
+  // they're still important, so they show up alongside current ones, just
+  // tagged so residents can tell them apart. Only drafts are ever hidden.
   const filteredNews = useMemo(() => {
-    const now = new Date();
-
     return newsList.filter((n: any) => {
-      // 📝 Drafts are admin-only work-in-progress — never show them to residents,
-      // in ANY view, including Archived.
       if (String(n.status || '').toLowerCase() === 'draft') return false;
-
-      const isPast = n.status === 'Archived' || (n.expires_at ? new Date(n.expires_at) < now : false);
-
-      if (activeFilter === 'Archived') return isPast;
-      if (isPast) return false;
-
       return activeFilter === 'All' || n.category === activeFilter;
     });
   }, [newsList, activeFilter]);
+
+  const isPastAnnouncement = (n: any) => {
+    const now = new Date();
+    return String(n.status || '').toLowerCase() === 'archived' || (n.expires_at ? new Date(n.expires_at) < now : false);
+  };
 
   return (
     <div className="C_PAGE_WRAPPER">
@@ -131,12 +127,11 @@ const Community: React.FC<CommunityProps> = ({ onLoginSuccess }) => {
             {loading ? (
               <div className="C_LOADING_STATE">Syncing Bulletin Board...</div>
             ) : filteredNews.length === 0 ? (
-              <div className="C_EMPTY_STATE">
-                {activeFilter === 'Archived' ? 'No past announcements yet.' : 'No active announcements available in this category.'}
-              </div>
+              <div className="C_EMPTY_STATE">No announcements available in this category.</div>
             ) : (
               filteredNews.map(news => {
                 const colorMap = CATEGORY_MAP[news.category] || { indicator: 'color-default', text: '' };
+                const isPast = isPastAnnouncement(news);
 
                 return (
                   <article key={news.id} className="C_NEWS_ITEM" onClick={() => setSelectedArticle(news)}>
@@ -154,8 +149,8 @@ const Community: React.FC<CommunityProps> = ({ onLoginSuccess }) => {
                       <div className="C_NEWS_META">
                         <span className="C_NEWS_DATE">{new Date(news.created_at || '').toLocaleDateString()}</span>
                         <span className={`C_NEWS_CAT ${colorMap.text}`}>{news.category}</span>
-                        {activeFilter === 'Archived' && (
-                          <span className="C_NEWS_CAT" style={{ color: '#94a3b8' }}>PAST</span>
+                        {isPast && (
+                          <span className="C_NEWS_CAT" style={{ color: '#94a3b8' }}>ARCHIVED</span>
                         )}
                       </div>
                       <h4>{news.title}</h4>

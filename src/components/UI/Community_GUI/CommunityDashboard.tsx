@@ -128,18 +128,12 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
         const rawNews = newsList || [];
         const now = new Date().getTime();
 
-        const filteredNews = rawNews.filter((news: any) => {
-          // 📝 Drafts are admin-only — never surface unpublished work to residents,
-          // in ANY view, including Archived.
-          if (String(news.status || '').toLowerCase() === 'draft') {
-            return false;
-          }
-
-          // 🗄️ Past = explicitly archived OR its expiry has lapsed. Kept BROWSABLE
-          // (not hidden outright) behind the dedicated "Archived" tab — everywhere
-          // else it's excluded so the default bulletin stays current-only.
-          // ⏰ Compare against the END of the expiry day (not the raw timestamp) so
-          // a "valid until June 18" notice doesn't vanish at midnight.
+        // 🗄️ Past = explicitly archived OR its expiry has lapsed. Kept IN the
+        // regular bulletin (not a separate tab) — still important, just tagged
+        // so residents can tell it's historical. Only drafts are ever hidden.
+        // ⏰ Compare against the END of the expiry day (not the raw timestamp) so
+        // a "valid until June 18" notice doesn't vanish at midnight.
+        const isPastNews = (news: any) => {
           const isArchivedStatus = String(news.status || '').toLowerCase() === 'archived';
           let isExpired = false;
           if (news.expires_at) {
@@ -149,16 +143,19 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
               isExpired = exp.getTime() < now;
             }
           }
-          const isPast = isArchivedStatus || isExpired;
+          return isArchivedStatus || isExpired;
+        };
 
-          if (bulletinCategory === 'Archived') return isPast;
-          if (isPast) return false;
+        const filteredNews = rawNews.filter((news: any) => {
+          // 📝 Drafts are admin-only — never surface unpublished work to residents.
+          if (String(news.status || '').toLowerCase() === 'draft') {
+            return false;
+          }
 
-          // Then apply the category filter
           if (bulletinCategory === 'All') return true;
           return news.category?.toLowerCase() === bulletinCategory.toLowerCase();
         });
-        
+
         return (
           <div className="BULLETIN_CONTAINER">
             <div className="BULLETIN_HEADER_SECTION">
@@ -166,9 +163,9 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                 <h3>Community Bulletin</h3>
                 <p>Stay updated with the latest news and alerts from Engineer's Hill.</p>
               </div>
-              
+
               <div className="BULLETIN_FILTER_TABS">
-                {['All', 'Public Advisory', 'Health & Safety', 'Senior Citizen', 'Events', 'Archived'].map(cat => (
+                {['All', 'Public Advisory', 'Health & Safety', 'Senior Citizen', 'Events'].map(cat => (
                   <button
                     key={cat}
                     onClick={() => setBulletinCategory(cat)}
@@ -183,11 +180,7 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
             {filteredNews.length === 0 ? (
               <div className="BULLETIN_EMPTY_STATE">
                 <i className="fas fa-bullhorn"></i>
-                <p>
-                  {bulletinCategory === 'Archived'
-                    ? 'No archived announcements yet.'
-                    : `No ${bulletinCategory !== 'All' ? bulletinCategory.toLowerCase() : ''} announcements at this time.`}
-                </p>
+                <p>No {bulletinCategory !== 'All' ? bulletinCategory.toLowerCase() : ''} announcements at this time.</p>
               </div>
             ) : (
               <div className="BULLETIN_GRID">
@@ -202,7 +195,7 @@ const Community_Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                         </div>
                       )}
                       <span className="NEWS_CAT_TAG">{news.category || 'General'}</span>
-                      {bulletinCategory === 'Archived' && (
+                      {isPastNews(news) && (
                         <span
                           className="NEWS_CAT_TAG"
                           style={{ right: 'auto', left: '1.25rem', background: 'rgba(100,116,139,0.9)' }}
