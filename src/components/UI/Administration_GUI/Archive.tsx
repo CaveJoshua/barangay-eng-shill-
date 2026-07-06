@@ -4,6 +4,7 @@ import styles from './styles/Archive.module.css';
 import { ApiService } from '../api';
 import { generateVectorPDF, type DocumentPayload } from '../../buttons/Tools/Document_tools/PDF_Algorithm';
 import { getSchemaById } from '../../buttons/Tools/Document_tools/Barangay_Documents/schemaRegistry';
+import { ResidentMapper } from '../../buttons/Tools/Resident_Model/DataMapper';
 
 type ArchiveTab = 'Documents' | 'Incidents' | 'Residents' | 'Officials' | 'Households' | 'Announcements' | 'Account';
 type AcctSourceFilter = 'All' | 'Residents' | 'Officials';
@@ -118,11 +119,18 @@ export default function Archive() {
         case 'Residents':
           data = await ApiService.getResidents(signal);
           if (data && isMounted.current) {
-            // 🛡️ Captures vanished resident identities
-            setResidents(data.filter((r: any) => {
-              const stat = String(r.status || r.activity_status || r.activityStatus || '').trim().toLowerCase();
-              return ['archived', 'deceased', 'relocated', 'inactive'].includes(stat);
-            }));
+            // 🛡️ Captures vanished resident identities. Mapped to the same
+            // camelCase UI shape Resident.tsx uses, so a restore action can
+            // send the record straight back through PUT /residents/:id
+            // without silently nulling out fields the backend expects.
+            setResidents(
+              data
+                .map((r: any) => ({ ...ResidentMapper.toUI(r), created_at: r.created_at, updated_at: r.updated_at }))
+                .filter((r: any) => {
+                  const stat = String(r.activityStatus || '').trim().toLowerCase();
+                  return ['archived', 'deceased', 'relocated', 'inactive'].includes(stat);
+                })
+            );
           }
           break;
         case 'Officials':
@@ -330,7 +338,7 @@ export default function Archive() {
       ];
       case 'Residents': return [
         { label: 'Record ID', value: fmt(item.record_id || item.id) },
-        { label: 'Full Name', value: `${fmt(item.first_name || item.firstName)} ${item.middle_name || ''} ${fmt(item.last_name || item.lastName)}`.replace(/\s+/g, ' ').trim() },
+        { label: 'Full Name', value: `${fmt(item.first_name || item.firstName)} ${item.middle_name || item.middleName || ''} ${fmt(item.last_name || item.lastName)}`.replace(/\s+/g, ' ').trim() },
         { label: 'Sex', value: fmt(item.sex) },
         { label: 'Date of Birth', value: formatDate(item.dob) },
         { label: 'Contact', value: fmt(item.contact_number) },
@@ -508,6 +516,32 @@ export default function Archive() {
         // Drop it from the local archived list and force a fresh fetch next visit.
         setAnnouncements(prev => prev.filter(a => a.id !== item.id));
         loadedTabs.current.delete('Announcements');
+        setPreviewItem(null);
+      } else {
+        alert(`Restore failed: ${result.error}`);
+      }
+    } catch {
+      alert('System error during restore.');
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  // --- RESTORE (Residents) ------------------------------------------------------
+  // Brings an archived/deceased/relocated/inactive resident back to Active. Reuses
+  // the same PUT /residents/:id the live directory uses — the item is already in
+  // ResidentMapper's camelCase shape (mapped on fetch), so spreading it back
+  // through unchanged is safe and won't null out fields the backend expects.
+  const handleRestoreResident = async (item: any) => {
+    if (!window.confirm(`Restore ${item.firstName} ${item.lastName} to Active?`)) return;
+    setRestoring(true);
+    try {
+      const payload = { ...item, activityStatus: 'Active' };
+      const result = await ApiService.saveResident(item.id, payload);
+
+      if (result.success) {
+        setResidents(prev => prev.filter(r => r.id !== item.id));
+        loadedTabs.current.delete('Residents');
         setPreviewItem(null);
       } else {
         alert(`Restore failed: ${result.error}`);
@@ -829,10 +863,19 @@ export default function Archive() {
             </div>
 
             <div style={{ padding: '14px 22px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              {/* ♻️ Restore is offered for archived ANNOUNCEMENTS and OFFICIALS — other vaults stay read-only. */}
+              {/* ♻️ Restore is offered for archived ANNOUNCEMENTS, RESIDENTS, and OFFICIALS — other vaults stay read-only. */}
               {activeTab === 'Announcements' && (
                 <button
                   onClick={() => handleRestoreAnnouncement(previewItem)}
+                  disabled={restoring}
+                  style={{ padding: '9px 16px', borderRadius: '8px', border: 'none', background: restoring ? '#86efac' : '#16a34a', color: '#fff', fontWeight: 700, cursor: restoring ? 'default' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px', marginRight: 'auto' }}
+                >
+                  <i className={`fas ${restoring ? 'fa-spinner fa-spin' : 'fa-trash-restore'}`} /> {restoring ? 'Restoring…' : 'Restore'}
+                </button>
+              )}
+              {activeTab === 'Residents' && (
+                <button
+                  onClick={() => handleRestoreResident(previewItem)}
                   disabled={restoring}
                   style={{ padding: '9px 16px', borderRadius: '8px', border: 'none', background: restoring ? '#86efac' : '#16a34a', color: '#fff', fontWeight: 700, cursor: restoring ? 'default' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px', marginRight: 'auto' }}
                 >

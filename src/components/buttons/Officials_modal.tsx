@@ -8,7 +8,7 @@ interface IOfficial {
   full_name: string;
   email?: string;
   position: 'Barangay Hall' | 'Punong Barangay' | 'Barangay Secretary' | 'Barangay Treasurer' | 'Barangay Kagawad' | 'SK Chairperson' | 'Barangay Health Worker' | 'Barangay Nutrition Scholar';
-  status: 'Active' | 'Suspended' | 'Resigned';
+  status: 'Active' | 'Inactive';
   contact_number?: string;
   role?: string;
   signature_url?: string;
@@ -118,12 +118,9 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
     }
   }, [isOpen, officialToEdit]);
 
-  // ✍️ Cleans the background client-side, then stashes the resulting transparent
-  // PNG (as a base64 data URL) on formData — the backend swaps it for a real
-  // Cloudinary URL on submit, exactly like the announcement image flow.
   const handleSignatureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    e.target.value = ''; // allow re-selecting the same file later
+    e.target.value = ''; 
     if (!file) return;
 
     setSignatureError('');
@@ -163,10 +160,9 @@ export default function Officials_modal({ isOpen, onClose, onSuccess, officialTo
     setShowDropdown(false);
   };
 
-  // An official blocks a single-seat position while Active OR Suspended (both
-  // still show in the live directory) — only Resigned actually frees the seat
-  // for a replacement, mirroring the directory's own visibility rule.
-  const stillHoldsSeat = (o: IOfficial) => o.status === 'Active' || o.status === 'Suspended';
+  // An official blocks a single-seat position while Active.
+  // Setting their status to Inactive frees the seat for a replacement.
+  const stillHoldsSeat = (o: IOfficial) => o.status === 'Active';
 
   const canAddPosition = (pos: string) => {
     if (officialToEdit && officialToEdit.position === pos) return true;
@@ -297,14 +293,11 @@ ROLE: SUPERADMIN
 
         <form onSubmit={handleSubmit} className="OM_FORM">
 
-          {/* Quiet secondary note — constraints worth knowing, not an alert to react to. */}
           {!isBarangayHallMode && (
             <div className="OM_NOTICE">
               <i className="fas fa-circle-info" />
               <div>
-                <strong>{officialToEdit ? 'Editing constraints' : 'Adding constraints'}:</strong> single-seat roles
-                (Punong Barangay, Secretary, Treasurer, SK Chairperson) allow only one Active/Suspended official at a
-                time — set the current holder to Resigned to free the seat for a replacement.
+                <strong>{officialToEdit ? 'Modification Constraints' : 'Registration Constraints'}:</strong> Single-seat positions (Punong Barangay, Barangay Secretary, Barangay Treasurer, and SK Chairperson) may only be occupied by one <strong>Active</strong> official at any given time. To assign a new official to these roles, the status of the current occupant must first be updated to <strong>Inactive</strong>.
               </div>
             </div>
           )}
@@ -364,7 +357,6 @@ ROLE: SUPERADMIN
                   if (isBarangayHallMode) {
                     setMasterEmail(val.toLowerCase());
                   } else {
-                    // Strips numbers and special characters immediately
                     const sanitizedName = val.replace(/[^a-zA-Z\s-ñÑ]/g, '');
                     setFormData({ ...formData, full_name: sanitizedName.toUpperCase() });
                     setShowDropdown(true);

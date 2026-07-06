@@ -7,7 +7,7 @@ interface IOfficial {
   id: string;
   full_name: string;
   position: string;
-  status: 'Active' | 'Suspended' | 'Resigned' | 'Archived' | 'Inactive' | 'Former';
+  status: 'Active' | 'Inactive' | 'Archived' | 'Former';
   contact_number?: string;
 }
 
@@ -24,7 +24,8 @@ export default function OfficialsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Statuses the Punong Barangay may assign from the directory dropdown.
-  const STATUS_OPTIONS = ['Active', 'Suspended', 'Resigned'];
+  // Suspended is hidden for now. Resigned is now Inactive.
+  const STATUS_OPTIONS = ['Active', 'Inactive'];
 
   const isMounted = useRef(true);
 
@@ -129,10 +130,10 @@ export default function OfficialsPage() {
 
   const filteredOfficials = useMemo(() => {
     return officials.filter(o => {
-      // Active AND Suspended both stay in the live directory — only Resigned
-      // actually leaves it (and lands in the Archive).
+      // Active stays in the live directory — Inactive leaves it (and lands in the Archive).
+      // (Suspended is intentionally hidden from this view for now).
       const stat = o.status.toLowerCase();
-      const isVisible = stat === 'active' || stat === 'suspended';
+      const isVisible = stat === 'active';
       if (!isVisible) return false;
 
       if (!searchTerm.trim()) return true;
@@ -145,18 +146,18 @@ export default function OfficialsPage() {
   }, [officials, searchTerm]);
 
   // 🔁 Reassign an official's status. A non-Active status revokes their admin
-  // access on their next session refresh (enforced server-side). Only
-  // Resigned actually removes them from this directory — Suspended stays
-  // visible here so their access-revoked state is still tracked at a glance.
+  // access on their next session refresh (enforced server-side). Setting them
+  // to Inactive actually removes them from this directory and archives them.
   const handleStatusChange = async (off: IOfficial, newStatus: string) => {
     if (newStatus === off.status) return;
 
     const target = newStatus.toLowerCase();
     const warn = target === 'active'
       ? `Restore ${off.full_name} to Active? Their admin access will be re-enabled.`
-      : target === 'resigned'
+      : target === 'inactive'
         ? `Set ${off.full_name} to "${newStatus}"?\n\nThis immediately revokes their admin access and moves them to the Archive.`
-        : `Set ${off.full_name} to "${newStatus}"?\n\nThis immediately revokes their admin access. They'll stay listed here until reactivated or resigned.`;
+        : `Set ${off.full_name} to "${newStatus}"?\n\nThis immediately revokes their admin access.`;
+        
     if (!window.confirm(warn)) return;
 
     setSavingId(off.id);

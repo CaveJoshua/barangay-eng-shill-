@@ -121,6 +121,10 @@ export const OfficialsLoginRouter = (router, supabase) => {
                                 user: process.env.SMTP_USER,
                                 pass: process.env.SMTP_PASS,
                             },
+                            // 🛡️ Fail fast instead of hanging on a silently-blocked port (Render+co.)
+                            connectionTimeout: 8000,
+                            greetingTimeout: 8000,
+                            socketTimeout: 8000,
                         });
 
                         const smtpFrom = process.env.SMTP_FROM || process.env.SMTP_USER || "no-reply@engineer-hill.gov.ph";

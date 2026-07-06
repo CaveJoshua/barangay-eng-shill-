@@ -117,9 +117,16 @@ const corsOptions = {
   origin: (origin, callback) => {
     const allowedLocal = ['http://localhost:5173', 'http://127.0.0.1:5173'];
     
-    // 🛡️ THE FIX: Check both suffixes explicitly using separate endsWith statements
+    // 🛡️ THE FIX: endsWith('.xxx.pages.dev') only matches SUBDOMAIN preview builds
+    // (e.g. abc123.barangay-engineers-hill.pages.dev) — it never matches the bare
+    // production alias itself (barangay-engineers-hill.pages.dev has no leading
+    // dot before the domain), so production was silently CORS-blocked while every
+    // preview deployment worked. Check both suffix (previews) AND exact origin
+    // (production alias) explicitly.
     const isCloudflare = origin && (
-      origin.endsWith('.barangay-engineer-s-hill.pages.dev') || 
+      origin === 'https://barangay-engineer-s-hill.pages.dev' ||
+      origin === 'https://barangay-engineers-hill.pages.dev' ||
+      origin.endsWith('.barangay-engineer-s-hill.pages.dev') ||
       origin.endsWith('.barangay-engineers-hill.pages.dev')
     );
 
