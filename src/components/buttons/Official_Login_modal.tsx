@@ -139,12 +139,15 @@ const OfficialLogin: React.FC = () => {
           sessionStorage.setItem('trace_id', traceId);
         }
 
+        const needsReset = data.requires_reset || data.profile?.is_first_login;
+
         // Session object for UI restoration — does NOT contain the auth token
         const userData = {
           username: data.username,
           role: data.role,
           profile: data.profile,
           account_id: data.account_id,
+          requires_reset: needsReset,
         };
 
         localStorage.setItem('admin_session', JSON.stringify(userData));
