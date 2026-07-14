@@ -69,6 +69,25 @@ export const ResidentModal: React.FC<{
   // 📨 Where the NEW resident's account confirmation (credentials) gets sent —
   // asked before the account is created. Not a resident field, so kept separate.
   const [confirmationChannel, setConfirmationChannel] = useState<'email' | 'sms'>('email');
+  // 🔐 Two-stage OTP registration (create mode only). 'form' = still editing;
+  // 'code-pending' = a code was sent, waiting on confirmation.
+  const [registrationStage, setRegistrationStage] = useState<'form' | 'code-pending'>('form');
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [codeInput, setCodeInput] = useState('');
+  const [codeExpiresAt, setCodeExpiresAt] = useState<number | null>(null);
+  const [resendCooldownUntil, setResendCooldownUntil] = useState<number | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState(0);
+
+  useEffect(() => {
+    if (registrationStage !== 'code-pending') return;
+    const tick = () => {
+      const target = Math.max(codeExpiresAt || 0, resendCooldownUntil || 0);
+      setSecondsLeft(Math.max(0, Math.ceil((target - Date.now()) / 1000)));
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [registrationStage, codeExpiresAt, resendCooldownUntil]);
   // 🪪 Government-ID checklist (SSS / PhilHealth / Other). UI-only toggles that
   // reveal the ID input; once checked, entering the ID number is REQUIRED.
   const [govIdChecks, setGovIdChecks] = useState({ sss: false, philhealth: false, other: false });
@@ -167,6 +186,11 @@ export const ResidentModal: React.FC<{
       setGlobalError('');
       setSuccessMessage('');
       setIsClosingPopup(false);
+      setRegistrationStage('form');
+      setSessionId(null);
+      setCodeInput('');
+      setCodeExpiresAt(null);
+      setResendCooldownUntil(null);
     }
   }, [isOpen, residentData]);
 
@@ -277,6 +301,110 @@ export const ResidentModal: React.FC<{
     if (!formData[field] || String(formData[field]).trim() === '') {
       setCustomFields(prev => ({ ...prev, [field]: false }));
     }
+  };
+
+  const handleSendCode = async () => {
+    const missingGovIds = [
+      govIdChecks.sss && !formData.sssIdNumber?.trim() && 'SSS ID #',
+      govIdChecks.philhealth && !formData.philhealthIdNumber?.trim() && 'PHILHEALTH ID #',
+      govIdChecks.other && !formData.otherIdNumber?.trim() && 'OTHER VALID ID #',
+    ].filter(Boolean);
+    if (missingGovIds.length > 0) {
+      setGlobalError(`Required ID number missing: ${missingGovIds.join(', ')}`);
+      if (scrollRef.current) scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    const valErrors = validateResidentForm(formData);
+    if (Object.keys(valErrors).length > 0) {
+      setErrors(valErrors);
+      const failedKeys = Object.keys(valErrors).map(k => k.replace(/([A-Z])/g, ' $1').toUpperCase()).join(', ');
+      setGlobalError(`Missing or invalid data in: ${failedKeys}`);
+      if (scrollRef.current) scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    const destination = confirmationChannel === 'email' ? formData.email : formData.contact_number;
+    if (!destination) {
+      setGlobalError(`No ${confirmationChannel === 'email' ? 'email address' : 'contact number'} entered above to send the code to.`);
+      if (scrollRef.current) scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    setGlobalError('');
+    setIsLoading(true);
+
+    const safePayload = {
+      firstName: formData.firstName, lastName: formData.lastName, middleName: formData.middleName,
+      sex: formData.sex, dob: formData.dob, birthCountry: formData.birthCountry,
+      birthProvince: formData.birthProvince, birthCity: formData.birthCity, birthPlace: formData.birthPlace,
+      nationality: formData.nationality, religion: formData.religion, contact_number: formData.contact_number,
+      email: formData.email, currentAddress: formData.currentAddress, purok: formData.purok,
+      civilStatus: formData.civilStatus, education: formData.education, employment: formData.employment,
+      employmentStatus: formData.employmentStatus, occupation: formData.occupation, isVoter: formData.isVoter,
+      isPWD: formData.isPWD, is4Ps: formData.is4Ps, isSoloParent: formData.isSoloParent,
+      isSeniorCitizen: formData.isSeniorCitizen,
+      voterIdNumber: formData.voterIdNumber, pwdIdNumber: formData.pwdIdNumber,
+      soloParentIdNumber: formData.soloParentIdNumber, seniorIdNumber: formData.seniorIdNumber,
+      fourPsIdNumber: formData.fourPsIdNumber,
+      sssIdNumber: formData.sssIdNumber, philhealthIdNumber: formData.philhealthIdNumber,
+      otherIdNumber: formData.otherIdNumber,
+      activityStatus: formData.activityStatus,
+      confirmationChannel,
+    };
+
+    try {
+      const result = await ApiService.requestResidentRegistrationCode(safePayload);
+      if (result.success) {
+        setSessionId(result.data.sessionId);
+        setCodeExpiresAt(Date.now() + result.data.expiresInSec * 1000);
+        setResendCooldownUntil(Date.now() + 60 * 1000);
+        setRegistrationStage('code-pending');
+      } else {
+        setGlobalError(`Server Rejected: ${result.error}`);
+        if (scrollRef.current) scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    } catch (error) {
+      setGlobalError('Network Error: Failed to connect to the server.');
+      if (scrollRef.current) scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleConfirmCode = async () => {
+    if (!sessionId) return;
+    setGlobalError('');
+    setIsLoading(true);
+    try {
+      const result = await ApiService.confirmResidentRegistrationCode(sessionId, codeInput.trim());
+      if (result.success) {
+        setSuccessMessage('Identity Registered Successfully');
+        setTimeout(() => {
+          setIsClosingPopup(true);
+          setTimeout(() => {
+            setSuccessMessage('');
+            setIsClosingPopup(false);
+            onSuccess(result.data);
+            onClose();
+          }, 300);
+        }, 800);
+      } else {
+        setGlobalError(result.error || 'Verification failed.');
+      }
+    } catch (error) {
+      setGlobalError('Network Error: Failed to connect to the server.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEditDetails = () => {
+    setRegistrationStage('form');
+    setSessionId(null);
+    setCodeInput('');
+    setCodeExpiresAt(null);
+    setGlobalError('');
   };
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -424,7 +552,17 @@ export const ResidentModal: React.FC<{
           <button className="RMS_CLOSE_X" onClick={onClose}>&times;</button>
         </div>
 
-        <form onSubmit={onSubmit} className="RMS_FORM" ref={scrollRef} style={{ overflowY: 'auto' }}>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (isUpdateMode) return onSubmit(e);
+            if (registrationStage === 'form') return handleSendCode();
+            return handleConfirmCode();
+          }}
+          className="RMS_FORM"
+          ref={scrollRef}
+          style={{ overflowY: 'auto' }}
+        >
           <div className="RMS_BODY">
             
             {/* 🛡️ EXPLICIT GLOBAL ERROR BANNER */}
@@ -435,6 +573,7 @@ export const ResidentModal: React.FC<{
                 </div>
             )}
 
+            <fieldset disabled={registrationStage === 'code-pending'} style={{ border: 'none', padding: 0, margin: 0 }}>
             <div className="RMS_SECTION">
               <div className="RMS_SEC_TITLE">Personal Identity</div>
               <div className="RMS_GRID">
@@ -706,40 +845,75 @@ export const ResidentModal: React.FC<{
                 </div>
               )}
             </div>
+            </fieldset>
 
             {/* 📨 Asked BEFORE the account is created: where do the new resident's
                 login credentials go — their Gmail or their phone number? */}
             {!isUpdateMode && (
               <div className="RMS_SECTION">
                 <div className="RMS_SEC_TITLE">Account Confirmation</div>
-                <p style={{ margin: '0 0 12px', fontSize: '0.78rem', color: 'var(--text-muted, #64748b)' }}>
-                  The resident's username and temporary password will be sent to the channel
-                  you choose, confirming the account reaches the right person.
-                </p>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  {([
-                    { key: 'email', icon: 'fa-envelope', label: 'Gmail / Email', dest: formData.email },
-                    { key: 'sms', icon: 'fa-mobile-alt', label: 'Text (SMS)', dest: formData.contact_number },
-                  ] as const).map(opt => (
-                    <button
-                      key={opt.key}
-                      type="button"
-                      onClick={() => setConfirmationChannel(opt.key)}
-                      style={{
-                        flex: 1, padding: '12px 10px', borderRadius: 10, cursor: 'pointer',
-                        textAlign: 'left', fontWeight: 700, fontSize: '0.82rem',
-                        border: confirmationChannel === opt.key ? '2px solid #3b82f6' : '1px solid #cbd5e1',
-                        background: confirmationChannel === opt.key ? 'rgba(59,130,246,0.08)' : 'transparent',
-                        color: confirmationChannel === opt.key ? '#2563eb' : 'inherit',
-                      }}
-                    >
-                      <i className={`fas ${opt.icon}`} style={{ marginRight: 6 }}></i>{opt.label}
-                      <div style={{ fontSize: '0.72rem', fontWeight: 500, marginTop: 4, color: opt.dest ? 'inherit' : '#ef4444' }}>
-                        {opt.dest || 'not provided above'}
-                      </div>
-                    </button>
-                  ))}
-                </div>
+
+                {registrationStage === 'form' ? (
+                  <>
+                    <p style={{ margin: '0 0 12px', fontSize: '0.78rem', color: 'var(--text-muted, #64748b)' }}>
+                      A verification code will be sent to the channel you choose. The resident's
+                      account is only created after that code is confirmed.
+                    </p>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      {([
+                        { key: 'email', icon: 'fa-envelope', label: 'Gmail / Email', dest: formData.email },
+                        { key: 'sms', icon: 'fa-mobile-alt', label: 'Text (SMS)', dest: formData.contact_number },
+                      ] as const).map(opt => (
+                        <button
+                          key={opt.key}
+                          type="button"
+                          onClick={() => setConfirmationChannel(opt.key)}
+                          style={{
+                            flex: 1, padding: '12px 10px', borderRadius: 10, cursor: 'pointer',
+                            textAlign: 'left', fontWeight: 700, fontSize: '0.82rem',
+                            border: confirmationChannel === opt.key ? '2px solid #3b82f6' : '1px solid #cbd5e1',
+                            background: confirmationChannel === opt.key ? 'rgba(59,130,246,0.08)' : 'transparent',
+                            color: confirmationChannel === opt.key ? '#2563eb' : 'inherit',
+                          }}
+                        >
+                          <i className={`fas ${opt.icon}`} style={{ marginRight: 6 }}></i>{opt.label}
+                          <div style={{ fontSize: '0.72rem', fontWeight: 500, marginTop: 4, color: opt.dest ? 'inherit' : '#ef4444' }}>
+                            {opt.dest || 'not provided above'}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p style={{ margin: '0 0 12px', fontSize: '0.78rem', color: 'var(--text-muted, #64748b)' }}>
+                      Enter the 6-digit code sent to{' '}
+                      <b>{confirmationChannel === 'email' ? formData.email : formData.contact_number}</b>.
+                      {codeExpiresAt && codeExpiresAt > Date.now() && ` Expires in ${secondsLeft}s.`}
+                    </p>
+                    <input
+                      className="RMS_INPUT"
+                      value={codeInput}
+                      onChange={e => setCodeInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      placeholder="000000"
+                      maxLength={6}
+                      style={{ fontSize: '1.4rem', letterSpacing: '6px', textAlign: 'center', maxWidth: 200 }}
+                    />
+                    <div style={{ display: 'flex', gap: '12px', marginTop: '10px', alignItems: 'center' }}>
+                      <button type="button" onClick={handleEditDetails} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '0.8rem', textDecoration: 'underline' }}>
+                        ◀ Edit Details
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSendCode}
+                        disabled={!!resendCooldownUntil && resendCooldownUntil > Date.now()}
+                        style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: '0.8rem', textDecoration: 'underline', opacity: (resendCooldownUntil && resendCooldownUntil > Date.now()) ? 0.5 : 1 }}
+                      >
+                        Resend Code{resendCooldownUntil && resendCooldownUntil > Date.now() ? ` (${secondsLeft}s)` : ''}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -758,7 +932,7 @@ export const ResidentModal: React.FC<{
                   SAVING...
                 </>
               ) : (
-                isUpdateMode ? 'UPDATE RECORD' : 'CONFIRM REGISTRATION'
+                isUpdateMode ? 'UPDATE RECORD' : (registrationStage === 'form' ? 'SEND CODE' : 'VERIFY & CREATE ACCOUNT')
               )}
             </button>
           </div>
