@@ -15,6 +15,7 @@ import ArchivePage from './Archive';
 import DashboardHome, { type DashboardData } from './DashboardHome';
 import AdministratorNotification from './AdministratorNotification';
 import NotificationSystem from './NotificationSystem';
+import OfficialResetPasswordModal from '../../buttons/Official_Resetpassword_modal';
 
 import './styles/Frame.css';
 import './styles/Dashboard.css';
@@ -100,6 +101,24 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
   useEffect(() => {
     setUserInfo(parseAdminSession());
   }, [user]);
+
+  // 🔒 Forced first-login reset — mirrors CommunityDashboard.tsx's
+  // mustResetPassword pattern for the resident portal.
+  const [mustResetPassword, setMustResetPassword] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('admin_session');
+      if (raw) {
+        const session = JSON.parse(raw);
+        if (session.requires_reset === true || session.profile?.is_first_login === true) {
+          setMustResetPassword(true);
+        }
+      }
+    } catch {
+      // best-effort; ignore parse failures
+    }
+  }, []);
 
   const statsControllerRef = useRef<AbortController | null>(null);
   const statsTimer         = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -365,6 +384,26 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
           {renderContent()}
         </main>
       </div>
+
+      <OfficialResetPasswordModal
+        isOpen={mustResetPassword}
+        accountId={localStorage.getItem('account_id') || ''}
+        firstName={userInfo.name.split(' ')[0]}
+        onSuccess={() => {
+          setMustResetPassword(false);
+          try {
+            const raw = localStorage.getItem('admin_session');
+            if (raw) {
+              const session = JSON.parse(raw);
+              session.requires_reset = false;
+              if (session.profile) session.profile.is_first_login = false;
+              localStorage.setItem('admin_session', JSON.stringify(session));
+            }
+          } catch {
+            // best-effort; ignore parse failures
+          }
+        }}
+      />
     </div>
   );
 };
