@@ -113,10 +113,13 @@ export const importResidentsFromCSV = async (
 
         // ==========================================================
         // 🛡️ SMART COLLISION DETECTION ENGINE
+        // Name is intentionally NOT checked here — two residents can share a
+        // name, and the backend now only blocks on phone/email/government ID
+        // (see checkDuplicates in server/records/ResidentsRecord.js). ID-number
+        // collisions aren't pre-checked client-side; the backend is the
+        // authority for those and a colliding row fails server-side (counted
+        // in failedRows, same as any other server rejection).
         // ==========================================================
-        const csvFirst = (tempObj.firstName || '').trim().toLowerCase();
-        const csvLast = (tempObj.lastName || '').trim().toLowerCase();
-        const csvDob = (tempObj.dob || '').trim();
         const csvEmail = (tempObj.email || '').trim().toLowerCase();
         const csvPhone = (tempObj.contact_number || tempObj.contactNumber || '').trim();
 
@@ -124,25 +127,16 @@ export const importResidentsFromCSV = async (
         let collisionReason = '';
 
         for (const existing of existingResidents) {
-            const exFirst = (existing.firstName || '').trim().toLowerCase();
-            const exLast = (existing.lastName || '').trim().toLowerCase();
-            const exDob = (existing.dob || '').trim();
             const exEmail = (existing.email || '').trim().toLowerCase();
             const exPhone = (existing.contact_number || '').trim();
 
-            // RULE 1: Identity Match
-            if (csvFirst && csvLast && csvFirst === exFirst && csvLast === exLast && csvDob === exDob) {
-                isDuplicate = true;
-                collisionReason = 'Exact Identity Match (Name + DOB)';
-                break;
-            }
-            // RULE 2: Digital ID Match
+            // RULE 1: Digital ID Match
             if (csvEmail && exEmail && csvEmail === exEmail) {
                 isDuplicate = true;
                 collisionReason = `Email already in use (${csvEmail})`;
                 break;
             }
-            // RULE 3: Telecom Match (Must be valid length to avoid matching blanks)
+            // RULE 2: Telecom Match (Must be valid length to avoid matching blanks)
             if (csvPhone && exPhone && csvPhone.length >= 10 && csvPhone === exPhone) {
                 isDuplicate = true;
                 collisionReason = `Phone number already registered (${csvPhone})`;
