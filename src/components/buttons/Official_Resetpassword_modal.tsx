@@ -75,6 +75,17 @@ const OfficialResetPasswordModal: React.FC<OfficialResetProps> = ({ isOpen, acco
           Set a new one to continue.
         </p>
 
+        <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 12px', marginBottom: '16px', fontSize: '0.78rem', color: '#475569', lineHeight: 1.5 }}>
+          <b>Password requirements:</b>
+          <ul style={{ margin: '4px 0 0', paddingLeft: '18px' }}>
+            <li>At least 8 characters</li>
+            <li>At least 3 of: lowercase, UPPERCASE, numbers, symbols</li>
+            <li>Not your own name or username</li>
+            <li>Not your name/username followed by numbers (e.g. felizardo123456)</li>
+            <li>Different from your current password</li>
+          </ul>
+        </div>
+
         {error && (
           <div style={{ backgroundColor: '#fef2f2', color: '#991b1b', padding: '10px 12px', borderRadius: '8px', marginBottom: '14px', fontSize: '0.82rem' }}>
             {error}
