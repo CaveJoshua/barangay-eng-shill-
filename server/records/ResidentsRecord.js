@@ -210,18 +210,19 @@ const authorizeRoles = (allowedRoles) => {
 
 // =========================================================
 // 🔒 5. ANTI-DUPLICATE ENGINE
-// Checks full name, contact number, and email independently.
-// excludeId: pass the record_id when updating so the record
-//            doesn't collide with itself.
+// Checks full name, contact number, email, and every government ID
+// independently. excludeId: pass the record_id when updating so the
+// record doesn't collide with itself.
 //
-// Full-name matching is IDENTITY-aware, not just string-aware: two real people
-// (e.g. a parent and child, or coincidental namesakes) can legitimately share a
-// full name. A name match alone is no longer a hard block — it's only treated
-// as the SAME person (and blocked) when the evidence says so too:
-//   - identical date of birth, OR
-//   - a shared, non-blank government ID number (voter/PWD/4Ps/solo-parent/senior)
-// Otherwise it's returned as a non-blocking ADVISORY so staff get a heads-up
-// without being stopped from registering a genuine namesake.
+// Full-name matching is never a hard block — two real people (parent and
+// child, coincidental namesakes, or a genuine duplicate entry) can share a
+// full name, and staff accept that risk in exchange for never blocking a
+// real namesake. A name match ALWAYS comes back as a non-blocking ADVISORY,
+// even when the DOB also matches.
+//
+// Contact number, email, and each of the 8 government ID fields (voter,
+// PWD, 4Ps, solo parent, senior, SSS, PhilHealth, Other) are hard blocks,
+// checked GLOBALLY across every resident — not scoped to name matches.
 //
 // Returns { collisions, advisories } — only `collisions` should block a save.
 // =========================================================
