@@ -69,7 +69,7 @@ const resolveSignature = async (signatureUrl) => {
 // Only "Active" keeps an official's login alive. Everything else revokes access.
 const ACTIVE_STATUSES = ['active'];
 // Statuses a manager may assign from the directory Status dropdown.
-const ASSIGNABLE_STATUSES = ['Active', 'Suspended', 'Resigned'];
+const ASSIGNABLE_STATUSES = ['Active', 'Suspended', 'Resigned', 'Inactive'];
 
 // ==========================================
 // 🚀 3. MAIN ROUTER EXPORT

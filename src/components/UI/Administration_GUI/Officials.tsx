@@ -30,7 +30,7 @@ export default function OfficialsPage() {
   // mirrors ASSIGNABLE_STATUSES in server/records/Officials.js exactly (the
   // backend rejects anything outside this set) and matches
   // OFFICIAL_STATUS_OPTIONS in Archive.tsx so both dropdowns stay in sync.
-  const STATUS_OPTIONS = ['Active', 'Suspended', 'Resigned'];
+  const STATUS_OPTIONS = ['Active', 'Suspended', 'Resigned', 'Inactive'];
 
   const isMounted = useRef(true);
 
@@ -153,8 +153,8 @@ export default function OfficialsPage() {
   }, [officials, searchTerm]);
 
   // 🔁 Reassign an official's status. A non-Active status revokes their admin
-  // access on their next session refresh (enforced server-side). Resigned
-  // additionally moves them out of this directory into the Archive; Suspended
+  // access on their next session refresh (enforced server-side). Resigned and
+  // Inactive move them out of this directory into the Archive; Suspended
   // stays tracked here, just locked out (see filteredOfficials above).
   const handleStatusChange = async (off: IOfficial, newStatus: string) => {
     if (newStatus === off.status) return;
@@ -162,8 +162,8 @@ export default function OfficialsPage() {
     const target = newStatus.toLowerCase();
     const warn = target === 'active'
       ? `Restore ${off.full_name} to Active? Their admin access will be re-enabled.`
-      : target === 'resigned'
-        ? `Set ${off.full_name} to "Resigned"?\n\nThis immediately revokes their admin access and moves them to the Archive.`
+      : target === 'resigned' || target === 'inactive'
+        ? `Set ${off.full_name} to "${newStatus}"?\n\nThis immediately revokes their admin access and moves them to the Archive.`
         : `Set ${off.full_name} to "${newStatus}"?\n\nThis immediately revokes their admin access. They'll stay listed here as Suspended.`;
 
     if (!window.confirm(warn)) return;

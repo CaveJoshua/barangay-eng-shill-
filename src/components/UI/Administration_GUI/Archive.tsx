@@ -15,9 +15,11 @@ type AcctSourceFilter = 'All' | 'Residents' | 'Officials';
 const SINGLE_SEAT_POSITIONS = ['Barangay Hall', 'Punong Barangay', 'Barangay Secretary', 'Barangay Treasurer', 'SK Chairperson'];
 
 // Statuses assignable from the Archive preview — mirrors the live directory's
-// dropdown so an official can be reclassified (e.g. Resigned → Suspended)
-// without first restoring them to Active.
-const OFFICIAL_STATUS_OPTIONS = ['Active', 'Suspended', 'Resigned'];
+// dropdown (STATUS_OPTIONS in Officials.tsx) and the backend's
+// ASSIGNABLE_STATUSES (server/records/Officials.js) exactly, so an official
+// can be reclassified (e.g. Resigned → Suspended) without first restoring
+// them to Active.
+const OFFICIAL_STATUS_OPTIONS = ['Active', 'Suspended', 'Resigned', 'Inactive'];
 
 // 🔒 Only the Punong Barangay / Barangay Hall may restore an official — same
 // tier that's allowed to change an official's Status on the live directory.
