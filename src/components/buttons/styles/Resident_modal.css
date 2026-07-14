@@ -94,6 +94,19 @@
     padding-bottom: 5px; /* Tiny buffer for the absolute dropdowns */
 }
 
+/* 🛡️ NAME COLLISION FIX: src/components/UI/Administration_GUI/styles/Resident.css
+   (the Residents LIST page) independently defines its own unrelated
+   ".RMS_SECTION { background: var(--res-card-bg); }" — same class name, same
+   specificity. Since that stylesheet is always loaded alongside this modal
+   (the modal is opened from that page), whichever file's CSS lands later in
+   the bundle wins the tie, which was painting this modal's sections with the
+   list page's dark-theme card color. Scoped under .RMS_CARD for higher
+   specificity so this modal's white background always wins regardless of
+   load order. */
+.RMS_CARD .RMS_SECTION {
+    background: #ffffff;
+}
+
 .RMS_SEC_TITLE {
     font-size: 0.75rem;
     font-weight: 900;
