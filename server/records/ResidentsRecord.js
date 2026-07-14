@@ -233,76 +233,34 @@ const checkDuplicates = async (supabase, {
     const collisions = [];
     const advisories = [];
 
-    // ── 5a. Full Name Match (case-insensitive, trims whitespace) ──
-    // Strategy: pull candidates by last_name first (indexed), then
-    // compare first + middle in JS to avoid ilike performance hits
-    // on large tables.
+    // ── 5a. Full Name Match — ADVISORY ONLY. Never blocks, even when the DOB
+    // or a government ID also matches — two records can legitimately be typed
+    // in for the same name (or, per this policy, staff accept the risk of a
+    // true duplicate slipping through in exchange for never blocking a real
+    // namesake). Staff get a heads-up either way.
     const { data: nameMatches } = await supabase
         .from('residents_records')
-        .select('record_id, first_name, middle_name, last_name, dob, voter_id_number, pwd_id_number, four_ps_id_number, solo_parent_id_number, senior_id_number, sss_id_number, philhealth_id_number, other_id_number')
+        .select('record_id, first_name, middle_name, last_name')
         .ilike('last_name', lastName.trim())
         .ilike('first_name', firstName.trim())
-        .neq('activity_status', 'Archived'); // Archived records are excluded from collision
+        .neq('activity_status', 'Archived');
 
     if (nameMatches?.length) {
         const normMiddle = (middleName || '').trim().toLowerCase();
-        const newDob = dob ? new Date(dob).toISOString().split('T')[0] : null;
-
-        // Only IDs actually provided on the incoming record can create a match —
-        // two blank ID fields never "collide" with each other. SSS/PhilHealth/Other
-        // are universal government IDs (not tied to a special-classification
-        // checkbox like PWD/4Ps), so they carry the same verification weight.
-        const idFields = [
-            ['voter_id_number', voterIdNumber],
-            ['pwd_id_number', pwdIdNumber],
-            ['four_ps_id_number', fourPsIdNumber],
-            ['solo_parent_id_number', soloParentIdNumber],
-            ['senior_id_number', seniorIdNumber],
-            ['sss_id_number', sssIdNumber],
-            ['philhealth_id_number', philhealthIdNumber],
-            ['other_id_number', otherIdNumber],
-        ].filter(([, val]) => val && String(val).trim() !== '');
-
         for (const match of nameMatches) {
             if (excludeId && match.record_id === excludeId) continue;
             const existingMiddle = (match.middle_name || '').trim().toLowerCase();
-            // Treat blank vs blank as a match; treat blank vs non-blank as distinct
             if (existingMiddle !== normMiddle) continue;
 
-            const existingDob = match.dob ? new Date(match.dob).toISOString().split('T')[0] : null;
-            const sameDob = !!(newDob && existingDob && newDob === existingDob);
-            const sharedIdField = idFields.find(([col, val]) => {
-                const existingVal = match[col];
-                return existingVal && String(existingVal).trim() !== '' &&
-                    String(existingVal).trim().toLowerCase() === String(val).trim().toLowerCase();
-            });
-
             const label = `${match.first_name} ${match.middle_name || ''} ${match.last_name}`.replace(/\s+/g, ' ').trim();
-
-            if (sameDob || sharedIdField) {
-                // Same name AND (same birth date OR a shared government ID) —
-                // strong signal this is the same person, not a namesake. Block.
-                collisions.push({
-                    field: 'full_name',
-                    message: sharedIdField
-                        ? `A resident named "${label}" already exists with a matching government ID.`
-                        : `A resident named "${label}" with the same date of birth already exists in the registry.`
-                });
-            } else {
-                // Same name, but age/ID evidence points to a different person
-                // (e.g. parent & child, or an unrelated namesake) — don't block,
-                // just flag it so staff can double-check if something looks off.
-                advisories.push({
-                    field: 'full_name',
-                    message: `Note: another resident named "${label}" is already registered (different date of birth/ID — treated as a separate person).`
-                });
-            }
+            advisories.push({
+                field: 'full_name',
+                message: `Note: another resident named "${label}" is already registered.`
+            });
         }
     }
 
-    // ── 5b. Contact Number Match ──
-    // A phone number realistically belongs to one specific person/line, so this
-    // stays a hard block regardless of name — no "namesake" concept applies here.
+    // ── 5b. Contact Number Match — hard block, global (unchanged). ──
     const safePhone = (contact_number || '').trim().replace(/\s+/g, '');
     if (safePhone) {
         const { data: phoneMatches } = await supabase
@@ -322,7 +280,7 @@ const checkDuplicates = async (supabase, {
         }
     }
 
-    // ── 5c. Email Match ──
+    // ── 5c. Email Match — hard block, global (unchanged). ──
     const safeEmail = (email || '').trim().toLowerCase();
     if (safeEmail && safeEmail.includes('@')) {
         const { data: emailMatches } = await supabase
@@ -337,6 +295,43 @@ const checkDuplicates = async (supabase, {
                 collisions.push({
                     field: 'email',
                     message: `Email "${safeEmail}" is already registered to ${match.first_name} ${match.last_name}.`
+                });
+            }
+        }
+    }
+
+    // ── 5d. Government ID Match — hard block, GLOBAL across every resident,
+    // not just ones that already matched on name (this closes a real gap:
+    // today two differently-named residents could share an SSS number
+    // undetected). IDs are stored uppercased by the frontend (Resident_modal.tsx
+    // uppercases every ID field on change), so `.eq()` against the uppercased
+    // input is an exact, safe match — no `.ilike()` wildcard-injection risk
+    // from a `%`/`_` character inside a real ID number.
+    const idChecks = [
+        ['voter_id_number', voterIdNumber, 'Voter ID'],
+        ['pwd_id_number', pwdIdNumber, 'PWD ID'],
+        ['four_ps_id_number', fourPsIdNumber, '4Ps ID'],
+        ['solo_parent_id_number', soloParentIdNumber, 'Solo Parent ID'],
+        ['senior_id_number', seniorIdNumber, 'Senior Citizen ID'],
+        ['sss_id_number', sssIdNumber, 'SSS ID'],
+        ['philhealth_id_number', philhealthIdNumber, 'PhilHealth ID'],
+        ['other_id_number', otherIdNumber, 'Other ID'],
+    ].filter(([, val]) => val && String(val).trim() !== '');
+
+    for (const [column, rawVal, label] of idChecks) {
+        const val = String(rawVal).trim().toUpperCase();
+        const { data: idMatches } = await supabase
+            .from('residents_records')
+            .select(`record_id, first_name, last_name, ${column}`)
+            .eq(column, val)
+            .neq('activity_status', 'Archived');
+
+        if (idMatches?.length) {
+            for (const match of idMatches) {
+                if (excludeId && match.record_id === excludeId) continue;
+                collisions.push({
+                    field: column,
+                    message: `${label} "${val}" is already registered to ${match.first_name} ${match.last_name}.`
                 });
             }
         }
