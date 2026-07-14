@@ -918,7 +918,7 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                     const tempPass = generateTempPassword();
                     const pass = await bcrypt.hash(tempPass, 12);
 
-                    await supabase.from('residents_account').insert([{
+                    const { error: acctErr } = await supabase.from('residents_account').insert([{
                         resident_id: profile.record_id,
                         username,
                         password: pass,
@@ -927,6 +927,7 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                         requires_reset: true,
                         is_verified: true  // ownership of the channel was just proven
                     }]);
+                    if (acctErr) throw acctErr;
 
                     logActivity(supabase, req.user.username, 'RESIDENT_CREATED', profile.record_id, req).catch(() => {});
 
