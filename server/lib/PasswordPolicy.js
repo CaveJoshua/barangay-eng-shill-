@@ -1,5 +1,11 @@
 import bcrypt from 'bcryptjs';
 
+// Escapes regex metacharacters so an account-derived string (name/username —
+// not guaranteed to be "clean" text) can be safely interpolated into a
+// `new RegExp(...)` without throwing (e.g. an unbalanced "(") or silently
+// degrading into a wildcard match (e.g. a "." matching any character).
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 // Rejects a proposed NEW password before it's hashed and stored. Runs at
 // every password-set path (self-service reset, admin-assisted reset,
 // first-login forced reset) so the rule can't be bypassed via a different
@@ -33,10 +39,10 @@ export const validateNewPassword = async (newPassword, { currentHash = null, fir
     // "Still the generated shape" — name (or username) immediately followed by
     // trailing digits, e.g. felizardo123456 or beh001123456. Catches a
     // "reset" that only tweaks the digits and keeps the guessable structure.
-    if (cleanFirst && new RegExp(`^${cleanFirst}\\d{4,6}$`).test(lowerPass)) {
+    if (cleanFirst && new RegExp(`^${escapeRegex(cleanFirst)}\\d{4,6}$`).test(lowerPass)) {
         return 'Password is too predictable — do not use your name followed by numbers.';
     }
-    if (cleanUser && new RegExp(`^${cleanUser}\\d{4,6}$`).test(lowerPass)) {
+    if (cleanUser && new RegExp(`^${escapeRegex(cleanUser)}\\d{4,6}$`).test(lowerPass)) {
         return 'Password is too predictable — do not use your username followed by numbers.';
     }
 
