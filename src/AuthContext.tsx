@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { REFRESH_API } from './components/UI/api';
 
 interface AuthContextType {
   userRole: string;
@@ -20,8 +21,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const verifySessionOnBoot = async () => {
       try {
-        // 🛡️ Requests validation of the httpOnly cookie from the production backend
-        const res = await fetch('https://barangay-engineer-s-hill.onrender.com/api/auth/admin/refresh', { 
+        // 🛡️ Requests validation of the httpOnly cookie against the configured backend
+        // (VITE_API_BASE_URL — localhost in dev, the deployed API in production).
+        const res = await fetch(REFRESH_API, {
           method: 'POST',
           credentials: 'include' // Crucial for cross-site cookie transit
         });

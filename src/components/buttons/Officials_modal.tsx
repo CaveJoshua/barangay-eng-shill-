@@ -297,7 +297,7 @@ ROLE: SUPERADMIN
             <div className="OM_NOTICE">
               <i className="fas fa-circle-info" />
               <div>
-                <strong>{officialToEdit ? 'Modification Constraints' : 'Registration Constraints'}:</strong> Single-seat positions (Punong Barangay, Barangay Secretary, Barangay Treasurer, and SK Chairperson) may only be occupied by one <strong>Active</strong> official at any given time. To assign a new official to these roles, the status of the current occupant must first be updated to <strong>Inactive</strong>.
+                <strong>{officialToEdit ? 'Modification Constraints' : 'Registration Notice'}:</strong> Single-seat positions (Punong Barangay, Barangay Secretary, Barangay Treasurer, and SK Chairperson) may only be occupied by one <strong>Active</strong> official at any given time. To assign a new official to these roles, the status of the current occupant must first be updated to <strong>Inactive</strong>.
               </div>
             </div>
           )}
