@@ -12,6 +12,7 @@ import assert from 'assert';
 import crypto from 'crypto';
 import jwt    from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import { validateNewPassword } from './server/lib/PasswordPolicy.js';
 
 // ─── MINIMAL TEST RUNNER ───────────────────────────────────────────────────
 let passed = 0;
@@ -519,6 +520,48 @@ await test('deleting a record changes the head (deletion detection)', () => {
 await test('input order does not matter (canonical sort by record_id)', () => {
     const shuffled = [SAMPLE[2], SAMPLE[0], SAMPLE[1]];
     assert.strictEqual(buildChain(SAMPLE).head, buildChain(shuffled).head);
+});
+
+// ── 13. PASSWORD POLICY ──
+section('Password Policy (server/lib/PasswordPolicy.js)');
+
+await test('rejects passwords under 8 characters', async () => {
+    const err = await validateNewPassword('Ab1!');
+    assert.ok(err && /8 characters/.test(err));
+});
+
+await test('rejects passwords with fewer than 3 character classes', async () => {
+    const err = await validateNewPassword('alllowercase');
+    assert.ok(err && /3 of/.test(err));
+});
+
+await test('accepts a strong, unrelated password', async () => {
+    const err = await validateNewPassword('Tr0ub4dor&9', { firstName: 'felizardo', username: 'fma002@pb.officials.eng-hill.brg.ph' });
+    assert.strictEqual(err, null);
+});
+
+await test('rejects a password matching the own-name+digits generated shape', async () => {
+    const err = await validateNewPassword('Felizardo123456', { firstName: 'felizardo' });
+    assert.ok(err && /too predictable/.test(err));
+});
+
+await test('rejects a password matching the barangay-hall generatedId+digits shape', async () => {
+    const err = await validateNewPassword('Beh001123456', { username: 'beh001@bh.officials.eng-hill.brg.ph' });
+    assert.ok(err && /too predictable/.test(err));
+});
+
+await test('rejects a password unchanged from the current hash', async () => {
+    const bcrypt = (await import('bcryptjs')).default;
+    const currentHash = await bcrypt.hash('SomeExisting1!', 10);
+    const err = await validateNewPassword('SomeExisting1!', { currentHash });
+    assert.ok(err && /different from your current password/.test(err));
+});
+
+await test('accepts a genuinely new password different from the current hash', async () => {
+    const bcrypt = (await import('bcryptjs')).default;
+    const currentHash = await bcrypt.hash('SomeExisting1!', 10);
+    const err = await validateNewPassword('BrandNew$2Value', { currentHash });
+    assert.strictEqual(err, null);
 });
 
 // ─── FINAL REPORT ─────────────────────────────────────────────────────────
