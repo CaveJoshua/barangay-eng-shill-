@@ -7,7 +7,10 @@ interface IOfficial {
   id: string;
   full_name: string;
   position: string;
-  status: 'Active' | 'Inactive' | 'Archived' | 'Former';
+  // 'Inactive'/'Archived'/'Former' kept for legacy rows written before this
+  // status set was standardized — never assignable going forward (see
+  // ASSIGNABLE_STATUSES in server/records/Officials.js).
+  status: 'Active' | 'Suspended' | 'Resigned' | 'Inactive' | 'Archived' | 'Former';
   contact_number?: string;
 }
 
@@ -23,9 +26,11 @@ export default function OfficialsPage() {
   const [savingId, setSavingId] = useState<string | null>(null); // Row currently being updated
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Statuses the Punong Barangay may assign from the directory dropdown.
-  // Suspended is hidden for now. Resigned is now Inactive.
-  const STATUS_OPTIONS = ['Active', 'Inactive'];
+  // Statuses the Punong Barangay may assign from the directory dropdown —
+  // mirrors ASSIGNABLE_STATUSES in server/records/Officials.js exactly (the
+  // backend rejects anything outside this set) and matches
+  // OFFICIAL_STATUS_OPTIONS in Archive.tsx so both dropdowns stay in sync.
+  const STATUS_OPTIONS = ['Active', 'Suspended', 'Resigned'];
 
   const isMounted = useRef(true);
 
@@ -130,10 +135,12 @@ export default function OfficialsPage() {
 
   const filteredOfficials = useMemo(() => {
     return officials.filter(o => {
-      // Active stays in the live directory — Inactive leaves it (and lands in the Archive).
-      // (Suspended is intentionally hidden from this view for now).
+      // Active AND Suspended stay in the live directory (matches Archive.tsx's
+      // fetch filter, which only pulls in Resigned + legacy archived/inactive/
+      // former values) — a suspended official is still tracked here, just
+      // locked out of login, not archived.
       const stat = o.status.toLowerCase();
-      const isVisible = stat === 'active';
+      const isVisible = stat === 'active' || stat === 'suspended';
       if (!isVisible) return false;
 
       if (!searchTerm.trim()) return true;
@@ -146,18 +153,19 @@ export default function OfficialsPage() {
   }, [officials, searchTerm]);
 
   // 🔁 Reassign an official's status. A non-Active status revokes their admin
-  // access on their next session refresh (enforced server-side). Setting them
-  // to Inactive actually removes them from this directory and archives them.
+  // access on their next session refresh (enforced server-side). Resigned
+  // additionally moves them out of this directory into the Archive; Suspended
+  // stays tracked here, just locked out (see filteredOfficials above).
   const handleStatusChange = async (off: IOfficial, newStatus: string) => {
     if (newStatus === off.status) return;
 
     const target = newStatus.toLowerCase();
     const warn = target === 'active'
       ? `Restore ${off.full_name} to Active? Their admin access will be re-enabled.`
-      : target === 'inactive'
-        ? `Set ${off.full_name} to "${newStatus}"?\n\nThis immediately revokes their admin access and moves them to the Archive.`
-        : `Set ${off.full_name} to "${newStatus}"?\n\nThis immediately revokes their admin access.`;
-        
+      : target === 'resigned'
+        ? `Set ${off.full_name} to "Resigned"?\n\nThis immediately revokes their admin access and moves them to the Archive.`
+        : `Set ${off.full_name} to "${newStatus}"?\n\nThis immediately revokes their admin access. They'll stay listed here as Suspended.`;
+
     if (!window.confirm(warn)) return;
 
     setSavingId(off.id);
