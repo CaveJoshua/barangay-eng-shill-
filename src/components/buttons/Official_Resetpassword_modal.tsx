@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ApiService } from '../UI/api';
+import { getPasswordChecks, getPasswordStrength, strengthColor } from './Tools/PasswordChecks';
 
 interface OfficialResetProps {
   isOpen: boolean;
@@ -26,36 +27,6 @@ const baseInputStyle: React.CSSProperties = {
   transition: 'border-color 120ms ease',
 };
 
-// Mirrors server/lib/PasswordPolicy.js's escapeRegex — same reason: firstName
-// is account data, not guaranteed "clean" text, and must not be interpolated
-// into a RegExp unescaped.
-const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-interface Check {
-  label: string;
-  met: boolean;
-}
-
-// Mirrors validateNewPassword's rules that are actually computable client-side
-// (no access here to the account's current password hash or its username, so
-// those two rules stay server-only — see the note rendered below the list).
-const getPasswordChecks = (password: string, firstName: string): Check[] => {
-  const lower = password.toLowerCase();
-  const cleanFirst = firstName.trim().toLowerCase();
-  const classCount = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^a-zA-Z0-9]/].filter(re => re.test(password)).length;
-  const escapedFirst = escapeRegex(cleanFirst);
-
-  return [
-    { label: 'At least 8 characters', met: password.length >= 8 },
-    { label: 'At least 3 of: lowercase, UPPERCASE, numbers, symbols', met: classCount >= 3 },
-    { label: 'Not your own name', met: !(cleanFirst && lower === cleanFirst) },
-    {
-      label: 'Not your name followed by numbers (e.g. felizardo123456)',
-      met: !(cleanFirst && new RegExp(`^${escapedFirst}\\d{4,6}$`).test(lower)),
-    },
-  ];
-};
-
 const dotStyle = (met: boolean, dirty: boolean): React.CSSProperties => ({
   display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%',
   marginRight: '7px', flexShrink: 0,
@@ -74,6 +45,7 @@ const OfficialResetPasswordModal: React.FC<OfficialResetProps> = ({ isOpen, acco
   const checks = getPasswordChecks(newPassword, firstName);
   const passwordDirty = newPassword.length > 0;
   const allChecksMet = checks.every(c => c.met);
+  const strength = getPasswordStrength(newPassword, checks);
 
   const confirmDirty = confirmPassword.length > 0;
   const passwordsMatch = confirmDirty && newPassword === confirmPassword;
@@ -145,6 +117,12 @@ const OfficialResetPasswordModal: React.FC<OfficialResetProps> = ({ isOpen, acco
             autoComplete="new-password"
             style={newPasswordFieldStyle}
           />
+
+          {passwordDirty && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', fontSize: '0.75rem', fontWeight: 700, color: strengthColor(strength), margin: '0 0 8px' }}>
+              {strength.toUpperCase()} PASSWORD
+            </div>
+          )}
 
           <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 12px', marginBottom: '12px', fontSize: '0.78rem', color: '#475569' }}>
             {checks.map(c => (

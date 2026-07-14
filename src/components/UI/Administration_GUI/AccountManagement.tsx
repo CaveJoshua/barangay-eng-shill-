@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import './styles/AccountManagement.css';
-import { ApiService } from '../api'; 
+import { ApiService } from '../api';
+import { getPasswordChecks, getPasswordStrength, strengthColor } from '../../buttons/Tools/PasswordChecks';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface IAccount {
@@ -243,9 +244,13 @@ export default function AccountManagement() {
 
   const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPassword.length < 8) return setModalError('Minimum 8 characters required.');
-    if (newPassword !== confirmPassword) return setModalError('Passwords do not match. Please re-enter.');
     if (!selectedAccount) return;
+
+    const targetFirstName = (selectedAccount.profileName || '').trim().split(/\s+/)[0] || '';
+    const checks = getPasswordChecks(newPassword, targetFirstName);
+    const failedCheck = checks.find(c => !c.met);
+    if (failedCheck) return setModalError(failedCheck.label + ' — requirement not met.');
+    if (newPassword !== confirmPassword) return setModalError('Passwords do not match. Please re-enter.');
 
     setModalLoading(true);
     setModalError('');
@@ -664,7 +669,17 @@ export default function AccountManagement() {
             )}
 
             {/* ── STEP 3: NEW PASSWORD ── */}
-            {resetStep === 'PASSWORD' && (
+            {resetStep === 'PASSWORD' && (() => {
+              const targetFirstName = (selectedAccount?.profileName || '').trim().split(/\s+/)[0] || '';
+              const checks = getPasswordChecks(newPassword, targetFirstName);
+              const passwordDirty = newPassword.length > 0;
+              const allChecksMet = checks.every(c => c.met);
+              const strength = getPasswordStrength(newPassword, checks);
+
+              const confirmDirty = confirmPassword.length > 0;
+              const passwordsMatch = confirmDirty && newPassword === confirmPassword;
+
+              return (
               <form onSubmit={handlePasswordReset}>
                 <div className="ACC_INPUT_GROUP">
                   <label htmlFor="acc-new-password">New Password</label>
@@ -682,6 +697,7 @@ export default function AccountManagement() {
                       value={newPassword}
                       onChange={e => setNewPassword(e.target.value)}
                       disabled={modalLoading}
+                      style={{ borderColor: !passwordDirty ? undefined : allChecksMet ? '#16a34a' : '#dc2626' }}
                     />
                     <button
                       type="button"
@@ -692,6 +708,27 @@ export default function AccountManagement() {
                     >
                       <i className={showPassword ? "fas fa-eye-slash" : "fas fa-eye"}></i>
                     </button>
+                  </div>
+                </div>
+
+                {passwordDirty && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', fontSize: '0.75rem', fontWeight: 700, color: strengthColor(strength), margin: '4px 0 0' }}>
+                    {strength.toUpperCase()} PASSWORD
+                  </div>
+                )}
+
+                <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 12px', margin: '8px 0 0', fontSize: '0.78rem', color: '#475569' }}>
+                  {checks.map(c => (
+                    <div key={c.label} style={{ display: 'flex', alignItems: 'center', padding: '2px 0', color: !passwordDirty ? '#64748b' : c.met ? '#166534' : '#991b1b' }}>
+                      <span style={{
+                        display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', marginRight: '7px', flexShrink: 0,
+                        backgroundColor: !passwordDirty ? '#cbd5e1' : c.met ? '#16a34a' : '#dc2626',
+                      }} />
+                      {c.label}
+                    </div>
+                  ))}
+                  <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #e2e8f0', color: '#94a3b8', fontSize: '0.72rem' }}>
+                    Also checked on submit: must differ from the current password, and must not be their username.
                   </div>
                 </div>
 
@@ -711,20 +748,28 @@ export default function AccountManagement() {
                       value={confirmPassword}
                       onChange={e => setConfirmPassword(e.target.value)}
                       disabled={modalLoading}
+                      style={{ borderColor: !confirmDirty ? undefined : passwordsMatch ? '#16a34a' : '#dc2626' }}
                     />
                   </div>
+                  {confirmDirty && !passwordsMatch && (
+                    <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.75rem', color: '#991b1b', margin: '4px 0 0' }}>
+                      <span style={{ display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', marginRight: '7px', backgroundColor: '#dc2626' }} />
+                      Passwords do not match
+                    </div>
+                  )}
                 </div>
 
                 <div className="ACC_MODAL_ACTIONS">
                   <button type="button" className="ACC_BTN_CANCEL" onClick={() => setIsResetOpen(false)} disabled={modalLoading}>
                     Cancel
                   </button>
-                  <button type="submit" className="ACC_BTN_SAVE" disabled={modalLoading || !newPassword || newPassword !== confirmPassword}>
+                  <button type="submit" className="ACC_BTN_SAVE" disabled={modalLoading || !allChecksMet || !passwordsMatch}>
                     {modalLoading ? <i className="fas fa-spinner fa-spin" /> : 'Update Password'}
                   </button>
                 </div>
               </form>
-            )}
+              );
+            })()}
 
           </div>
         </div>
