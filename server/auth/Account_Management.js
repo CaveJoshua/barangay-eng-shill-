@@ -4,6 +4,7 @@ import nodemailer from 'nodemailer'; // 🛡️ ADDED: Nodemailer Import
 import { sendAutoMail } from '../lib/Mailer.js';
 import { sendSms, normalizePhNumber } from '../lib/Sms.js';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
+import { validateNewPassword } from '../lib/PasswordPolicy.js';
 
 // =========================================================
 // 🛡️ RATE LIMITERS (Tiered Token Bucket)
@@ -231,8 +232,6 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
             const { identifier, otp, newPassword } = req.body;
             const identifierNorm = identifier?.toLowerCase().trim();
 
-            if (!newPassword || newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
-
             const userData = await findUserEmail(identifierNorm);
             if (!userData) return res.status(400).json({ error: 'Account could not be verified.' });
 
@@ -241,8 +240,19 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
 
             if (!stored || !stored.verified) return res.status(400).json({ error: 'OTP not verified or expired.' });
 
+            const table = userData.role === 'official' ? 'officials_accounts' : 'residents_account';
+            const idColumn = userData.role === 'official' ? 'account_id' : 'resident_id';
+            const { data: acctRow } = await supabase.from(table).select('password, username').eq(idColumn, userData.accountId).maybeSingle();
+
+            const policyError = await validateNewPassword(newPassword, {
+                currentHash: acctRow?.password,
+                firstName: userData.firstName,
+                username: acctRow?.username,
+            });
+            if (policyError) return res.status(400).json({ error: policyError });
+
             if (userData.role === 'official') {
-                const { error } = await supabase.from('officials_accounts').update({ password: hashPassword(newPassword) }).eq('account_id', userData.accountId);
+                const { error } = await supabase.from('officials_accounts').update({ password: hashPassword(newPassword), requires_reset: false }).eq('account_id', userData.accountId);
                 if (error) return res.status(500).json({ error: 'Database synchronization failed.' });
             } else {
                 const { error } = await supabase.from('residents_account').update({ password: hashPassword(newPassword) }).eq('resident_id', userData.accountId);
@@ -314,25 +324,52 @@ export const AccountManagementRouter = (router, supabase, authenticateToken) => 
                 otpStore.delete(mapKey);
             }
 
-            const securePass = hashPassword(password);
+            // 🔒 Locate the target account (resident or official) and its current
+            // password hash / name, so the shared policy can check "unchanged"
+            // and "still the default shape" before anything is written.
+            const { data: resAcct } = await supabase.from('residents_account')
+                .select('resident_id, password, username').or(`account_id.eq.${targetId},resident_id.eq.${targetId}`).maybeSingle();
 
-            const { data: resData } = await supabase
-                .from('residents_account')
-                .update({ password: securePass, requires_reset: false })
-                .or(`account_id.eq.${targetId},resident_id.eq.${targetId}`)
-                .select();
-
-            if (resData && resData.length > 0) {
-                return res.json({ success: true, message: 'Password updated successfully.' });
+            let currentHash = null, accountFirstName = '', accountUsername = '', table = null;
+            if (resAcct) {
+                currentHash = resAcct.password;
+                accountUsername = resAcct.username;
+                const { data: profile } = await supabase.from('residents_records').select('first_name').eq('record_id', resAcct.resident_id).maybeSingle();
+                accountFirstName = profile?.first_name || '';
+                table = 'residents_account';
+            } else {
+                const { data: offAcct } = await supabase.from('officials_accounts').select('account_id, password, username, official_id').eq('account_id', targetId).maybeSingle();
+                if (offAcct) {
+                    currentHash = offAcct.password;
+                    accountUsername = offAcct.username;
+                    const { data: offProfile } = await supabase.from('officials').select('full_name').eq('id', offAcct.official_id).maybeSingle();
+                    accountFirstName = (offProfile?.full_name || '').trim().split(/\s+/)[0] || '';
+                    table = 'officials_accounts';
+                }
             }
 
-            if (isAdmin || isSelf) {
+            if (!table) return res.status(404).json({ error: 'Account not found.' });
+
+            const policyError = await validateNewPassword(password, { currentHash, firstName: accountFirstName, username: accountUsername });
+            if (policyError) return res.status(400).json({ error: policyError });
+
+            const securePass = hashPassword(password);
+
+            if (table === 'residents_account') {
+                const { data: resData } = await supabase
+                    .from('residents_account')
+                    .update({ password: securePass, requires_reset: false })
+                    .or(`account_id.eq.${targetId},resident_id.eq.${targetId}`)
+                    .select();
+                if (resData && resData.length > 0) {
+                    return res.json({ success: true, message: 'Password updated successfully.' });
+                }
+            } else {
                 const { data: offData } = await supabase
                     .from('officials_accounts')
-                    .update({ password: securePass })
+                    .update({ password: securePass, requires_reset: false })
                     .eq('account_id', targetId)
                     .select();
-
                 if (offData && offData.length > 0) {
                     return res.json({ success: true, message: 'Official password updated successfully.' });
                 }
