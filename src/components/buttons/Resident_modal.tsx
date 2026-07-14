@@ -573,7 +573,10 @@ export const ResidentModal: React.FC<{
                 </div>
             )}
 
-            <fieldset disabled={registrationStage === 'code-pending'} style={{ border: 'none', padding: 0, margin: 0 }}>
+            <fieldset
+              disabled={registrationStage === 'code-pending'}
+              style={{ border: 'none', padding: 0, margin: 0, background: 'transparent', color: 'inherit', minWidth: 0, colorScheme: 'light' }}
+            >
             <div className="RMS_SECTION">
               <div className="RMS_SEC_TITLE">Personal Identity</div>
               <div className="RMS_GRID">
