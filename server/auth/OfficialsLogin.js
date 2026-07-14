@@ -221,7 +221,7 @@ export const OfficialsLoginRouter = (router, supabase) => {
             const { data: accountData, error: accountError } = await supabase
                 .from('officials_accounts')
                 .select(`
-                    account_id, username, password, role, official_id, theme_preference,
+                    account_id, username, password, role, official_id, theme_preference, requires_reset,
                     officials ( full_name, position, status )
                 `)
                 .eq('username', cleanUsername)
@@ -261,6 +261,7 @@ export const OfficialsLoginRouter = (router, supabase) => {
                 role: userRole,
                 term_status: restricted ? 'restricted' : 'active',
                 theme_preference: accountData.theme_preference || 'light',
+                requires_reset: accountData.requires_reset,
                 profile: {
                     record_id: accountData.official_id,
                     profileName: accountData.officials?.full_name,
@@ -270,6 +271,7 @@ export const OfficialsLoginRouter = (router, supabase) => {
                     // Distinguishes WHY access is restricted (Suspended/Resigned) so
                     // the lock screen can explain which one applies.
                     official_status: accountData.officials?.status || 'Active',
+                    is_first_login: accountData.requires_reset,
                 }
             });
 
