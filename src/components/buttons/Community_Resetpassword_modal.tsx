@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import './styles/Community_Resetpassword_modal.css'; 
-import { API_BASE_URL, ApiService } from '../UI/api'; 
+import './styles/Community_Resetpassword_modal.css';
+import { API_BASE_URL, ApiService } from '../UI/api';
+import { getPasswordChecks, getPasswordStrength, strengthColor } from './Tools/PasswordChecks';
 
 interface ResetProps {
   isOpen: boolean;
@@ -127,12 +128,9 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
       setError('Please fill in both password fields.');
       return;
     }
-    if (newPassword.length < 8) {
-      setError('Security violation: Password must be at least 8 characters.');
-      return;
-    }
-    if (!/[A-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
-      setError('Security violation: Password must contain uppercase and numbers.');
+    const failedCheck = getPasswordChecks(newPassword, resident?.first_name || '').find(c => !c.met);
+    if (failedCheck) {
+      setError(`Security violation: ${failedCheck.label} — requirement not met.`);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -282,41 +280,79 @@ const CommunityResetPasswordModal: React.FC<ResetProps> = ({
             <form onSubmit={handleReset} className="CM_RESET_FORM">
               {error && <div className="CM_RESET_ERROR"><i className="fas fa-exclamation-triangle"></i> {error}</div>}
 
-              <div className="CM_RESET_INPUT_GROUP">
-                <label>New Secure Key</label>
-                <div className="CM_RESET_INPUT_WRAPPER">
-                  <i className="fas fa-key"></i>
-                  <input 
-                    type="password" 
-                    placeholder="Min 8 chars, 1 uppercase, 1 number"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    required
-                    disabled={loading}
-                    autoComplete="new-password"
-                  />
-                </div>
-              </div>
+              {(() => {
+                const checks = getPasswordChecks(newPassword, resident?.first_name || '');
+                const passwordDirty = newPassword.length > 0;
+                const allChecksMet = checks.every(c => c.met);
+                const strength = getPasswordStrength(newPassword, checks);
+                const confirmDirty = confirmPassword.length > 0;
+                const passwordsMatch = confirmDirty && newPassword === confirmPassword;
 
-              <div className="CM_RESET_INPUT_GROUP">
-                <label>Confirm Secure Key</label>
-                <div className="CM_RESET_INPUT_WRAPPER">
-                  <i className="fas fa-check-double"></i>
-                  <input 
-                    type="password" 
-                    placeholder="Repeat encryption key"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                    disabled={loading}
-                    autoComplete="new-password"
-                  />
-                </div>
-              </div>
+                return (
+                  <>
+                    <div className="CM_RESET_INPUT_GROUP">
+                      <label>New Secure Key</label>
+                      <div className="CM_RESET_INPUT_WRAPPER" style={{ borderColor: !passwordDirty ? undefined : allChecksMet ? '#16a34a' : '#dc2626' }}>
+                        <i className="fas fa-key"></i>
+                        <input
+                          type="password"
+                          placeholder="Enter a new password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          required
+                          disabled={loading}
+                          autoComplete="new-password"
+                        />
+                      </div>
+                      {passwordDirty && (
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '0.72rem', fontWeight: 700, color: strengthColor(strength), margin: '4px 0 0' }}>
+                          {strength.toUpperCase()} PASSWORD
+                        </div>
+                      )}
+                      <div style={{ backgroundColor: 'rgba(148,163,184,0.08)', border: '1px solid rgba(148,163,184,0.3)', borderRadius: '8px', padding: '10px 12px', margin: '8px 0 0', fontSize: '0.75rem' }}>
+                        {checks.map(c => (
+                          <div key={c.label} style={{ display: 'flex', alignItems: 'center', padding: '2px 0', color: !passwordDirty ? 'inherit' : c.met ? '#22c55e' : '#f87171' }}>
+                            <span style={{
+                              display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', marginRight: '7px', flexShrink: 0,
+                              backgroundColor: !passwordDirty ? '#94a3b8' : c.met ? '#22c55e' : '#f87171',
+                            }} />
+                            {c.label}
+                          </div>
+                        ))}
+                        <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px solid rgba(148,163,184,0.3)', opacity: 0.75, fontSize: '0.68rem' }}>
+                          Also checked on submit: must differ from your current password, and must not be your username.
+                        </div>
+                      </div>
+                    </div>
 
-              <button type="submit" className="CM_RESET_SUBMIT" disabled={loading}>
-                {loading ? 'ENCRYPTING...' : 'EXECUTE PROTOCOL'}
-              </button>
+                    <div className="CM_RESET_INPUT_GROUP">
+                      <label>Confirm Secure Key</label>
+                      <div className="CM_RESET_INPUT_WRAPPER" style={{ borderColor: !confirmDirty ? undefined : passwordsMatch ? '#16a34a' : '#dc2626' }}>
+                        <i className="fas fa-check-double"></i>
+                        <input
+                          type="password"
+                          placeholder="Repeat the password above"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          required
+                          disabled={loading}
+                          autoComplete="new-password"
+                        />
+                      </div>
+                      {confirmDirty && !passwordsMatch && (
+                        <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.72rem', color: '#f87171', margin: '4px 0 0' }}>
+                          <span style={{ display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', marginRight: '7px', backgroundColor: '#f87171' }} />
+                          Passwords do not match
+                        </div>
+                      )}
+                    </div>
+
+                    <button type="submit" className="CM_RESET_SUBMIT" disabled={loading || !allChecksMet || !passwordsMatch}>
+                      {loading ? 'ENCRYPTING...' : 'EXECUTE PROTOCOL'}
+                    </button>
+                  </>
+                );
+              })()}
             </form>
           </>
         )}
