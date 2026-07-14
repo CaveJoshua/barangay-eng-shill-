@@ -693,6 +693,272 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
         }
     );
 
+    // =========================================================
+    // 🔐 OTP-GATED RESIDENT REGISTRATION — used ONLY by the manual "+Add
+    // Residents" admin form. CSV bulk import keeps using POST /residents
+    // directly above; gating hundreds of rows behind individual one-time
+    // codes isn't practical for a bulk workflow, and nothing here changes
+    // that path.
+    //
+    // Flow: request-code validates + duplicate-checks + rate-limits + sends
+    // a code, holding the ENTIRE validated payload server-side until
+    // confirm-code verifies the code and performs the actual creation. The
+    // client never gets to re-supply the payload at confirm time, so it
+    // can't be tampered with between steps.
+    // =========================================================
+    const REGISTRATION_OTP_TTL_MS = 5 * 60 * 1000;
+    const REGISTRATION_OTP_COOLDOWN_MS = 60 * 1000;
+    const REGISTRATION_OTP_DAILY_CAP = 5;
+
+    router.post('/residents/register/request-code',
+        [authenticateToken, authorizeRoles(DATA_HANDLERS), validatePayload(residentSchema)],
+        async (req, res) => {
+            try {
+                const r = req.body;
+                const channel = String(r.confirmationChannel || 'email').toLowerCase();
+                if (!['email', 'sms'].includes(channel)) {
+                    return res.status(400).json({ error: "channel must be 'email' or 'sms'." });
+                }
+
+                const identifier = channel === 'email'
+                    ? String(r.email || '').trim().toLowerCase()
+                    : String(r.contact_number || '').trim();
+
+                if (!identifier) {
+                    return res.status(400).json({
+                        error: `No ${channel === 'email' ? 'email address' : 'contact number'} provided to send the code to.`
+                    });
+                }
+
+                // 🔒 ANTI-DUPLICATE GATE — same rule as POST /residents; don't burn
+                // a code send on a registration that would be rejected anyway.
+                const { collisions, advisories } = await checkDuplicates(supabase, {
+                    firstName: r.firstName, middleName: r.middleName, lastName: r.lastName, dob: r.dob,
+                    contact_number: r.contact_number, email: r.email,
+                    voterIdNumber: r.voterIdNumber, pwdIdNumber: r.pwdIdNumber, fourPsIdNumber: r.fourPsIdNumber,
+                    soloParentIdNumber: r.soloParentIdNumber, seniorIdNumber: r.seniorIdNumber,
+                    sssIdNumber: r.sssIdNumber, philhealthIdNumber: r.philhealthIdNumber, otherIdNumber: r.otherIdNumber
+                });
+                if (collisions.length > 0) {
+                    return res.status(409).json({
+                        error: 'Duplicate Detected',
+                        message: 'This record conflicts with an existing identity in the registry.',
+                        collisions
+                    });
+                }
+
+                // Housekeeping — drop stale rows so the table doesn't grow unbounded.
+                await supabase.from('resident_registration_otp')
+                    .delete()
+                    .lt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+
+                // 🔒 RATE LIMIT — max 5 sends/day per identifier, 60s cooldown.
+                const todayStart = new Date();
+                todayStart.setHours(0, 0, 0, 0);
+                const { count: sentToday } = await supabase.from('resident_registration_otp')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('identifier', identifier)
+                    .gte('created_at', todayStart.toISOString());
+
+                if ((sentToday || 0) >= REGISTRATION_OTP_DAILY_CAP) {
+                    return res.status(429).json({
+                        error: `Daily code limit reached (${REGISTRATION_OTP_DAILY_CAP}/day) for this ${channel === 'email' ? 'email' : 'number'}. Try again tomorrow.`
+                    });
+                }
+
+                const { data: lastSend } = await supabase.from('resident_registration_otp')
+                    .select('created_at')
+                    .eq('identifier', identifier)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+
+                if (lastSend && Date.now() - new Date(lastSend.created_at).getTime() < REGISTRATION_OTP_COOLDOWN_MS) {
+                    return res.status(429).json({ error: 'Please wait before requesting another code.' });
+                }
+
+                const code = generateVerifyCode(6);
+                const { data: row, error: insertErr } = await supabase.from('resident_registration_otp').insert([{
+                    identifier, channel,
+                    code_hash: hashOtp(code),
+                    payload: r,
+                    created_by: req.user.username,
+                    expires_at: new Date(Date.now() + REGISTRATION_OTP_TTL_MS).toISOString(),
+                }]).select('id').single();
+                if (insertErr) throw insertErr;
+
+                let delivered = false;
+                if (channel === 'email') {
+                    delivered = await sendAutoMail(
+                        identifier,
+                        'Verify Resident Registration',
+                        'Account Verification',
+                        `A Smart Barangay staff member is registering <b>${r.firstName} ${r.lastName}</b> for a resident account using this email.<br><br>
+                         Verification code:<br><br>
+                         <h1 style="background:#f8fafc;padding:15px;text-align:center;letter-spacing:6px;color:#d97706;">${code}</h1>
+                         This code expires in 5 minutes. If you did not expect this, ignore this email.`
+                    );
+                } else {
+                    delivered = await sendSms(
+                        identifier,
+                        `Smart Barangay: verification code ${code} to confirm the resident account being created for ${r.firstName} ${r.lastName}. Valid 5 minutes. - Brgy Engineer's Hill`
+                    );
+                }
+
+                if (!delivered) {
+                    await supabase.from('resident_registration_otp').delete().eq('id', row.id);
+                    return res.status(502).json({
+                        error: `Failed to send the code via ${channel === 'email' ? 'email' : 'SMS'}. Try the other channel.`
+                    });
+                }
+
+                return res.status(200).json({
+                    success: true,
+                    sessionId: row.id,
+                    expiresInSec: REGISTRATION_OTP_TTL_MS / 1000,
+                    advisories: advisories.length ? advisories : undefined
+                });
+            } catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        }
+    );
+
+    router.post('/residents/register/confirm-code',
+        [authenticateToken, authorizeRoles(DATA_HANDLERS)],
+        async (req, res) => {
+            try {
+                const { sessionId, code } = req.body;
+                if (!sessionId || !code) return res.status(400).json({ error: 'sessionId and code are required.' });
+
+                const { data: pending } = await supabase.from('resident_registration_otp')
+                    .select('*').eq('id', sessionId).maybeSingle();
+                if (!pending) return res.status(400).json({ error: 'Invalid or expired verification session.' });
+
+                if (Date.now() > new Date(pending.expires_at).getTime()) {
+                    await supabase.from('resident_registration_otp').delete().eq('id', sessionId);
+                    return res.status(400).json({ error: 'Code expired. Request a new one.' });
+                }
+
+                if (hashOtp(String(code).trim()) !== pending.code_hash) {
+                    const attempts = pending.attempts + 1;
+                    if (attempts >= 3) {
+                        await supabase.from('resident_registration_otp').delete().eq('id', sessionId);
+                        return res.status(429).json({ error: 'Too many failed attempts. Request a new code.' });
+                    }
+                    await supabase.from('resident_registration_otp').update({ attempts }).eq('id', sessionId);
+                    return res.status(401).json({ error: `Invalid code. ${3 - attempts} attempts remaining.` });
+                }
+
+                const r = pending.payload;
+
+                // 🔒 Final safety net — another admin could have registered a
+                // colliding phone/email/ID in the minutes since the code was sent.
+                const { collisions, advisories } = await checkDuplicates(supabase, {
+                    firstName: r.firstName, middleName: r.middleName, lastName: r.lastName, dob: r.dob,
+                    contact_number: r.contact_number, email: r.email,
+                    voterIdNumber: r.voterIdNumber, pwdIdNumber: r.pwdIdNumber, fourPsIdNumber: r.fourPsIdNumber,
+                    soloParentIdNumber: r.soloParentIdNumber, seniorIdNumber: r.seniorIdNumber,
+                    sssIdNumber: r.sssIdNumber, philhealthIdNumber: r.philhealthIdNumber, otherIdNumber: r.otherIdNumber
+                });
+                if (collisions.length > 0) {
+                    await supabase.from('resident_registration_otp').delete().eq('id', sessionId);
+                    return res.status(409).json({
+                        error: 'Duplicate Detected',
+                        message: 'This record conflicts with an existing identity in the registry.',
+                        collisions
+                    });
+                }
+
+                const hash = generateGenesisHash(r.firstName, r.middleName, r.lastName, r.dob);
+                const { data: profile, error: pErr } = await supabase.from('residents_records').insert([{
+                    first_name: r.firstName,
+                    middle_name: r.middleName || '',
+                    last_name: r.lastName,
+                    sex: r.sex || 'Other',
+                    dob: r.dob,
+                    genesis_hash: hash,
+                    birth_country: r.birthCountry || 'PHILIPPINES',
+                    birth_province: r.birthProvince || '',
+                    birth_city: r.birthCity || '',
+                    birth_place: r.birthPlace || '',
+                    nationality: r.nationality || 'FILIPINO',
+                    religion: r.religion || '',
+                    contact_number: r.contact_number || '',
+                    email: r.email || '',
+                    current_address: r.currentAddress || '',
+                    purok: r.purok || '',
+                    civil_status: r.civilStatus || 'Single',
+                    education: r.education || '',
+                    employment_status: r.employmentStatus || 'Unemployed',
+                    occupation: r.occupation || '',
+                    is_voter: !!r.isVoter,
+                    is_pwd: !!r.isPWD,
+                    is_4ps: !!r.is4Ps,
+                    is_solo_parent: !!r.isSoloParent,
+                    is_senior_citizen: !!r.isSeniorCitizen,
+                    voter_id_number: r.voterIdNumber || null,
+                    pwd_id_number: r.pwdIdNumber || null,
+                    four_ps_id_number: r.fourPsIdNumber || null,
+                    solo_parent_id_number: r.soloParentIdNumber || null,
+                    senior_id_number: r.seniorIdNumber || null,
+                    sss_id_number: r.sssIdNumber || null,
+                    philhealth_id_number: r.philhealthIdNumber || null,
+                    other_id_number: r.otherIdNumber || null,
+                    activity_status: r.activityStatus || 'Active'
+                }]).select().single();
+                if (pErr) throw pErr;
+
+                try {
+                    const f = profile.first_name[0] || '';
+                    const m = profile.middle_name ? profile.middle_name[0] : '';
+                    const l = profile.last_name[0] || '';
+                    const rand = crypto.randomInt(100, 999);
+                    const username = `${f}${m}${l}${rand}@residents.eng-hill.brg.ph`.toLowerCase();
+                    const tempPass = generateTempPassword();
+                    const pass = await bcrypt.hash(tempPass, 12);
+
+                    await supabase.from('residents_account').insert([{
+                        resident_id: profile.record_id,
+                        username,
+                        password: pass,
+                        role: 'resident',
+                        status: 'Active',
+                        requires_reset: true,
+                        is_verified: true  // ownership of the channel was just proven
+                    }]);
+
+                    logActivity(supabase, req.user.username, 'RESIDENT_CREATED', profile.record_id, req).catch(() => {});
+
+                    // 📨 Welcome message — fires ONLY now, after confirmation, on the
+                    // same channel the code was sent to. Replaces the old
+                    // fire-and-forget send that happened immediately at creation.
+                    const welcomeHtml = `Hello <b>${profile.first_name} ${profile.last_name}</b>,<br><br>
+                         Welcome to the Smart Barangay system! Your resident account has been created and verified.<br><br>
+                         <b>Username:</b> ${username}<br>
+                         <b>Temporary Password:</b> ${tempPass}<br><br>
+                         You will be asked to set your own password on first login.`;
+                    const welcomeSms = `Smart Barangay: welcome! Your account is ready. Username: ${username} Temp password: ${tempPass} (change it on first login). - Brgy Engineer's Hill`;
+
+                    if (pending.channel === 'sms') {
+                        await sendSms(profile.contact_number, welcomeSms).catch(() => {});
+                    } else {
+                        await sendAutoMail(profile.email, "Welcome to Barangay Engineer's Hill", "Welcome to Barangay Engineer's Hill", welcomeHtml).catch(() => {});
+                    }
+
+                    await supabase.from('resident_registration_otp').delete().eq('id', sessionId);
+                    res.status(201).json(advisories.length ? { ...profile, advisories } : profile);
+                } catch (aErr) {
+                    await supabase.from('residents_records').delete().eq('record_id', profile.record_id);
+                    await supabase.from('resident_registration_otp').delete().eq('id', sessionId).catch(() => {});
+                    throw new Error('Rollback: Account creation failed.');
+                }
+            } catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        }
+    );
+
     // PUT: 🛡️ UPDATE RESIDENT & ACCOUNT STATUS (Locked to Data Handlers)
     router.put('/residents/:id',
         [authenticateToken, authorizeRoles(DATA_HANDLERS), validatePayload(residentSchema)],
