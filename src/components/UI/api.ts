@@ -496,6 +496,12 @@ export const ApiService = {
       payload,
     ),
 
+  requestResidentRegistrationCode: (payload: any) =>
+    triggerAction(`${RESIDENTS_API}/register/request-code`, 'POST', payload),
+
+  confirmResidentRegistrationCode: (sessionId: string, code: string) =>
+    triggerAction(`${RESIDENTS_API}/register/confirm-code`, 'POST', { sessionId, code }),
+
   deleteResident: (id: string) =>
     triggerAction(`${RESIDENTS_API}/${id}`, 'DELETE'),
 
