@@ -20,10 +20,48 @@ const cardStyle: React.CSSProperties = {
   fontFamily: 'system-ui, -apple-system, sans-serif',
 };
 
-const inputStyle: React.CSSProperties = {
+const baseInputStyle: React.CSSProperties = {
   width: '100%', padding: '10px 12px', borderRadius: '8px',
-  border: '1px solid #cbd5e1', marginBottom: '12px', fontSize: '0.9rem', boxSizing: 'border-box',
+  border: '1px solid #cbd5e1', marginBottom: '6px', fontSize: '0.9rem', boxSizing: 'border-box',
+  transition: 'border-color 120ms ease',
 };
+
+// Mirrors server/lib/PasswordPolicy.js's escapeRegex — same reason: firstName
+// is account data, not guaranteed "clean" text, and must not be interpolated
+// into a RegExp unescaped.
+const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+interface Check {
+  label: string;
+  met: boolean;
+}
+
+// Mirrors validateNewPassword's rules that are actually computable client-side
+// (no access here to the account's current password hash or its username, so
+// those two rules stay server-only — see the note rendered below the list).
+const getPasswordChecks = (password: string, firstName: string): Check[] => {
+  const lower = password.toLowerCase();
+  const cleanFirst = firstName.trim().toLowerCase();
+  const classCount = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^a-zA-Z0-9]/].filter(re => re.test(password)).length;
+  const escapedFirst = escapeRegex(cleanFirst);
+
+  return [
+    { label: 'At least 8 characters', met: password.length >= 8 },
+    { label: 'At least 3 of: lowercase, UPPERCASE, numbers, symbols', met: classCount >= 3 },
+    { label: 'Not your own name', met: !(cleanFirst && lower === cleanFirst) },
+    {
+      label: 'Not your name followed by numbers (e.g. felizardo123456)',
+      met: !(cleanFirst && new RegExp(`^${escapedFirst}\\d{4,6}$`).test(lower)),
+    },
+  ];
+};
+
+const dotStyle = (met: boolean, dirty: boolean): React.CSSProperties => ({
+  display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%',
+  marginRight: '7px', flexShrink: 0,
+  backgroundColor: !dirty ? '#cbd5e1' : met ? '#16a34a' : '#dc2626',
+  transition: 'background-color 120ms ease',
+});
 
 const OfficialResetPasswordModal: React.FC<OfficialResetProps> = ({ isOpen, accountId, firstName, onSuccess }) => {
   const [newPassword, setNewPassword] = useState('');
@@ -32,6 +70,22 @@ const OfficialResetPasswordModal: React.FC<OfficialResetProps> = ({ isOpen, acco
   const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;
+
+  const checks = getPasswordChecks(newPassword, firstName);
+  const passwordDirty = newPassword.length > 0;
+  const allChecksMet = checks.every(c => c.met);
+
+  const confirmDirty = confirmPassword.length > 0;
+  const passwordsMatch = confirmDirty && newPassword === confirmPassword;
+
+  const newPasswordFieldStyle: React.CSSProperties = {
+    ...baseInputStyle,
+    borderColor: !passwordDirty ? '#cbd5e1' : allChecksMet ? '#16a34a' : '#dc2626',
+  };
+  const confirmFieldStyle: React.CSSProperties = {
+    ...baseInputStyle,
+    borderColor: !confirmDirty ? '#cbd5e1' : passwordsMatch ? '#16a34a' : '#dc2626',
+  };
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,17 +129,6 @@ const OfficialResetPasswordModal: React.FC<OfficialResetProps> = ({ isOpen, acco
           Set a new one to continue.
         </p>
 
-        <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 12px', marginBottom: '16px', fontSize: '0.78rem', color: '#475569', lineHeight: 1.5 }}>
-          <b>Password requirements:</b>
-          <ul style={{ margin: '4px 0 0', paddingLeft: '18px' }}>
-            <li>At least 8 characters</li>
-            <li>At least 3 of: lowercase, UPPERCASE, numbers, symbols</li>
-            <li>Not your own name or username</li>
-            <li>Not your name/username followed by numbers (e.g. felizardo123456)</li>
-            <li>Different from your current password</li>
-          </ul>
-        </div>
-
         {error && (
           <div style={{ backgroundColor: '#fef2f2', color: '#991b1b', padding: '10px 12px', borderRadius: '8px', marginBottom: '14px', fontSize: '0.82rem' }}>
             {error}
@@ -100,8 +143,21 @@ const OfficialResetPasswordModal: React.FC<OfficialResetProps> = ({ isOpen, acco
             onChange={e => setNewPassword(e.target.value)}
             required
             autoComplete="new-password"
-            style={inputStyle}
+            style={newPasswordFieldStyle}
           />
+
+          <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 12px', marginBottom: '12px', fontSize: '0.78rem', color: '#475569' }}>
+            {checks.map(c => (
+              <div key={c.label} style={{ display: 'flex', alignItems: 'center', padding: '2px 0', color: !passwordDirty ? '#64748b' : c.met ? '#166534' : '#991b1b' }}>
+                <span style={dotStyle(c.met, passwordDirty)} />
+                {c.label}
+              </div>
+            ))}
+            <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #e2e8f0', color: '#94a3b8', fontSize: '0.72rem' }}>
+              Also checked on submit: must differ from your current password, and must not be your username.
+            </div>
+          </div>
+
           <input
             type="password"
             placeholder="Confirm new password"
@@ -109,13 +165,20 @@ const OfficialResetPasswordModal: React.FC<OfficialResetProps> = ({ isOpen, acco
             onChange={e => setConfirmPassword(e.target.value)}
             required
             autoComplete="new-password"
-            style={inputStyle}
+            style={confirmFieldStyle}
           />
+          {confirmDirty && !passwordsMatch && (
+            <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.75rem', color: '#991b1b', margin: '2px 0 10px' }}>
+              <span style={dotStyle(false, true)} />
+              Passwords do not match
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={loading}
             style={{
-              width: '100%', padding: '11px', borderRadius: '8px', border: 'none',
+              width: '100%', padding: '11px', borderRadius: '8px', border: 'none', marginTop: confirmDirty && !passwordsMatch ? 0 : '12px',
               backgroundColor: '#2563eb', color: '#fff', fontWeight: 700, fontSize: '0.9rem',
               cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.7 : 1,
             }}
