@@ -128,10 +128,24 @@ export const DocumentFile: React.FC<DocumentFileProps> = ({ onClose, onSuccess, 
     initialData?.referenceNo || `WALK-IN-${Date.now().toString().slice(-6)}`
   ).current;
 
-  const { residents, captainName, kagawadName, captainSignatureUrl, kagawadSignatureUrl, autoFilledAddress, autoFilledAge } = useDocumentDataAPI(
+  const { residents, captainName, kagawadName, captainSignatureUrl: rawCaptainSignatureUrl, kagawadSignatureUrl: rawKagawadSignatureUrl, autoFilledAddress, autoFilledAge } = useDocumentDataAPI(
     docConfig.residentName,
     docConfig.residentId
   );
+
+  // 🛡️ SIGNATURE GATE: a manually-created walk-in is completed by staff on the
+  // spot, so the signature is expected immediately. An online (resident-submitted)
+  // request only earns the real signature once it's actually been approved —
+  // i.e. moved past Pending/Processing to Ready/Completed via the pipeline's
+  // "Manage" actions (Document.tsx) — not the instant someone merely opens it
+  // for review. Until then, the reserved signature space stays blank (schemas
+  // already treat `undefined` as "no signature on file", so this is a fully
+  // supported, no-regression state).
+  const isWalkIn = docConfig.requestMethod === 'Walk-in';
+  const isApproved = docConfig.status === 'Ready' || docConfig.status === 'Completed';
+  const signatureUnlocked = isWalkIn || isApproved;
+  const captainSignatureUrl = signatureUnlocked ? rawCaptainSignatureUrl : undefined;
+  const kagawadSignatureUrl = signatureUnlocked ? rawKagawadSignatureUrl : undefined;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // 🛡️ RE-SYNC ON initialData CHANGE

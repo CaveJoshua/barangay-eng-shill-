@@ -28,7 +28,11 @@ export default function Document_modal({ isOpen, onClose, onSuccess, requestData
         purpose: requestData.purpose === 'Other' ? requestData.otherPurpose : requestData.purpose,
         dateRequested: requestData.dateRequested,
         status: requestData.status,
-        feesPaid: requestData.price?.toString() || '200.00'
+        feesPaid: requestData.price?.toString() || '200.00',
+        // 🛡️ Was previously dropped here, silently defaulting to 'Walk-in' inside
+        // DocumentFile — which made an online request being reviewed indistinguishable
+        // from a walk-in for signature-gating purposes. Preserve the real origin.
+        requestMethod: requestData.requestMethod
       };
     }
 
@@ -36,11 +40,12 @@ export default function Document_modal({ isOpen, onClose, onSuccess, requestData
     return {
       referenceNo: `WALK-IN-${Date.now().toString().slice(-6)}`,
       residentName: '',
-      type: 'Barangay Clearance', 
+      type: 'Barangay Clearance',
       purpose: '',
       dateRequested: new Date().toISOString(),
       status: 'Pending',
-      feesPaid: '200.00' // Default price updated
+      feesPaid: '200.00', // Default price updated
+      requestMethod: 'Walk-in'
     };
   }, [requestData, isOpen]);
 
