@@ -27,9 +27,13 @@ export const NotificationRouter = (router, supabase, authenticateToken) => {
                 // per-admin copy) plus system/broadcast — NOT residents' personal alerts, which
                 // previously surfaced a second, duplicate notification per request.
                 // Walk-in messages stay hidden so staff aren't pinged for their own entries.
+                // (Belt-and-suspenders: Document.js/IncidentReport.js now skip writing a
+                // notifyAllAdmins row for walk-ins entirely — this filter previously
+                // searched for "(Walk-in)", which no message ever actually contained, so
+                // it never matched anything; matches the real "WK-IN-"/"WK-INC-" prefix now.)
                 query = query
                     .or(`user_id.eq.${authId},user_id.eq.system,user_id.is.null`)
-                    .not('message', 'ilike', '%(Walk-in)%');
+                    .not('message', 'ilike', '%WK-IN%');
             }
 
             const { data, error } = await query
@@ -64,7 +68,7 @@ export const NotificationRouter = (router, supabase, authenticateToken) => {
                 // Scope to the admin's own + system so the badge doesn't count residents' alerts.
                 query = query
                     .or(`user_id.eq.${authId},user_id.eq.system,user_id.is.null`)
-                    .not('message', 'ilike', '%(Walk-in)%');
+                    .not('message', 'ilike', '%WK-IN%');
             }
 
             const { count, error } = await query;
@@ -99,7 +103,7 @@ export const NotificationRouter = (router, supabase, authenticateToken) => {
             } else {
                 query = query
                     .or(`user_id.eq.${authId},user_id.eq.system,user_id.is.null`)
-                    .not('message', 'ilike', '%(Walk-in)%');
+                    .not('message', 'ilike', '%WK-IN%');
             }
 
             const { data, error } = await query.maybeSingle();
@@ -205,7 +209,7 @@ export const NotificationRouter = (router, supabase, authenticateToken) => {
                 // Mark only the admin's own + system alerts read — never touch residents' rows.
                 query = query
                     .or(`user_id.eq.${authId},user_id.eq.system,user_id.is.null`)
-                    .not('message', 'ilike', '%(Walk-in)%');
+                    .not('message', 'ilike', '%WK-IN%');
             }
 
             const { error } = await query;
@@ -271,7 +275,7 @@ export const NotificationRouter = (router, supabase, authenticateToken) => {
                 // non-walk-in notification — including residents' personal ones (data loss).
                 query = query
                     .or(`user_id.eq.${authId},user_id.eq.system,user_id.is.null`)
-                    .not('message', 'ilike', '%(Walk-in)%');
+                    .not('message', 'ilike', '%WK-IN%');
             }
 
             const { error } = await query;

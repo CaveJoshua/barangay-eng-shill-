@@ -183,6 +183,12 @@ export const documentRouter = (router, supabase, authenticateToken) => {
 
             // ID FACTORY: Step 1 (Temp ID)
             const tempRef = `TEMP-${Date.now()}`;
+            // 🛡️ Residents always land on 'Pending' regardless of what they send
+            // (never trust a resident-supplied status). Staff/admin creating a
+            // walk-in record on the spot may set it directly (e.g. 'Completed'),
+            // avoiding the brief window where a fresh walk-in is genuinely
+            // 'Pending' in the DB and gets miscounted as an incoming request.
+            const initialStatus = (userRole !== 'resident' && r.status) ? r.status : 'Pending';
             const { data: initialDoc, error: insertError } = await supabase.from('document_requests').insert([{
                 resident_id: secureResidentId,
                 resident_name: r.resident_name,
@@ -190,9 +196,9 @@ export const documentRouter = (router, supabase, authenticateToken) => {
                 purpose: r.purpose,
                 other_purpose: r.other_purpose || '',
                 price: r.price || 0,
-                reference_no: tempRef, 
+                reference_no: tempRef,
                 date_requested: new Date().toISOString(),
-                status: 'Pending',
+                status: initialStatus,
                 request_method: requestMethod
             }]).select().single();
 
@@ -210,10 +216,13 @@ export const documentRouter = (router, supabase, authenticateToken) => {
             };
 
             logActivity(supabase, actor, 'DOCUMENT_REQUEST_CREATED', `Ref: ${prettyId}`, req);
+            // 🛡️ Only a resident's own online submission is "new" to staff — a
+            // walk-in staff just created themselves shouldn't notify the whole
+            // admin roster (including themselves) about their own action.
             if (userRole === 'resident') {
                 createNotification(supabase, secureResidentId, "Request Received", `Your request for ${r.type} is pending review.`);
+                notifyAllAdmins(supabase, "New Document Request", `${r.resident_name} requested a ${r.type}. Ref: ${prettyId}`);
             }
-            notifyAllAdmins(supabase, "New Document Request", `${r.resident_name} requested a ${r.type}. Ref: ${prettyId}`);
 
             res.status(201).json({ success: true, data: responseWithPrice });
         } catch (err) {

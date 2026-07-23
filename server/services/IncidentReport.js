@@ -263,8 +263,11 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
                     const secureComplainantId = isOnline ? (tokenResidentId || r.complainant_id) : (r.complainant_id || 'WALK-IN');
 
                     const prefix = isOnline ? 'ON-INC-' : 'WK-INC-';
-                    const suffix = Date.now().toString().slice(-6); 
-                    const generatedCaseNumber = r.case_number || `${prefix}${suffix}`;
+                    const suffix = Date.now().toString().slice(-6);
+                    // 🛡️ Always server-derived — never trust a client-supplied
+                    // case_number, since its ON-INC-/WK-INC- prefix is the signal
+                    // the pending-count filters rely on to exclude walk-ins.
+                    const generatedCaseNumber = `${prefix}${suffix}`;
                     const initialStatus = isOnline ? 'Pending' : 'Active';
 
                     let finalNarrative = await processNarrativeImages(r.narrative);
@@ -373,8 +376,13 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
                         ).catch(() => {});
                     }
 
-                    if (isOnline) createNotification(supabase, secureComplainantId, "Report Received", `Under review.`, 'blotter').catch(() => {});
-                    notifyAllAdmins(supabase, "New Incident", `Case ${dbPayload.case_number} filed.`, 'blotter').catch(() => {});
+                    // 🛡️ Only a resident's own online filing is "new" to staff — a
+                    // walk-in staff just logged themselves shouldn't notify the
+                    // whole admin roster (including themselves) about their own action.
+                    if (isOnline) {
+                        createNotification(supabase, secureComplainantId, "Report Received", `Under review.`, 'blotter').catch(() => {});
+                        notifyAllAdmins(supabase, "New Incident", `Case ${dbPayload.case_number} filed.`, 'blotter').catch(() => {});
+                    }
                     
                     if (process.env.SMTP_USER) {
                         sendAutoMail(process.env.SMTP_USER, "New Incident Report", "Attention Required", `New report filed.<br>Case No: <strong>${dbPayload.case_number}</strong>`).catch(() => {});

@@ -190,9 +190,27 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
     const signal = pendingControllerRef.current.signal;
 
     // Returns null on a failed/aborted fetch so we keep the previous count (no flicker to 0).
-    const countPending = (list: any): number | null =>
+    // Excludes staff/walk-in-created records — these are handled on the spot, so they
+    // shouldn't inflate the "new incoming request" badge (matches DashboardHome.tsx's
+    // existing "Pending Requests" panel, which already excludes walk-in documents the
+    // same way; this brings the sidebar/stat-card badges in line with it).
+    const isPending = (x: any) => String(x?.status || 'Pending').toLowerCase() === 'pending';
+    const countPendingDocs = (list: any): number | null =>
       Array.isArray(list)
-        ? list.filter((x: any) => String(x?.status || 'Pending').toLowerCase() === 'pending').length
+        ? list.filter((x: any) => {
+            if (!isPending(x)) return false;
+            const method = String(x?.request_method || '').toLowerCase();
+            const ref = String(x?.reference_no || x?.referenceNo || '').toUpperCase();
+            return method !== 'walk-in' && !ref.includes('WK-IN');
+          }).length
+        : null;
+    const countPendingBlotters = (list: any): number | null =>
+      Array.isArray(list)
+        ? list.filter((x: any) => {
+            if (!isPending(x)) return false;
+            const caseNo = String(x?.case_number || '').toUpperCase();
+            return !caseNo.includes('WK-INC');
+          }).length
         : null;
 
     try {
@@ -200,8 +218,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
         ApiService.getDocuments(signal).catch(() => null),
         ApiService.getBlotters(signal).catch(() => null),
       ]);
-      const docCount = countPending(docs);
-      const incCount = countPending(blotters);
+      const docCount = countPendingDocs(docs);
+      const incCount = countPendingBlotters(blotters);
       setPendingCounts(prev => {
         const next = {
           Document: docCount === null ? prev.Document : docCount,
