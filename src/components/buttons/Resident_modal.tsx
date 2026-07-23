@@ -66,11 +66,7 @@ export const ResidentModal: React.FC<{
   residentData: IResident | null;
 }> = ({ isOpen, onClose, onSuccess, residentData }) => {
   const [formData, setFormData] = useState<IResident>(initialState);
-  // 📨 Where the NEW resident's account confirmation (credentials) gets sent —
-  // asked before the account is created. Not a resident field, so kept separate.
   const [confirmationChannel, setConfirmationChannel] = useState<'email' | 'sms'>('email');
-  // 🔐 Two-stage OTP registration (create mode only). 'form' = still editing;
-  // 'code-pending' = a code was sent, waiting on confirmation.
   const [registrationStage, setRegistrationStage] = useState<'form' | 'code-pending'>('form');
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [codeInput, setCodeInput] = useState('');
@@ -88,19 +84,15 @@ export const ResidentModal: React.FC<{
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, [registrationStage, codeExpiresAt, resendCooldownUntil]);
-  // 🪪 Government-ID checklist (SSS / PhilHealth / Other). UI-only toggles that
-  // reveal the ID input; once checked, entering the ID number is REQUIRED.
+
   const [govIdChecks, setGovIdChecks] = useState({ sss: false, philhealth: false, other: false });
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  
   const [globalError, setGlobalError] = useState(''); 
-  
   const [visibleList, setVisibleList] = useState<string | null>(null);
   const [customFields, setCustomFields] = useState<Record<string, boolean>>({});
-  
   const [successMessage, setSuccessMessage] = useState('');
-  const [isClosingPopup, setIsClosingPopup] = useState(false);
+  const [successData, setSuccessData] = useState<any>(null); // Stores result data for explicit close
 
   const isUpdateMode = !!residentData?.id;
 
@@ -110,7 +102,6 @@ export const ResidentModal: React.FC<{
 
   const dateRefs = { day: useRef<HTMLDivElement>(null), month: useRef<HTMLDivElement>(null), year: useRef<HTMLDivElement>(null) };
   const locRefs = { country: useRef<HTMLDivElement>(null), prov: useRef<HTMLDivElement>(null), city: useRef<HTMLDivElement>(null), nat: useRef<HTMLDivElement>(null) };
-  
   const scrollRef = useRef<HTMLFormElement>(null); 
 
   const months = useMemo(() => Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, '0')), []);
@@ -121,8 +112,6 @@ export const ResidentModal: React.FC<{
     if (isOpen) {
       if (residentData) {
         const rawDB = residentData as any;
-        // Normalize the government-ID trio (parents sometimes pass raw DB rows
-        // in snake_case) so the inputs show existing values on edit.
         setFormData({
           ...residentData,
           sssIdNumber: residentData.sssIdNumber || rawDB.sss_id_number || '',
@@ -185,7 +174,7 @@ export const ResidentModal: React.FC<{
       setErrors({});
       setGlobalError('');
       setSuccessMessage('');
-      setIsClosingPopup(false);
+      setSuccessData(null);
       setRegistrationStage('form');
       setSessionId(null);
       setCodeInput('');
@@ -211,18 +200,15 @@ export const ResidentModal: React.FC<{
 
   const handleDateChange = (field: 'day' | 'month' | 'year', val: string) => {
     if (!/^[0-9]*$/.test(val)) return;
-
     if (field === 'month') {
       const m = parseInt(val, 10);
       if (val.length === 2 && (m < 1 || m > 12)) return;
       if (val.length > 2) return;
     }
-    
     if (field === 'day') {
       const d = parseInt(val, 10);
       const m = parseInt(search.month || '0', 10);
       let maxDays = 31;
-      
       if (m === 2) {
           const y = parseInt(search.year || '0', 10);
           const isLeap = y > 0 ? ((y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0)) : true;
@@ -230,15 +216,12 @@ export const ResidentModal: React.FC<{
       } else if ([4, 6, 9, 11].includes(m)) {
           maxDays = 30;
       }
-      
       if (val.length >= 2 && (d < 1 || d > maxDays)) return;
       if (val.length > 2) return;
     }
-    
     if (field === 'year') {
       if (val.length > 4) return;
     }
-    
     setSearch(s => ({ ...s, [field]: val }));
   };
 
@@ -246,7 +229,6 @@ export const ResidentModal: React.FC<{
     if (field === 'province' || field === 'city') {
        if (!/^[A-Za-z\sñÑ]*$/.test(val)) return;
     }
-
     const upper = val.toUpperCase();
     if (field === 'province') setSearch(s => ({ ...s, province: upper, city: '' }));
     else if (field === 'city') setSearch(s => ({ ...s, city: upper }));
@@ -257,7 +239,6 @@ export const ResidentModal: React.FC<{
     if (search.day && search.month && search.year && !isUpdateMode) {
       setFormData(prev => ({ ...prev, dob: `${search.year}-${search.month}-${search.day}` }));
     }
-    
     const full = [search.country, search.province, search.city].filter(Boolean).join(', ').toUpperCase();
     setFormData(prev => ({ 
       ...prev, birthCountry: search.country, birthProvince: search.province, 
@@ -267,15 +248,12 @@ export const ResidentModal: React.FC<{
 
   const handleChange = (field: keyof IResident, value: any) => {
     if (isUpdateMode && field === 'dob') return;
-
     if (['lastName', 'firstName', 'middleName'].includes(field)) {
       if (!/^[A-Za-z\sñÑ]*$/.test(value)) return;
     }
-
     if (field === 'religion' && customFields.religion) {
       if (!/^[A-Za-z\sñÑ]*$/.test(value)) return;
     }
-
     if (field === 'contact_number') {
       if (!/^[0-9]*$/.test(value)) return; 
       if (value.length > 0 && value[0] !== '0') return; 
@@ -294,7 +272,7 @@ export const ResidentModal: React.FC<{
 
     setFormData(p => ({ ...p, [field]: v }));
     if (errors[field as string]) setErrors(p => ({ ...p, [field]: '' }));
-    if (globalError) setGlobalError(''); // Clear global error on typing
+    if (globalError) setGlobalError(''); 
   };
 
   const handleCustomBlur = (field: keyof IResident) => {
@@ -379,16 +357,8 @@ export const ResidentModal: React.FC<{
     try {
       const result = await ApiService.confirmResidentRegistrationCode(sessionId, codeInput.trim());
       if (result.success) {
+        setSuccessData(result.data);
         setSuccessMessage('Identity Registered Successfully');
-        setTimeout(() => {
-          setIsClosingPopup(true);
-          setTimeout(() => {
-            setSuccessMessage('');
-            setIsClosingPopup(false);
-            onSuccess(result.data);
-            onClose();
-          }, 300);
-        }, 800);
       } else {
         setGlobalError(result.error || 'Verification failed.');
       }
@@ -410,8 +380,6 @@ export const ResidentModal: React.FC<{
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // 🪪 A ticked government-ID checkbox REQUIRES its ID number (backs up the
-    // native `required` attribute in case browser validation is bypassed).
     const missingGovIds = [
       govIdChecks.sss && !formData.sssIdNumber?.trim() && 'SSS ID #',
       govIdChecks.philhealth && !formData.philhealthIdNumber?.trim() && 'PHILHEALTH ID #',
@@ -426,10 +394,8 @@ export const ResidentModal: React.FC<{
     const valErrors = validateResidentForm(formData);
     if (Object.keys(valErrors).length > 0) {
         setErrors(valErrors); 
-
         const failedKeys = Object.keys(valErrors).map(k => k.replace(/([A-Z])/g, ' $1').toUpperCase()).join(', ');
         setGlobalError(`Missing or invalid data in: ${failedKeys}`);
-        
         if (scrollRef.current) {
             scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
         }
@@ -455,28 +421,14 @@ export const ResidentModal: React.FC<{
       sssIdNumber: formData.sssIdNumber, philhealthIdNumber: formData.philhealthIdNumber,
       otherIdNumber: formData.otherIdNumber,
       activityStatus: formData.activityStatus,
-      // Only meaningful on CREATE — the backend sends credentials on this channel.
       ...(isUpdateMode ? {} : { confirmationChannel })
     };
 
     try {
       const result = await ApiService.saveResident(residentData?.id, safePayload);
       if (result.success) {
+        setSuccessData(result.data);
         setSuccessMessage(isUpdateMode ? 'Identity Updated Successfully' : 'Identity Registered Successfully');
-        
-        setTimeout(() => {
-          setIsClosingPopup(true); 
-          setTimeout(() => {
-            setSuccessMessage('');
-            setIsClosingPopup(false);
-            
-            // 🛡️ Ensure the result.data (which should contain the newly created/updated ID) is sent back
-            // to the page so it knows exactly what to highlight.
-            onSuccess(result.data); 
-            onClose();
-          }, 300); 
-        }, 800);
-        
       } else {
         setGlobalError(`Server Rejected: ${result.error}`);
         if (scrollRef.current) scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
@@ -494,24 +446,22 @@ export const ResidentModal: React.FC<{
   const lockIcon = <i className="fas fa-lock" style={{ fontSize: '10px', color: '#cbd5e1', marginLeft: '5px' }}></i>;
 
   return (
-    <div className="RMS_OVERLAY" onClick={onClose}>
+    <div className="RMS_OVERLAY">
       <div className="RMS_CARD" onClick={e => e.stopPropagation()}>
         
-        {/* SUCCESS POPUP */}
+        {/* SUCCESS POPUP (Explicit Close Only) */}
         {successMessage && (
           <div 
             style={{
               position: 'absolute',
               top: 0, left: 0, right: 0, bottom: 0,
-              backgroundColor: 'rgba(255, 255, 255, 0.75)',
+              backgroundColor: 'rgba(255, 255, 255, 0.85)',
               backdropFilter: 'blur(4px)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               zIndex: 9999,
               borderRadius: '8px',
-              opacity: isClosingPopup ? 0 : 1,
-              transition: 'opacity 0.3s ease-in-out',
             }}
           >
             <div 
@@ -525,9 +475,6 @@ export const ResidentModal: React.FC<{
                 flexDirection: 'column',
                 alignItems: 'center',
                 gap: '16px',
-                transform: isClosingPopup ? 'translateY(-15px) scale(0.97)' : 'translateY(0) scale(1)',
-                opacity: isClosingPopup ? 0 : 1,
-                transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
               }}
             >
               <div 
@@ -543,6 +490,32 @@ export const ResidentModal: React.FC<{
                   {successMessage}
                 </h3>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSuccessMessage('');
+                  if (successData) {
+                    onSuccess(successData);
+                  }
+                  onClose();
+                }}
+                style={{
+                  marginTop: '8px',
+                  padding: '10px 32px',
+                  backgroundColor: '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#059669')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#10b981')}
+              >
+                CONTINUE
+              </button>
             </div>
           </div>
         )}
@@ -565,7 +538,6 @@ export const ResidentModal: React.FC<{
         >
           <div className="RMS_BODY">
             
-            {/* 🛡️ EXPLICIT GLOBAL ERROR BANNER */}
             {globalError && (
                 <div style={{ backgroundColor: '#fef2f2', color: '#991b1b', border: '1px solid #f87171', padding: '12px', borderRadius: '8px', marginBottom: '20px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600' }}>
                     <i className="fas fa-exclamation-circle"></i>
@@ -774,7 +746,6 @@ export const ResidentModal: React.FC<{
                     <span>{item.l}</span>
                   </label>
                 ))}
-                {/* 🪪 Government IDs — same checklist; ticking one REQUIRES its ID number. */}
                 {([
                   { k: 'sss', l: 'SSS ID', field: 'sssIdNumber' },
                   { k: 'philhealth', l: 'PHILHEALTH ID', field: 'philhealthIdNumber' },
@@ -787,7 +758,7 @@ export const ResidentModal: React.FC<{
                       onChange={e => {
                         const on = e.target.checked;
                         setGovIdChecks(p => ({ ...p, [item.k]: on }));
-                        if (!on) handleChange(item.field, ''); // unticking clears the ID
+                        if (!on) handleChange(item.field, ''); 
                       }}
                     />
                     <span>{item.l}</span>
@@ -850,8 +821,6 @@ export const ResidentModal: React.FC<{
             </div>
             </fieldset>
 
-            {/* 📨 Asked BEFORE the account is created: where do the new resident's
-                login credentials go — their Gmail or their phone number? */}
             {!isUpdateMode && (
               <div className="RMS_SECTION">
                 <div className="RMS_SEC_TITLE">Account Confirmation</div>
