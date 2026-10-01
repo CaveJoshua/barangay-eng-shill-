@@ -296,7 +296,21 @@ const triggerAction = async (
     const data = await response.json();
 
     if (!response.ok) {
-      return { success: false, error: data?.error || `Request failed with status ${response.status}` };
+      const collisionDetail = Array.isArray(data?.collisions) && data.collisions.length
+        ? data.collisions.map((c: any) => c.message).join(' | ')
+        : (data?.message || null);
+
+      const formattedError = collisionDetail 
+        ? `${data?.error || 'Error'}: ${collisionDetail}`
+        : (data?.error || `Request failed with status ${response.status}`);
+
+      return { 
+        success: false, 
+        error: formattedError,
+        rawError: data?.error,
+        message: data?.message,
+        collisions: data?.collisions 
+      };
     }
 
     return { success: true, data };
