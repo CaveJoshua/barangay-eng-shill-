@@ -12,30 +12,32 @@ export const validateResidentForm = (data: IResident): Record<string, string> =>
   const errors: Record<string, string> = {};
 
   // =========================================================================
-  // 1. STRICT ALPHABETICAL VALIDATION (Letters, spaces, and ñ/Ñ ONLY)
+  // 1. STRICT ALPHABETICAL VALIDATION (Letters, spaces, hyphens, dots, and ñ/Ñ)
   // =========================================================================
-  const alphaOnlyRegex = /^[A-Za-z\sñÑ]+$/; 
+  const nameRegex = /^[A-Za-z\sñÑ.'-]+$/; 
+  const alphaOnlyRegex = /^[A-Za-z\sñÑ.'-]+$/; 
 
   if (!data.firstName?.trim()) {
     errors.firstName = "FIRST NAME IS REQUIRED.";
-  } else if (!alphaOnlyRegex.test(data.firstName)) {
-    errors.firstName = "USE ONLY LETTERS (A-Z). NO NUMBERS OR SYMBOLS ALLOWED.";
+  } else if (!nameRegex.test(data.firstName)) {
+    errors.firstName = "USE ONLY LETTERS (A-Z), HYPHENS, OR PERIODS.";
   }
 
   if (!data.lastName?.trim()) {
     errors.lastName = "LAST NAME IS REQUIRED.";
-  } else if (!alphaOnlyRegex.test(data.lastName)) {
-    errors.lastName = "USE ONLY LETTERS (A-Z). NO NUMBERS OR SYMBOLS ALLOWED.";
+  } else if (!nameRegex.test(data.lastName)) {
+    errors.lastName = "USE ONLY LETTERS (A-Z), HYPHENS, OR PERIODS.";
   }
 
-  if (data.middleName?.trim() && !alphaOnlyRegex.test(data.middleName)) {
-    errors.middleName = "USE ONLY LETTERS (A-Z). NO NUMBERS OR SYMBOLS ALLOWED.";
+  if (data.middleName?.trim() && !nameRegex.test(data.middleName)) {
+    errors.middleName = "USE ONLY LETTERS (A-Z), HYPHENS, OR PERIODS.";
   }
 
   // =========================================================================
   // 2. RELIGION VALIDATION (Strictly characters only for custom entries)
   // =========================================================================
-  if (data.religion?.trim() && !alphaOnlyRegex.test(data.religion)) {
+  const religionRegex = /^[A-Za-z\sñÑ-]+$/;
+  if (data.religion?.trim() && !religionRegex.test(data.religion)) {
     errors.religion = "RELIGION MUST CONTAIN ONLY LETTERS. NO NUMBERS/SYMBOLS.";
   }
 
@@ -45,8 +47,8 @@ export const validateResidentForm = (data: IResident): Record<string, string> =>
   if (!data.dob) {
     errors.dob = "DATE OF BIRTH IS REQUIRED.";
   } else {
-    // Enforce strict numerical format, blocking letters entirely
-    const dateRegex = /^(\d{4})-(\d{2})-(\d{2})$/;
+    // Enforce strict numerical format, allowing both YYYY-MM-DD and YYYY-M-D
+    const dateRegex = /^(\d{4})-(\d{1,2})-(\d{1,2})$/;
     const match = data.dob.match(dateRegex);
 
     if (!match) {

@@ -222,22 +222,38 @@ export const ResidentModal: React.FC<{
     if (field === 'year') {
       if (val.length > 4) return;
     }
-    setSearch(s => ({ ...s, [field]: val }));
+    setSearch(s => {
+      const nextSearch = { ...s, [field]: val };
+      if (nextSearch.day && nextSearch.month && nextSearch.year && !isUpdateMode) {
+        const paddedM = String(nextSearch.month).padStart(2, '0');
+        const paddedD = String(nextSearch.day).padStart(2, '0');
+        setFormData(prev => ({ ...prev, dob: `${nextSearch.year}-${paddedM}-${paddedD}` }));
+      }
+      return nextSearch;
+    });
+    if (errors.dob) setErrors(prev => ({ ...prev, dob: '' }));
+    if (globalError) setGlobalError('');
   };
 
   const handleLocSearchChange = (field: string, val: string) => {
     if (field === 'province' || field === 'city') {
-       if (!/^[A-Za-z\sñÑ]*$/.test(val)) return;
+       if (!/^[A-Za-z\sñÑ.'-]*$/.test(val)) return;
     }
     const upper = val.toUpperCase();
     if (field === 'province') setSearch(s => ({ ...s, province: upper, city: '' }));
     else if (field === 'city') setSearch(s => ({ ...s, city: upper }));
     else setSearch(s => ({ ...s, [field]: upper }));
+    const errKey = field === 'province' ? 'birthProvince' : field === 'city' ? 'birthCity' : 'birthCountry';
+    if (errors[errKey]) setErrors(prev => ({ ...prev, [errKey]: '' }));
+    if (globalError) setGlobalError('');
   };
 
   useEffect(() => {
     if (search.day && search.month && search.year && !isUpdateMode) {
-      setFormData(prev => ({ ...prev, dob: `${search.year}-${search.month}-${search.day}` }));
+      const paddedM = String(search.month).padStart(2, '0');
+      const paddedD = String(search.day).padStart(2, '0');
+      setFormData(prev => ({ ...prev, dob: `${search.year}-${paddedM}-${paddedD}` }));
+      if (errors.dob) setErrors(prev => ({ ...prev, dob: '' }));
     }
     const full = [search.country, search.province, search.city].filter(Boolean).join(', ').toUpperCase();
     setFormData(prev => ({ 
@@ -249,10 +265,10 @@ export const ResidentModal: React.FC<{
   const handleChange = (field: keyof IResident, value: any) => {
     if (isUpdateMode && field === 'dob') return;
     if (['lastName', 'firstName', 'middleName'].includes(field)) {
-      if (!/^[A-Za-z\sñÑ]*$/.test(value)) return;
+      if (!/^[A-Za-z\sñÑ.'-]*$/.test(value)) return;
     }
     if (field === 'religion' && customFields.religion) {
-      if (!/^[A-Za-z\sñÑ]*$/.test(value)) return;
+      if (!/^[A-Za-z\sñÑ-]*$/.test(value)) return;
     }
     if (field === 'contact_number') {
       if (!/^[0-9]*$/.test(value)) return; 
@@ -281,6 +297,50 @@ export const ResidentModal: React.FC<{
     }
   };
 
+  const mapCollisionsToErrors = (collisions?: Array<{ field: string; message: string }>, errorMessage?: string): Record<string, string> => {
+    const mappedErrors: Record<string, string> = {};
+    if (Array.isArray(collisions) && collisions.length > 0) {
+      collisions.forEach(c => {
+        const fieldMap: Record<string, string> = {
+          'contact_number': 'contact_number',
+          'email': 'email',
+          'voter_id_number': 'voterIdNumber',
+          'pwd_id_number': 'pwdIdNumber',
+          'four_ps_id_number': 'fourPsIdNumber',
+          'solo_parent_id_number': 'soloParentIdNumber',
+          'senior_id_number': 'seniorIdNumber',
+          'sss_id_number': 'sssIdNumber',
+          'philhealth_id_number': 'philhealthIdNumber',
+          'other_id_number': 'otherIdNumber',
+        };
+        const formKey = fieldMap[c.field] || c.field;
+        mappedErrors[formKey] = c.message;
+      });
+    } else if (errorMessage) {
+      const lower = errorMessage.toLowerCase();
+      if (lower.includes('contact number') || lower.includes('phone')) {
+        mappedErrors.contact_number = errorMessage;
+      } else if (lower.includes('email')) {
+        mappedErrors.email = errorMessage;
+      } else if (lower.includes('voter')) {
+        mappedErrors.voterIdNumber = errorMessage;
+      } else if (lower.includes('pwd')) {
+        mappedErrors.pwdIdNumber = errorMessage;
+      } else if (lower.includes('4ps')) {
+        mappedErrors.fourPsIdNumber = errorMessage;
+      } else if (lower.includes('solo parent')) {
+        mappedErrors.soloParentIdNumber = errorMessage;
+      } else if (lower.includes('senior')) {
+        mappedErrors.seniorIdNumber = errorMessage;
+      } else if (lower.includes('sss')) {
+        mappedErrors.sssIdNumber = errorMessage;
+      } else if (lower.includes('philhealth')) {
+        mappedErrors.philhealthIdNumber = errorMessage;
+      }
+    }
+    return mappedErrors;
+  };
+
   const handleSendCode = async () => {
     const missingGovIds = [
       govIdChecks.sss && !formData.sssIdNumber?.trim() && 'SSS ID #',
@@ -293,7 +353,12 @@ export const ResidentModal: React.FC<{
       return;
     }
 
-    const valErrors = validateResidentForm(formData);
+    const currentDob = (search.day && search.month && search.year && !isUpdateMode)
+      ? `${search.year}-${String(search.month).padStart(2, '0')}-${String(search.day).padStart(2, '0')}`
+      : formData.dob;
+
+    const payloadToValidate = { ...formData, dob: currentDob };
+    const valErrors = validateResidentForm(payloadToValidate);
     if (Object.keys(valErrors).length > 0) {
       setErrors(valErrors);
       const failedKeys = Object.keys(valErrors).map(k => k.replace(/([A-Z])/g, ' $1').toUpperCase()).join(', ');
@@ -301,6 +366,9 @@ export const ResidentModal: React.FC<{
       if (scrollRef.current) scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
+
+    // Clear stale errors
+    setErrors({});
 
     const destination = confirmationChannel === 'email' ? formData.email : formData.contact_number;
     if (!destination) {
@@ -314,7 +382,7 @@ export const ResidentModal: React.FC<{
 
     const safePayload = {
       firstName: formData.firstName, lastName: formData.lastName, middleName: formData.middleName,
-      sex: formData.sex, dob: formData.dob, birthCountry: formData.birthCountry,
+      sex: formData.sex, dob: currentDob, birthCountry: formData.birthCountry,
       birthProvince: formData.birthProvince, birthCity: formData.birthCity, birthPlace: formData.birthPlace,
       nationality: formData.nationality, religion: formData.religion, contact_number: formData.contact_number,
       email: formData.email, currentAddress: formData.currentAddress, purok: formData.purok,
@@ -339,6 +407,10 @@ export const ResidentModal: React.FC<{
         setResendCooldownUntil(Date.now() + 60 * 1000);
         setRegistrationStage('code-pending');
       } else {
+        const collisionErrors = mapCollisionsToErrors(result.collisions, result.error);
+        if (Object.keys(collisionErrors).length > 0) {
+          setErrors(prev => ({ ...prev, ...collisionErrors }));
+        }
         setGlobalError(`Server Rejected: ${result.error}`);
         if (scrollRef.current) scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -391,7 +463,12 @@ export const ResidentModal: React.FC<{
       return;
     }
 
-    const valErrors = validateResidentForm(formData);
+    const currentDob = (search.day && search.month && search.year && !isUpdateMode)
+      ? `${search.year}-${String(search.month).padStart(2, '0')}-${String(search.day).padStart(2, '0')}`
+      : formData.dob;
+
+    const payloadToValidate = { ...formData, dob: currentDob };
+    const valErrors = validateResidentForm(payloadToValidate);
     if (Object.keys(valErrors).length > 0) {
         setErrors(valErrors); 
         const failedKeys = Object.keys(valErrors).map(k => k.replace(/([A-Z])/g, ' $1').toUpperCase()).join(', ');
@@ -402,12 +479,15 @@ export const ResidentModal: React.FC<{
         return; 
     }
     
+    // Clear stale errors
+    setErrors({});
+
     setGlobalError('');
     setIsLoading(true);
 
     const safePayload = {
       firstName: formData.firstName, lastName: formData.lastName, middleName: formData.middleName,
-      sex: formData.sex, dob: formData.dob, birthCountry: formData.birthCountry,
+      sex: formData.sex, dob: currentDob, birthCountry: formData.birthCountry,
       birthProvince: formData.birthProvince, birthCity: formData.birthCity, birthPlace: formData.birthPlace,
       nationality: formData.nationality, religion: formData.religion, contact_number: formData.contact_number, 
       email: formData.email, currentAddress: formData.currentAddress, purok: formData.purok,
@@ -430,6 +510,10 @@ export const ResidentModal: React.FC<{
         setSuccessData(result.data);
         setSuccessMessage(isUpdateMode ? 'Identity Updated Successfully' : 'Identity Registered Successfully');
       } else {
+        const collisionErrors = mapCollisionsToErrors(result.collisions, result.error);
+        if (Object.keys(collisionErrors).length > 0) {
+          setErrors(prev => ({ ...prev, ...collisionErrors }));
+        }
         setGlobalError(`Server Rejected: ${result.error}`);
         if (scrollRef.current) scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -565,6 +649,7 @@ export const ResidentModal: React.FC<{
                 <div className="RMS_GROUP">
                   <label className="RMS_LABEL">MIDDLE NAME</label>
                   <input className={`RMS_INPUT ${errors.middleName ? 'ERR_BORDER' : ''}`} value={formData.middleName} onChange={e => handleChange('middleName', e.target.value)} />
+                  {errors.middleName && <span className="RMS_ERROR_TXT">{errors.middleName}</span>}
                 </div>
 
                 <div className="RMS_GROUP">
@@ -592,6 +677,7 @@ export const ResidentModal: React.FC<{
                     <input className={`RMS_INPUT ${errors.birthCountry ? 'ERR_BORDER' : ''}`} value={search.country} onFocus={() => setVisibleList('country')} onChange={e => handleLocSearchChange('country', e.target.value)} />
                     {visibleList === 'country' && <ul className="RMS_SEARCH_RESULTS">{filterLimit(availableCountries, search.country).map(c => <li key={c} onClick={() => {handleLocSearchChange('country', c); setVisibleList(null);}}>{c}</li>)}</ul>}
                   </div>
+                  {errors.birthCountry && <span className="RMS_ERROR_TXT">{errors.birthCountry}</span>}
                 </div>
                 <div className="RMS_GROUP" ref={locRefs.prov}>
                   <label className="RMS_LABEL">PROVINCE OF BIRTH</label>
@@ -599,6 +685,7 @@ export const ResidentModal: React.FC<{
                     <input className={`RMS_INPUT ${errors.birthProvince ? 'ERR_BORDER' : ''}`} placeholder="SEARCH PROVINCE..." value={search.province} onFocus={() => setVisibleList('prov')} onChange={e => handleLocSearchChange('province', e.target.value)} />
                     {visibleList === 'prov' && <ul className="RMS_SEARCH_RESULTS">{filterLimit(availableProvinces, search.province).map(p => <li key={p} onClick={() => {handleLocSearchChange('province', p); setVisibleList(null);}}>{p}</li>)}</ul>}
                   </div>
+                  {errors.birthProvince && <span className="RMS_ERROR_TXT">{errors.birthProvince}</span>}
                 </div>
                 <div className="RMS_GROUP" ref={locRefs.city}>
                   <label className="RMS_LABEL">CITY/MUNICIPALITY</label>
@@ -606,6 +693,7 @@ export const ResidentModal: React.FC<{
                     <input className={`RMS_INPUT ${errors.birthCity ? 'ERR_BORDER' : ''}`} placeholder="SEARCH CITY..." value={search.city} onFocus={() => setVisibleList('city')} onChange={e => handleLocSearchChange('city', e.target.value)} disabled={!search.province} />
                     {visibleList === 'city' && <ul className="RMS_SEARCH_RESULTS">{filterLimit(availableCities, search.city).map(c => <li key={c} onClick={() => {handleLocSearchChange('city', c); setVisibleList(null);}}>{c}</li>)}</ul>}
                   </div>
+                  {errors.birthCity && <span className="RMS_ERROR_TXT">{errors.birthCity}</span>}
                 </div>
 
                 <div className="RMS_GROUP">
@@ -771,49 +859,57 @@ export const ResidentModal: React.FC<{
                   {formData.isVoter && (
                     <div className="RMS_GROUP">
                       <label className="RMS_LABEL">VOTER'S ID # (OPTIONAL)</label>
-                      <input className="RMS_INPUT" value={formData.voterIdNumber} onChange={e => handleChange('voterIdNumber', e.target.value)} maxLength={25} />
+                      <input className={`RMS_INPUT ${errors.voterIdNumber ? 'ERR_BORDER' : ''}`} value={formData.voterIdNumber} onChange={e => handleChange('voterIdNumber', e.target.value)} maxLength={25} />
+                      {errors.voterIdNumber && <span className="RMS_ERROR_TXT">{errors.voterIdNumber}</span>}
                     </div>
                   )}
                   {formData.isPWD && (
                     <div className="RMS_GROUP">
                       <label className="RMS_LABEL">PWD ID #</label>
-                      <input className="RMS_INPUT" value={formData.pwdIdNumber} onChange={e => handleChange('pwdIdNumber', e.target.value)} maxLength={25} />
+                      <input className={`RMS_INPUT ${errors.pwdIdNumber ? 'ERR_BORDER' : ''}`} value={formData.pwdIdNumber} onChange={e => handleChange('pwdIdNumber', e.target.value)} maxLength={25} />
+                      {errors.pwdIdNumber && <span className="RMS_ERROR_TXT">{errors.pwdIdNumber}</span>}
                     </div>
                   )}
                   {formData.is4Ps && (
                     <div className="RMS_GROUP">
                       <label className="RMS_LABEL">4Ps ID #</label>
-                      <input className="RMS_INPUT" value={formData.fourPsIdNumber} onChange={e => handleChange('fourPsIdNumber', e.target.value)} maxLength={20} />
+                      <input className={`RMS_INPUT ${errors.fourPsIdNumber ? 'ERR_BORDER' : ''}`} value={formData.fourPsIdNumber} onChange={e => handleChange('fourPsIdNumber', e.target.value)} maxLength={20} />
+                      {errors.fourPsIdNumber && <span className="RMS_ERROR_TXT">{errors.fourPsIdNumber}</span>}
                     </div>
                   )}
                   {formData.isSoloParent && (
                     <div className="RMS_GROUP">
                       <label className="RMS_LABEL">SOLO PARENT ID #</label>
-                      <input className="RMS_INPUT" value={formData.soloParentIdNumber} onChange={e => handleChange('soloParentIdNumber', e.target.value)} maxLength={25} />
+                      <input className={`RMS_INPUT ${errors.soloParentIdNumber ? 'ERR_BORDER' : ''}`} value={formData.soloParentIdNumber} onChange={e => handleChange('soloParentIdNumber', e.target.value)} maxLength={25} />
+                      {errors.soloParentIdNumber && <span className="RMS_ERROR_TXT">{errors.soloParentIdNumber}</span>}
                     </div>
                   )}
                   {formData.isSeniorCitizen && (
                     <div className="RMS_GROUP">
                       <label className="RMS_LABEL">SENIOR CITIZEN ID #</label>
-                      <input className="RMS_INPUT" value={formData.seniorIdNumber} onChange={e => handleChange('seniorIdNumber', e.target.value)} maxLength={20} />
+                      <input className={`RMS_INPUT ${errors.seniorIdNumber ? 'ERR_BORDER' : ''}`} value={formData.seniorIdNumber} onChange={e => handleChange('seniorIdNumber', e.target.value)} maxLength={20} />
+                      {errors.seniorIdNumber && <span className="RMS_ERROR_TXT">{errors.seniorIdNumber}</span>}
                     </div>
                   )}
                   {govIdChecks.sss && (
                     <div className="RMS_GROUP">
                       <label className="RMS_LABEL">SSS ID # *</label>
-                      <input className="RMS_INPUT" required value={formData.sssIdNumber} onChange={e => handleChange('sssIdNumber', e.target.value)} maxLength={20} />
+                      <input className={`RMS_INPUT ${errors.sssIdNumber ? 'ERR_BORDER' : ''}`} required value={formData.sssIdNumber} onChange={e => handleChange('sssIdNumber', e.target.value)} maxLength={20} />
+                      {errors.sssIdNumber && <span className="RMS_ERROR_TXT">{errors.sssIdNumber}</span>}
                     </div>
                   )}
                   {govIdChecks.philhealth && (
                     <div className="RMS_GROUP">
                       <label className="RMS_LABEL">PHILHEALTH ID # *</label>
-                      <input className="RMS_INPUT" required value={formData.philhealthIdNumber} onChange={e => handleChange('philhealthIdNumber', e.target.value)} maxLength={20} />
+                      <input className={`RMS_INPUT ${errors.philhealthIdNumber ? 'ERR_BORDER' : ''}`} required value={formData.philhealthIdNumber} onChange={e => handleChange('philhealthIdNumber', e.target.value)} maxLength={20} />
+                      {errors.philhealthIdNumber && <span className="RMS_ERROR_TXT">{errors.philhealthIdNumber}</span>}
                     </div>
                   )}
                   {govIdChecks.other && (
                     <div className="RMS_GROUP">
                       <label className="RMS_LABEL">OTHER VALID ID # *</label>
-                      <input className="RMS_INPUT" required value={formData.otherIdNumber} onChange={e => handleChange('otherIdNumber', e.target.value)} maxLength={30} />
+                      <input className={`RMS_INPUT ${errors.otherIdNumber ? 'ERR_BORDER' : ''}`} required value={formData.otherIdNumber} onChange={e => handleChange('otherIdNumber', e.target.value)} maxLength={30} />
+                      {errors.otherIdNumber && <span className="RMS_ERROR_TXT">{errors.otherIdNumber}</span>}
                     </div>
                   )}
                 </div>
