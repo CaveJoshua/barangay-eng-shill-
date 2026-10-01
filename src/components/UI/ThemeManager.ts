@@ -3,7 +3,7 @@
 // Admin portal  → data-theme           + sb_theme_${userId}
 // Resident portal → data-resident-theme + theme_${recordId}
 
-export type ThemeValue = 'light' | 'dark';
+export type ThemeValue = 'light' | 'dark' | 'cream';
 
 const adminKey    = (uid: string) => `sb_theme_${uid}`;
 const residentKey = (rid: string) => `theme_${rid}`;
@@ -12,10 +12,12 @@ export const ThemeManager = {
 
   applyAdmin(theme: ThemeValue): void {
     document.documentElement.setAttribute('data-theme', theme);
+    window.dispatchEvent(new CustomEvent('sb_theme_updated', { detail: { theme } }));
   },
 
   applyResident(theme: ThemeValue): void {
     document.documentElement.setAttribute('data-resident-theme', theme);
+    window.dispatchEvent(new CustomEvent('sb_theme_updated', { detail: { theme } }));
   },
 
   // Resets both attributes to light — called on logout.

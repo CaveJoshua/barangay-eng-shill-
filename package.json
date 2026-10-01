@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "node server/index.js",
+    "start:cluster": "node server/cluster.js",
+    "start:lb": "node server/load-balancer.js"
   },
   "dependencies": {
     "@emnapi/core": "^1.9.2",
@@ -47,6 +50,7 @@
     "resend": "^6.12.4",
     "shelljs": "0.10.0",
     "supabase": "^2.107.0",
+    "ws": "^8.21.3",
     "xss": "1.0.15",
     "zod": "4.3.6"
   },

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import './styles/Community_login_modal.css';
 import { API_BASE_URL } from '../UI/api';
 import { ThemeManager } from '../UI/ThemeManager';
+import { AntiBotLoginWidget } from '../Captcha/AntiBotLoginWidget';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -28,8 +29,9 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
-  // --- ANTI-BRUTE FORCE STATE ---
+  // --- ANTI-BRUTE FORCE & ANTI-BOT STATE ---
   const [lockoutRemaining, setLockoutRemaining] = useState<number>(0);
+  const [isCaptchaVerified, setIsCaptchaVerified] = useState(false);
 
   const LOGIN_URL = `${API_BASE_URL}/residents/login`;
   const FORGOT_PW_URL = `${API_BASE_URL}/accounts/request-otp`; 
@@ -79,6 +81,11 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
     e.preventDefault();
     if (lockoutRemaining > 0) return;
 
+    if (!isCaptchaVerified) {
+      setError("Please complete 'I am human' verification before logging in.");
+      return;
+    }
+
     setError('');
     setLoading(true);
 
@@ -122,6 +129,7 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
       onClose();
     } catch (err: any) {
       setError(err.message); 
+      setIsCaptchaVerified(false);
     } finally {
       setLoading(false);
     }
@@ -269,6 +277,16 @@ export const CommunityLoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose
                   Forgot Password?
                 </button>
               </div>
+
+              <AntiBotLoginWidget
+                visible={true}
+                isVerified={isCaptchaVerified}
+                onVerified={() => {
+                  setIsCaptchaVerified(true);
+                  setError('');
+                }}
+                theme="light"
+              />
 
               <button type="submit" className="CM_LOGIN_SUBMIT" disabled={isBlocked}>
                 {lockoutRemaining > 0 ? `Locked (${lockoutRemaining}s)` : loading ? <i className="fas fa-circle-notch fa-spin"></i> : 'Enter Dashboard'}

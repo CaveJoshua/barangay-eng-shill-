@@ -1,0 +1,113 @@
+   LoadingScreen.css — Architectural Engineers Hill Barangay Seal Loader
+   ============================================================ */
+
+.eng-seal-loader-container {
+  --bg-color: #f4f4f0;
+  --stroke-color: #121212;
+  --grid-color: rgba(0, 0, 0, 0.04);
+
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: var(--bg-color);
+  background-image: 
+    linear-gradient(var(--grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+  background-size: 20px 20px;
+  overflow: hidden;
+  font-family: Arial, sans-serif;
+  z-index: 99999;
+  user-select: none;
+}
+
+.eng-seal-loader-container.fullscreen {
+  min-height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.eng-seal-loader-container.embedded {
+  min-height: 520px;
+  border-radius: 20px;
+}
+
+.seal-stage {
+  width: 520px;
+  height: 520px;
+  max-width: 90vw;
+  max-height: 90vw;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.seal-stage svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* Outer Border Lines Draw Once and Lock */
+.draw-stroke {
+  fill: none;
+  stroke: var(--stroke-color);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 2000;
+  stroke-dashoffset: 2000;
+  animation: drawLine 3.2s cubic-bezier(0.2, 1, 0.3, 1) forwards;
+}
+
+/* Precise Line Weights */
+.w-thick  { stroke-width: 3.8px; }
+.w-medium { stroke-width: 2.0px; }
+.w-fine   { stroke-width: 1.2px; }
+
+/* Center Emblem Fades In with Authentic Vibrant Colors */
+.cropped-center-img {
+  filter: saturate(112%) contrast(106%) brightness(102%);
+  opacity: 0;
+  animation: fadeInCenter 0.8s ease forwards;
+  animation-delay: 0.2s;
+}
+
+/* Outlined Typography (Immediate Visibility & Crisp Alignment) */
+.outlined-text {
+  fill: var(--stroke-color);
+  stroke: var(--stroke-color);
+  stroke-width: 0.6px;
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  opacity: 1;
+}
+
+.outlined-text.text-bottom {
+  font-size: 27px;
+  letter-spacing: 5.5px;
+}
+
+/* Keyframe Animations */
+@keyframes drawLine {
+  0% {
+    stroke-dashoffset: 2000;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes fadeInCenter {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}

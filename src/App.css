@@ -27,6 +27,7 @@ html, body, #root {
   --TEXT-main: #1e293b;
   --TEXT-sub: #64748b;
   --color-brand: #3b82f6;
+  --color-accent: #2563eb;
 }
 
 [data-theme='dark'],
@@ -36,6 +37,27 @@ html, body, #root {
   --CONTENT-bg: #0f172a;
   --TEXT-main: #f8fafc;
   --TEXT-sub: #94a3b8;
+  --color-brand: #3b82f6;
+  --color-accent: #60a5fa;
+  --bg-main: #0f172a;
+  --bg-card: #1e293b;
+  --bg-accent: #17233f;
+  --border-color: #334155;
+}
+
+[data-theme='cream'],
+[data-resident-theme='cream'] {
+  --L-bg: #f8f6f0;
+  --L-border: #cfc8b6;
+  --CONTENT-bg: #edeae1;
+  --TEXT-main: #302c23;
+  --TEXT-sub: #575040;
+  --color-brand: #4a4436;
+  --color-accent: #6b6351;
+  --bg-main: #edeae1;
+  --bg-card: #f8f6f0;
+  --bg-accent: #e5dfd1;
+  --border-color: #cfc8b6;
 }
 
 /* --- 4. THE GAP FIX (CRITICAL) --- */

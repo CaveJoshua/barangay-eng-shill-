@@ -1,0 +1,79 @@
+{
+  "images": [
+    {
+      "id": 1,
+      "filename": "puzzle_1.jpg",
+      "url": "/captcha/puzzle_1.jpg"
+    },
+    {
+      "id": 2,
+      "filename": "puzzle_2.jpg",
+      "url": "/captcha/puzzle_2.jpg"
+    },
+    {
+      "id": 3,
+      "filename": "puzzle_3.jpg",
+      "url": "/captcha/puzzle_3.jpg"
+    },
+    {
+      "id": 4,
+      "filename": "puzzle_4.jpg",
+      "url": "/captcha/puzzle_4.jpg"
+    },
+    {
+      "id": 5,
+      "filename": "puzzle_5.jpg",
+      "url": "/captcha/puzzle_5.jpg"
+    },
+    {
+      "id": 6,
+      "filename": "puzzle_6.jpg",
+      "url": "/captcha/puzzle_6.jpg"
+    },
+    {
+      "id": 7,
+      "filename": "puzzle_7.jpg",
+      "url": "/captcha/puzzle_7.jpg"
+    },
+    {
+      "id": 8,
+      "filename": "puzzle_8.jpg",
+      "url": "/captcha/puzzle_8.jpg"
+    },
+    {
+      "id": 9,
+      "filename": "puzzle_9.jpg",
+      "url": "/captcha/puzzle_9.jpg"
+    },
+    {
+      "id": 10,
+      "filename": "puzzle_10.jpg",
+      "url": "/captcha/puzzle_10.jpg"
+    },
+    {
+      "id": 11,
+      "filename": "puzzle_11.jpg",
+      "url": "/captcha/puzzle_11.jpg"
+    },
+    {
+      "id": 12,
+      "filename": "puzzle_12.jpg",
+      "url": "/captcha/puzzle_12.jpg"
+    },
+    {
+      "id": 13,
+      "filename": "puzzle_13.jpg",
+      "url": "/captcha/puzzle_13.jpg"
+    },
+    {
+      "id": 14,
+      "filename": "puzzle_14.jpg",
+      "url": "/captcha/puzzle_14.jpg"
+    },
+    {
+      "id": 15,
+      "filename": "puzzle_15.jpg",
+      "url": "/captcha/puzzle_15.jpg"
+    }
+  ]
+}

@@ -63,6 +63,35 @@
   --arc-shadow-focus: 0 0 0 3px rgba(96, 165, 250, 0.2);
 }
 
+:global([data-theme="cream"]),
+:global([data-resident-theme="cream"]),
+[data-theme="cream"],
+[data-resident-theme="cream"] {
+  --arc-bg-app: #edeae1;
+  --arc-bg-card: #f8f6f0;
+  --arc-bg-accent: #ded6c4;
+  --arc-bg-hover: #e5dfd1;
+
+  --arc-border: #cfc8b6;
+  --arc-border-input: #b8af9b;
+  --arc-border-focus: #4a4436;
+
+  --arc-text-main: #302c23;
+  --arc-text-sub: #575040;
+  --arc-text-muted: #7a7261;
+
+  --arc-badge-success-bg: rgba(22, 101, 52, 0.15);
+  --arc-badge-success-txt: #166534;
+  --arc-badge-danger-bg: rgba(220, 38, 38, 0.15);
+  --arc-badge-danger-txt: #991b1b;
+  --arc-badge-warn-bg: rgba(217, 119, 6, 0.18);
+  --arc-badge-warn-txt: #92400e;
+  --arc-badge-archive-bg: #ded6c4;
+  --arc-badge-archive-txt: #575040;
+  
+  --arc-shadow-focus: 0 0 0 3px rgba(74, 68, 54, 0.2);
+}
+
 /* ── 1. PAGE LAYOUT ── */
 .ARC_PAGE_WRAP {
   padding: 1.5rem;

@@ -1,6 +1,7 @@
 
 import { logActivity } from '../lib/Auditlog.js';
 import { sendAutoMail } from '../lib/Mailer.js';
+import { broadcastRealtimeEvent } from '../lib/WebSocketServer.js';
 import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
 import os from 'os';
@@ -352,6 +353,9 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
                     const { data, error } = await supabase.from('blotter_cases').insert([dbPayload]).select().single();
                     if (error) throw error;
 
+                    broadcastRealtimeEvent('BLOTTER_UPDATED', { action: 'CREATED', case_number: dbPayload.case_number });
+                    broadcastRealtimeEvent('STATS_UPDATED');
+
                     res.status(201).json({ success: true, data });
 
                     logActivity(supabase, actor, 'INCIDENT_REPORTED', `Case ${dbPayload.case_number} filed.`, req).catch(() => {});
@@ -425,7 +429,11 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
                 const { data: caseData } = await supabase.from('blotter_cases')
                     .update(allowed).eq('id', id).select().maybeSingle();
 
-                if (caseData) return res.json({ success: true, data: caseData });
+                if (caseData) {
+                    broadcastRealtimeEvent('BLOTTER_UPDATED', { action: 'UPDATED', id });
+                    broadcastRealtimeEvent('STATS_UPDATED');
+                    return res.json({ success: true, data: caseData });
+                }
 
                 if (r.status === 'Active' || r.status === 'Hearing') {
                     const { data: reqData } = await supabase.from('blotter_requests').select('*').eq('id', id).maybeSingle();
@@ -450,6 +458,8 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
                         await supabase.from('blotter_requests').delete().eq('id', id);
                         createNotification(supabase, reqData.resident_id, "Report Accepted", "Your incident report is now active.", 'blotter').catch(() => {});
                         
+                        broadcastRealtimeEvent('BLOTTER_UPDATED', { action: 'MIGRATED', id });
+                        broadcastRealtimeEvent('STATS_UPDATED');
                         return res.json({ success: true, data: migratedCase });
                     }
                 }
@@ -477,6 +487,8 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
                     if (caseData.complainant_id && caseData.complainant_id !== 'WALK-IN') {
                         createNotification(supabase, caseData.complainant_id, "Status update", `Case #${caseData.case_number} is now ${status}.`, 'blotter').catch(() => {}); 
                     }
+                    broadcastRealtimeEvent('BLOTTER_UPDATED', { action: 'STATUS_CHANGED', id, status });
+                    broadcastRealtimeEvent('STATS_UPDATED');
                     return res.json({ success: true, data: caseData });
                 }
 
@@ -491,6 +503,8 @@ export const BlotterRouter = (router, supabase, authenticateToken) => {
         async (req, res) => {
             try {
                 await supabase.from('blotter_cases').delete().eq('id', req.params.id);
+                broadcastRealtimeEvent('BLOTTER_UPDATED', { action: 'DELETED', id: req.params.id });
+                broadcastRealtimeEvent('STATS_UPDATED');
                 res.json({ success: true, message: "Deleted." });
             } catch (err) { res.status(500).json({ error: "Deletion failed." }); }
         }

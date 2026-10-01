@@ -55,14 +55,14 @@
 
 /* ── DARK MODE CORE ENGINE ─────────────────────────── */
 [data-theme="dark"] {
-    --AD-BLOT-bg-main: #0b1120;
-    --AD-BLOT-bg-card: #151c2c;
-    --AD-BLOT-bg-side: #0f172a;
-    --AD-BLOT-bg-hover: #1e293b;
-    --AD-BLOT-bg-active: #1e293b;
+    --AD-BLOT-bg-main: #0f172a;
+    --AD-BLOT-bg-card: #1e293b;
+    --AD-BLOT-bg-side: #17233f;
+    --AD-BLOT-bg-hover: #223254;
+    --AD-BLOT-bg-active: #223254;
 
-    --AD-BLOT-border-subtle: #2d3748;
-    --AD-BLOT-border-hard: #334155;
+    --AD-BLOT-border-subtle: #334155;
+    --AD-BLOT-border-hard: #475569;
     --AD-BLOT-border-primary: #60a5fa;
 
     --AD-BLOT-text-heading: #f8fafc;
@@ -79,6 +79,68 @@
     --AD-BLOT-shd-pop: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
     --AD-BLOT-shd-modal: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
 }
+
+/* ── WARM CREAM THEME OVERRIDES ── */
+[data-theme="cream"],
+[data-resident-theme="cream"] {
+    --AD-BLOT-bg-main: #edeae1;
+    --AD-BLOT-bg-card: #f8f6f0;
+    --AD-BLOT-bg-side: #ded6c4;
+    --AD-BLOT-bg-hover: #e5dfd1;
+    --AD-BLOT-bg-active: #ded6c4;
+
+    --AD-BLOT-border-subtle: #cfc8b6;
+    --AD-BLOT-border-hard: #b8af9b;
+    --AD-BLOT-border-primary: #4a4436;
+
+    --AD-BLOT-text-heading: #302c23;
+    --AD-BLOT-text-body: #575040;
+    --AD-BLOT-text-muted: #7a7261;
+    --AD-BLOT-text-ghost: #9c9380;
+
+    --AD-BLOT-clr-primary: #4a4436;
+    --AD-BLOT-glass-blue: rgba(74, 68, 54, 0.12);
+    --AD-BLOT-glass-red: rgba(220, 38, 38, 0.12);
+    --AD-BLOT-glass-green: rgba(22, 101, 52, 0.12);
+    --AD-BLOT-glass-yellow: rgba(217, 119, 6, 0.12);
+
+    --AD-BLOT-shd-pop: 0 10px 15px -3px rgba(74, 68, 54, 0.08);
+    --AD-BLOT-shd-modal: 0 25px 50px -12px rgba(48, 44, 35, 0.25);
+}
+
+[data-theme="cream"] .AD-BLOT_ADD_BTN {
+    background: #4a4436;
+    color: #f8f6f0;
+}
+
+[data-theme="cream"] .AD-BLOT_ADD_BTN:hover {
+    background: #302c23;
+}
+
+[data-theme="cream"] .AD-BLOT_TAB_BTN.AD-BLOT_ACTIVE {
+    border: 1px solid var(--AD-BLOT-border-subtle);
+}
+
+[data-theme="cream"] .AD-BLOT_ACTION_MENU_BTN {
+    border-color: var(--AD-BLOT-border-subtle);
+}
+
+[data-theme="cream"] .AD-BLOT_ACTION_MENU_BTN:hover {
+    border-color: #4a4436;
+    background: #ded6c4;
+}
+
+[data-theme="cream"] .AD-BLOT_DROPDOWN_MENU {
+    background: #f8f6f0;
+    border-color: #cfc8b6;
+    box-shadow: 0 12px 32px -8px rgba(74, 68, 54, 0.18);
+}
+
+[data-theme="cream"] .AD-BLOT_STATUS_REJECTED {
+    background: #575040;
+    color: #f8f6f0;
+}
+
 
 /* ── PAGE FRAMEWORK ───────────────────────────────── */
 .AD-BLOT_PAGE_WRAP {

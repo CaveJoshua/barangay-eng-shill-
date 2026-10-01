@@ -22,6 +22,18 @@ body {
   min-height: 100vh;
 }
 
+[data-theme='dark'] body,
+[data-resident-theme='dark'] body {
+  background-color: #09090b;
+  color: #fafafa;
+}
+
+[data-theme='cream'] body,
+[data-resident-theme='cream'] body {
+  background-color: #edeae1;
+  color: #302c23;
+}
+
 /* --- 3. CLEAN LINK DEFAULTS --- */
 a {
   font-weight: 500;
@@ -41,15 +53,14 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--TEXT-main);
 }
 
-/* Base button reset - your namespaced AD-BLOT buttons will override this */
 button {
   font-family: inherit;
+  outline: none;
 }
 
 button:focus,
 button:focus-visible {
-  outline: 2px solid var(--color-brand);
-  outline-offset: 2px;
+  outline: none;
 }
 
 /* Remove Vite's default centering for the #root div */

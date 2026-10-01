@@ -27,10 +27,10 @@
 
 /* ── EXACT NAVY DARK MODE ── */
 [data-theme="dark"] {
-  --doc-bg-app: #1c2536;        
-  --doc-bg-card: #242f42;       
-  --doc-bg-accent: #111827;     
-  --doc-bg-hover: #2d3748;      
+  --doc-bg-app: #0f172a;        
+  --doc-bg-card: #1e293b;       
+  --doc-bg-accent: #17233f;     
+  --doc-bg-hover: #223254;      
   --doc-bg-hover-blue: #1e293b;
 
   --doc-border: #334155;        
@@ -49,6 +49,47 @@
   --stat-ready-bg: rgba(34, 197, 94, 0.2);
   --stat-ready-txt: #86efac;
 }
+
+/* ── WARM CREAM THEME OVERRIDES ── */
+[data-theme="cream"],
+[data-resident-theme="cream"] {
+  --doc-bg-app: #edeae1;
+  --doc-bg-card: #f8f6f0;
+  --doc-bg-accent: #ded6c4;
+  --doc-bg-hover: #e5dfd1;
+  --doc-bg-hover-blue: #ded6c4;
+
+  --doc-border: #cfc8b6;
+  --doc-border-input: #b8af9b;
+
+  --doc-text-main: #302c23;
+  --doc-text-sub: #575040;
+  --doc-text-muted: #7a7261;
+  --doc-text-badge: #4a4436;
+
+  --stat-pending-bg: rgba(220, 38, 38, 0.15);
+  --stat-pending-txt: #991b1b;
+  --stat-process-bg: rgba(217, 119, 6, 0.18);
+  --stat-process-txt: #92400e;
+  --stat-ready-bg: rgba(22, 101, 52, 0.18);
+  --stat-ready-txt: #166534;
+}
+
+[data-theme="cream"] .DOC_MANUAL_CREATE_BTN {
+  background: #4a4436;
+  color: #f8f6f0;
+  box-shadow: 0 4px 12px rgba(74, 68, 54, 0.2);
+}
+
+[data-theme="cream"] .DOC_MANUAL_CREATE_BTN:hover {
+  background: #302c23;
+  box-shadow: 0 6px 15px rgba(48, 44, 35, 0.3);
+}
+
+[data-theme="cream"] .DOC_TAB_ITEM.ACTIVE {
+  border: 1px solid var(--doc-border);
+}
+
 
 /* =========================================
    1. CORE PAGE ARCHITECTURE

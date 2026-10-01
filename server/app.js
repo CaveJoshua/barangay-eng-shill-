@@ -10,6 +10,7 @@ import helmet from 'helmet';
 import jwt from 'jsonwebtoken'; 
 
 import { uploadImage } from './lib/cloud.js';
+import { broadcastRealtimeEvent } from './lib/WebSocketServer.js';
 
 // Modular Imports
 import { documentRouter } from './services/Document.js';
@@ -24,9 +25,9 @@ import { BlotterRouter } from './services/IncidentReport.js';
 import { ProfileRouter } from './auth/Profile.js';
 import { ResidentsLoginRouter } from './auth/ResidentLogin.js';
 import { NotificationRouter } from './services/Notification.js'; 
-import { CaptchaRouter } from '../src/components/Captcha/captcha.js';
+import { CaptchaRouter } from './security/captcha.js';
 // 🛡️ SECURITY REGULATOR IMPORT
-import { createSecurityRegulator } from '../src/components/Captcha/Regulator.js';
+import { createSecurityRegulator } from './security/Regulator.js';
 
 dotenv.config();
 
@@ -62,6 +63,34 @@ if (sslCert) {
 }
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY, supabaseOptions);
+
+// ==========================================
+// SUPABASE REALTIME DB CHANGE LISTENER
+// Automatically propagates DB inserts/updates/deletes to live WebSocket clients
+// ==========================================
+try {
+  supabase
+    .channel('smart-barangay-db-sync')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'residents_records' }, (payload) => {
+      broadcastRealtimeEvent('RESIDENTS_UPDATED', { action: payload.eventType, record: payload.new || payload.old });
+      broadcastRealtimeEvent('STATS_UPDATED');
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'document_requests' }, (payload) => {
+      broadcastRealtimeEvent('DOCUMENTS_UPDATED', { action: payload.eventType, record: payload.new || payload.old });
+      broadcastRealtimeEvent('STATS_UPDATED');
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'blotter_cases' }, (payload) => {
+      broadcastRealtimeEvent('BLOTTER_UPDATED', { action: payload.eventType, record: payload.new || payload.old });
+      broadcastRealtimeEvent('STATS_UPDATED');
+    })
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        console.log('⚡ [REALTIME] Supabase DB Realtime Gateway active for residents, documents, & blotter.');
+      }
+    });
+} catch (rtErr) {
+  console.warn('⚠️ [REALTIME] Failed to mount Supabase Realtime channel:', rtErr.message);
+}
 
 // ==========================================
 // 1. JWT AUTHENTICATION MIDDLEWARE
@@ -437,8 +466,8 @@ router.get('/stats',
     async (req, res) => {
         try {
             const [pop, doc, blot, act] = await Promise.all([
-            supabase.from('residents_records').select('*', { count: 'exact', head: true }),
-            supabase.from('document_requests').select('*', { count: 'exact', head: true }),
+            supabase.from('residents_records').select('*', { count: 'exact', head: true }).neq('activity_status', 'Archived'),
+            supabase.from('document_requests').select('*', { count: 'exact', head: true }).in('status', ['Completed', 'Released', 'issued', 'Ready', 'Approved']),
             supabase.from('blotter_cases').select('*', { count: 'exact', head: true }),
             supabase.from('audit_logs').select('*', { count: 'exact', head: true })
             ]);
@@ -470,7 +499,7 @@ router.get('/analytics/raw',
     async (req, res) => {
         try {
             const [resCount, docs, blotters] = await Promise.all([
-                supabase.from('residents_records').select('*', { count: 'exact', head: true }),
+                supabase.from('residents_records').select('*', { count: 'exact', head: true }).neq('activity_status', 'Archived'),
                 supabase.from('document_requests').select('status, type, date_requested'),
                 supabase.from('blotter_cases').select('status, incident_type, created_at')
             ]);

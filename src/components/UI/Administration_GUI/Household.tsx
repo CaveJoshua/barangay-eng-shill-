@@ -79,11 +79,6 @@ const Household: React.FC = () => {
     return filteredData.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredData, currentPage]);
 
-  // ── 4. FIXED HEIGHT / GHOST ROW LOGIC ──
-  const ghostRowsCount = Math.max(0, ITEMS_PER_PAGE - paginatedData.length);
-  const ghostRows = Array.from({ length: ghostRowsCount });
-
-  // ── 5. INTERACTION HANDLERS ──
   const handleToggleMenu = (e: React.MouseEvent, id: string) => {
     e.stopPropagation(); // Prevents row click (View mode)
     setActiveMenuId(activeMenuId === id ? null : id);
@@ -222,7 +217,7 @@ const Household: React.FC = () => {
                     <td>{hh.membersCount}</td>
                     <td>{hh.zone}</td>
                     <td>
-                      <span className={`HH_STATUS_PILL ${hh.is4Ps ? "is-active" : "is-inactive"}`}>
+                      <span className={`HH_STATUS_PILL ${hh.is4Ps ? "is-4ps" : "is-active"}`}>
                         {hh.is4Ps ? "ACTIVE_4PS" : "ACTIVE"}
                       </span>
                     </td>
@@ -251,13 +246,6 @@ const Household: React.FC = () => {
                         )}
                       </div>
                     </td>
-                  </tr>
-                ))}
-
-                {/* 4. GHOST ROWS (Maintains Fixed Height) */}
-                {!loading && filteredData.length > 0 && ghostRows.map((_, idx) => (
-                  <tr key={`ghost-${idx}`} className="HH_SKELETON_ROW">
-                    <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
                   </tr>
                 ))}
               </tbody>

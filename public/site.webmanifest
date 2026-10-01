@@ -1,0 +1,17 @@
+{
+  "name": "Barangay Engineer's Hill Portal",
+  "short_name": "Smart Barangay",
+  "description": "Official Barangay Portal and Citizen Services for Engineer's Hill, Baguio City",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1d4ed8",
+  "icons": [
+    {
+      "src": "/engineer's hill.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

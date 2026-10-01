@@ -41,6 +41,32 @@
   --res-total-bg: #0f172a;
 }
 
+/* ── WARM CREAM SYSTEM ── */
+[data-theme='cream'] {
+  --res-bg-main: #edeae1;
+  --res-card-bg: #f8f6f0;
+  --res-primary: #302c23;
+  --res-accent: #4a4436;
+  --res-border: #cfc8b6;
+  --res-text-main: #302c23;
+  --res-text-muted: #575040;
+  --res-input-bg: #f8f6f0;
+  --res-total-bg: #302c23;
+}
+
+[data-theme='cream'] .RES_ADD_BTN {
+  background-color: #4a4436;
+  color: #f8f6f0;
+}
+
+[data-theme='cream'] .RES_ADD_BTN:hover {
+  background-color: #302c23;
+}
+
+[data-theme='cream'] .RES_TOTAL_COL {
+  border: 1px solid #cfc8b6;
+}
+
 /* ── PAGE LAYOUT ── */
 .RES_PAGE_WRAP {
   min-height: 100%; 

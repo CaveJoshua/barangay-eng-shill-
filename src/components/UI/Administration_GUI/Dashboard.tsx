@@ -16,6 +16,7 @@ import DashboardHome, { type DashboardData } from './DashboardHome';
 import AdministratorNotification from './AdministratorNotification';
 import NotificationSystem from './NotificationSystem';
 import OfficialResetPasswordModal from '../../buttons/Official_Resetpassword_modal';
+import { useRealtime } from '../useRealtime';
 
 import './styles/Frame.css';
 import './styles/Dashboard.css';
@@ -32,8 +33,8 @@ const initialDashboardData: DashboardData = {
   adminName: "Loading...",
 };
 
-const STATS_POLL_INTERVAL = 120000;
-const PENDING_POLL_INTERVAL = 45000; // refresh the Document/Incident request badges every 45s
+const STATS_POLL_INTERVAL = 8000;
+const PENDING_POLL_INTERVAL = 15000; // refresh the Document/Incident request badges every 15s
 
 // ─── 🛡️ BULLETPROOF SESSION PARSER ───────────────────────────────────────────
 const parseAdminSession = () => {
@@ -68,16 +69,37 @@ const parseAdminSession = () => {
     // If they have a real Barangay position, use it. Otherwise, use their system role.
     const resolvedPosition = rawPosition ? rawPosition : (rawRole === 'superadmin' ? 'Superadmin' : 'Official');
 
+    const avatarUrl = profile?.profile_picture || profile?.avatar || session?.avatar || session?.profile_picture || null;
+
     return {
-      name:     fullName,
-      position: resolvedPosition,
-      role:     rawRole, 
-      initial:  fullName.charAt(0).toUpperCase(),
+      name:            fullName,
+      position:        resolvedPosition,
+      role:            rawRole, 
+      initial:         fullName.charAt(0).toUpperCase(),
+      profile_picture: avatarUrl
     };
   } catch (e) {
     console.error('[SESSION PARSER] Failed:', e);
-    return { name: 'User', position: 'Official', role: 'official', initial: 'U' };
+    return { name: 'User', position: 'Official', role: 'official', initial: 'U', profile_picture: null };
   }
+};
+
+// ─── 🛡️ TAB NAME NORMALIZER ──────────────────────────────────────────────────
+const normalizeTabName = (tabName: string): string => {
+  const clean = (tabName || '').toLowerCase().replace(/[\s_-]+/g, '');
+  if (clean === 'myprofile' || clean === 'profile' || clean === 'settings') return 'My Profile';
+  if (clean === 'dashboard' || clean === 'home') return 'Dashboard';
+  if (clean === 'announcements' || clean === 'announcement') return 'Announcements';
+  if (clean === 'officials' || clean === 'official') return 'Officials';
+  if (clean === 'residents' || clean === 'resident') return 'Residents';
+  if (clean === 'household' || clean === 'households') return 'Household';
+  if (clean === 'document' || clean === 'documents') return 'Document';
+  if (clean === 'incidentreports' || clean === 'incidents' || clean === 'incident' || clean === 'blotter') return 'Incident Reports';
+  if (clean === 'archive' || clean === 'archives') return 'Archive';
+  if (clean === 'auditlog' || clean === 'auditlogs' || clean === 'audit') return 'Audit Log';
+  if (clean === 'accountmanagement' || clean === 'accounts' || clean === 'account') return 'Account Management';
+  if (clean === 'notificationcenter' || clean === 'notifications' || clean === 'notification') return 'Notification Center';
+  return tabName;
 };
 
 // ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
@@ -86,7 +108,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
   const [data, setData]         = useState<DashboardData>(initialDashboardData);
   const [loading, setLoading]   = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState(
-    () => localStorage.getItem('admin_active_tab') || 'Dashboard'
+    () => normalizeTabName(localStorage.getItem('admin_active_tab') || 'Dashboard')
   );
   const [highlightId, setHighlightId] = useState<string | undefined>(undefined);
 
@@ -128,7 +150,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
   }, [activeTab]);
 
   const handleNavigation = (tabName: string, id?: string) => {
-    setActiveTab(tabName);
+    setActiveTab(normalizeTabName(tabName));
     setHighlightId(id);
   };
 
@@ -252,6 +274,42 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
     };
   }, [fetchPendingCounts]);
 
+  // ⚡ REAL-TIME WEBSOCKET SUBSCRIPTION (Live instant updates)
+  const { subscribe } = useRealtime({ channels: ['admin', 'public'] });
+
+  useEffect(() => {
+    const unsubStats = subscribe('STATS_UPDATED', () => {
+      fetchStats();
+      fetchPendingCounts();
+    });
+    const unsubResidents = subscribe('RESIDENTS_UPDATED', () => {
+      fetchStats();
+    });
+    const unsubDocs = subscribe('DOCUMENTS_UPDATED', () => {
+      fetchStats();
+      fetchPendingCounts();
+    });
+    const unsubBlotter = subscribe('BLOTTER_UPDATED', () => {
+      fetchStats();
+      fetchPendingCounts();
+    });
+
+    return () => {
+      unsubStats();
+      unsubResidents();
+      unsubDocs();
+      unsubBlotter();
+    };
+  }, [subscribe, fetchStats, fetchPendingCounts]);
+
+  // Immediately refresh stats when switching back to Dashboard tab
+  useEffect(() => {
+    if (activeTab === 'Dashboard') {
+      fetchStats();
+      fetchPendingCounts();
+    }
+  }, [activeTab, fetchStats, fetchPendingCounts]);
+
   // ─── 🛡️ DYNAMIC MENU FILTERING (FIXED FOR PUNONG BARANGAY & BARANGAY HALL) ───
   const getVisibleMenuItems = () => {
     const role = userInfo.role;
@@ -299,7 +357,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
   const visibleMenuItems = getVisibleMenuItems();
 
   const renderContent = () => {
-    switch (activeTab) {
+    const tab = normalizeTabName(activeTab);
+    switch (tab) {
       case 'Dashboard':           return <DashboardHome data={{ ...data, adminName: userInfo.name }} loading={loading} onNavigate={handleNavigation} pendingCounts={pendingCounts} />;
       case 'Notification Center': return <NotificationSystem onNavigate={handleNavigation} />;
       case 'Incident Reports':    return <BlotterPage highlightId={highlightId} />;
@@ -312,7 +371,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
       case 'Announcements':       return <AnnouncementPage />;
       case 'Archive':             return <ArchivePage />;
       case 'Account Management':  return <AccountManagementPage />;
-      default: return <div className="DS_CONTAINER"><h2>{activeTab}</h2><p>Module initializing...</p></div>;
+      default: return <div className="DS_CONTAINER"><h2>{tab}</h2><p>Module initializing...</p></div>;
     }
   };
 
@@ -330,7 +389,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
             return (
               <div
                 key={index}
-                className={`FRAME_MENU_ITEM ${activeTab === item.name ? 'FRAME_MENU_ACTIVE' : ''}`}
+                className={`FRAME_MENU_ITEM ${normalizeTabName(activeTab) === normalizeTabName(item.name) ? 'FRAME_MENU_ACTIVE' : ''}`}
                 onClick={() => handleNavigation(item.name)}
               >
                 <i className={item.icon} />
@@ -371,27 +430,37 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
 
       <div className="FRAME_MAIN_COLUMN">
         <header className="FRAME_TOPBAR">
-          <div className="FRAME_BREADCRUMB">Pages / <b>{activeTab}</b></div>
+          <div className="FRAME_BREADCRUMB">Pages / <b>{normalizeTabName(activeTab)}</b></div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
             <AdministratorNotification onNavigate={handleNavigation} />
 
             <div className="FRAME_USER">
-              <div className="FRAME_USER_TEXT">
-                <span className="FRAME_USER_NAME">{userInfo.name}</span>
-                <span className="FRAME_USER_ROLE" style={{ letterSpacing: '0.05em' }}>
-                  {userInfo.position.toUpperCase()}
-                </span>
-              </div>
+              <button 
+                type="button" 
+                className="FRAME_USER_TRIGGER" 
+                onClick={() => handleNavigation('My Profile')}
+                title="Go to My Profile"
+              >
+                <div className="FRAME_USER_TEXT">
+                  <span className="FRAME_USER_NAME">{userInfo.name}</span>
+                  <span className="FRAME_USER_ROLE" style={{ letterSpacing: '0.05em' }}>
+                    {userInfo.position.toUpperCase()}
+                  </span>
+                </div>
 
-              <div className="FRAME_AVATAR" style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                backgroundColor: '#eff6ff', color: '#3b82f6',
-                fontWeight: '800', fontSize: '1.2rem',
-                borderRadius: '50%', width: '40px', height: '40px',
-              }}>
-                {userInfo.initial}
-              </div>
+                <div className="FRAME_AVATAR">
+                  {userInfo.profile_picture ? (
+                    <img 
+                      src={userInfo.profile_picture} 
+                      alt={userInfo.name} 
+                      className="FRAME_AVATAR_IMG" 
+                    />
+                  ) : (
+                    userInfo.initial
+                  )}
+                </div>
+              </button>
 
               <button className="TB_LOGOUT_BTN" onClick={onLogout}>Logout</button>
             </div>

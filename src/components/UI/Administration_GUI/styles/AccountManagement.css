@@ -56,14 +56,14 @@
 
 /* ── 2. DARK MODE CORE ────────────────────────────────── */
 [data-theme="dark"] {
-    --ACC-bg-page: #0b1120;
-    --ACC-bg-card: #151c2c;
-    --ACC-bg-side: #0f172a;
-    --ACC-bg-hover: #1e293b;
-    --ACC-bg-active: #1e293b;
+    --ACC-bg-page: #0f172a;
+    --ACC-bg-card: #1e293b;
+    --ACC-bg-side: #17233f;
+    --ACC-bg-hover: #223254;
+    --ACC-bg-active: #223254;
 
-    --ACC-border: #2d3748;
-    --ACC-border-hard: #334155;
+    --ACC-border: #334155;
+    --ACC-border-hard: #475569;
     --ACC-border-primary: #60a5fa;
 
     --ACC-text-main: #f8fafc;
@@ -77,6 +77,85 @@
     
     --ACC-shd-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
 }
+
+/* ── WARM CREAM THEME OVERRIDES ── */
+[data-theme="cream"],
+[data-resident-theme="cream"] {
+    --ACC-bg-page: #edeae1;
+    --ACC-bg-card: #f8f6f0;
+    --ACC-bg-side: #ded6c4;
+    --ACC-bg-hover: #e5dfd1;
+    --ACC-bg-active: #ded6c4;
+
+    --ACC-border: #cfc8b6;
+    --ACC-border-hard: #b8af9b;
+    --ACC-border-primary: #4a4436;
+
+    --ACC-text-main: #302c23;
+    --ACC-text-body: #575040;
+    --ACC-text-sub: #7a7261;
+    --ACC-text-ghost: #9c9380;
+
+    --ACC-clr-primary: #4a4436;
+    --ACC-glass-blue: rgba(74, 68, 54, 0.12);
+    --ACC-glass-red: rgba(220, 38, 38, 0.12);
+}
+
+[data-theme="cream"] .ACC_TOTAL_COL,
+[data-resident-theme="cream"] .ACC_TOTAL_COL {
+    background: linear-gradient(135deg, #4a4436 0%, #635b49 100%) !important;
+    border-color: #7a7261 !important;
+    box-shadow: 0 4px 14px rgba(74, 68, 54, 0.25) !important;
+}
+
+[data-theme="cream"] .ACC_CHANGE_PASS_BTN {
+    background-color: #ded6c4;
+    color: #302c23;
+    border-color: #b8af9b;
+}
+
+[data-theme="cream"] .ACC_CHANGE_PASS_BTN:hover {
+    background-color: #cfc8b6;
+    color: #302c23;
+}
+
+[data-theme="cream"] .ACC_DENIED_CARD {
+    background: #f8f6f0;
+    border-color: #cfc8b6;
+}
+
+[data-theme="cream"] .ACC_DENIED_TITLE {
+    color: #302c23;
+}
+
+[data-theme="cream"] .ACC_DENIED_SUB,
+[data-theme="cream"] .ACC_DENIED_CODE {
+    color: #575040;
+}
+
+[data-theme="cream"] .ACC_DENIED_CODE {
+    background: #edeae1;
+    border-color: #cfc8b6;
+}
+
+[data-theme="cream"] .ACC_PRO_INPUT {
+    background-color: #edeae1;
+    border-color: #b8af9b;
+    color: #302c23;
+}
+
+[data-theme="cream"] .ACC_PRO_INPUT:focus {
+    background-color: #f8f6f0;
+    border-color: #4a4436;
+    box-shadow: 0 0 0 3px rgba(74, 68, 54, 0.15);
+}
+
+[data-theme="cream"] .ACC_TAB_BTN.ACTIVE {
+    background: #4a4436;
+    color: #f8f6f0;
+    border-color: #4a4436;
+}
+
 
 /* ── 3. BASE ARCHITECTURE ───────────────────────────── */
 .ACC_PAGE_WRAP {

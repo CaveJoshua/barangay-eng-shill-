@@ -19,13 +19,33 @@
 }
 
 [data-theme="dark"] {
-  --AUD-bg-page: #0b1120;
-  --AUD-bg-card: #151c2c;
-  --AUD-bg-accent: #0f172a;
-  --AUD-border: #2d3748;
+  --AUD-bg-page: #0f172a;
+  --AUD-bg-card: #1e293b;
+  --AUD-bg-accent: #17233f;
+  --AUD-border: #334155;
   --AUD-text-main: #f8fafc;
   --AUD-text-sub: #94a3b8;
   --AUD-primary: #60a5fa;
+}
+
+[data-theme="cream"],
+[data-resident-theme="cream"] {
+  --AUD-bg-page: #edeae1;
+  --AUD-bg-card: #f8f6f0;
+  --AUD-bg-accent: #ded6c4;
+  --AUD-border: #cfc8b6;
+  --AUD-text-main: #302c23;
+  --AUD-text-sub: #575040;
+  --AUD-primary: #4a4436;
+}
+
+[data-theme="cream"] .AUDIT_VERIFY_BTN {
+  background: #4a4436;
+  color: #f8f6f0;
+}
+
+[data-theme="cream"] .AUDIT_VERIFY_BTN:hover {
+  background: #302c23;
 }
 
 .AUDIT_PAGE_WRAP {

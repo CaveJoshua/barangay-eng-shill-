@@ -24,6 +24,27 @@
   --offic-input-bg: #0f172a;     /* Dark Input */
 }
 
+[data-theme='cream'] {
+  /* Warm Cream Palette */
+  --offic-bg: #edeae1;
+  --offic-card-bg: #f8f6f0;
+  --offic-text-main: #302c23;
+  --offic-text-sub: #575040;
+  --offic-border: #cfc8b6;
+  --offic-table-head: #edeae1;
+  --offic-row-hover: #e5dfd1;
+  --offic-input-bg: #f8f6f0;
+}
+
+[data-theme='cream'] .OFFIC_ADD_BTN {
+  background-color: #4a4436;
+  color: #f8f6f0;
+}
+
+[data-theme='cream'] .OFFIC_ADD_BTN:hover {
+  background-color: #302c23;
+}
+
 .OFFIC_PAGE_WRAP {
   padding: 1.5rem;
   background-color: var(--offic-bg);

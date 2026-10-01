@@ -315,16 +315,29 @@ const Profile: React.FC = () => {
     }
   };
 
-  const handleThemeChange = async (newTheme: 'light' | 'dark') => {
-    if (theme === newTheme) return;
-    setTheme(newTheme);
-    ThemeManager.saveAdmin(activeId, newTheme);
+  const [isSavingTheme, setIsSavingTheme] = useState(false);
+  const [themeSaved, setThemeSaved] = useState(false);
 
+  const handleThemeChange = (newTheme: 'light' | 'dark' | 'cream') => {
+    setTheme(newTheme);
+    setThemeSaved(false);
+    ThemeManager.saveAdmin(activeId, newTheme);
+  };
+
+  const handleSaveTheme = async () => {
+    setIsSavingTheme(true);
     try {
+      ThemeManager.saveAdmin(activeId, theme);
       const mutation = `mutation UpdateTheme($t: String!) { updateTheme(theme: $t) { success } }`;
-      await gqlClient(mutation, { t: newTheme });
+      await gqlClient(mutation, { t: theme });
+      setThemeSaved(true);
+      setTimeout(() => setThemeSaved(false), 3000);
     } catch (err) {
       console.error("Failed to sync theme:", err);
+      setThemeSaved(true);
+      setTimeout(() => setThemeSaved(false), 3000);
+    } finally {
+      setIsSavingTheme(false);
     }
   };
 
@@ -688,7 +701,11 @@ const Profile: React.FC = () => {
         <div className="PF_SECTION_LABEL">Appearance</div>
         <div className="PF_CONTENT_CARD">
           <div className="PF_THEME_GRID">
-            <button className={`PF_THEME_VISUAL_BTN ${theme === 'light' ? 'ACTIVE' : ''}`} onClick={() => handleThemeChange('light')}>
+            <button 
+              type="button"
+              className={`PF_THEME_VISUAL_BTN ${theme === 'light' ? 'ACTIVE' : ''}`} 
+              onClick={() => handleThemeChange('light')}
+            >
               <div className="PF_THEME_PREVIEW">
                 <div className="PF_MOCK_WINDOW">
                   <div className="PF_MOCK_SIDEBAR">
@@ -702,7 +719,11 @@ const Profile: React.FC = () => {
               <span>Light Mode</span>
             </button>
 
-            <button className={`PF_THEME_VISUAL_BTN ${theme === 'dark' ? 'ACTIVE' : ''}`} onClick={() => handleThemeChange('dark')}>
+            <button 
+              type="button"
+              className={`PF_THEME_VISUAL_BTN ${theme === 'dark' ? 'ACTIVE' : ''}`} 
+              onClick={() => handleThemeChange('dark')}
+            >
               <div className="PF_THEME_PREVIEW">
                 <div className="PF_MOCK_WINDOW DARK_WINDOW">
                   <div className="PF_MOCK_SIDEBAR">
@@ -715,6 +736,46 @@ const Profile: React.FC = () => {
               </div>
               <span>Dark Mode</span>
             </button>
+
+            <button 
+              type="button"
+              className={`PF_THEME_VISUAL_BTN ${theme === 'cream' ? 'ACTIVE' : ''}`} 
+              onClick={() => handleThemeChange('cream')}
+            >
+              <div className="PF_THEME_PREVIEW">
+                <div className="PF_MOCK_WINDOW CREAM_WINDOW" style={{ background: '#f8f6f0' }}>
+                  <div className="PF_MOCK_SIDEBAR" style={{ background: '#edeae1' }}>
+                    <div className="PF_MOCK_SIDEBAR_DOT" style={{ background: '#cfc8b6' }} /><div className="PF_MOCK_SIDEBAR_DOT" style={{ background: '#cfc8b6' }} />
+                  </div>
+                  <div className="PF_MOCK_CONTENT">
+                    <div className="PF_MOCK_LINE" style={{ background: '#cfc8b6' }} /><div className="PF_MOCK_LINE" style={{ background: '#cfc8b6' }} />
+                  </div>
+                </div>
+              </div>
+              <span>Warm Cream</span>
+            </button>
+          </div>
+
+          <div style={{ marginTop: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <button 
+              type="button"
+              className="PF_BTN_SAVE PF_BTN_SAVE_THEME"
+              onClick={handleSaveTheme}
+              disabled={isSavingTheme}
+            >
+              {isSavingTheme ? (
+                <><i className="fas fa-spinner fa-spin" /> Saving Preference...</>
+              ) : themeSaved ? (
+                <><i className="fas fa-check" /> Theme Saved</>
+              ) : (
+                <><i className="fas fa-save" /> Save Theme Preference</>
+              )}
+            </button>
+            {themeSaved && (
+              <span style={{ fontSize: '0.85rem', color: '#10b981', fontWeight: 600 }}>
+                Saved across your sessions!
+              </span>
+            )}
           </div>
         </div>
       </section>

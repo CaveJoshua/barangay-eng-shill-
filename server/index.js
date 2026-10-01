@@ -11,15 +11,17 @@ import path from 'path';
 import { buildSchema, NoSchemaIntrospectionCustomRule } from 'graphql';
 import { createHandler } from 'graphql-http/lib/use/express';
 
+import http from 'http';
+
 // Modular Imports
-import dataRoutes from './server/app.js';
-import { startPulse, handleShutdown } from './src/components/Captcha/Regulator.js';
+import dataRoutes from './app.js';
+import { startPulse, handleShutdown } from './security/Regulator.js';
+import { initWebSocketServer, getActiveWebSocketClientsCount } from './lib/WebSocketServer.js';
+import { globalApiLimiter, authLoginLimiter, publicEndpointLimiter } from './lib/RateLimiter.js';
+import { concurrentUserGatekeeper, getActiveUserStats } from './lib/ActiveUserTracker.js';
 
 dotenv.config();
 
-// ==========================================
-// 🛡️ STARTUP GUARDS — fail fast if secrets missing
-// ==========================================
 const JWT_SECRET = process.env.SUPABASE_JWT_SECRET;
 if (!JWT_SECRET) throw new Error('[FATAL] SUPABASE_JWT_SECRET is not set in environment.');
 
@@ -29,39 +31,40 @@ if (!ADMIN_GATE_KEY) throw new Error('[FATAL] ADMIN_GATE_KEY is not set in envir
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-// ==========================================
-// 🛡️ CORS — explicit allowlist, no wildcard
-// ==========================================
 const ALLOWED_ORIGINS = [
     'http://localhost:5173', 'http://127.0.0.1:5173',
     // Vite falls back to 5174 when 5173 is busy — allow it so local dev isn't CORS-blocked.
     'http://localhost:5174', 'http://127.0.0.1:5174',
 ];
 
-// 🛡️ Allow the Cloudflare Pages site on BOTH the apex domain (production) and any
-// subdomain (preview deploys). Matching by parsed hostname avoids the previous bug
-// where a leading-dot endsWith() rejected the apex origin
-// `https://barangay-engineers-hill.pages.dev` (only subdomains matched).
 const CLOUDFLARE_DOMAINS = [
     'barangay-engineer-s-hill.pages.dev',
     'barangay-engineers-hill.pages.dev',
 ];
-const isCloudflareOrigin = (origin) => {
-    if (!origin) return false;
-    let host;
+
+// subdomain (preview deploys). Matching by parsed hostname avoids the previous bug
+// where a leading-dot endsWith() rejected the apex origin
+// `https://barangay-engineers-hill.pages.dev` (only subdomains matched).
+const isAllowedOrigin = (origin) => {
+    if (!origin) return true;
     try {
-        host = new URL(origin).hostname;
+        const u = new URL(origin);
+        const host = u.hostname;
+        // Local development: allow any port on localhost / 127.0.0.1 / 0.0.0.0
+        if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0') return true;
+        // Cloudflare Pages production & preview domains
+        if (CLOUDFLARE_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`))) return true;
+        // Render & Pages.dev subdomains
+        if (host.endsWith('.onrender.com') || host.endsWith('.pages.dev')) return true;
     } catch {
         return false;
     }
-    return CLOUDFLARE_DOMAINS.some(
-        (domain) => host === domain || host.endsWith(`.${domain}`)
-    );
+    return false;
 };
 
 const corsOptions = {
     origin: (origin, callback) => {
-        if (!origin || ALLOWED_ORIGINS.includes(origin) || isCloudflareOrigin(origin)) {
+        if (isAllowedOrigin(origin)) {
             callback(null, true);
         } else {
             console.error(`[CORS BLOCKED]: ${origin}`);
@@ -70,19 +73,29 @@ const corsOptions = {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-user-role', 'X-XSRF-TOKEN'],
+    allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'x-user-role',
+        'X-XSRF-TOKEN',
+        'X-Requested-With',
+        'Accept',
+        'Origin',
+        'Cache-Control',
+        'Pragma',
+        'X-Trace-Id',
+        'baguio-client-version',
+        'baguio-client-app'
+    ],
+    exposedHeaders: ['X-Trace-Id', 'Retry-After', 'Content-Disposition', 'X-Total-Count'],
     optionsSuccessStatus: 200
 };
 
-// ==========================================
-// 🛡️ SECURITY MIDDLEWARE
-// ==========================================
 export const authenticateToken = (req, res, next) => {
   const token = req.cookies?.auth_token || req.headers['authorization']?.split(' ')[1];
 
   if (!token) return res.status(401).json({ error: 'Unauthenticated' });
 
-  // 🔒 Pin the algorithm to HS256 (the only one we sign with) so a forged token
   // can never trick verify into accepting a different/"none" algorithm.
   jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }, (err, user) => {
     if (err) {
@@ -102,14 +115,10 @@ export const authorizeRoles = (allowedRoles) => {
     };
 };
 
-// ==========================================
-// ⚙️ GLOBAL CONFIG
-// ==========================================
 app.disable('x-powered-by');
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(cors(corsOptions));
 
-// 🛡️ SMART BODY LIMIT (J-CVE-101203 hardening)
 const bodyLimitFor = (req) =>
   (['POST', 'PUT'].includes(req.method) && /^\/api\/announcements(\/|$)/.test(req.path)) ? '50mb' : '10mb';
 
@@ -117,9 +126,13 @@ app.use((req, res, next) => express.json({ limit: bodyLimitFor(req) })(req, res,
 app.use((req, res, next) => express.urlencoded({ extended: true, limit: bodyLimitFor(req) })(req, res, next));
 app.use(cookieParser());
 
-// ==========================================
-// 🕸️ 1. GRAPHQL ENGINE (PRIORITY ROUTING)
-// ==========================================
+app.set('trust proxy', 1);
+app.use(concurrentUserGatekeeper);
+app.use('/api/admin/login', authLoginLimiter);
+app.use('/api/residents/login', authLoginLimiter);
+app.use('/api/documents/track', publicEndpointLimiter);
+app.use('/api/', globalApiLimiter);
+
 const schema = buildSchema(`
   type Stats { totalPopulation: Int, documentsIssued: Int, blotterCases: Int }
   type Query { systemStatus: String, getStats: Stats }
@@ -136,9 +149,6 @@ app.all('/api/graphql',
     createHandler({ schema, rootValue, validationRules: [NoSchemaIntrospectionCustomRule] })
 );
 
-// ==========================================
-// 📺 2. HIDDEN DEVELOPER PORTAL (GATEKEEPER)
-// ==========================================
 app.get('/developer-portal', 
     [authenticateToken, authorizeRoles(['admin', 'superadmin'])], 
     (req, res) => {
@@ -156,10 +166,7 @@ app.get('/developer-portal',
     }
 );
 
-// ==========================================
-// 🩺 2.5 SYSTEM & MAILER DIAGNOSTICS
 // Public route to instantly verify server liveness and Resend API health
-// ==========================================
 app.get('/api/system/diagnostics', (req, res) => {
     const resendKey = process.env.RESEND_API_KEY;
     const resendFrom = process.env.RESEND_FROM;
@@ -181,37 +188,36 @@ app.get('/api/system/diagnostics', (req, res) => {
     return res.status(200).json({
         server: {
             status: "ONLINE",
-            message: "Main Express API is awake and accepting traffic.",
+            message: "Main Express API & Realtime WebSocket Gateway are active.",
             timestamp: new Date().toISOString(),
-            environment: process.env.NODE_ENV || 'development'
+            environment: process.env.NODE_ENV || 'development',
+            websocket: {
+                status: "ONLINE",
+                activeClients: getActiveWebSocketClientsCount()
+            },
+            concurrency: getActiveUserStats()
         },
         mailer_integration: {
             status: mailerStatus,
             reason: mailerReason
-            // 🔒 key_length intentionally omitted — never expose secret metadata
             // (length/prefix) on a public, unauthenticated endpoint.
         }
     });
 });
 
-// ==========================================
-// 📂 3. STANDARD API ROUTES
-// ==========================================
 app.use('/api', dataRoutes); 
 
-// ==========================================
-// 🚨 4. GLOBAL TRAPDOOR
-// ==========================================
 app.use((req, res) => {
     res.status(404).json({ error: "Not Found", message: "Endpoint Restricted." });
 });
 
-// ==========================================
-// 🚀 5. BOOT
-// ==========================================
+const httpServer = http.createServer(app);
+initWebSocketServer(httpServer);
+
 const stopPulse = startPulse();
 process.on('SIGINT', () => handleShutdown(stopPulse));
 
-app.listen(PORT, '0.0.0.0', () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`[CORE] System Live on Port ${PORT}`);
+    console.log(`[REALTIME] WebSocket Gateway Listening on ws://0.0.0.0:${PORT}/ws`);
 });

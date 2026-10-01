@@ -5,6 +5,7 @@ import { ResidentMapper } from '../../buttons/Tools/Resident_Model/DataMapper';
 import { exportResidentsToCSV, importResidentsFromCSV } from '../../buttons/Tools/Resident_Model/data_backup';
 import { ApiService } from '../api';
 import { VerifyChainModal } from '../../buttons/VerifyChainModal';
+import { useRealtime } from '../useRealtime';
 
 interface IImportSummary {
   importedCount: number;
@@ -148,6 +149,18 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
     }
   }, [highlightId, residents]);
 
+  // ⚡ REAL-TIME RESIDENTS WEBSOCKET LISTENER
+  const { subscribe } = useRealtime({ channels: ['admin', 'public'] });
+
+  useEffect(() => {
+    const unsub = subscribe('RESIDENTS_UPDATED', () => {
+      if (importProgressRef.current === null) {
+        fetchResidents(true);
+      }
+    });
+    return () => unsub();
+  }, [subscribe, fetchResidents]);
+
   // FETCH LIFECYCLE
   useEffect(() => {
     const valve = new AbortController();
@@ -157,7 +170,7 @@ export default function ResidentsPage({ highlightId }: ResidentsPageProps) {
       if (document.visibilityState === 'visible' && importProgressRef.current === null) {
         fetchResidents(true, valve.signal);
       }
-    }, 300000); 
+    }, 15000); 
     
     return () => {
       valve.abort();

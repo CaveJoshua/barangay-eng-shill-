@@ -1,0 +1,149 @@
+/* 🛡️ SmartBarangay Turnstile-Style Anti-Bot Verification Widget (White / Light Theme) */
+
+.cf-turnstile-wrapper {
+  margin: 10px 0 14px 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.cf-turnstile-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 64px;
+  background-color: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  padding: 8px 14px;
+  box-sizing: border-box;
+  cursor: pointer;
+  user-select: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.cf-turnstile-box:hover {
+  border-color: #9ca3af;
+  background-color: #fafafa;
+}
+
+.cf-turnstile-box.verified {
+  cursor: default;
+  border-color: #d1d5db;
+  background-color: #ffffff;
+}
+
+.cf-turnstile-box.stepup {
+  border-color: #f59e0b;
+  background-color: #fffbeb;
+}
+
+/* Left Group */
+.cf-turnstile-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cf-turnstile-checkbox {
+  width: 26px;
+  height: 26px;
+  background-color: #ffffff;
+  border: 2px solid #cbd5e1;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.cf-turnstile-box:hover:not(.verified) .cf-turnstile-checkbox {
+  border-color: #94a3b8;
+}
+
+.cf-turnstile-checkbox.evaluating {
+  border-color: rgba(59, 130, 246, 0.2);
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: cfTurnstileSpin 0.75s linear infinite;
+  background: transparent !important;
+}
+
+@keyframes cfTurnstileSpin {
+  to { transform: rotate(360deg); }
+}
+
+.cf-turnstile-checkbox.verified {
+  border-color: #10b981;
+  background-color: #ffffff;
+}
+
+.cf-turnstile-checkbox.stepup {
+  border-color: #f59e0b;
+}
+
+.cf-turnstile-label {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f2937;
+  letter-spacing: 0.1px;
+}
+
+/* Right Group: SmartBarangay Branding (Centered above each other) */
+.cf-turnstile-right {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 2px;
+}
+
+.cf-turnstile-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
+.cf-turnstile-brand {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  color: #111827;
+  text-transform: uppercase;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.cf-turnstile-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 9px;
+  color: #6b7280;
+  line-height: 1;
+}
+
+.cf-turnstile-links a {
+  color: #6b7280;
+  text-decoration: underline;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.cf-turnstile-links a:hover {
+  color: #111827;
+}
+
+.cf-turnstile-bullet {
+  margin: 0 4px;
+  color: #9ca3af;
+  font-size: 8px;
+}

@@ -47,6 +47,27 @@
   --ANN-shadow-lift: 0 20px 25px -10px rgba(0, 0, 0, 0.4);
 }
 
+/* ── 2b. WARM CREAM MODE OVERRIDES ─────────────────── */
+[data-theme="cream"] {
+  --ANN-bg-page: #edeae1;
+  --ANN-bg-card: #f8f6f0;
+  --ANN-border: #cfc8b6;
+  --ANN-text-main: #302c23;
+  --ANN-text-sub: #575040;
+  --ANN-text-muted: #7a7261;
+  --ANN-brand: #4a4436;
+  --ANN-brand-soft: rgba(74, 68, 54, 0.1);
+
+  --ANN-block-grad: linear-gradient(135deg, #edeae1 0%, #ded6c4 100%);
+  --ANN-shadow-soft: 0 2px 4px rgba(48, 44, 35, 0.04);
+  --ANN-shadow-lift: 0 10px 20px -5px rgba(48, 44, 35, 0.1);
+}
+
+[data-theme="cream"] .ANN_STATUS_TAG {
+  background-color: #edeae1;
+  color: #575040;
+}
+
 /* ── 3. PAGE WRAPPER ──────────────────────────────── */
 .ANN_PAGE_WRAP {
   width: 100%;

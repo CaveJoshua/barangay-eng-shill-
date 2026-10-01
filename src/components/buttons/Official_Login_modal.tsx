@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { LOGIN_API } from '../UI/api';
 import { ThemeManager } from '../UI/ThemeManager';
 import AdminRecoveryModal from './AdminRecoveryModal';
+import { AntiBotLoginWidget } from '../Captcha/AntiBotLoginWidget';
 import './styles/Login_modal.css';
 
 // ⚠️ TIP: Make sure this is using your full API URL if backend is on a different domain
@@ -33,6 +34,7 @@ const OfficialLogin: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [attempts, setAttempts] = useState(0);
   const [isLocked, setIsLocked] = useState(false);
+  const [isCaptchaVerified, setIsCaptchaVerified] = useState(false);
 
   const isMounted = useRef(true);
   const controllerRef = useRef<AbortController | null>(null);
@@ -93,6 +95,11 @@ const OfficialLogin: React.FC = () => {
 
     if (isLocked) {
       setError('Security Lock active. Please wait 30 seconds.');
+      return;
+    }
+
+    if (!isCaptchaVerified) {
+      setError("Please complete 'I am human' verification before authenticating.");
       return;
     }
 
@@ -265,6 +272,16 @@ const OfficialLogin: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              <AntiBotLoginWidget
+                visible={true}
+                isVerified={isCaptchaVerified}
+                onVerified={() => {
+                  setIsCaptchaVerified(true);
+                  setError('');
+                }}
+                theme="light"
+              />
 
               <button
                 type="submit"

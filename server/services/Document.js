@@ -1,5 +1,6 @@
 import { logActivity } from '../lib/Auditlog.js';
 import { sendAutoMail } from '../lib/Mailer.js';
+import { broadcastRealtimeEvent } from '../lib/WebSocketServer.js';
 
 // =========================================================
 // 🛡️ INTERNAL HELPERS & PRICE ENGINE
@@ -224,6 +225,9 @@ export const documentRouter = (router, supabase, authenticateToken) => {
                 notifyAllAdmins(supabase, "New Document Request", `${r.resident_name} requested a ${r.type}. Ref: ${prettyId}`);
             }
 
+            broadcastRealtimeEvent('DOCUMENTS_UPDATED', { action: 'CREATED', id: prettyId });
+            broadcastRealtimeEvent('STATS_UPDATED');
+
             res.status(201).json({ success: true, data: responseWithPrice });
         } catch (err) {
             console.error("[DOC_SAVE_ERR]", err.message);
@@ -261,6 +265,9 @@ export const documentRouter = (router, supabase, authenticateToken) => {
                 }
             }
 
+            broadcastRealtimeEvent('DOCUMENTS_UPDATED', { action: 'UPDATED', id: data.id });
+            broadcastRealtimeEvent('STATS_UPDATED');
+
             res.status(200).json({ 
                 ...data, 
                 price_display: formatPriceDisplay(data.status, data.price) 
@@ -287,6 +294,9 @@ export const documentRouter = (router, supabase, authenticateToken) => {
             const { data, error } = await supabase.from('document_requests').update(allowed).eq('id', req.params.id).select().single();
             if (error) throw error;
 
+            broadcastRealtimeEvent('DOCUMENTS_UPDATED', { action: 'STATUS_CHANGED', id: data.id, status: data.status });
+            broadcastRealtimeEvent('STATS_UPDATED');
+
             res.status(200).json({ 
                 ...data, 
                 price_display: formatPriceDisplay(data.status, data.price) 
@@ -300,6 +310,8 @@ export const documentRouter = (router, supabase, authenticateToken) => {
     router.delete('/documents/:id', authenticateToken, checkSessionRole(['admin', 'superadmin', 'barangayhall']), async (req, res) => {
         try {
             await supabase.from('document_requests').delete().eq('id', req.params.id);
+            broadcastRealtimeEvent('DOCUMENTS_UPDATED', { action: 'DELETED', id: req.params.id });
+            broadcastRealtimeEvent('STATS_UPDATED');
             res.status(200).json({ success: true, message: "Record removed." });
         } catch (err) {
             res.status(500).json({ error: err.message });

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { logActivity } from '../lib/Auditlog.js';
 import { sendAutoMail } from '../lib/Mailer.js';
 import { sendSms, normalizePhNumber } from '../lib/Sms.js';
+import { broadcastRealtimeEvent } from '../lib/WebSocketServer.js';
 
 // Generates a cryptographically random temporary password
 const generateTempPassword = () => crypto.randomBytes(12).toString('base64url');
@@ -682,6 +683,10 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                         sendCredsSms().catch(() => {});
                     }
 
+                    // Real-time broadcast for live dashboard and resident updates
+                    broadcastRealtimeEvent('RESIDENTS_UPDATED', { action: 'CREATED', record_id: profile.record_id });
+                    broadcastRealtimeEvent('STATS_UPDATED');
+
                     // Non-blocking heads-up (e.g. a same-named but distinct resident
                     // already on file) rides along on the success response.
                     res.status(201).json(advisories.length ? { ...profile, advisories } : profile);
@@ -948,6 +953,8 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                     }
 
                     await supabase.from('resident_registration_otp').delete().eq('id', sessionId);
+                    broadcastRealtimeEvent('RESIDENTS_UPDATED', { action: 'CREATED', record_id: profile.record_id });
+                    broadcastRealtimeEvent('STATS_UPDATED');
                     res.status(201).json(advisories.length ? { ...profile, advisories } : profile);
                 } catch (aErr) {
                     await supabase.from('residents_records').delete().eq('record_id', profile.record_id);
@@ -1047,6 +1054,8 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                     .eq('resident_id', recordId);
 
                 logActivity(supabase, req.user.username, 'IDENTITY_REPLACED', recordId, req).catch(() => {});
+                broadcastRealtimeEvent('RESIDENTS_UPDATED', { action: 'UPDATED', record_id: recordId });
+                broadcastRealtimeEvent('STATS_UPDATED');
                 res.json(advisories.length ? { ...data[0], advisories } : data[0]);
             } catch (err) { res.status(500).json({ error: "Identity replacement failed." }); }
         }
@@ -1061,6 +1070,8 @@ export const ResidentsRecordRouter = (router, supabase, authenticateToken) => {
                 await supabase.from('residents_account').update({ status: 'Archived' }).eq('resident_id', req.params.id);
 
                 logActivity(supabase, req.user.username, 'RESIDENT_ARCHIVED', req.params.id, req).catch(() => {});
+                broadcastRealtimeEvent('RESIDENTS_UPDATED', { action: 'ARCHIVED', record_id: req.params.id });
+                broadcastRealtimeEvent('STATS_UPDATED');
                 res.json({ success: true });
             } catch (err) { res.status(500).json({ error: "Archiving failed." }); }
         }

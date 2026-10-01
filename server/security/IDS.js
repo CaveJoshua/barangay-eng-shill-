@@ -1,0 +1,238 @@
+
+const SQLI_PATTERNS = [
+    // Contextual comment injection / stacked query termination (e.g. '; DROP... or admin' --)
+    /;\s*(--|\/\*|#)/i,
+    /('|"|%27)\s*;\s*(drop|insert|delete|update|select|exec|alter)\b/i,
+    /('|"|%27)\s*--/i,
+    /\b(union(\s+all)?\s+select)\b/i,
+    /\bselect\b.*\bfrom\b.*\bwhere\b/i,
+    /\b(insert\s+into|delete\s+from|drop\s+(table|database|schema)|alter\s+table)\b/i,
+    /\b(exec(\s|\+)+(s|x)p\w+)/i,
+    /\b(benchmark\s*\(|pg_sleep\s*\(|sleep\s*\(|waitfor\s+delay)\b/i,
+    /\b(information_schema|pg_catalog|sys\.databases|schema_name)\b/i,
+    /(\'\s*(or|and)\s*\'?\d+\'?\s*=\s*\'?\d+)/i,
+    /(\'\s*(or|and)\s*\(?\s*[\w\d]+\s*=\s*[\w\d]+)/i,
+    /\b(load_file|into\s+(out|dump)file)\b/i
+];
+
+const XSS_PATTERNS = [
+    /<script[\s\S]*?>[\s\S]*?<\/script>/i,
+    /<script[^>]*>/i,
+    /javascript\s*:\s*[\s\S]+/i,
+    /vbscript\s*:\s*[\s\S]+/i,
+    /data\s*:\s*text\/html/i,
+    /<(iframe|object|embed|applet|meta|link|base)[^>]*>/i,
+    /on(load|error|click|mouseover|mouseenter|focus|blur|change|submit|keydown|keyup)\s*=\s*["'][^"']*["']/i,
+    /document\.(cookie|location|domain|write)/i,
+    /window\.(location|navigate)/i,
+    /<svg[\s\S]*?onload\s*=/i,
+    /<img[\s\S]*?onerror\s*=/i
+];
+
+const RCE_EXECUTION_PATTERNS = [
+    /\b(eval|assert|passthru|shell_exec|exec|system|popen|proc_open|pcntl_exec)\s*\(/i,
+    /\b(base64_decode|gzinflate|gzuncompress|str_rot13)\s*\(/i,
+    /\b(cmd\.exe|\/bin\/sh|\/bin\/bash|\/usr\/bin\/python|powershell(\.exe)?)\b/i,
+    /\b(wget|curl|nc|netcat|ncat)\s+(http|\d+\.\d+\.\d+\.\d+)/i,
+    /\b(chmod\s+[0-7]{3,4}|chown\s+root)/i,
+    /\bcat\s+(\/etc\/passwd|\/etc\/shadow|\/etc\/group)/i,
+    /<\?php|<\?=/i
+];
+
+const LFI_PATH_TRAVERSAL_PATTERNS = [
+    /\.\.\/|\.\.\\|\%2e\%2e\%2f|\%2e\%2e\/|\.\.\%2f/i,
+    /\/etc\/passwd|\/etc\/shadow|\/proc\/self\/environ|\/windows\/win\.ini|\/boot\.ini/i,
+    /\b(php:\/\/filter|php:\/\/input|phar:\/\/|data:\/\/text|file:\/\/|zip:\/\/)/i
+];
+
+const SSTI_PATTERNS = [
+    /\{\{.*?\}\}/,
+    /\$\{.*?\}/,
+    /<%.*?%>/,
+    /\{\#.*?\#\}/
+];
+
+const MALICIOUS_USER_AGENTS = [
+    /sqlmap/i,
+    /nikto/i,
+    /acunetix/i,
+    /dirbuster/i,
+    /gobuster/i,
+    /nmap/i,
+    /masscan/i,
+    /wpscan/i,
+    /havij/i,
+    /netsparker/i,
+    /hydra/i,
+    /zgrab/i
+];
+
+const SAFE_EXEMPT_PATHS = [
+    '/api/system/diagnostics',
+    '/lb/status',
+    '/api/captcha/challenge',
+    '/api/captcha/verify'
+];
+
+/**
+ * Normalizes input string (decodes URL encoding and HTML entities)
+ */
+const normalizePayload = (input) => {
+    if (!input || typeof input !== 'string') return '';
+    try {
+        return decodeURIComponent(input);
+    } catch {
+        return input;
+    }
+};
+
+/**
+ * Recursively extracts all string values from objects and query parameters
+ */
+const extractPayloadStrings = (obj, depth = 0) => {
+    if (depth > 5 || !obj) return [];
+    let strings = [];
+
+    if (typeof obj === 'string') {
+        strings.push(obj);
+    } else if (Array.isArray(obj)) {
+        for (const item of obj) {
+            strings = strings.concat(extractPayloadStrings(item, depth + 1));
+        }
+    } else if (typeof obj === 'object') {
+        for (const [key, val] of Object.entries(obj)) {
+            strings.push(key);
+            // Skip large benign base64 image bodies from scanning
+            if (key === 'image' || key === 'profile_photo' || key === 'evidence_file') {
+                if (typeof val === 'string' && val.startsWith('data:image')) {
+                    strings.push(val.substring(0, 300));
+                    continue;
+                }
+            }
+            strings = strings.concat(extractPayloadStrings(val, depth + 1));
+        }
+    }
+
+    return strings;
+};
+
+/**
+ * NGWAF Intrusion Detection System (IDS)
+ * Scans HTTP requests across Headers, URI parameters, and Body payloads
+ * 
+ * @param {import('express').Request} req
+ * @returns {{ level: 'SAFE' | 'SUSPICIOUS' | 'CRITICAL', reason?: string, vector?: string, ip: string }}
+ */
+export const IDS = (req) => {
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
+               req.socket?.remoteAddress || 
+               req.ip || 
+               '127.0.0.1';
+
+    // 1. Fast Path Exemption
+    if (SAFE_EXEMPT_PATHS.some(p => req.path?.startsWith(p)) || req.method === 'OPTIONS') {
+        return { level: 'SAFE', reason: 'EXEMPT_ENDPOINT', ip };
+    }
+
+    // 2. Scanner / Malicious User-Agent Inspection
+    const userAgent = req.headers['user-agent'] || '';
+    for (const pattern of MALICIOUS_USER_AGENTS) {
+        if (pattern.test(userAgent)) {
+            return {
+                level: 'CRITICAL',
+                vector: 'MALICIOUS_SCANNER_BOT',
+                reason: `Blocked hostile automated scanner`,
+                ip
+            };
+        }
+    }
+
+    // 3. Inspect URL Path & Query Parameters
+    const rawUrl = normalizePayload(req.originalUrl || req.url || '');
+    
+    // Path Traversal check on URL
+    for (const pattern of LFI_PATH_TRAVERSAL_PATTERNS) {
+        if (pattern.test(rawUrl)) {
+            return {
+                level: 'CRITICAL',
+                vector: 'PATH_TRAVERSAL_LFI',
+                reason: `Path traversal or LFI probe detected in URL`,
+                ip
+            };
+        }
+    }
+
+    // 4. Collect and Scan Body & Query Parameters
+    const payloadItems = [
+        ...extractPayloadStrings(req.query),
+        ...extractPayloadStrings(req.body),
+        ...extractPayloadStrings(req.params)
+    ];
+
+    for (const rawItem of payloadItems) {
+        const item = normalizePayload(rawItem);
+        if (!item || item.length < 3) continue;
+
+        // A. Critical RCE / Code Execution Check
+        for (const pattern of RCE_EXECUTION_PATTERNS) {
+            if (pattern.test(item)) {
+                return {
+                    level: 'CRITICAL',
+                    vector: 'RCE_EXECUTION_ATTACK',
+                    reason: `Malicious command execution payload detected`,
+                    ip
+                };
+            }
+        }
+
+        // B. Critical SQL Injection Check
+        for (const pattern of SQLI_PATTERNS) {
+            if (pattern.test(item)) {
+                return {
+                    level: 'CRITICAL',
+                    vector: 'SQL_INJECTION',
+                    reason: `Hostile SQL injection syntax detected in payload parameter`,
+                    ip
+                };
+            }
+        }
+
+        // C. Path Traversal & File Inclusion Check
+        for (const pattern of LFI_PATH_TRAVERSAL_PATTERNS) {
+            if (pattern.test(item)) {
+                return {
+                    level: 'CRITICAL',
+                    vector: 'PATH_TRAVERSAL_LFI',
+                    reason: `Directory traversal sequence detected in payload`,
+                    ip
+                };
+            }
+        }
+
+        // D. Cross-Site Scripting (XSS) Check
+        for (const pattern of XSS_PATTERNS) {
+            if (pattern.test(item)) {
+                return {
+                    level: 'SUSPICIOUS',
+                    vector: 'XSS_HTML_INJECTION',
+                    reason: `Embedded script or unsafe HTML payload detected`,
+                    ip
+                };
+            }
+        }
+
+        // E. Server-Side Template Injection Check
+        for (const pattern of SSTI_PATTERNS) {
+            if (pattern.test(item)) {
+                return {
+                    level: 'SUSPICIOUS',
+                    vector: 'SSTI_PROBE',
+                    reason: `Template engine delimiter injection detected`,
+                    ip
+                };
+            }
+        }
+    }
+
+    return { level: 'SAFE', ip };
+};

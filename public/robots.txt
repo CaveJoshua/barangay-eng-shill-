@@ -1,0 +1,21 @@
+# ============================================================
+# Robots.txt — Barangay Engineer's Hill Portal
+# Smart Barangay Search Engine Directives
+# ============================================================
+
+User-agent: *
+Allow: /
+Allow: /track
+Allow: /track/*
+Allow: /officialslogin
+
+# Disallow indexing of private citizen dashboards and internal admin routes
+Disallow: /admin/
+Disallow: /admin/*
+Disallow: /resident/
+Disallow: /resident/*
+Disallow: /api/
+Disallow: /developer-portal
+
+# Sitemap Reference
+Sitemap: https://barangay-engineers-hill.pages.dev/sitemap.xml

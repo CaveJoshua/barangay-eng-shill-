@@ -314,3 +314,341 @@
     justify-content: space-between;
   }
 }
+
+/* ── 🌙 DARK THEME STYLING (Admin Notification Center) ── */
+[data-theme='dark'] .NS_SECTION_BOX,
+[data-resident-theme='dark'] .NS_SECTION_BOX {
+  background: #131926;
+  border-color: #272f3d;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme='dark'] .NS_HEADER_CONTROLS,
+[data-resident-theme='dark'] .NS_HEADER_CONTROLS {
+  background-color: #182234;
+  border-color: #272f3d;
+}
+
+[data-theme='dark'] .NS_SUB_FILTER,
+[data-resident-theme='dark'] .NS_SUB_FILTER {
+  background: #09090b;
+}
+
+[data-theme='dark'] .NS_FILTER_BTN--active,
+[data-resident-theme='dark'] .NS_FILTER_BTN--active {
+  background: #131926;
+  color: #f8fafc;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme='dark'] .NS_FILTER_BTN--inactive,
+[data-resident-theme='dark'] .NS_FILTER_BTN--inactive {
+  color: #94a3b8;
+}
+
+[data-theme='dark'] .NS_FILTER_BTN--inactive:hover,
+[data-resident-theme='dark'] .NS_FILTER_BTN--inactive:hover {
+  background: #272f3d;
+  color: #f8fafc;
+}
+
+[data-theme='dark'] .NS_DIVIDER,
+[data-resident-theme='dark'] .NS_DIVIDER {
+  background-color: #272f3d;
+}
+
+[data-theme='dark'] .NS_TYPE_BTN,
+[data-resident-theme='dark'] .NS_TYPE_BTN {
+  color: #94a3b8;
+}
+
+[data-theme='dark'] .NS_TYPE_BTN:hover,
+[data-resident-theme='dark'] .NS_TYPE_BTN:hover {
+  background: #272f3d;
+  color: #f8fafc;
+}
+
+[data-theme='dark'] .NS_TYPE_BTN.active,
+[data-resident-theme='dark'] .NS_TYPE_BTN.active {
+  background: #131926;
+  color: #f8fafc;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme='dark'] .NS_MARKALL_BTN,
+[data-resident-theme='dark'] .NS_MARKALL_BTN {
+  background: #182234;
+  border-color: #272f3d;
+  color: #e2e8f0;
+}
+
+[data-theme='dark'] .NS_MARKALL_BTN:hover,
+[data-resident-theme='dark'] .NS_MARKALL_BTN:hover {
+  background: #272f3d;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+[data-theme='dark'] .NS_STATE_MESSAGE,
+[data-resident-theme='dark'] .NS_STATE_MESSAGE {
+  color: #64748b;
+}
+
+[data-theme='dark'] .NS_STATE_MESSAGE i,
+[data-resident-theme='dark'] .NS_STATE_MESSAGE i {
+  color: #272f3d;
+}
+
+[data-theme='dark'] .NS_STATE_MESSAGE h3,
+[data-resident-theme='dark'] .NS_STATE_MESSAGE h3 {
+  color: #e2e8f0;
+}
+
+[data-theme='dark'] .NS_ITEM,
+[data-resident-theme='dark'] .NS_ITEM {
+  border-color: #20293a;
+}
+
+[data-theme='dark'] .NS_ITEM--read,
+[data-resident-theme='dark'] .NS_ITEM--read {
+  background: #131926;
+}
+
+[data-theme='dark'] .NS_ITEM--unread,
+[data-resident-theme='dark'] .NS_ITEM--unread {
+  background: rgba(37, 99, 235, 0.12);
+}
+
+[data-theme='dark'] .NS_ITEM:hover,
+[data-resident-theme='dark'] .NS_ITEM:hover {
+  background: #182234;
+}
+
+[data-theme='dark'] .NS_ITEM--unread:hover,
+[data-resident-theme='dark'] .NS_ITEM--unread:hover {
+  background: rgba(37, 99, 235, 0.18);
+}
+
+[data-theme='dark'] .NS_ITEM_ICON.document,
+[data-resident-theme='dark'] .NS_ITEM_ICON.document {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+}
+
+[data-theme='dark'] .NS_ITEM_ICON.blotter,
+[data-theme='dark'] .NS_ITEM_ICON.incident,
+[data-resident-theme='dark'] .NS_ITEM_ICON.blotter,
+[data-resident-theme='dark'] .NS_ITEM_ICON.incident {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+[data-theme='dark'] .NS_ITEM_ICON--read,
+[data-resident-theme='dark'] .NS_ITEM_ICON--read {
+  background: #182234 !important;
+  color: #64748b !important;
+}
+
+[data-theme='dark'] .NS_ITEM_TITLE,
+[data-resident-theme='dark'] .NS_ITEM_TITLE {
+  color: #f8fafc;
+}
+
+[data-theme='dark'] .NS_ITEM--read .NS_ITEM_TITLE,
+[data-resident-theme='dark'] .NS_ITEM--read .NS_ITEM_TITLE {
+  color: #cbd5e1;
+}
+
+[data-theme='dark'] .NS_ITEM_DATE,
+[data-resident-theme='dark'] .NS_ITEM_DATE {
+  color: #94a3b8;
+}
+
+[data-theme='dark'] .NS_ITEM_TEXT,
+[data-resident-theme='dark'] .NS_ITEM_TEXT {
+  color: #94a3b8;
+}
+
+[data-theme='dark'] .NS_DELETE_BTN,
+[data-resident-theme='dark'] .NS_DELETE_BTN {
+  color: #64748b;
+}
+
+[data-theme='dark'] .NS_DELETE_BTN:hover,
+[data-resident-theme='dark'] .NS_DELETE_BTN:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+}
+
+/* ── 🌾 WARM CREAM THEME STYLING (Admin Notification Center) ── */
+[data-theme='cream'] .NS_SECTION_BOX,
+[data-resident-theme='cream'] .NS_SECTION_BOX {
+  background: #f8f6f0;
+  border-color: #cfc8b6;
+  box-shadow: 0 4px 6px -1px rgba(74, 68, 54, 0.05);
+}
+
+[data-theme='cream'] .NS_HEADER_CONTROLS,
+[data-resident-theme='cream'] .NS_HEADER_CONTROLS {
+  background-color: #edeae1;
+  border-color: #cfc8b6;
+}
+
+[data-theme='cream'] .NS_SUB_FILTER,
+[data-resident-theme='cream'] .NS_SUB_FILTER {
+  background: #ded6c4;
+}
+
+[data-theme='cream'] .NS_FILTER_BTN--active,
+[data-resident-theme='cream'] .NS_FILTER_BTN--active {
+  background: #f8f6f0;
+  color: #302c23;
+  box-shadow: 0 1px 3px rgba(74, 68, 54, 0.1);
+}
+
+[data-theme='cream'] .NS_FILTER_BTN--inactive,
+[data-resident-theme='cream'] .NS_FILTER_BTN--inactive {
+  color: #7a7261;
+}
+
+[data-theme='cream'] .NS_FILTER_BTN--inactive:hover,
+[data-resident-theme='cream'] .NS_FILTER_BTN--inactive:hover {
+  background: #e5dfd1;
+  color: #302c23;
+}
+
+[data-theme='cream'] .NS_DIVIDER,
+[data-resident-theme='cream'] .NS_DIVIDER {
+  background-color: #cfc8b6;
+}
+
+[data-theme='cream'] .NS_TYPE_BTN,
+[data-resident-theme='cream'] .NS_TYPE_BTN {
+  color: #7a7261;
+}
+
+[data-theme='cream'] .NS_TYPE_BTN:hover,
+[data-resident-theme='cream'] .NS_TYPE_BTN:hover {
+  background: #e5dfd1;
+  color: #302c23;
+}
+
+[data-theme='cream'] .NS_TYPE_BTN.active,
+[data-resident-theme='cream'] .NS_TYPE_BTN.active {
+  background: #f8f6f0;
+  color: #302c23;
+  box-shadow: 0 1px 3px rgba(74, 68, 54, 0.1);
+}
+
+[data-theme='cream'] .NS_MARKALL_BTN,
+[data-resident-theme='cream'] .NS_MARKALL_BTN {
+  background: #ded6c4;
+  border-color: #b8af9b;
+  color: #302c23;
+}
+
+[data-theme='cream'] .NS_MARKALL_BTN:hover,
+[data-resident-theme='cream'] .NS_MARKALL_BTN:hover {
+  background: #e5dfd1;
+  border-color: #4a4436;
+  color: #302c23;
+}
+
+[data-theme='cream'] .NS_MARKALL_BTN i {
+  color: #4a4436;
+}
+
+[data-theme='cream'] .NS_STATE_MESSAGE,
+[data-resident-theme='cream'] .NS_STATE_MESSAGE {
+  color: #7a7261;
+}
+
+[data-theme='cream'] .NS_STATE_MESSAGE i,
+[data-resident-theme='cream'] .NS_STATE_MESSAGE i {
+  color: #cfc8b6;
+}
+
+[data-theme='cream'] .NS_STATE_MESSAGE h3,
+[data-resident-theme='cream'] .NS_STATE_MESSAGE h3 {
+  color: #302c23;
+}
+
+[data-theme='cream'] .NS_ITEM,
+[data-resident-theme='cream'] .NS_ITEM {
+  border-color: #edeae1;
+}
+
+[data-theme='cream'] .NS_ITEM--read,
+[data-resident-theme='cream'] .NS_ITEM--read {
+  background: #f8f6f0;
+}
+
+[data-theme='cream'] .NS_ITEM--unread,
+[data-resident-theme='cream'] .NS_ITEM--unread {
+  background: #ded6c4;
+}
+
+[data-theme='cream'] .NS_ITEM:hover,
+[data-resident-theme='cream'] .NS_ITEM:hover {
+  background: #e5dfd1;
+}
+
+[data-theme='cream'] .NS_ITEM--unread:hover,
+[data-resident-theme='cream'] .NS_ITEM--unread:hover {
+  background: #d8ceb8;
+}
+
+[data-theme='cream'] .NS_ITEM_ICON.document,
+[data-resident-theme='cream'] .NS_ITEM_ICON.document {
+  background: rgba(74, 68, 54, 0.15);
+  color: #4a4436;
+}
+
+[data-theme='cream'] .NS_ITEM_ICON.blotter,
+[data-theme='cream'] .NS_ITEM_ICON.incident,
+[data-resident-theme='cream'] .NS_ITEM_ICON.blotter,
+[data-resident-theme='cream'] .NS_ITEM_ICON.incident {
+  background: rgba(220, 38, 38, 0.15);
+  color: #991b1b;
+}
+
+[data-theme='cream'] .NS_ITEM_ICON--read,
+[data-resident-theme='cream'] .NS_ITEM_ICON--read {
+  background: #edeae1 !important;
+  color: #7a7261 !important;
+}
+
+[data-theme='cream'] .NS_ITEM_TITLE,
+[data-resident-theme='cream'] .NS_ITEM_TITLE {
+  color: #302c23;
+}
+
+[data-theme='cream'] .NS_ITEM--read .NS_ITEM_TITLE,
+[data-resident-theme='cream'] .NS_ITEM--read .NS_ITEM_TITLE {
+  color: #575040;
+}
+
+[data-theme='cream'] .NS_ITEM_DATE,
+[data-resident-theme='cream'] .NS_ITEM_DATE {
+  color: #7a7261;
+}
+
+[data-theme='cream'] .NS_ITEM_TEXT,
+[data-resident-theme='cream'] .NS_ITEM_TEXT {
+  color: #575040;
+}
+
+[data-theme='cream'] .NS_UNREAD_INDICATOR {
+  color: #4a4436;
+}
+
+[data-theme='cream'] .NS_DELETE_BTN,
+[data-resident-theme='cream'] .NS_DELETE_BTN {
+  color: #7a7261;
+}
+
+[data-theme='cream'] .NS_DELETE_BTN:hover,
+[data-resident-theme='cream'] .NS_DELETE_BTN:hover {
+  background: rgba(220, 38, 38, 0.15);
+  color: #991b1b;
+}

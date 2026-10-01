@@ -20,21 +20,28 @@ npm run dev
 5. Hold the CTRL key on your keyboard and click that link. It will automatically open the system in your browser.
 (Note: If clicking doesn't work, highlight the link, press CTRL+C to copy it, open Google Chrome, and press CTRL+V to paste it at the top).
 
-STEP 3: STARTING THE BACKGROUND ENGINE
+STEP 3: STARTING THE BACKGROUND ENGINE (LOAD BALANCED)
 
 1. Look back at the terminal box at the bottom of Visual Studio Code.
 2. On the right side of that box, find and click the "+" (Plus) icon. This opens a second terminal box.
-3. Click inside this new box, type the following command, and press ENTER:
+3. Click inside this new box, type one of the following commands, and press ENTER:
 
-node server.js
+   OPTION A (Multi-Core Load Balanced Cluster — Recommended):
+   npm run start:cluster
+   (Distributes traffic across all available CPU cores with auto-restart on crash)
 
-4. The system will show some technical text. Just look for these two lines to know it is working properly:
+   OPTION B (Standard Single Instance):
+   node server.js
+
+   OPTION C (HTTP Reverse Proxy Load Balancer):
+   npm run start:lb
+
+4. The system will show technical startup text and confirm worker processes are active on Port 8000:
 
 * [CORE] System Live on Port 8000
 * [MAILER CHECK] Connection Successful!
 
-5. In google you may try to use this link for administrator http://localhost:5173/officialslogin
-
+5. In Google Chrome you may access the administrator portal at: http://localhost:5173/officialslogin
 
 Username: beh005@bh.officials.eng-hill.brg.ph
 Password: beh005123456

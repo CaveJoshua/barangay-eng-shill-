@@ -2,13 +2,205 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="./engineer's hill.svg" />
+    <link rel="icon" type="image/svg+xml" href="/engineer's hill.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <title>smart-barangay</title>
+    <meta name="theme-color" content="#1d4ed8" />
+    
+    <!-- Primary SEO Meta Tags -->
+    <title>Barangay Engineer's Hill — Official Smart Barangay & Citizen Services Portal | Baguio City</title>
+    <meta name="title" content="Barangay Engineer's Hill — Official Smart Barangay & Citizen Services Portal | Baguio City" />
+    <meta name="description" content="Official digital portal for Barangay Engineer's Hill, Baguio City. Request barangay clearances, residency certificates, indigency certificates, track document requests in real time, view community announcements, and file incident reports." />
+    <meta name="keywords" content="Barangay Engineer's Hill, Baguio City, Smart Barangay, Barangay Clearance, Certificate of Residency, Certificate of Indigency, Document Tracker, Blotter Report, Baguio City Citizen Services, Barangay Government Portal" />
+    <meta name="author" content="Barangay Engineer's Hill LGU, Baguio City" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <link rel="canonical" href="https://barangay-engineers-hill.pages.dev/" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://barangay-engineers-hill.pages.dev/" />
+    <meta property="og:site_name" content="Smart Barangay — Engineer's Hill" />
+    <meta property="og:title" content="Barangay Engineer's Hill — Official Smart Barangay & Citizen Services Portal" />
+    <meta property="og:description" content="Access online barangay clearances, residency certificates, indigency requests, public announcements, and real-time document status tracking for residents of Barangay Engineer's Hill, Baguio City." />
+    <meta property="og:image" content="https://barangay-engineers-hill.pages.dev/engineer's%20hill.svg" />
+    <meta property="og:locale" content="en_PH" />
+
+    <!-- Twitter / X -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://barangay-engineers-hill.pages.dev/" />
+    <meta property="twitter:title" content="Barangay Engineer's Hill — Official Smart Barangay Portal" />
+    <meta property="twitter:description" content="Official citizen services, online clearances, and document tracker for Barangay Engineer's Hill, Baguio City." />
+    <meta property="twitter:image" content="https://barangay-engineers-hill.pages.dev/engineer's%20hill.svg" />
+
+    <!-- Fonts and Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+
+    <!-- JSON-LD Structured Data Schema for Local Government Office -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "GovernmentOffice",
+      "name": "Barangay Engineer's Hill",
+      "alternateName": "Smart Barangay Engineer's Hill Portal",
+      "url": "https://barangay-engineers-hill.pages.dev/",
+      "logo": "https://barangay-engineers-hill.pages.dev/engineer's%20hill.svg",
+      "image": "https://barangay-engineers-hill.pages.dev/engineer's%20hill.svg",
+      "description": "Official local government unit portal for Barangay Engineer's Hill, Baguio City, providing digital citizen services, certificates, clearances, and community bulletins.",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "Engineer's Hill",
+        "addressLocality": "Baguio City",
+        "addressRegion": "Benguet",
+        "postalCode": "2600",
+        "addressCountry": "PH"
+      },
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": "16.4023",
+        "longitude": "120.5960"
+      },
+      "openingHoursSpecification": {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+        "opens": "08:00",
+        "closes": "17:00"
+      },
+      "hasOfferCatalog": {
+        "@type": "OfferCatalog",
+        "name": "Barangay Citizen Services",
+        "itemListElement": [
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Barangay Clearance" } },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Certificate of Residency" } },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Certificate of Indigency" } },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Incident Blotter Filing" } },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Public Document Tracking" } }
+        ]
+      }
+    }
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Instant Pre-Mount Splash Screen (Architectural Seal Loader) -->
+      <style>
+        .eng-preloader-wrap {
+          --bg-color: #f4f4f0;
+          --stroke-color: #121212;
+          --grid-color: rgba(0, 0, 0, 0.04);
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100vw;
+          height: 100vh;
+          background-color: var(--bg-color);
+          background-image: 
+            linear-gradient(var(--grid-color) 1px, transparent 1px),
+            linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+          background-size: 20px 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 999999;
+          margin: 0;
+          padding: 0;
+          font-family: Arial, sans-serif;
+        }
+        .eng-preloader-stage {
+          width: 520px;
+          height: 520px;
+          max-width: 90vw;
+          max-height: 90vw;
+          position: relative;
+        }
+        .eng-preloader-stage svg {
+          width: 100%;
+          height: 100%;
+        }
+        .draw-stroke {
+          fill: none;
+          stroke: #121212;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+          stroke-dasharray: 2000;
+          stroke-dashoffset: 2000;
+          animation: drawLine 3.5s cubic-bezier(0.2, 1, 0.3, 1) forwards;
+        }
+        .w-thick  { stroke-width: 3.8px; }
+        .w-medium { stroke-width: 2.0px; }
+        .w-fine   { stroke-width: 1.2px; }
+        .cropped-center-img {
+          filter: saturate(112%) contrast(106%) brightness(102%);
+          opacity: 0;
+          animation: fadeInCenter 0.8s ease forwards;
+          animation-delay: 0.2s;
+        }
+        .outlined-text {
+          fill: #121212;
+          stroke: #121212;
+          stroke-width: 0.6px;
+          font-size: 26px;
+          font-weight: 900;
+          letter-spacing: 2px;
+          opacity: 1;
+        }
+        .outlined-text.text-bottom {
+          font-size: 27px;
+          letter-spacing: 5.5px;
+        }
+        @keyframes drawLine {
+          0% { stroke-dashoffset: 2000; }
+          100% { stroke-dashoffset: 0; }
+        }
+        @keyframes fadeInCenter {
+          0% { opacity: 0; }
+          100% { opacity: 1; }
+        }
+      </style>
+      <div class="eng-preloader-wrap">
+        <div class="eng-preloader-stage">
+          <svg viewBox="0 0 500 500">
+            <defs>
+              <path id="pre-text-arc-top" d="M 62,250 A 188,188 0 1,1 438,250" />
+              <path id="pre-text-arc-bottom" d="M 66,250 A 184,184 0 0,0 434,250" />
+              <clipPath id="pre-center-crop-mask">
+                <circle cx="250" cy="250" r="141" />
+              </clipPath>
+            </defs>
+
+            <circle class="draw-stroke w-thick" cx="250" cy="250" r="238" />
+            <circle class="draw-stroke w-fine"  cx="250" cy="250" r="226" />
+            <circle class="draw-stroke w-fine"  cx="250" cy="250" r="152" />
+            <circle class="draw-stroke w-thick" cx="250" cy="250" r="142" />
+
+            <circle class="draw-stroke w-medium" cx="61"  cy="250" r="7" />
+            <circle class="draw-stroke w-medium" cx="439" cy="250" r="7" />
+
+            <image 
+              class="cropped-center-img"
+              href="/src/assets/icons/Barangay_eng-hill.png" 
+              x="32" 
+              y="32" 
+              width="436" 
+              height="436" 
+              clip-path="url(#pre-center-crop-mask)"
+              preserveAspectRatio="xMidYMid slice"
+            />
+
+            <text class="outlined-text">
+              <textPath href="#pre-text-arc-top" startOffset="50%" text-anchor="middle">
+                ENGINEERS HILL BARANGAY
+              </textPath>
+            </text>
+
+            <text class="outlined-text text-bottom">
+              <textPath href="#pre-text-arc-bottom" startOffset="50%" text-anchor="middle">
+                BAGUIO CITY
+              </textPath>
+            </text>
+          </svg>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

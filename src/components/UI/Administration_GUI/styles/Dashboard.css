@@ -111,6 +111,63 @@
 }
 
 /* =========================================
+   2b. WARM CREAM MODE OVERRIDES
+   ========================================= */
+[data-theme='cream'] {
+  /* --- TEXT COLORS --- */
+  --DS-text-primary: #302c23;
+  --DS-text-secondary: #575040;
+  --DS-text-inverse: #f8f6f0;
+
+  /* --- BACKGROUNDS --- */
+  --DS-bg-canvas: #f8f6f0;
+  --DS-bg-body: #edeae1;
+  --DS-surface-hover: #e5dfd1;
+
+  /* --- BORDERS & SHADOWS --- */
+  --DS-color-brand: #4a4436;
+  --DS-border-subtle: #cfc8b6;
+  --DS-shadow-sm: 0 1px 3px 0 rgba(48, 44, 35, 0.08);
+  --DS-shadow-md: 0 4px 6px -1px rgba(48, 44, 35, 0.12);
+
+  /* --- MAP & ICONS --- */
+  --DS-map-bg: #e5dfd1;
+  --DS-map-dots: #cfc8b6;
+  --DS-empty-icon: #b8b09d;
+
+  --DS-bg-blue:   #e8e2d5;
+  --DS-bg-pink:   #eedfd7;
+  --DS-bg-yellow: #f2ebd4;
+  --DS-bg-red:    #f2dbd7;
+
+  --DS-text-pink:   #9f4a38;
+  --DS-text-yellow: #856a1b;
+  --DS-text-red:    #b91c1c;
+
+  /* --- PENDING REQUESTS (cream) --- */
+  --PR-badge-bg:      #e5dfd1;
+  --PR-badge-border:  #cfc8b6;
+  --PR-badge-color:   #4a4436;
+  --PR-ref-bg:        #edeae1;
+  --PR-ref-color:     #575040;
+  --PR-col-color:     #7a7261;
+  --PR-footer-bg:     #f8f6f0;
+  --PR-footer-border: #cfc8b6;
+  --PR-footer-color:  #4a4436;
+  --PR-footer-hover:  #e5dfd1;
+  --PR-footer-hborder:#cfc8b6;
+  --PR-name-color:    #302c23;
+  --PR-type-color:    #575040;
+  --PR-date-color:    #4a4436;
+  --PR-time-color:    #7a7261;
+  --PR-index-color:   #cfc8b6;
+  --PR-divider:       #edeae1;
+  --PR-spinner-track: #cfc8b6;
+  --PR-spinner-head:  #4a4436;
+  --PR-clear-color:   #15803d;
+}
+
+/* =========================================
    3. GLOBAL LAYOUT
    ========================================= */
 .DS_LAYOUT_WRAPPER {
