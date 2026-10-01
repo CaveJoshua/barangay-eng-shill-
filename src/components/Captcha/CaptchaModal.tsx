@@ -20,6 +20,7 @@
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { ShieldCheck, RotateCw, X, ArrowRight, CheckCircle2, AlertTriangle, Check } from 'lucide-react';
+import { CAPTCHA_CHALLENGE_API, CAPTCHA_VERIFY_API, CAPTCHA_EVALUATE_API } from '../UI/api';
 import './CaptchaModal.css';
 
 interface ChallengeData {
@@ -151,13 +152,13 @@ export const CaptchaModal: React.FC = () => {
     trailRef.current = [];
 
     try {
-      const res = await fetch('/api/captcha/challenge', {
+      const res = await fetch(CAPTCHA_CHALLENGE_API, {
         method: 'GET',
         headers: { 'Accept': 'application/json' },
         credentials: 'include'
       });
 
-      if (!res.ok) throw new Error('Challenge request rejected');
+      if (!res.ok) throw new Error(`Challenge request rejected with status ${res.status}`);
       const data: ChallengeData = await res.json();
       setChallenge(data);
 
@@ -171,10 +172,24 @@ export const CaptchaModal: React.FC = () => {
         setPuzzleLoading(false);
       };
       img.onerror = () => {
-        setPuzzleLoading(false);
+        console.warn('[CAPTCHA] Puzzle image load failed with crossOrigin, retrying plain image:', data.imageUrl);
+        const retryImg = new Image();
+        retryImg.src = data.imageUrl;
+        retryImg.onload = () => {
+          imageObjRef.current = retryImg;
+          renderBackground(retryImg, data);
+          renderPiece(retryImg, data, 0);
+          setPuzzleLoading(false);
+        };
+        retryImg.onerror = () => {
+          console.error('[CAPTCHA] Puzzle image asset completely failed to load:', data.imageUrl);
+          setPuzzleStatus('error');
+          setPuzzleMsg('Could not load puzzle image. Try refreshing.');
+          setPuzzleLoading(false);
+        };
       };
-    } catch (err) {
-      console.error('[CAPTCHA] Failed to fetch puzzle challenge:', err);
+    } catch (err: any) {
+      console.error('[CAPTCHA] Failed to fetch puzzle challenge:', err?.message || err);
       setPuzzleStatus('error');
       setPuzzleMsg('Could not load puzzle image. Try refreshing.');
       setPuzzleLoading(false);
@@ -191,7 +206,7 @@ export const CaptchaModal: React.FC = () => {
 
     try {
       // Evaluate connection risk with the backend
-      const res = await fetch('/api/captcha/evaluate', {
+      const res = await fetch(CAPTCHA_EVALUATE_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -291,7 +306,7 @@ export const CaptchaModal: React.FC = () => {
     setPuzzleVerifying(true);
 
     try {
-      const res = await fetch('/api/captcha/verify', {
+      const res = await fetch(CAPTCHA_VERIFY_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

@@ -1,5 +1,14 @@
 // ── ENVIRONMENT ────────────────────────────────────────────────────────────────
-export const PRIMARY_API_URL  = (import.meta.env.VITE_API_BASE_URL       ?? '').replace(/\/$/, '');
+const resolveDefaultApiUrl = (): string => {
+  const envUrl = (import.meta.env.VITE_API_BASE_URL ?? '').trim().replace(/\/$/, '');
+  if (envUrl) return envUrl;
+  if (typeof window !== 'undefined' && window.location.hostname.endsWith('.pages.dev')) {
+    return 'https://barangay-eng-shill.onrender.com/api';
+  }
+  return '/api';
+};
+
+export const PRIMARY_API_URL  = resolveDefaultApiUrl();
 export const CLOUD_API_URL    = (import.meta.env.VITE_API_BASE_URL_CLOUD ?? '').replace(/\/$/, '');
 export const API_BASE_URL     = PRIMARY_API_URL;
 
@@ -60,6 +69,7 @@ export const NOTIF_COUNT_API      = `${API_BASE_URL}/alerts/count`;
 // GraphQL endpoint AUTH_GRAPHQL_API (declared below).
 
 // 🛡️ CAPTCHA ENDPOINTS
+export const CAPTCHA_EVALUATE_API  = `${API_BASE_URL}/captcha/evaluate`;
 export const CAPTCHA_CHALLENGE_API = `${API_BASE_URL}/captcha/challenge`;
 export const CAPTCHA_VERIFY_API    = `${API_BASE_URL}/captcha/verify`;
 

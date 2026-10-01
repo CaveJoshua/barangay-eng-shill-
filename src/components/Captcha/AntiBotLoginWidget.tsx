@@ -17,6 +17,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Check, AlertTriangle } from 'lucide-react';
+import { CAPTCHA_EVALUATE_API } from '../UI/api';
 import './AntiBotLoginWidget.css';
 
 interface AntiBotLoginWidgetProps {
@@ -54,7 +55,7 @@ export const AntiBotLoginWidget: React.FC<AntiBotLoginWidgetProps> = ({
     setEvaluating(true);
 
     try {
-      const res = await fetch('/api/captcha/evaluate', {
+      const res = await fetch(CAPTCHA_EVALUATE_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
