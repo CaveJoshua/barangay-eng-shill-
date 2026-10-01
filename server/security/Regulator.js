@@ -67,7 +67,7 @@ const SECURITY_HEADERS = {
 
     // Cross-Origin Isolation — Spectre mitigation
     'Cross-Origin-Opener-Policy':   'same-origin',
-    'Cross-Origin-Resource-Policy': 'same-origin',
+    'Cross-Origin-Resource-Policy': 'cross-origin',
 
     // Remove fingerprinting header (also set app.disable('x-powered-by') in app.js)
     'X-Powered-By':               undefined,  // Signals removeHeader below

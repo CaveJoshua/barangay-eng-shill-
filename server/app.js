@@ -28,6 +28,7 @@ import { NotificationRouter } from './services/Notification.js';
 import { CaptchaRouter } from './security/captcha.js';
 // 🛡️ SECURITY REGULATOR IMPORT
 import { createSecurityRegulator } from './security/Regulator.js';
+import { corsOptions } from './security/corsConfig.js';
 
 dotenv.config();
 
@@ -141,36 +142,6 @@ export const authorizeRoles = (allowedRoles) => {
 // ==========================================
 // 2. GLOBAL MIDDLEWARE & SECURITY HEADERS
 // ==========================================
-
-const corsOptions = {
-  origin: (origin, callback) => {
-    const allowedLocal = ['http://localhost:5173', 'http://127.0.0.1:5173'];
-    
-    // 🛡️ THE FIX: endsWith('.xxx.pages.dev') only matches SUBDOMAIN preview builds
-    // (e.g. abc123.barangay-engineers-hill.pages.dev) — it never matches the bare
-    // production alias itself (barangay-engineers-hill.pages.dev has no leading
-    // dot before the domain), so production was silently CORS-blocked while every
-    // preview deployment worked. Check both suffix (previews) AND exact origin
-    // (production alias) explicitly.
-    const isCloudflare = origin && (
-      origin === 'https://barangay-engineer-s-hill.pages.dev' ||
-      origin === 'https://barangay-engineers-hill.pages.dev' ||
-      origin.endsWith('.barangay-engineer-s-hill.pages.dev') ||
-      origin.endsWith('.barangay-engineers-hill.pages.dev')
-    );
-
-    if (!origin || allowedLocal.includes(origin) || isCloudflare) {
-      callback(null, true);
-    } else {
-      console.error(`[CORS BLOCKED]: ${origin}`);
-      callback(new Error('Blocked by CORS Policy'));
-    }
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-role', 'x-resident-id', 'X-XSRF-TOKEN'],
-  credentials: true,
-  optionsSuccessStatus: 200
-};
 
 router.use(cors(corsOptions)); 
 

@@ -19,6 +19,7 @@ import { startPulse, handleShutdown } from './security/Regulator.js';
 import { initWebSocketServer, getActiveWebSocketClientsCount } from './lib/WebSocketServer.js';
 import { globalApiLimiter, authLoginLimiter, publicEndpointLimiter } from './lib/RateLimiter.js';
 import { concurrentUserGatekeeper, getActiveUserStats } from './lib/ActiveUserTracker.js';
+import { corsOptions, isAllowedOrigin } from './security/corsConfig.js';
 
 dotenv.config();
 
@@ -31,65 +32,7 @@ if (!ADMIN_GATE_KEY) throw new Error('[FATAL] ADMIN_GATE_KEY is not set in envir
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-const ALLOWED_ORIGINS = [
-    'http://localhost:5173', 'http://127.0.0.1:5173',
-    // Vite falls back to 5174 when 5173 is busy — allow it so local dev isn't CORS-blocked.
-    'http://localhost:5174', 'http://127.0.0.1:5174',
-];
 
-const CLOUDFLARE_DOMAINS = [
-    'barangay-engineer-s-hill.pages.dev',
-    'barangay-engineers-hill.pages.dev',
-];
-
-// subdomain (preview deploys). Matching by parsed hostname avoids the previous bug
-// where a leading-dot endsWith() rejected the apex origin
-// `https://barangay-engineers-hill.pages.dev` (only subdomains matched).
-const isAllowedOrigin = (origin) => {
-    if (!origin) return true;
-    try {
-        const u = new URL(origin);
-        const host = u.hostname;
-        // Local development: allow any port on localhost / 127.0.0.1 / 0.0.0.0
-        if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0') return true;
-        // Cloudflare Pages production & preview domains
-        if (CLOUDFLARE_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`))) return true;
-        // Render & Pages.dev subdomains
-        if (host.endsWith('.onrender.com') || host.endsWith('.pages.dev')) return true;
-    } catch {
-        return false;
-    }
-    return false;
-};
-
-const corsOptions = {
-    origin: (origin, callback) => {
-        if (isAllowedOrigin(origin)) {
-            callback(null, true);
-        } else {
-            console.error(`[CORS BLOCKED]: ${origin}`);
-            callback(new Error('Blocked by CORS Policy'));
-        }
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: [
-        'Content-Type',
-        'Authorization',
-        'x-user-role',
-        'X-XSRF-TOKEN',
-        'X-Requested-With',
-        'Accept',
-        'Origin',
-        'Cache-Control',
-        'Pragma',
-        'X-Trace-Id',
-        'baguio-client-version',
-        'baguio-client-app'
-    ],
-    exposedHeaders: ['X-Trace-Id', 'Retry-After', 'Content-Disposition', 'X-Total-Count'],
-    optionsSuccessStatus: 200
-};
 
 export const authenticateToken = (req, res, next) => {
   const token = req.cookies?.auth_token || req.headers['authorization']?.split(' ')[1];
