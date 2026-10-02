@@ -129,14 +129,20 @@ export const validateResidentForm = (data: IResident): Record<string, string> =>
   // =========================================================================
   // 5. CONTACT & EMAIL
   // =========================================================================
-  // Strictly enforce an 11-digit number starting with 09
+  // Strictly enforce an 11-digit number starting with 09 unless resident has no phone yet
   const phoneRegex = /^09\d{9}$/;
-  if (!data.contact_number || data.contact_number.trim() === "" || data.contact_number === "09") {
-    // Optional: If contact number is truly optional, you can remove this first block.
-    // Assuming it is required based on your previous logic.
-    errors.contact_number = "CONTACT NUMBER IS REQUIRED.";
-  } else if (!phoneRegex.test(data.contact_number)) {
-    errors.contact_number = "INVALID FORMAT: MUST BE EXACTLY 11 NUMBERS STARTING WITH 09.";
+  const hasNoContact = !!data.noContactNumber || data.contact_number === "WALA PANG CONTACT NUMBER" || data.contact_number === "NONE";
+
+  if (!hasNoContact) {
+    if (!data.contact_number || data.contact_number.trim() === "" || data.contact_number === "09") {
+      errors.contact_number = "CONTACT NUMBER IS REQUIRED (O PUMILI NG 'WALA PANG NUMBER').";
+    } else if (!phoneRegex.test(data.contact_number)) {
+      errors.contact_number = "INVALID FORMAT: MUST BE EXACTLY 11 NUMBERS STARTING WITH 09.";
+    }
+  } else {
+    if (data.contact_number && data.contact_number.trim() !== "" && !phoneRegex.test(data.contact_number)) {
+      errors.contact_number = "INVALID FORMAT: MUST BE EXACTLY 11 NUMBERS STARTING WITH 09.";
+    }
   }
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

@@ -40,6 +40,7 @@ export interface IResident {
   sssIdNumber?: string;
   philhealthIdNumber?: string;
   otherIdNumber?: string;
+  noContactNumber?: boolean;
 }
 
 const initialState: IResident = {
@@ -52,7 +53,8 @@ const initialState: IResident = {
   activityStatus: 'Active', isVoter: false, isPWD: false, 
   is4Ps: false, isSoloParent: false, isSeniorCitizen: false,
   voterIdNumber: '', pwdIdNumber: '', soloParentIdNumber: '', seniorIdNumber: '', fourPsIdNumber: '',
-  sssIdNumber: '', philhealthIdNumber: '', otherIdNumber: ''
+  sssIdNumber: '', philhealthIdNumber: '', otherIdNumber: '',
+  noContactNumber: false
 };
 
 const NATIONALITIES = [
@@ -66,7 +68,7 @@ export const ResidentModal: React.FC<{
   residentData: IResident | null;
 }> = ({ isOpen, onClose, onSuccess, residentData }) => {
   const [formData, setFormData] = useState<IResident>(initialState);
-  const [confirmationChannel, setConfirmationChannel] = useState<'email' | 'sms'>('email');
+  const [confirmationChannel, setConfirmationChannel] = useState<'email' | 'sms' | 'manual'>('sms');
   const [registrationStage, setRegistrationStage] = useState<'form' | 'code-pending'>('form');
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [codeInput, setCodeInput] = useState('');
@@ -114,6 +116,7 @@ export const ResidentModal: React.FC<{
         const rawDB = residentData as any;
         setFormData({
           ...residentData,
+          noContactNumber: !residentData.contact_number,
           sssIdNumber: residentData.sssIdNumber || rawDB.sss_id_number || '',
           philhealthIdNumber: residentData.philhealthIdNumber || rawDB.philhealth_id_number || '',
           otherIdNumber: residentData.otherIdNumber || rawDB.other_id_number || '',
@@ -384,7 +387,8 @@ export const ResidentModal: React.FC<{
       firstName: formData.firstName, lastName: formData.lastName, middleName: formData.middleName,
       sex: formData.sex, dob: currentDob, birthCountry: formData.birthCountry,
       birthProvince: formData.birthProvince, birthCity: formData.birthCity, birthPlace: formData.birthPlace,
-      nationality: formData.nationality, religion: formData.religion, contact_number: formData.contact_number,
+      nationality: formData.nationality, religion: formData.religion, 
+      contact_number: formData.noContactNumber ? '' : (formData.contact_number || ''),
       email: formData.email, currentAddress: formData.currentAddress, purok: formData.purok,
       civilStatus: formData.civilStatus, education: formData.education, employment: formData.employment,
       employmentStatus: formData.employmentStatus, occupation: formData.occupation, isVoter: formData.isVoter,
@@ -489,7 +493,8 @@ export const ResidentModal: React.FC<{
       firstName: formData.firstName, lastName: formData.lastName, middleName: formData.middleName,
       sex: formData.sex, dob: currentDob, birthCountry: formData.birthCountry,
       birthProvince: formData.birthProvince, birthCity: formData.birthCity, birthPlace: formData.birthPlace,
-      nationality: formData.nationality, religion: formData.religion, contact_number: formData.contact_number, 
+      nationality: formData.nationality, religion: formData.religion, 
+      contact_number: formData.noContactNumber ? '' : (formData.contact_number || ''), 
       email: formData.email, currentAddress: formData.currentAddress, purok: formData.purok,
       civilStatus: formData.civilStatus, education: formData.education, employment: formData.employment,
       employmentStatus: formData.employmentStatus, occupation: formData.occupation, isVoter: formData.isVoter,
@@ -612,7 +617,7 @@ export const ResidentModal: React.FC<{
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (isUpdateMode) return onSubmit(e);
+            if (isUpdateMode || confirmationChannel === 'manual') return onSubmit(e);
             if (registrationStage === 'form') return handleSendCode();
             return handleConfirmCode();
           }}
@@ -806,8 +811,40 @@ export const ResidentModal: React.FC<{
                   {errors.purok && <span className="RMS_ERROR_TXT">{errors.purok}</span>}
                 </div>
                 <div className="RMS_GROUP">
-                  <label className="RMS_LABEL">CONTACT NUMBER</label>
-                  <input className={`RMS_INPUT ${errors.contact_number ? 'ERR_BORDER' : ''}`} value={formData.contact_number} onChange={e => handleChange('contact_number', e.target.value)} placeholder="09XXXXXXXXX" />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <label className="RMS_LABEL" style={{ marginBottom: 0 }}>
+                      CONTACT NUMBER {formData.noContactNumber ? <span style={{ color: '#64748b', fontSize: '11px', textTransform: 'none' }}>(Wala pang number)</span> : ''}
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', cursor: 'pointer', color: '#2563eb', fontWeight: 600 }}>
+                      <input
+                        type="checkbox"
+                        checked={!!formData.noContactNumber}
+                        onChange={e => {
+                          const checked = e.target.checked;
+                          setFormData(prev => ({
+                            ...prev,
+                            noContactNumber: checked,
+                            contact_number: checked ? '' : prev.contact_number,
+                          }));
+                          if (checked) {
+                            if (errors.contact_number) setErrors(prev => ({ ...prev, contact_number: '' }));
+                            setConfirmationChannel(prev => prev === 'sms' ? (formData.email ? 'email' : 'manual') : prev);
+                          } else {
+                            setConfirmationChannel('sms');
+                          }
+                        }}
+                      />
+                      Wala pang number
+                    </label>
+                  </div>
+                  <input
+                    className={`RMS_INPUT ${errors.contact_number ? 'ERR_BORDER' : ''}`}
+                    value={formData.noContactNumber ? '' : formData.contact_number}
+                    onChange={e => handleChange('contact_number', e.target.value)}
+                    placeholder={formData.noContactNumber ? "WALA PANG CONTACT NUMBER (DIRECT CONFIRMATION)" : "09XXXXXXXXX"}
+                    disabled={!!formData.noContactNumber}
+                    style={formData.noContactNumber ? { backgroundColor: '#f1f5f9', color: '#64748b', cursor: 'not-allowed' } : {}}
+                  />
                   {errors.contact_number && <span className="RMS_ERROR_TXT">{errors.contact_number}</span>}
                 </div>
                 <div className="RMS_GROUP">
@@ -927,30 +964,41 @@ export const ResidentModal: React.FC<{
                       A verification code will be sent to the channel you choose. The resident's
                       account is only created after that code is confirmed.
                     </p>
-                    <div style={{ display: 'flex', gap: '10px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
                       {([
-                        { key: 'email', icon: 'fa-envelope', label: 'Gmail / Email', dest: formData.email },
-                        { key: 'sms', icon: 'fa-mobile-alt', label: 'Text (SMS)', dest: formData.contact_number },
+                        { key: 'sms', icon: 'fa-mobile-alt', label: 'Text (SMS)', dest: formData.contact_number, disabled: !!formData.noContactNumber || !formData.contact_number },
+                        { key: 'email', icon: 'fa-envelope', label: 'Gmail / Email', dest: formData.email, disabled: !formData.email },
+                        { key: 'manual', icon: 'fa-user-check', label: 'Wala pang Number', dest: 'Direct / In-Person Confirmation', disabled: false },
                       ] as const).map(opt => (
                         <button
                           key={opt.key}
                           type="button"
+                          disabled={opt.disabled}
                           onClick={() => setConfirmationChannel(opt.key)}
                           style={{
-                            flex: 1, padding: '12px 10px', borderRadius: 10, cursor: 'pointer',
+                            padding: '12px 10px', borderRadius: 10, cursor: opt.disabled ? 'not-allowed' : 'pointer',
                             textAlign: 'left', fontWeight: 700, fontSize: '0.82rem',
                             border: confirmationChannel === opt.key ? '2px solid #3b82f6' : '1px solid #cbd5e1',
-                            background: confirmationChannel === opt.key ? 'rgba(59,130,246,0.08)' : 'transparent',
-                            color: confirmationChannel === opt.key ? '#2563eb' : 'inherit',
+                            background: confirmationChannel === opt.key ? 'rgba(59,130,246,0.08)' : (opt.disabled ? '#f8fafc' : 'transparent'),
+                            color: confirmationChannel === opt.key ? '#2563eb' : (opt.disabled ? '#94a3b8' : 'inherit'),
+                            opacity: opt.disabled ? 0.6 : 1,
                           }}
                         >
                           <i className={`fas ${opt.icon}`} style={{ marginRight: 6 }}></i>{opt.label}
-                          <div style={{ fontSize: '0.72rem', fontWeight: 500, marginTop: 4, color: opt.dest ? 'inherit' : '#ef4444' }}>
-                            {opt.dest || 'not provided above'}
+                          <div style={{ fontSize: '0.72rem', fontWeight: 500, marginTop: 4, color: opt.dest && !opt.dest.startsWith('Walang') ? 'inherit' : (opt.key === 'manual' ? '#059669' : '#ef4444') }}>
+                            {opt.dest || (opt.key === 'sms' ? 'Walang contact number' : 'Walang email address')}
                           </div>
                         </button>
                       ))}
                     </div>
+                    {confirmationChannel === 'manual' && (
+                      <div style={{ marginTop: '12px', padding: '10px 14px', borderRadius: '8px', background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#065f46', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <i className="fas fa-info-circle" style={{ color: '#059669', fontSize: '1rem' }}></i>
+                        <span>
+                          <strong>Wala pang contact number:</strong> Diretsong mako-confirm at mase-save ng Barangay ang account ng resident nang hindi na kailangan ng SMS OTP.
+                        </span>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <>
@@ -1000,7 +1048,11 @@ export const ResidentModal: React.FC<{
                   SAVING...
                 </>
               ) : (
-                isUpdateMode ? 'UPDATE RECORD' : (registrationStage === 'form' ? 'SEND CODE' : 'VERIFY & CREATE ACCOUNT')
+                isUpdateMode ? 'UPDATE RECORD' : (
+                  confirmationChannel === 'manual'
+                    ? 'CONFIRM & REGISTER RESIDENT'
+                    : (registrationStage === 'form' ? 'SEND CODE' : 'VERIFY & CREATE ACCOUNT')
+                )
               )}
             </button>
           </div>

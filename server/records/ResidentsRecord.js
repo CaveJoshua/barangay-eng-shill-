@@ -235,80 +235,120 @@ const checkDuplicates = async (supabase, {
     const collisions = [];
     const advisories = [];
 
-    // ── 5a. Full Name Match — ADVISORY ONLY. Never blocks, even when the DOB
-    // or a government ID also matches — two records can legitimately be typed
-    // in for the same name (or, per this policy, staff accept the risk of a
-    // true duplicate slipping through in exchange for never blocking a real
-    // namesake). Staff get a heads-up either way.
-    const { data: nameMatches } = await supabase
-        .from('residents_records')
-        .select('record_id, first_name, middle_name, last_name')
-        .ilike('last_name', lastName.trim())
-        .ilike('first_name', firstName.trim())
-        .neq('activity_status', 'Archived');
+    const normFirst = (firstName || '').trim().toLowerCase();
+    const normLast = (lastName || '').trim().toLowerCase();
+    const normMiddle = (middleName || '').trim().toLowerCase();
+    const normDob = (dob || '').trim();
 
-    if (nameMatches?.length) {
-        const normMiddle = (middleName || '').trim().toLowerCase();
-        for (const match of nameMatches) {
-            if (excludeId && match.record_id === excludeId) continue;
-            const existingMiddle = (match.middle_name || '').trim().toLowerCase();
-            if (existingMiddle !== normMiddle) continue;
+    // ── 5a. True Identity Check (Full Name + Date of Birth Collision) ──
+    // A resident is a definite DUPLICATE if they have the exact same First Name,
+    // Last Name, and Date of Birth in the barangay registry.
+    // If they have the same name but DIFFERENT DOB, they are legitimate namesakes
+    // (Senior/Junior, relatives, or namesakes in the barangay) -> ADVISORY.
+    if (normFirst && normLast) {
+        const { data: nameMatches } = await supabase
+            .from('residents_records')
+            .select('record_id, first_name, middle_name, last_name, dob')
+            .ilike('last_name', normLast)
+            .ilike('first_name', normFirst)
+            .neq('activity_status', 'Archived');
 
-            const label = `${match.first_name} ${match.middle_name || ''} ${match.last_name}`.replace(/\s+/g, ' ').trim();
-            advisories.push({
-                field: 'full_name',
-                message: `Note: another resident named "${label}" is already registered.`
-            });
+        if (nameMatches?.length) {
+            for (const match of nameMatches) {
+                if (excludeId && match.record_id === excludeId) continue;
+                const existingMiddle = (match.middle_name || '').trim().toLowerCase();
+                // If middle name is provided on both and does not match, they are different individuals
+                if (normMiddle && existingMiddle && normMiddle !== existingMiddle) continue;
+
+                const label = `${match.first_name} ${match.middle_name || ''} ${match.last_name}`.replace(/\s+/g, ' ').trim();
+                const existingDob = (match.dob || '').trim();
+
+                // If Date of Birth matches (and both are non-empty), this is an identical person!
+                if (normDob && existingDob && normDob === existingDob) {
+                    collisions.push({
+                        field: 'full_name',
+                        message: `Duplicate resident: "${label}" with date of birth ${normDob} is already registered in Barangay Engineer's Hill.`
+                    });
+                } else {
+                    advisories.push({
+                        field: 'full_name',
+                        message: `Note: another resident named "${label}" is already registered (Birthdate: ${existingDob || 'N/A'}).`
+                    });
+                }
+            }
         }
     }
 
-    // ── 5b. Contact Number Match — hard block, global (unchanged). ──
+    // ── 5b. Contact Number Match — SMART HOUSEHOLD / SHARED NUMBER CHECK ──
+    // In Philippine communities, multiple family members frequently share a mobile phone.
+    // - If no number is provided, skip cleanly.
+    // - If phone matches a resident with the SAME name -> COLLISION (Duplicate Account).
+    // - If phone matches a resident with a DIFFERENT name -> ADVISORY ONLY (Shared household number allowed).
     const safePhone = (contact_number || '').trim().replace(/\s+/g, '');
-    if (safePhone) {
+    if (safePhone && safePhone !== 'N/A' && safePhone !== 'NONE' && safePhone.length >= 7) {
         const { data: phoneMatches } = await supabase
             .from('residents_records')
-            .select('record_id, first_name, last_name, contact_number')
+            .select('record_id, first_name, middle_name, last_name, dob, contact_number')
             .eq('contact_number', safePhone)
             .neq('activity_status', 'Archived');
 
         if (phoneMatches?.length) {
             for (const match of phoneMatches) {
                 if (excludeId && match.record_id === excludeId) continue;
-                collisions.push({
-                    field: 'contact_number',
-                    message: `Contact number "${safePhone}" is already registered to ${match.first_name} ${match.last_name}.`
-                });
+                const matchFirst = (match.first_name || '').trim().toLowerCase();
+                const matchLast = (match.last_name || '').trim().toLowerCase();
+                const matchDob = (match.dob || '').trim();
+
+                const isSamePerson = (matchFirst === normFirst && matchLast === normLast) ||
+                                     (normDob && matchDob && normDob === matchDob && matchLast === normLast);
+
+                if (isSamePerson) {
+                    collisions.push({
+                        field: 'contact_number',
+                        message: `Contact number "${safePhone}" is already registered under your name (${match.first_name} ${match.last_name}). Duplicate account is not allowed.`
+                    });
+                } else {
+                    advisories.push({
+                        field: 'contact_number',
+                        message: `Notice: Contact number "${safePhone}" is shared with registered resident ${match.first_name} ${match.last_name}.`
+                    });
+                }
             }
         }
     }
 
-    // ── 5c. Email Match — hard block, global (unchanged). ──
+    // ── 5c. Email Match — SMART HOUSEHOLD / PERSONAL CHECK ──
     const safeEmail = (email || '').trim().toLowerCase();
     if (safeEmail && safeEmail.includes('@')) {
         const { data: emailMatches } = await supabase
             .from('residents_records')
-            .select('record_id, first_name, last_name, email')
+            .select('record_id, first_name, last_name, dob, email')
             .ilike('email', safeEmail)
             .neq('activity_status', 'Archived');
 
         if (emailMatches?.length) {
             for (const match of emailMatches) {
                 if (excludeId && match.record_id === excludeId) continue;
-                collisions.push({
-                    field: 'email',
-                    message: `Email "${safeEmail}" is already registered to ${match.first_name} ${match.last_name}.`
-                });
+                const matchFirst = (match.first_name || '').trim().toLowerCase();
+                const matchLast = (match.last_name || '').trim().toLowerCase();
+
+                if (matchFirst === normFirst && matchLast === normLast) {
+                    collisions.push({
+                        field: 'email',
+                        message: `Email "${safeEmail}" is already registered to you (${match.first_name} ${match.last_name}). Duplicate account is not allowed.`
+                    });
+                } else {
+                    advisories.push({
+                        field: 'email',
+                        message: `Notice: Email "${safeEmail}" is shared with registered resident ${match.first_name} ${match.last_name}.`
+                    });
+                }
             }
         }
     }
 
-    // ── 5d. Government ID Match — hard block, GLOBAL across every resident,
-    // not just ones that already matched on name (this closes a real gap:
-    // today two differently-named residents could share an SSS number
-    // undetected). IDs are stored uppercased by the frontend (Resident_modal.tsx
-    // uppercases every ID field on change), so `.eq()` against the uppercased
-    // input is an exact, safe match — no `.ilike()` wildcard-injection risk
-    // from a `%`/`_` character inside a real ID number.
+    // ── 5d. Government ID Match — HARD BLOCK (GLOBAL) ──
+    // National government IDs are strictly 1:1 per citizen.
     const idChecks = [
         ['voter_id_number', voterIdNumber, 'Voter ID'],
         ['pwd_id_number', pwdIdNumber, 'PWD ID'],
